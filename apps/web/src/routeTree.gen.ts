@@ -45,6 +45,8 @@ import { Route as AuthedWorkspaceCrmDealsIndexRouteImport } from "./routes/_auth
 import { Route as AuthedWorkspaceCrmDealsIdRouteImport } from "./routes/_authed/$workspace/crm/deals.$id";
 import { Route as AuthedWorkspaceCrmPeopleIndexRouteImport } from "./routes/_authed/$workspace/crm/people.index";
 import { Route as AuthedWorkspaceCrmPeopleIdRouteImport } from "./routes/_authed/$workspace/crm/people.$id";
+import { Route as AuthedWorkspaceCrmTasksIndexRouteImport } from "./routes/_authed/$workspace/crm/tasks.index";
+import { Route as AuthedWorkspaceCrmTasksIdRouteImport } from "./routes/_authed/$workspace/crm/tasks.$id";
 import { Route as AuthedWorkspaceFilesMyIndexRouteImport } from "./routes/_authed/$workspace/files/my.index";
 import { Route as AuthedWorkspaceFilesMyFolderIdRouteImport } from "./routes/_authed/$workspace/files/my.$folderId";
 import { Route as AuthedWorkspaceFilesSharedIndexRouteImport } from "./routes/_authed/$workspace/files/shared.index";
@@ -259,6 +261,18 @@ const AuthedWorkspaceCrmPeopleIdRoute =
     path: "/people/$id",
     getParentRoute: () => AuthedWorkspaceCrmRoute,
   } as any);
+const AuthedWorkspaceCrmTasksIndexRoute =
+  AuthedWorkspaceCrmTasksIndexRouteImport.update({
+    id: "/tasks/",
+    path: "/tasks/",
+    getParentRoute: () => AuthedWorkspaceCrmRoute,
+  } as any);
+const AuthedWorkspaceCrmTasksIdRoute =
+  AuthedWorkspaceCrmTasksIdRouteImport.update({
+    id: "/tasks/$id",
+    path: "/tasks/$id",
+    getParentRoute: () => AuthedWorkspaceCrmRoute,
+  } as any);
 const AuthedWorkspaceFilesMyIndexRoute =
   AuthedWorkspaceFilesMyIndexRouteImport.update({
     id: "/files/my/",
@@ -377,6 +391,7 @@ export interface FileRoutesByFullPath {
   "/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
   "/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
   "/$workspace/crm/people/$id": typeof AuthedWorkspaceCrmPeopleIdRoute;
+  "/$workspace/crm/tasks/$id": typeof AuthedWorkspaceCrmTasksIdRoute;
   "/$workspace/files/my/$folderId": typeof AuthedWorkspaceFilesMyFolderIdRoute;
   "/$workspace/files/shared/$folderId": typeof AuthedWorkspaceFilesSharedFolderIdRoute;
   "/$workspace/mail/all/$threadId": typeof AuthedWorkspaceMailAllThreadIdRoute;
@@ -392,6 +407,7 @@ export interface FileRoutesByFullPath {
   "/$workspace/crm/companies/": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
   "/$workspace/crm/deals/": typeof AuthedWorkspaceCrmDealsIndexRoute;
   "/$workspace/crm/people/": typeof AuthedWorkspaceCrmPeopleIndexRoute;
+  "/$workspace/crm/tasks/": typeof AuthedWorkspaceCrmTasksIndexRoute;
   "/$workspace/files/my/": typeof AuthedWorkspaceFilesMyIndexRoute;
   "/$workspace/files/shared/": typeof AuthedWorkspaceFilesSharedIndexRoute;
 }
@@ -427,6 +443,7 @@ export interface FileRoutesByTo {
   "/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
   "/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
   "/$workspace/crm/people/$id": typeof AuthedWorkspaceCrmPeopleIdRoute;
+  "/$workspace/crm/tasks/$id": typeof AuthedWorkspaceCrmTasksIdRoute;
   "/$workspace/files/my/$folderId": typeof AuthedWorkspaceFilesMyFolderIdRoute;
   "/$workspace/files/shared/$folderId": typeof AuthedWorkspaceFilesSharedFolderIdRoute;
   "/$workspace/mail/all/$threadId": typeof AuthedWorkspaceMailAllThreadIdRoute;
@@ -442,6 +459,7 @@ export interface FileRoutesByTo {
   "/$workspace/crm/companies": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
   "/$workspace/crm/deals": typeof AuthedWorkspaceCrmDealsIndexRoute;
   "/$workspace/crm/people": typeof AuthedWorkspaceCrmPeopleIndexRoute;
+  "/$workspace/crm/tasks": typeof AuthedWorkspaceCrmTasksIndexRoute;
   "/$workspace/files/my": typeof AuthedWorkspaceFilesMyIndexRoute;
   "/$workspace/files/shared": typeof AuthedWorkspaceFilesSharedIndexRoute;
 }
@@ -480,6 +498,7 @@ export interface FileRoutesById {
   "/_authed/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
   "/_authed/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
   "/_authed/$workspace/crm/people/$id": typeof AuthedWorkspaceCrmPeopleIdRoute;
+  "/_authed/$workspace/crm/tasks/$id": typeof AuthedWorkspaceCrmTasksIdRoute;
   "/_authed/$workspace/files/my/$folderId": typeof AuthedWorkspaceFilesMyFolderIdRoute;
   "/_authed/$workspace/files/shared/$folderId": typeof AuthedWorkspaceFilesSharedFolderIdRoute;
   "/_authed/$workspace/mail/all/$threadId": typeof AuthedWorkspaceMailAllThreadIdRoute;
@@ -495,6 +514,7 @@ export interface FileRoutesById {
   "/_authed/$workspace/crm/companies/": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
   "/_authed/$workspace/crm/deals/": typeof AuthedWorkspaceCrmDealsIndexRoute;
   "/_authed/$workspace/crm/people/": typeof AuthedWorkspaceCrmPeopleIndexRoute;
+  "/_authed/$workspace/crm/tasks/": typeof AuthedWorkspaceCrmTasksIndexRoute;
   "/_authed/$workspace/files/my/": typeof AuthedWorkspaceFilesMyIndexRoute;
   "/_authed/$workspace/files/shared/": typeof AuthedWorkspaceFilesSharedIndexRoute;
 }
@@ -533,6 +553,7 @@ export interface FileRouteTypes {
     | "/$workspace/crm/companies/$id"
     | "/$workspace/crm/deals/$id"
     | "/$workspace/crm/people/$id"
+    | "/$workspace/crm/tasks/$id"
     | "/$workspace/files/my/$folderId"
     | "/$workspace/files/shared/$folderId"
     | "/$workspace/mail/all/$threadId"
@@ -548,6 +569,7 @@ export interface FileRouteTypes {
     | "/$workspace/crm/companies/"
     | "/$workspace/crm/deals/"
     | "/$workspace/crm/people/"
+    | "/$workspace/crm/tasks/"
     | "/$workspace/files/my/"
     | "/$workspace/files/shared/";
   fileRoutesByTo: FileRoutesByTo;
@@ -583,6 +605,7 @@ export interface FileRouteTypes {
     | "/$workspace/crm/companies/$id"
     | "/$workspace/crm/deals/$id"
     | "/$workspace/crm/people/$id"
+    | "/$workspace/crm/tasks/$id"
     | "/$workspace/files/my/$folderId"
     | "/$workspace/files/shared/$folderId"
     | "/$workspace/mail/all/$threadId"
@@ -598,6 +621,7 @@ export interface FileRouteTypes {
     | "/$workspace/crm/companies"
     | "/$workspace/crm/deals"
     | "/$workspace/crm/people"
+    | "/$workspace/crm/tasks"
     | "/$workspace/files/my"
     | "/$workspace/files/shared";
   id:
@@ -635,6 +659,7 @@ export interface FileRouteTypes {
     | "/_authed/$workspace/crm/companies/$id"
     | "/_authed/$workspace/crm/deals/$id"
     | "/_authed/$workspace/crm/people/$id"
+    | "/_authed/$workspace/crm/tasks/$id"
     | "/_authed/$workspace/files/my/$folderId"
     | "/_authed/$workspace/files/shared/$folderId"
     | "/_authed/$workspace/mail/all/$threadId"
@@ -650,6 +675,7 @@ export interface FileRouteTypes {
     | "/_authed/$workspace/crm/companies/"
     | "/_authed/$workspace/crm/deals/"
     | "/_authed/$workspace/crm/people/"
+    | "/_authed/$workspace/crm/tasks/"
     | "/_authed/$workspace/files/my/"
     | "/_authed/$workspace/files/shared/";
   fileRoutesById: FileRoutesById;
@@ -915,6 +941,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedWorkspaceCrmPeopleIdRouteImport;
       parentRoute: typeof AuthedWorkspaceCrmRoute;
     };
+    "/_authed/$workspace/crm/tasks/": {
+      id: "/_authed/$workspace/crm/tasks/";
+      path: "/tasks";
+      fullPath: "/$workspace/crm/tasks/";
+      preLoaderRoute: typeof AuthedWorkspaceCrmTasksIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
+    };
+    "/_authed/$workspace/crm/tasks/$id": {
+      id: "/_authed/$workspace/crm/tasks/$id";
+      path: "/tasks/$id";
+      fullPath: "/$workspace/crm/tasks/$id";
+      preLoaderRoute: typeof AuthedWorkspaceCrmTasksIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
+    };
     "/_authed/$workspace/files/my/": {
       id: "/_authed/$workspace/files/my/";
       path: "/files/my";
@@ -1021,9 +1061,11 @@ interface AuthedWorkspaceCrmRouteChildren {
   AuthedWorkspaceCrmCompaniesIdRoute: typeof AuthedWorkspaceCrmCompaniesIdRoute;
   AuthedWorkspaceCrmDealsIdRoute: typeof AuthedWorkspaceCrmDealsIdRoute;
   AuthedWorkspaceCrmPeopleIdRoute: typeof AuthedWorkspaceCrmPeopleIdRoute;
+  AuthedWorkspaceCrmTasksIdRoute: typeof AuthedWorkspaceCrmTasksIdRoute;
   AuthedWorkspaceCrmCompaniesIndexRoute: typeof AuthedWorkspaceCrmCompaniesIndexRoute;
   AuthedWorkspaceCrmDealsIndexRoute: typeof AuthedWorkspaceCrmDealsIndexRoute;
   AuthedWorkspaceCrmPeopleIndexRoute: typeof AuthedWorkspaceCrmPeopleIndexRoute;
+  AuthedWorkspaceCrmTasksIndexRoute: typeof AuthedWorkspaceCrmTasksIndexRoute;
 }
 
 const AuthedWorkspaceCrmRouteChildren: AuthedWorkspaceCrmRouteChildren = {
@@ -1031,9 +1073,11 @@ const AuthedWorkspaceCrmRouteChildren: AuthedWorkspaceCrmRouteChildren = {
   AuthedWorkspaceCrmCompaniesIdRoute: AuthedWorkspaceCrmCompaniesIdRoute,
   AuthedWorkspaceCrmDealsIdRoute: AuthedWorkspaceCrmDealsIdRoute,
   AuthedWorkspaceCrmPeopleIdRoute: AuthedWorkspaceCrmPeopleIdRoute,
+  AuthedWorkspaceCrmTasksIdRoute: AuthedWorkspaceCrmTasksIdRoute,
   AuthedWorkspaceCrmCompaniesIndexRoute: AuthedWorkspaceCrmCompaniesIndexRoute,
   AuthedWorkspaceCrmDealsIndexRoute: AuthedWorkspaceCrmDealsIndexRoute,
   AuthedWorkspaceCrmPeopleIndexRoute: AuthedWorkspaceCrmPeopleIndexRoute,
+  AuthedWorkspaceCrmTasksIndexRoute: AuthedWorkspaceCrmTasksIndexRoute,
 };
 
 const AuthedWorkspaceCrmRouteWithChildren =

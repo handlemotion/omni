@@ -68,6 +68,17 @@ import {
 import { lookupCrm, searchCrm } from "./crm/search.ts";
 import { getSettings, putSettings } from "./crm/settings.ts";
 import { replaceStages, stagesOf, type StageInput } from "./crm/stages.ts";
+import {
+  countTasks,
+  createTask,
+  deleteTask,
+  getTask,
+  listTasks,
+  updateTask,
+  type ListTasksInput,
+  type TaskInput,
+  type TaskPatch,
+} from "./crm/tasks.ts";
 
 export {
   BULK_MAX,
@@ -163,6 +174,16 @@ export {
   type StageInput,
 } from "./crm/stages.ts";
 export {
+  type CrmTask,
+  type CrmTaskCursor,
+  type InvalidAssignee,
+  type InvalidTitle,
+  type ListTasksInput,
+  type TaskInput,
+  type TaskPatch,
+  type TaskResult,
+} from "./crm/tasks.ts";
+export {
   enterFirstStage,
   moveDealStage,
   type DealStageState,
@@ -255,6 +276,14 @@ export function memberCrm(db: Db, memberId: string) {
       asMember(door, (m, ex) => eventsOf(ex, m, record, page)),
     notes: (record: CrmRecordRef, page: TimelinePage = {}) =>
       asMember(door, (m, ex) => notesOf(ex, m, record, page)),
+
+    listTasks: (input: ListTasksInput = {}) => asMember(door, (m, ex) => listTasks(ex, m, input)),
+    taskCounts: () => asMember(door, (m, ex) => countTasks(ex, m)),
+    task: (id: string) => asMember(door, (m, ex) => getTask(ex, m, id)),
+    createTask: (input: TaskInput) => writeAsMember(door, (m, tx) => createTask(tx, m, input)),
+    updateTask: (id: string, patch: TaskPatch) =>
+      writeAsMember(door, (m, tx) => updateTask(tx, m, id, patch)),
+    deleteTask: (id: string) => writeAsMember(door, (m, tx) => deleteTask(tx, m, id)),
 
     search: (input: { q: string; limit?: number }) =>
       asMember(door, (m, ex) => searchCrm(ex, m, input)),

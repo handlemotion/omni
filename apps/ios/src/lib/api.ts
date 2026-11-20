@@ -4,6 +4,7 @@ import {
   createApi,
   createAuth,
   toApiError,
+  type Api,
   type ApiErrorInfo,
 } from "@omni/client";
 import * as SecureStore from "./secure-store";
@@ -26,7 +27,7 @@ export const auth = createAuth({
  * Typed Hono RPC calls with the session attached, naming the app's workspace. Prefer `call()` to
  * unwrap them.
  */
-export const api = createApi({
+export const api: Api = createApi({
   baseUrl: config.apiUrl,
   headers: () => {
     const headers: Record<string, string> = {};

@@ -1,0 +1,99 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { schema } from "@omni/db";
+import { eq } from "drizzle-orm";
+import { chromium, type Browser } from "playwright-core";
+import { afterAll, beforeAll, expect, test } from "vitest";
+import {
+  createMailbox,
+  createMember,
+  createOrg,
+  createTestDatabase,
+  signIn,
+  startMailServiceEndpoint,
+  startWorkerWithNetwork,
+  SYSTEM_MAIL_FROM,
+  type TestDb,
+} from "../../worker/e2e/support.ts";
+
+let database: Awaited<ReturnType<typeof createTestDatabase>>;
+let db: TestDb;
+let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
+let worker: Awaited<ReturnType<typeof startWorkerWithNetwork>>;
+let browser: Browser;
+
+beforeAll(async () => {
+  database = await createTestDatabase();
+  db = database.db;
+  mailService = await startMailServiceEndpoint();
+  const port = await freePort();
+  worker = await startWorkerWithNetwork({
+    databaseUrl: database.url,
+    mailServiceUrl: mailService.url,
+    port,
+    vars: { BETTER_AUTH_URL: `http://127.0.0.1:${port}`, RATE_LIMIT_AUTH: "off" },
+  });
+  const system = await createOrg(db, "system");
+  await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
+  browser = await chromium.launch().catch(() => chromium.launch({ channel: "chrome" }));
+});
+
+afterAll(async () => {
+  await browser?.close();
+  await worker?.close();
+  await mailService?.close();
+  await database?.teardown();
+});
+
+test("checking a task off in the list completes it, and notes typed on its page are saved", async () => {
+  const origin = String(worker.url);
+  const org = await createOrg(db, "studio");
+  await db.insert(schema.orgSetup).values({ orgId: org.id, step: "complete" });
+  const email = `tasks-${Date.now()}@studio.test`;
+  const member = await createMember(db, org.id, email);
+  await db.update(schema.members).set({ role: "owner" }).where(eq(schema.members.id, member.id));
+  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const headers = { cookie, origin, "content-type": "application/json", "omni-workspace": org.id };
+  const made = await fetch(new URL("/api/crm/tasks", origin), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ title: "Send the proposal" }),
+  });
+  expect(made.status).toBe(201);
+  const { task } = (await made.json()) as { task: { id: string } };
+
+  const context = await browser.newContext();
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await context.newPage();
+  await page.goto(new URL(`/${org.slug}/crm/tasks`, origin).toString());
+  await page.getByRole("checkbox", { name: "Complete Send the proposal" }).click({ force: true });
+  await expect
+    .poll(async () => (await row(task.id))?.completedAt ?? null, { timeout: 10_000 })
+    .not.toBeNull();
+
+  await page.goto(new URL(`/${org.slug}/crm/tasks/${task.id}`, origin).toString());
+  await page.getByRole("textbox", { name: "Notes" }).fill("Ask for the Q1 budget.");
+  await page.getByRole("textbox", { name: "Title" }).click();
+  await expect
+    .poll(async () => (await row(task.id))?.body ?? null, { timeout: 10_000 })
+    .toBe("Ask for the Q1 budget.");
+  await context.close();
+});
+
+async function row(id: string) {
+  const [found] = await db.select().from(schema.crmTasks).where(eq(schema.crmTasks.id, id));
+  return found;
+}
+
+async function freePort() {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return port;
+}

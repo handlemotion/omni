@@ -498,6 +498,7 @@ export const crmChangedKindSchema = z.enum([
   "stages",
   "settings",
   "contract",
+  "task",
 ]);
 export const crmChangedEventSchema = z.object({
   type: z.literal("crm.changed"),

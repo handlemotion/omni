@@ -112,11 +112,13 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "crm_deal_people",
       "crm_deals",
       "crm_events",
+      "crm_file_links",
       "crm_notes",
       "crm_people",
       "crm_person_emails",
       "crm_settings",
       "crm_stages",
+      "crm_tasks",
     ].toSorted(),
   );
 });

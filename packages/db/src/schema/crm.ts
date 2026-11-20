@@ -379,3 +379,4 @@ export const crmSettings = pgTable("crm_settings", {
   rootFolderNodeId: folderRef("root_folder_node_id"),
 });
 export * from "./crm/files.ts";
+export * from "./crm/tasks.ts";

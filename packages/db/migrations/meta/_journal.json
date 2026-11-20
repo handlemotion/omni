@@ -393,6 +393,13 @@
       "when": 1795184416970,
       "tag": "0055_crm_file_links",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795185041828,
+      "tag": "0056_crm_tasks",
+      "breakpoints": true
     }
   ]
 }

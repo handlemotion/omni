@@ -1,4 +1,4 @@
-import { createApi, createAuth, toApiError, type ApiErrorInfo } from "@omni/client";
+import { createApi, createAuth, toApiError, type Api, type ApiErrorInfo } from "@omni/client";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
 import { workspaceHeaders } from "./current-workspace.ts";
@@ -8,7 +8,7 @@ import { tracedFetch } from "./telemetry.ts";
 const origin = window.location.origin;
 
 /** Typed Hono RPC calls: `api.threads.$get({ query })`. Prefer `call()` to unwrap them. */
-export const api = createApi({
+export const api: Api = createApi({
   baseUrl: origin,
   headers: workspaceHeaders,
   fetch: (input, init) => takeStartupResponse(input, init) ?? tracedFetch(input, init),

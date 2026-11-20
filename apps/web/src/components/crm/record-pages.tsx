@@ -23,6 +23,7 @@ import { RecordFiles } from "./record-files.tsx";
 import { byAddress } from "@/components/avatar/sender-avatar";
 import { DetailSection, NoneRow, RecordLayout, RecordState, RelatedRow } from "./record-layout.tsx";
 import { DAY } from "./record-list.tsx";
+import { RecordTasks } from "./tasks.tsx";
 import { Timeline } from "./timeline.tsx";
 
 const day = (iso: string | null) => (iso ? DAY.format(new Date(iso)) : null);
@@ -119,6 +120,7 @@ export function CompanyPage({ id }: { id: string }) {
         }
         tabs={[
           { id: "timeline", label: "Timeline", panel: <Timeline kind="companies" id={id} /> },
+          { id: "tasks", label: "Tasks", panel: <RecordTasks kind="companies" id={id} /> },
           {
             id: "files",
             label: "Files",
@@ -231,7 +233,10 @@ export function PersonPage({ id }: { id: string }) {
             <PlainValue label="Added">{day(person.createdAt)}</PlainValue>
           </DetailSection>
         }
-        tabs={[{ id: "timeline", label: "Timeline", panel: <Timeline kind="people" id={id} /> }]}
+        tabs={[
+          { id: "timeline", label: "Timeline", panel: <Timeline kind="people" id={id} /> },
+          { id: "tasks", label: "Tasks", panel: <RecordTasks kind="people" id={id} /> },
+        ]}
       />
       {choosing && (
         <ChooseCompanyDialog
@@ -332,6 +337,7 @@ export function DealPage({ id }: { id: string }) {
         }
         tabs={[
           { id: "timeline", label: "Timeline", panel: <Timeline kind="deals" id={id} /> },
+          { id: "tasks", label: "Tasks", panel: <RecordTasks kind="deals" id={id} /> },
           {
             id: "files",
             label: "Files",

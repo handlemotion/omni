@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export * from "./storage.ts";
 export * from "./crm.ts";
+export * from "./crm-tasks.ts";
 export * from "./mail.ts";
 export * from "./errors.ts";
 export * from "./error-schemas.ts";

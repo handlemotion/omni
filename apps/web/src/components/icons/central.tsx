@@ -115,3 +115,5 @@ export { IconConnectors1 as IconConnections } from "central-icons-outlined/IconC
 export { IconChatBubbleSimple as IconCommentPlain } from "central-icons-outlined/IconChatBubbleSimple";
 export { IconCursor1 as IconCursor } from "central-icons-outlined/IconCursor1";
 export { IconCircleCheck as IconCircleCheckFilled } from "central-icons-filled/IconCircleCheck";
+export { IconChecklist } from "central-icons-outlined/IconChecklist";
+export { IconCalendarDays } from "central-icons-outlined/IconCalendarDays";

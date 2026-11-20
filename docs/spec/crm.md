@@ -29,7 +29,7 @@ mail and the files the workspace already has in Omni.
 **Non-goals for v1** (each is additive later)
 
 - Custom fields, lists, saved views, tags, several pipelines.
-- Tasks, reminders, record merging, imports.
+- Reminders, record merging, imports.
 - Stored "last contacted" facts, and sharing a personal mailbox's activity with the workspace.
 - AI on records.
 - The client dashboard, deliverables and signing.
@@ -61,6 +61,8 @@ mail and the files the workspace already has in Omni.
 - **Note.** Text on one company, person or deal.
 - **Contract.** A title, a status (`draft`, `sent`, `signed`, `ended`), three dates and a
   file, on a deal or a company.
+- **Task.** A title, notes, an assignee, a due time, done or open, on one company, person or
+  deal, or on none.
 
 Every member of the company sees and edits all of it.
 
@@ -117,6 +119,8 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `GET /lookup?address=`                                              | Up to 50 addresses. The people, companies and open deals that match, for the conversation sidebar.           |
 | `GET /search?q=`                                                    | People, companies and deals whose name, address or domain starts with the words. For pickers.                |
 | `GET /settings` · `PUT /settings`                                   | The default currency.                                                                                        |
+| `GET /tasks` · `POST /tasks` · `GET /tasks/counts`                  | List by `?status=`, `?assignee=`, `?due=`, `?company=`/`?person=`/`?deal=`, `?q=` (see Tasks). Create. Counts.    |
+| `GET /tasks/:id` · `PATCH` · `DELETE`                               | Read. Change, complete or reopen (`done`), move to another record. Delete.                                   |
 
 - Every list takes `sort` (`name`, `created`, `updated`; deals also `value`, `closeOn`,
   `stageEntered`), `dir`, `owner` (an id or `none`), `createdAfter`, `createdBefore` and
@@ -150,6 +154,23 @@ One list, newest first, of four kinds of item:
   Personal space included. It is their own mail, shown only to them.
 - Each source is asked for one page older than the cursor; the pages are merged and cut to the
   limit. The cursor is the last item's time and id.
+
+### Tasks
+
+- `crm_tasks` holds them: on at most one record (a check constraint), cascading with it.
+  Assigned to the creator unless the request says otherwise (`assigneeMemberId: null` is
+  nobody); a removed member leaves their tasks unassigned.
+- `due_at` is a moment. A client picking a day sends the end of that day in its own time zone,
+  so "overdue" (`due_at < now()`) is the same answer on every client.
+- Done is `completed_at`, with who did it. `PATCH { done }` sets or clears it; completing a done
+  task changes nothing.
+- `GET /tasks` lists open tasks soonest due first, undated last, and `?status=done` most recently
+  completed first, each with a partial index and a keyset cursor. `?assignee=` takes a member
+  id, `me` or `none`; `?due=` is `overdue`, `upcoming` or `none`. Each task carries its record's
+  name.
+- A record's tasks are its own: a company's panel does not gather its deals' tasks.
+- Writes publish `crm.changed` with kind `task`, plus the record's kind. Tasks write no timeline
+  events yet. Not yet: reminders, recurring tasks, subtasks, several records per task, MCP tools.
 
 ## Records parity
 

@@ -310,6 +310,7 @@ const CRM_CHANGED_KINDS: Record<CrmChangedKind, true> = {
   stages: true,
   settings: true,
   contract: true,
+  task: true,
 };
 
 const parseCrmEvent: (event: Record<string, unknown>) => CrmChangedEvent | undefined = (event) => {
