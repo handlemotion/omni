@@ -1,19 +1,51 @@
 import * as Sentry from "@sentry/browser";
-import { PRIVATE_DATA_COLLECTION, scrubBreadcrumb, scrubEvent } from "@omni/mail-core/telemetry";
+import {
+  areaOf,
+  capEvents,
+  PRIVATE_DATA_COLLECTION,
+  sampleTrace,
+  scrubBreadcrumb,
+  scrubEvent,
+  scrubFields,
+} from "@omni/mail-core/telemetry";
 
 /** The header the Worker reads, logs, stores on outbox rows and echoes back. */
 export const REQUEST_ID_HEADER = "x-request-id";
 
+const UNACTIONABLE_ERRORS = [
+  /^Failed to fetch$/,
+  /^Load failed$/,
+  /^NetworkError when attempting to fetch resource\.?$/,
+  /^AbortError\b/,
+  /The operation was aborted/,
+  /Failed to fetch dynamically imported module/,
+  /Importing a module script failed/,
+  /error loading dynamically imported module/,
+  /ResizeObserver loop/,
+];
+
+const EXTENSION_URLS = [/^(?:chrome|moz|safari(?:-web)?)-extension:\/\//];
+
 export function initErrorReporting() {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
   if (!dsn) return;
+  const capErrors = capEvents();
   Sentry.init({
     dsn,
     environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || "production",
     dataCollection: PRIVATE_DATA_COLLECTION,
-    beforeSend: (event) => scrubEvent(event),
+    integrations: [Sentry.browserTracingIntegration()],
+    tracesSampler: (context) => sampleTrace({ ...context, location: context.location ?? location }),
+    ignoreErrors: UNACTIONABLE_ERRORS,
+    denyUrls: EXTENSION_URLS,
+    beforeSend: (event) => capErrors(scrubEvent(withArea(event))),
+    beforeSendSpan: (span) => scrubFields(span),
     beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
   });
+}
+
+function withArea<E extends { tags?: Record<string, unknown> }>(event: E) {
+  return { ...event, tags: { area: areaOf(location.pathname), ...event.tags } };
 }
 
 /**

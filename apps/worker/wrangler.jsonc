@@ -9,6 +9,10 @@
   // Production vars and secrets set in the dashboard or by CI survive deploys.
   "keep_vars": true,
   "observability": { "enabled": true },
+  // Source maps: wrangler emits them; scripts/deploy-cloudflare.mjs uploads them to Sentry under
+  // the version id below when SENTRY_AUTH_TOKEN, SENTRY_ORG and SENTRY_PROJECT are set.
+  "upload_source_maps": true,
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   // The web app (apps/web) is served from here, on the same origin as the API. Wrangler builds it
   // before `dev` and `deploy`. The Worker runs first only for its own paths; every other path is
   // a file from the build, or index.html so client-side routes deep-link.

@@ -9,8 +9,10 @@
 # and UI libraries inject <style> at runtime. Scripts stay 'self' only, which is what stops XSS,
 # plus Stripe.js for adding a card in Billing (Stripe's own list: docs.stripe.com/security/guide,
 # "Stripe.js"; its card fields and 3-D Secure run in Stripe's frames, and it talks to Stripe's API).
+# connect-src also allows Sentry's hosted ingest hosts, where the browser SDK sends errors when
+# the build has VITE_SENTRY_DSN; a self-hosted Sentry adds its own host here.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.stripe.com; frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.stripe.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io; frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
   Strict-Transport-Security: max-age=63072000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: same-origin

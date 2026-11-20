@@ -562,7 +562,11 @@ To deploy from git with Cloudflare Workers Builds instead, use build command
 `pnpm --filter @omni/web build`, deploy command `pnpm --filter @omni/worker deploy:cloudflare`,
 root `/`, and build variables `HYPERDRIVE_ID`, `WORKER_DOMAIN` (optional, comma-separated) and
 `WORKER_VAR_<NAME>` for each var you change from `wrangler.jsonc`
-(`apps/worker/scripts/deploy-cloudflare.mjs`). Set secrets with `wrangler secret`; deploys keep
+(`apps/worker/scripts/deploy-cloudflare.mjs`). For readable Worker stack traces in Sentry, also
+set `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_WORKER_PROJECT`: the script then uploads the
+bundle's source maps under the deployed version id, which the Worker reports as its release
+(a failed upload never fails the deploy). The web build in the same Workers Build reads
+`VITE_SENTRY_DSN`, and with `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT` uploads its own. Set secrets with `wrangler secret`; deploys keep
 them.
 
 To work on the web app with hot reload, run the Worker with `BETTER_AUTH_URL` set to Vite's
@@ -600,10 +604,17 @@ All three units are observable without any extra service; Sentry is optional eve
   Worker passes it to the mail service as `x-omni-request-id`, covered by the HMAC signature (a
   forged or stripped ID fails verification), and stores it on `mail_actions.request_id` and on
   AI queue jobs. Search either unit's logs for it to follow one action across processes.
-- **Sentry** (`SENTRY_DSN`, `VITE_SENTRY_DSN`): errors only. The SDKs collect no headers,
-  cookies, bodies, query strings or user info, and every event and breadcrumb is scrubbed of mail
-  content, addresses and credentials before it leaves (`packages/mail-core/src/telemetry.ts`).
-  Events are tagged with the request ID.
+- **Sentry** (`SENTRY_DSN`, `VITE_SENTRY_DSN`): errors, plus sampled traces from the Worker and
+  the web app, sized for Sentry's free plan (`packages/mail-core/src/telemetry.ts`): 2% of
+  requests and page loads, 10% of Drive's (`/api/storage/*`, `/:workspace/files/*`, `/s/:id`),
+  none for `/health`, the realtime socket or the every-minute cron, and a web trace continues
+  into the Worker. Each tab or isolate sends at most 50 errors, and the web app drops errors
+  nobody can act on (offline fetches, aborted requests, stale chunks after a deploy, browser
+  extensions). No session replay or profiling. The SDKs collect no headers, cookies, bodies,
+  query strings or user info, and every event, span and breadcrumb is scrubbed of mail content,
+  addresses and credentials before it leaves. Events are tagged with the request ID and an
+  `area` (`drive` or `other`). The web app's CSP (`apps/web/public/_headers`) allows Sentry's
+  hosted ingest hosts; a self-hosted Sentry adds its own host there.
 - **Dead letters**: AI jobs that used up their retries (`dead_letters`, written by the Worker's
   consumers) and outbox actions that failed for good (`mail_actions` with status `failed`), with
   their error and request ID, in one listing:

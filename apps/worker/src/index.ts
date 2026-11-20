@@ -1,5 +1,12 @@
 import * as Sentry from "@sentry/cloudflare";
-import { PRIVATE_DATA_COLLECTION, scrubBreadcrumb, scrubEvent } from "@omni/mail-core/telemetry";
+import {
+  capEvents,
+  PRIVATE_DATA_COLLECTION,
+  sampleTrace,
+  scrubBreadcrumb,
+  scrubEvent,
+  scrubFields,
+} from "@omni/mail-core/telemetry";
 import { createStripeClient } from "@omni/auth";
 import { Effect } from "effect";
 import { pruneAbandonedSignUps } from "./abandoned-sign-ups.ts";
@@ -21,14 +28,18 @@ export { Realtime } from "./realtime.ts";
 export { RateLimiter } from "./rate-limiter.ts";
 export { ReplayGuard } from "./replay-guard.ts";
 
+const capErrorsPerIsolate = capEvents();
+
 export default Sentry.withSentry(
   (env: Env) => ({
     dsn: env.SENTRY_DSN || undefined,
     enabled: Boolean(env.SENTRY_DSN),
     environment: env.ENVIRONMENT || "production",
+    release: env.CF_VERSION_METADATA.id,
     dataCollection: PRIVATE_DATA_COLLECTION,
-    beforeSend: (event) => scrubEvent(event),
-    beforeSendTransaction: (event) => scrubEvent(event),
+    tracesSampler: sampleTrace,
+    beforeSend: (event) => capErrorsPerIsolate(scrubEvent(event)),
+    beforeSendSpan: (span) => scrubFields(span),
     beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
   }),
   {

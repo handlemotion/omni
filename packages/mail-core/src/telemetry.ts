@@ -91,3 +91,65 @@ export const scrubBreadcrumb: <B extends { category?: string }>(breadcrumb: B) =
   if (breadcrumb.category === "console") return null;
   return scrubFields(breadcrumb);
 };
+
+/**
+ * Sentry's free plan is a small monthly quota shared by every project in the organization, so
+ * traces are sampled and errors are capped. Errors are what we watch; a trace is context.
+ * Drive (uploads, downloads, sharing, sync) is sampled five times as often as the rest while it
+ * is the area under work. Raise a rate only after Sentry's Stats page shows room.
+ */
+export const TRACE_SAMPLE_RATES = { drive: 0.1, other: 0.02 } as const;
+
+const UNTRACED =
+  /^(?:[A-Z]+ )?(?:\/health\b|\/assets\/|\/api\/realtime\b|\/api\/auth\/get-session\b|\/favicon)|^Scheduled Cron \* \* \* \* \*$/;
+const DRIVE_PATH = /(?:^|\s)(?:\/api\/storage|\/[^/\s]+\/files|\/s)(?:\/|$)/;
+
+/** The area a request path or span name belongs to, as a Sentry tag (`area`). */
+export function areaOf(nameOrPath: string) {
+  return DRIVE_PATH.test(nameOrPath) ? "drive" : "other";
+}
+
+/**
+ * For Sentry's `tracesSampler`. With span streaming (the v11 default) a span starts with a
+ * generic name (`GET`, a page-load placeholder), so the path comes from the request (Worker) or
+ * the page's location (browser). A trace the caller already sampled keeps that decision, so a
+ * web trace continues into the Worker instead of being sampled twice.
+ */
+export function sampleTrace(context: {
+  name: string;
+  location?: { pathname?: string } | undefined;
+  normalizedRequest?: { url?: string | undefined; method?: string | undefined } | undefined;
+  inheritOrSampleWith: (fallbackRate: number) => number;
+}) {
+  const subject = traceSubject(context);
+  if (UNTRACED.test(subject)) return 0;
+  return context.inheritOrSampleWith(TRACE_SAMPLE_RATES[areaOf(subject)]);
+}
+
+function traceSubject(context: Parameters<typeof sampleTrace>[0]) {
+  const url = context.normalizedRequest?.url;
+  if (url) return `${context.normalizedRequest?.method ?? ""} ${pathOf(url)}`.trim();
+  if (context.location?.pathname) return context.location.pathname;
+  return context.name;
+}
+
+function pathOf(url: string) {
+  try {
+    return new URL(url, "http://local").pathname;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Most error events one process sends: a render loop or a retry storm then costs at most this
+ * many from the monthly quota per tab or isolate, instead of all of it. Sentry still groups and
+ * counts the issue from what got through.
+ */
+export const MAX_ERRORS_PER_PROCESS = 50;
+
+/** Returns a `beforeSend` step that drops events once `max` have gone out. */
+export function capEvents(max = MAX_ERRORS_PER_PROCESS) {
+  let sent = 0;
+  return <E>(event: E) => (sent++ < max ? event : null);
+}

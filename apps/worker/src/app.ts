@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/cloudflare";
+import { areaOf } from "@omni/mail-core/telemetry";
 import { withSignInRequest } from "@omni/auth";
 import { REQUEST_ID_HEADER as SIGNED_REQUEST_ID_HEADER } from "@omni/crypto";
 import { orgSetupStep, schema } from "@omni/db";
@@ -68,6 +69,7 @@ const trace = createMiddleware<AppEnv>(async (c, next) => {
   c.set("requestId", requestId);
   c.set("log", log);
   Sentry.setTag("request_id", requestId);
+  Sentry.setTag("area", areaOf(c.req.path));
   const started = Date.now();
   try {
     await next();

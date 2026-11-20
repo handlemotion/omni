@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scrubBreadcrumb, scrubEvent } from "./telemetry.ts";
+import { capEvents, sampleTrace, scrubBreadcrumb, scrubEvent } from "./telemetry.ts";
 
 describe("scrubEvent", () => {
   it("removes addresses from exception messages, like an SMTP rejection", () => {
@@ -83,5 +83,55 @@ describe("scrubEvent", () => {
 
   it("drops console breadcrumbs", () => {
     expect(scrubBreadcrumb({ category: "console", message: "ana@acme.test" })).toBeNull();
+  });
+});
+
+describe("sampleTrace", () => {
+  const fresh = (rate: number) => rate;
+
+  it.each([
+    ["Scheduled Cron * * * * *", 0],
+    ["GET /health", 0],
+    ["GET /api/realtime", 0],
+    ["GET /assets/index-abc.js", 0],
+    ["PUT /api/storage/uploads/up_1/parts/3", 0.1],
+    ["POST /api/storage/sync/changes", 0.1],
+    ["/acme/files/folder/fld_1", 0.1],
+    ["/s/shr_1", 0.1],
+    ["Scheduled Cron 47 3 * * *", 0.02],
+    ["GET /api/threads/thr_1", 0.02],
+    ["/acme/mail/inbox", 0.02],
+  ])("%s → %s", (name, rate) => {
+    expect(sampleTrace({ name, inheritOrSampleWith: fresh })).toBe(rate);
+  });
+
+  it("keeps the caller's decision so a web trace continues into the Worker", () => {
+    expect(sampleTrace({ name: "GET /api/threads/thr_1", inheritOrSampleWith: () => 1 })).toBe(1);
+  });
+});
+
+describe("capEvents", () => {
+  it("lets the first events through and drops the rest of a storm", () => {
+    const cap = capEvents(2);
+    expect([1, 2, 3, 4].map((n) => cap({ n }))).toEqual([{ n: 1 }, { n: 2 }, null, null]);
+  });
+});
+
+describe("sampleTrace with streamed spans' generic names", () => {
+  const fresh = (rate: number) => rate;
+
+  it.each([
+    [{ normalizedRequest: { method: "GET", url: "https://omni.test/health" } }, 0],
+    [
+      {
+        normalizedRequest: { method: "PUT", url: "https://omni.test/api/storage/uploads/u?part=1" },
+      },
+      0.1,
+    ],
+    [{ normalizedRequest: { method: "GET", url: "https://omni.test/api/threads" } }, 0.02],
+    [{ location: { pathname: "/acme/files/fld_1" } }, 0.1],
+    [{ location: { pathname: "/acme/mail/inbox" } }, 0.02],
+  ])("%j → %s", (context, rate) => {
+    expect(sampleTrace({ name: "GET", inheritOrSampleWith: fresh, ...context })).toBe(rate);
   });
 });

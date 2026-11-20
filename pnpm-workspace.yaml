@@ -19,6 +19,8 @@ allowBuilds:
   "@central-icons-react/round-filled-radius-3-stroke-1.5": false
   "@central-icons-react-native/round-outlined-radius-3-stroke-1.5": false
   "@central-icons-react-native/round-filled-radius-3-stroke-1.5": false
+  # sentry-cli's postinstall only fetches a binary its optional platform package already ships.
+  "@sentry/cli": false
   bun: true
   esbuild: true
   lefthook: true
