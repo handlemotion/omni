@@ -5,6 +5,8 @@ import {
   IconComment,
   IconSignature,
   IconDownload,
+  IconFilePdf,
+  IconFileText,
   IconFolderMove,
   IconPencil,
   IconSparkle,
@@ -13,6 +15,7 @@ import {
 } from "@/components/icons/central";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { useMember } from "@/hooks/use-session.ts";
+import { useExportDoc } from "@/hooks/use-export-doc.ts";
 import { useStorageList, useTrashNode } from "@/hooks/use-storage.ts";
 import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
@@ -22,6 +25,8 @@ import { storageErrorToast } from "./storage-errors.ts";
 import { SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { downloadFile, downloadZip } from "@/lib/download.ts";
+import { fileType } from "@/lib/file-kind.ts";
+import type { DocExport } from "./editor/export-doc.ts";
 
 const EMPTY = {
   personal: { title: "No files yet", description: "Files you add here are yours alone." },
@@ -79,6 +84,16 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
 const fileUrl = (node: StorageNode) => storageFileUrl(node.id);
 const download = (node: StorageNode) => downloadFile(fileUrl(node));
 
+type ExportDoc = (node: StorageNode, format: DocExport) => void;
+
+const docExports = (node: StorageNode, exportAs: ExportDoc) =>
+  node.kind === "file" && fileType(node.name, node.mimeType).language === "markdown"
+    ? [
+        { icon: IconFilePdf, label: "Export as PDF", onAction: () => exportAs(node, "pdf") },
+        { icon: IconFileText, label: "Export as Word", onAction: () => exportAs(node, "docx") },
+      ]
+    : [];
+
 export function useCanTrash() {
   const { member } = useMember();
   const manager = /\b(owner|admin)\b/.test(member.role);
@@ -92,6 +107,15 @@ export function useCanTrash() {
 export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
   const trash = useTrashNode();
   const trashNode = trash.mutate;
+  const exportDoc = useExportDoc().mutate;
+  const exportAs = useCallback<ExportDoc>(
+    (node, format) =>
+      exportDoc(
+        { node, format },
+        { onError: (error) => storageErrorToast(error, `“${node.name}” was not exported`) },
+      ),
+    [exportDoc],
+  );
   return useCallback(
     (node: StorageNode, open: (dialog: FolderDialog) => void) => {
       const result: SettingsRowMenuItem[] = [
@@ -100,6 +124,7 @@ export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
           label: "Download",
           onAction: () => (node.kind === "file" ? download(node) : downloadZip([node.id])),
         },
+        ...docExports(node, exportAs),
         { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
         { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
         ...(node.kind === "folder" && node.parentId === null
@@ -152,6 +177,6 @@ export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
       ];
       return result;
     },
-    [canTrash, trashNode],
+    [canTrash, trashNode, exportAs],
   );
 }

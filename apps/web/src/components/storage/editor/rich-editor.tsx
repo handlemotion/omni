@@ -1,32 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { Collaboration, isChangeOrigin } from "@tiptap/extension-collaboration";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { TableKit } from "@tiptap/extension-table";
-import { Markdown } from "@tiptap/markdown";
-import { Editor, EditorContent, useEditor, type Extensions } from "@tiptap/react";
-import { StarterKit } from "@tiptap/starter-kit";
+import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useMemo, useState } from "react";
 import type * as Y from "yjs";
 import { openLiveDoc, type LiveDoc } from "@/lib/live-doc.ts";
 import { sessionQuery } from "@/lib/session.ts";
 import type { EditorProps } from "./document-editor.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
+import { docExtensions } from "./doc-schema.ts";
 import { SlashMenu } from "./slash-menu.tsx";
 import SourceEditor from "./source-editor.tsx";
 import "./rich-editor.css";
 
-const blocks = (live: boolean) => {
-  const result: Extensions = [
-    StarterKit.configure({ link: { openOnClick: false }, ...(live ? { undoRedo: false } : {}) }),
-    TaskList,
-    TaskItem.configure({ nested: true }),
-    TableKit.configure({ table: { resizable: false } }),
-    SlashMenu,
-    Markdown,
-  ];
-  return result;
-};
+const blocks = (live: boolean) => [...docExtensions({ history: !live }), SlashMenu];
 
 const EXTENSIONS = blocks(false);
 

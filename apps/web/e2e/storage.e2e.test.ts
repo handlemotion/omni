@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createOrgWithOwner, schema } from "@omni/db";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import { strFromU8, unzipSync } from "fflate";
 import { chromium, type Browser, type BrowserContext } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { utils, write, type WorkSheet } from "xlsx";
@@ -79,6 +80,47 @@ test("a file larger than one part uploads from the page and downloads byte for b
   const saved = await readFile(await download.path());
   expect(saved.byteLength).toBe(bytes.byteLength);
   expect(sha256(saved)).toBe(sha256(bytes));
+});
+
+test("a doc exported as Word keeps its headings, to-dos, marks and table", async () => {
+  const page = await signedIn(`word-${Date.now()}@gmail.test`, "/files/my");
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  const text =
+    "# Plan\n\nShip **soon**.\n\n- [x] Draft\n- [ ] Review\n\n| Who | When |\n| --- | --- |\n| Ana | Monday |\n\n```\nfirst();\n\nthird();\n```\n\nUp\\\n\\\nDown\n\n1. Step\n   - Aside\n\nThen\n\n4. Fourth\n";
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({ name: "export.md", mimeType: "text/markdown", buffer: Buffer.from(text) });
+  await page.getByRole("row", { name: /export\.md/ }).waitFor({ timeout: 30_000 });
+
+  await page.getByRole("button", { name: "Actions for export.md" }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("menuitem", { name: "Export as Word" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe("export.docx");
+  const files = unzipSync(new Uint8Array(await readFile(await download.path())));
+  const xml = strFromU8(files["word/document.xml"] ?? new Uint8Array());
+  const paragraphs = xml.split("</w:p>");
+  const holding = (words: string) => paragraphs.find((p) => p.includes(words)) ?? "";
+  expect(holding(">Plan<")).toContain('w:val="Heading1"');
+  expect(holding(">soon<")).toMatch(/<w:b\/>[\s\S]*>soon</);
+  expect(xml).toContain("☑ ");
+  expect(holding(">Review<")).toContain("☐ ");
+  const table = xml.slice(xml.indexOf("<w:tbl>"), xml.indexOf("</w:tbl>"));
+  for (const cell of ["Who", "When", "Ana", "Monday"]) expect(table).toContain(`>${cell}<`);
+  expect(holding(">Up<")).toMatch(/>Up<[\s\S]*<w:br\/>[\s\S]*<w:br\/>[\s\S]*>Down</);
+  const numId = (words: string) => /<w:numId w:val="(\d+)"/.exec(holding(words))?.[1];
+  expect(numId(">Aside<")).toBeDefined();
+  expect(numId(">Aside<")).not.toBe(numId(">Step<"));
+  const numbering = strFromU8(files["word/numbering.xml"] ?? new Uint8Array());
+  expect(numbering).toContain('<w:start w:val="4"/>');
+  expect(holding(">first();<")).toMatch(
+    />first\(\);<[\s\S]*<w:br\/>[\s\S]*<w:br\/>[\s\S]*>third\(\);</,
+  );
 });
 
 test("a link open to anyone downloads its file, byte for byte, for someone signed out", async () => {

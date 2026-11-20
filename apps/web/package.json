@@ -57,6 +57,7 @@
     "central-icons-outlined": "npm:@central-icons-react/round-outlined-radius-3-stroke-1.5@^1.2.27",
     "cmdk": "^1.1.1",
     "cn": "^0.5.2",
+    "docx": "9.5.1",
     "embla-carousel-react": "^8.6.0",
     "glimm": "^0.4.1",
     "hono": "^4.13.19",
@@ -64,6 +65,7 @@
     "motion": "^14.14.0",
     "papaparse": "5.7.1",
     "pdfjs-dist": "6.5.438",
+    "prosemirror-docx": "0.6.1",
     "react": "^19.3.1",
     "react-aria-components": "^1.22.1",
     "react-data-grid": "7.0.0-beta.64",
@@ -94,6 +96,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "drizzle-orm": "^0.45.4",
+    "fflate": "0.8.3",
     "playwright-core": "1.65.1",
     "vite": "^8.3.8"
   }
