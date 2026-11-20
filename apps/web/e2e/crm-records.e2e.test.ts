@@ -188,7 +188,9 @@ test("a deal moves to the next stage from the keyboard: Space, Right arrow, Spac
   const { deal } = await team.api("POST", "/deals", { name: "Keyed deal", stageId: lead!.id });
   const page = await team.page("/crm/deals");
   await card(page, "Keyed deal").getByRole("link").focus();
+  const resting = await page.getByText("Keyed deal").count();
   await page.keyboard.press("Space");
+  await expect.poll(() => page.getByText("Keyed deal").count()).toBe(resting + 1);
   await page.keyboard.press("ArrowRight");
   await page
     .getByRole("region", { name: next!.name, exact: true })

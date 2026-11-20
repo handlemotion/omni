@@ -415,7 +415,7 @@ export function TaskRow(props: {
     <li
       ref={props.lift?.ref}
       onPointerDownCapture={props.lift?.onPointerDownCapture}
-      className={`group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out hover:bg-hover ${props.lift?.hidden ? "invisible" : ""}`}
+      className={`group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out hover:bg-hover ${props.lift?.hidden ? "opacity-0" : ""}`}
     >
       <CheckboxField
         aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
