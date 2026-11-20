@@ -4,11 +4,13 @@
 /// update; one in Trash (`inTrash`, itself or under a trashed folder) is a deletion, and a
 /// restore arrives later as an update.
 ///
-/// A tombstone (`node: null`) is not a deletion yet. Both drives of a workspace share one item
-/// identifier per node, and a node moved between `My files` and `Shared` is a tombstone in one
-/// feed and an update in the other, in whichever order the drives are read. So an update seen
-/// in the same batch wins, and the rest are `unresolved`: look each one up
-/// (`GET /sync/:orgId/nodes/:id`) and delete it only on a `404`.
+/// A tombstone (`node: null`) says itself whether the node is `gone` for this person: then it is
+/// a deletion. Both drives of a workspace share one item identifier per node, and a node moved
+/// between `My files` and `Shared` is a tombstone in one feed and an update in the other, in
+/// whichever order the drives are read; its tombstone says it is not gone, and only the update
+/// counts. A tombstone from an older server says neither, and an update seen in the same batch
+/// wins; the rest are `unresolved`: look each one up (`GET /sync/:orgId/nodes/:id`) and delete
+/// it only on a `404`.
 public struct ChangeBatch: Sendable {
     public private(set) var updated: [StorageNode] = []
     public private(set) var deleted: [ItemID] = []
@@ -32,7 +34,12 @@ public struct ChangeBatch: Sendable {
             switch (change.node, change.inTrash) {
             case let (node?, false): updated.append(node)
             case (_?, true): deleted.append(item)
-            case (nil, _): unresolved.append(item)
+            case (nil, _):
+                switch change.gone {
+                case true?: deleted.append(item)
+                case false?: break
+                case nil: unresolved.append(item)
+                }
             }
         }
     }

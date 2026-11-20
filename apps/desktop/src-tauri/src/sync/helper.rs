@@ -1,9 +1,10 @@
 //! Runs `omni-sync` (apps/desktop/macos/Sources/OmniSyncHelper) and reads its one line of JSON.
 
+use std::io::Read;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use omni_sync_types::{
     DesktopSyncDone, DesktopSyncSignIn, DesktopSyncState, DesktopSyncStatus, DesktopSyncTokens,
@@ -18,23 +19,66 @@ use tauri::{AppHandle, Manager, Runtime, Url};
 #[derive(Default)]
 struct Pending(Mutex<Option<(String, Url)>>);
 
-const POLL: Duration = Duration::from_secs(60);
+/// Longest any one run may take. A helper stuck on the system (a File Provider call that never
+/// answers) is killed, so the command that ran it answers instead of hanging the switch.
+const TIMEOUT: Duration = Duration::from_secs(60);
 
 fn path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|error| error.to_string())?;
     Ok(exe.with_file_name("omni-sync"))
 }
 
-/// One run of the helper. A failure is its stderr line.
-fn run<T: DeserializeOwned>(args: &[&str]) -> Result<T, String> {
-    let output = Command::new(path()?)
+/// One run of the helper, killed after `TIMEOUT`. A failure is its stderr line.
+pub fn run<T: DeserializeOwned>(args: &[&str]) -> Result<T, String> {
+    let mut child = Command::new(path()?)
         .args(args)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|error| format!("omni-sync did not start: {error}"))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    let drain = |pipe: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            if let Some(mut pipe) = pipe {
+                let _ = pipe.read_to_end(&mut bytes);
+            }
+            bytes
+        })
+    };
+    let stdout = drain(
+        child
+            .stdout
+            .take()
+            .map(|pipe| Box::new(pipe) as Box<dyn Read + Send>),
+    );
+    let stderr = drain(
+        child
+            .stderr
+            .take()
+            .map(|pipe| Box::new(pipe) as Box<dyn Read + Send>),
+    );
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+            break status;
+        }
+        if started.elapsed() > TIMEOUT {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!(
+                "omni-sync {} did not answer in {}s",
+                args.first().unwrap_or(&""),
+                TIMEOUT.as_secs()
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let stdout = stdout.join().unwrap_or_default();
+    let stderr = stderr.join().unwrap_or_default();
+    if !status.success() {
+        return Err(String::from_utf8_lossy(&stderr).trim().to_owned());
     }
-    serde_json::from_slice(&output.stdout).map_err(|error| format!("omni-sync answered: {error}"))
+    serde_json::from_slice(&stdout).map_err(|error| format!("omni-sync answered: {error}"))
 }
 
 /// Runs the helper off the async runtime's threads.
@@ -114,19 +158,31 @@ pub async fn finish_sign_in<R: Runtime>(app: &AppHandle<R>, url: String) -> Resu
     Ok(())
 }
 
+/// The workspaces sync is on for now, when the app holds a grant.
+pub fn synced<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
+    if !keychain::holds(app) {
+        return Vec::new();
+    }
+    run::<DesktopSyncStatus>(&["status"]).map_or_else(
+        |_| Vec::new(),
+        |status| {
+            status
+                .workspaces
+                .into_iter()
+                .filter(|workspace| workspace.state == DesktopSyncState::Synced)
+                .map(|workspace| workspace.org_id)
+                .collect()
+        },
+    )
+}
+
+/// Asks the extension to read the change feeds. A failure here is the extension's to report, as
+/// a badge in Finder.
+pub fn signal() {
+    let _: Result<DesktopSyncDone, String> = run(&["signal"]);
+}
+
 pub fn start<R: Runtime>(app: &AppHandle<R>) {
     app.manage(Pending::default());
-    let app = app.clone();
-    std::thread::spawn(move || {
-        loop {
-            std::thread::sleep(POLL);
-            let synced = keychain::holds(&app)
-                && run::<DesktopSyncStatus>(&["status"])
-                    .is_ok_and(|status| !status.workspaces.is_empty());
-            if synced {
-                // A failure here is the extension's to report, as a badge in Finder.
-                let _: Result<DesktopSyncDone, String> = run(&["signal"]);
-            }
-        }
-    });
+    super::watch::start(app);
 }

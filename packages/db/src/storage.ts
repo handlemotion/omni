@@ -241,7 +241,7 @@ export function memberStorage(db: Db, memberId: string) {
       page: { cursor?: StorageSyncCursor | null; limit?: number } = {},
     ) {
       const drive = await door.root(db, space);
-      return drive ? listChanges(db, drive, page) : ({ status: "not_found" } as const);
+      return drive ? listChanges(db, drive, memberId, page) : ({ status: "not_found" } as const);
     },
     async usage() {
       const member = await loadMember(db, memberId);

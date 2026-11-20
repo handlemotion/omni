@@ -150,7 +150,7 @@ when they are not in it) and everything goes through `db.forMember(memberId).sto
 | `storage_nodes.content_version` int                              | Goes up when a file's bytes are replaced. With `revision` it is File Provider's `itemVersion` (content, metadata).                                                                                                        |
 | `storage_nodes.content_sha256` text, nullable                    | Sent by the client that uploaded, so a provider can tell "same bytes" without downloading. Null for files uploaded before this.                                                                                                                     |
 | `storage_sync_state` (org_id, revision)                          | The counter. One row per workspace.                                                                                                                                                                                                                 |
-| `storage_tombstones` (org_id, node_id, space, owner_member_id, revision) | A node that left a drive for good: deleted forever, purged from Trash, or moved to the other space. Kept 90 days, then swept by the daily cron.                                                                                             |
+| `storage_tombstones` (org_id, node_id, space, owner_member_id, revision) | A node that left a drive for good: deleted forever, purged from Trash, or moved to the other space. Kept 90 days, then swept by the daily cron. |
 
 Existing rows get `revision` in a backfill migration step that is safe to run twice.
 
@@ -159,7 +159,7 @@ Existing rows get `revision` in a backfill migration step that is safe to run tw
 | Route                                         | Does                                                                                                                                                                                                                                              |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /sync/drives`                            | Every workspace the person belongs to, with its name and its drives: `personal`, and `shared` in a company, each with its current revision.                                                                                                       |
-| `GET /sync/:orgId/changes?space=&cursor=&limit=`     | Nodes of that drive with `revision > cursor`, in order, live and trashed, plus tombstones as `{ id, deleted: true }`. Answers `nextCursor` and `more`. No cursor: the whole drive, paged. A cursor older than tombstone retention: `410 cursor_expired`, and the provider re-enumerates. |
+| `GET /sync/:orgId/changes?space=&cursor=&limit=`     | Nodes of that drive with `revision > cursor`, in order, live and trashed, plus tombstones as `{ id, node: null, gone }`: `gone` is false when the node moved to another drive the caller syncs (that feed reports it), true otherwise; where the node is now decides. An older Worker leaves `gone` out, and the client looks the node up. Answers `nextCursor` and `more`. No cursor: the whole drive, paged. A cursor older than tombstone retention: `410 cursor_expired`, and the provider re-enumerates. |
 | `GET /sync/:orgId/nodes/:id`                       | One node, for the provider's item lookup.                                                                                                                                                                                                         |
 | `POST /files/:id/versions` (`ifContentVersion`, `sha256`), then `POST /uploads/:id/complete?ifContentVersion=` | Replaces a file's bytes in place: on complete, the node keeps its id, name and sharing, takes the new object, and its `content_version` goes up; the old object is deleted after the row commits. A stale `ifContentVersion` answers `409 version_conflict` and stores nothing. |
 | `PATCH /nodes/:id`, `DELETE /nodes/:id` gain `ifRevision` (optional) | The same guard for rename, move and trash. Without it they behave as today.                                                                                                                                             |
@@ -174,8 +174,10 @@ token picks the member. Rate limit: `RATE_LIMIT_STORAGE_SYNC`, per token.
 
 The workspace's Durable Object gains `{ type: "storage.changed", space }`, sent after any commit
 that bumps a revision. The Tauri shell holds one such websocket per synced workspace (bearer
-token) while it runs and signals the provider; without the socket it polls `/sync/drives` every 60 seconds and compares
-revisions. The web app can use the same event later to stop refetching lists on focus.
+token, `src-tauri/src/sync/watch.rs`) while it runs, window open or not, and signals the provider
+on each message, a burst counting as one; while a socket is down it signals every 60 seconds
+instead. The provider skips a drive whose `/sync/drives` revision has not moved since it last read
+that drive's feed to the end. The web app can use the same event later to stop refetching lists on focus.
 
 ### Conflicts
 
@@ -400,12 +402,14 @@ edges. Schema changes go through `db:generate`, never a hand-written migration.
   `revision`, both as the decimal string's bytes. A folder's content version is constant.
 - **Capabilities.** Made-up levels: read and enumerate; a space folder also allows adding
   children. A locked file (`lockedAt`): read only. Everything else: all of them, with delete
-  meaning Trash.
+  meaning Trash. Every node can be excluded from sync; "Remove Download" is the system's own default from macOS 13.
 - **Enumeration.** A folder's first listing is `GET /nodes?parent=` paged to the end. Changes
   come from the working-set enumerator only: its sync anchor is a small JSON map,
   `{ "<orgId>:<space>": <cursor> }`, one entry per synced drive, and `enumerateChanges` walks
   each drive's `/changes` from its cursor. A `410` on any drive answers
-  `NSFileProviderError(.syncAnchorExpired)` and the system starts over. Trashed nodes and
+  `NSFileProviderError(.syncAnchorExpired)` and the system starts over: the working set's
+  `enumerateItems` then lists every live node of every drive (each feed from no cursor), so the
+  system removes only what is really gone and evicts nothing it still has. Trashed nodes and
   tombstones are reported as deletions; a restore arrives as an update and reappears.
 - **Turning a workspace on or off** changes the root's children: signal the root and the working
   set. Turning one off removes its folder from the computer and nothing from the server.

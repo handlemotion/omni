@@ -29,6 +29,12 @@ pub fn holds<R: Runtime>(app: &AppHandle<R>) -> bool {
     generic_password(options(app)).is_ok()
 }
 
+/// The grant, for the realtime socket's bearer token. The extension refreshes it; the app only
+/// reads what it last wrote.
+pub fn read<R: Runtime>(app: &AppHandle<R>) -> Option<DesktopSyncTokens> {
+    serde_json::from_slice(&generic_password(options(app)).ok()?).ok()
+}
+
 pub fn store<R: Runtime>(app: &AppHandle<R>, tokens: &DesktopSyncTokens) -> Result<(), String> {
     let bytes = serde_json::to_vec(tokens).map_err(|error| error.to_string())?;
     set_generic_password_options(&bytes, options(app))

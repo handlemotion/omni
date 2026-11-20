@@ -213,7 +213,7 @@ test("a cursor behind swept tombstones answers 410; starting over works", async 
   expect((await sync(token, "DELETE", `/${acme.id}/nodes/${fileId}?forever=1`)).status).toBe(204);
   const past = await drain(token, acme.id, "personal", behind.cursor);
   expect(past.changes).toEqual([
-    { id: fileId, revision: expect.any(Number), node: null, inTrash: false },
+    { id: fileId, revision: expect.any(Number), node: null, inTrash: false, gone: true },
   ]);
 
   await stack.db

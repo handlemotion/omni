@@ -24,7 +24,8 @@ public func contentVersion(of version: NSFileProviderItemVersion) -> Int? {
 }
 
 /// What Finder lets the person do. The made-up levels can be read and listed, and a space folder
-/// takes new children; a locked file is read only. Delete means Trash on the server.
+/// takes new children; a locked file is read only. Delete means Trash on the server. Any node's
+/// download can be removed ("Remove Download") and the node kept off this computer.
 public func capabilities(of item: ItemID, node: StorageNode? = nil) -> NSFileProviderItemCapabilities {
     let browse: NSFileProviderItemCapabilities = [.allowsReading, .allowsContentEnumerating]
     switch item {
@@ -33,10 +34,11 @@ public func capabilities(of item: ItemID, node: StorageNode? = nil) -> NSFilePro
     case .space:
         return browse.union(.allowsAddingSubItems)
     case .node:
-        if node?.lockedAt != nil { return [.allowsReading] }
+        let local: NSFileProviderItemCapabilities = [.allowsExcludingFromSync]
+        if node?.lockedAt != nil { return local.union(.allowsReading) }
         if node?.kind == .folder {
-            return browse.union([.allowsAddingSubItems, .allowsRenaming, .allowsReparenting, .allowsDeleting])
+            return browse.union(local).union([.allowsAddingSubItems, .allowsRenaming, .allowsReparenting, .allowsDeleting])
         }
-        return [.allowsReading, .allowsWriting, .allowsRenaming, .allowsReparenting, .allowsDeleting]
+        return local.union([.allowsReading, .allowsWriting, .allowsRenaming, .allowsReparenting, .allowsDeleting])
     }
 }

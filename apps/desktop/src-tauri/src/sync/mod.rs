@@ -12,6 +12,8 @@
 mod helper;
 #[cfg(target_os = "macos")]
 mod keychain;
+#[cfg(target_os = "macos")]
+mod watch;
 
 #[cfg(not(target_os = "macos"))]
 use omni_sync_types::DesktopSyncState;
@@ -82,8 +84,8 @@ pub async fn oauth_callback<R: Runtime>(app: AppHandle<R>, url: String) -> Resul
     }
 }
 
-/// Starts what keeps Finder current while the app runs: until the `storage.changed` socket is
-/// held here, the extension is asked every 60 seconds to read the change feeds.
+/// Starts what keeps Finder current while the app runs: a `storage.changed` socket per synced
+/// workspace (`watch.rs`), and the 60 second poll while one is down.
 pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     helper::start(app);

@@ -74,7 +74,7 @@ private func node(
 
 @Test func aLockedFileIsReadOnlyBeforeTheServerHasToRefuse() {
     let caps = capabilities(of: .node(orgId: org, nodeId: nodeId), node: node(lockedAt: "2026-11-16T00:00:00Z"))
-    #expect(caps == [.allowsReading])
+    #expect(caps == [.allowsReading, .allowsExcludingFromSync])
 }
 
 @Test func anAnchorWithTheSameCursorsIsTheSameBytes() throws {
@@ -108,10 +108,10 @@ private func node(
 @Test func aNodeMovedToTheOtherSpaceIsNotDeletedWhicheverFeedComesFirst() {
     let moved = node(space: .shared)
     for changes in [
-        [StorageSyncChange(id: nodeId, inTrash: false, node: nil, revision: 5),
-         StorageSyncChange(id: nodeId, inTrash: false, node: moved, revision: 6)],
-        [StorageSyncChange(id: nodeId, inTrash: false, node: moved, revision: 6),
-         StorageSyncChange(id: nodeId, inTrash: false, node: nil, revision: 5)],
+        [StorageSyncChange(gone: nil, id: nodeId, inTrash: false, node: nil, revision: 5),
+         StorageSyncChange(gone: nil, id: nodeId, inTrash: false, node: moved, revision: 6)],
+        [StorageSyncChange(gone: nil, id: nodeId, inTrash: false, node: moved, revision: 6),
+         StorageSyncChange(gone: nil, id: nodeId, inTrash: false, node: nil, revision: 5)],
     ] {
         let batch = ChangeBatch(orgId: org, changes: changes)
         #expect(batch.updated == [moved])
@@ -121,18 +121,40 @@ private func node(
 
 @Test func aLoneTombstoneIsCheckedBeforeDeletingAndTrashIsADeletion() {
     let batch = ChangeBatch(orgId: org, changes: [
-        StorageSyncChange(id: "gone", inTrash: false, node: nil, revision: 1),
-        StorageSyncChange(id: "binned", inTrash: true, node: node(id: "binned"), revision: 2),
+        StorageSyncChange(gone: nil, id: "gone", inTrash: false, node: nil, revision: 1),
+        StorageSyncChange(gone: nil, id: "binned", inTrash: true, node: node(id: "binned"), revision: 2),
     ])
     #expect(batch.unresolved == [.node(orgId: org, nodeId: "gone")])
     #expect(batch.deleted == [.node(orgId: org, nodeId: "binned")])
     #expect(batch.updated.isEmpty)
 }
 
+@Test func aTombstoneThatSaysGoneDeletesAndOneThatSaysMovedWaitsForItsOtherFeed() {
+    let batch = ChangeBatch(orgId: org, changes: [
+        StorageSyncChange(gone: true, id: "deleted", inTrash: false, node: nil, revision: 1),
+        StorageSyncChange(gone: false, id: "moved", inTrash: false, node: nil, revision: 2),
+    ])
+    #expect(batch.deleted == [.node(orgId: org, nodeId: "deleted")])
+    #expect(batch.unresolved.isEmpty && batch.updated.isEmpty)
+}
+
+@Test func aDriveIsSkippedOnlyWhileItsRevisionHasNotMovedSinceItWasReadToTheEnd() {
+    let drive = Drive(orgId: "a", space: .personal)
+    var anchor = SyncAnchor()
+    #expect(!anchor.isCurrent(drive, at: 0))
+    anchor.set("c1", for: drive)
+    #expect(!anchor.isCurrent(drive, at: 7))
+    anchor.set(revision: 7, for: drive)
+    #expect(anchor.isCurrent(drive, at: 7))
+    #expect(!anchor.isCurrent(drive, at: 8))
+    #expect(anchor.keeping([drive]).isCurrent(drive, at: 7))
+    #expect(!anchor.keeping([]).isCurrent(drive, at: 7))
+}
+
 @Test func aRestoreAfterATrashInOnePageBringsTheItemBack() {
     let batch = ChangeBatch(orgId: org, changes: [
-        StorageSyncChange(id: nodeId, inTrash: true, node: node(), revision: 1),
-        StorageSyncChange(id: nodeId, inTrash: false, node: node(), revision: 2),
+        StorageSyncChange(gone: nil, id: nodeId, inTrash: true, node: node(), revision: 1),
+        StorageSyncChange(gone: nil, id: nodeId, inTrash: false, node: node(), revision: 2),
     ])
     #expect(batch.updated.count == 1 && batch.deleted.isEmpty)
 }

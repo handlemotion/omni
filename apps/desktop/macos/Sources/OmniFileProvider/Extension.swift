@@ -73,7 +73,13 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     func enumerator(for container: NSFileProviderItemIdentifier, request _: NSFileProviderRequest) throws -> NSFileProviderEnumerator {
         guard let id = ItemID(container) else { throw NSFileProviderError(.noSuchItem) }
         switch id {
-        case .workingSet: return WorkingSetEnumerator()
+        case .workingSet:
+            let domain = domain
+            return WorkingSetEnumerator(signalLater: { delay in
+                DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+                    NSFileProviderManager(for: domain)?.signalEnumerator(for: .workingSet) { _ in }
+                }
+            })
         case .trash: throw NSFileProviderError(.noSuchItem)
         default: return FolderEnumerator(container: id)
         }

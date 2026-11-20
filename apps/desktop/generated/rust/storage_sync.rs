@@ -332,6 +332,9 @@ pub struct StorageSyncChangesResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageSyncChange {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gone: Option<bool>,
+
     pub id: String,
 
     pub in_trash: bool,

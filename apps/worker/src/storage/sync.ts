@@ -89,7 +89,13 @@ function wireChanges(result: Extract<StorageChangesResult, { status: "ok" }>) {
   return {
     changes: result.changes.map((change) =>
       change.deleted
-        ? { id: change.id, revision: change.revision, node: null, inTrash: false }
+        ? {
+            id: change.id,
+            revision: change.revision,
+            node: null,
+            inTrash: false,
+            gone: change.gone,
+          }
         : {
             id: change.id,
             revision: change.revision,

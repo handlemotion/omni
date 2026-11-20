@@ -3,6 +3,7 @@ import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { storageTombstones } from "../src/schema/index.ts";
 import {
+  handOverMemberStorage,
   STORAGE_TOMBSTONE_DAYS,
   sweepStorageTombstones,
   type MemberStorage,
@@ -35,7 +36,7 @@ async function drain(
 const summary = (changes: StorageChange[]) =>
   changes.map((change) =>
     change.deleted
-      ? { id: change.id, deleted: true }
+      ? { id: change.id, deleted: true, gone: change.gone }
       : { id: change.id, name: change.node.name, inTrash: change.inTrash },
   );
 
@@ -130,7 +131,11 @@ test("a node that leaves a drive leaves a tombstone there, and only there", asyn
 
   const personal = await drain(storage, "personal", start.cursor);
   expect(summary(personal.changes).toSorted((x, y) => (x.id < y.id ? -1 : 1))).toEqual(
-    [moving.id, inside.id, gone.id].toSorted().map((id) => ({ id, deleted: true })),
+    [
+      { id: moving.id, deleted: true, gone: false },
+      { id: inside.id, deleted: true, gone: false },
+      { id: gone.id, deleted: true, gone: true },
+    ].toSorted((x, y) => (x.id < y.id ? -1 : 1)),
   );
   const shared = await drain(storage, "shared", sharedStart.cursor);
   expect(
@@ -144,6 +149,47 @@ test("a node that leaves a drive leaves a tombstone there, and only there", asyn
   ]);
 });
 
+test("a node moved into one member's My files is moved for them and gone for the rest", async () => {
+  const org = await createOrg(db, "sync-moved-to");
+  const ana = await createMember(db, org.id, "ana");
+  const bo = await createMember(db, org.id, "bo");
+  await setRole(db, ana.id, "owner");
+  const anas = forMember(db, ana.id).storage;
+  const bos = forMember(db, bo.id).storage;
+  const file = await addFile(anas, { space: "shared" }, "brief.txt");
+  const anaStart = await drain(anas, "shared");
+  const boStart = await drain(bos, "shared");
+
+  expect((await anas.move(file.id, { space: "personal" })).status).toBe("ok");
+
+  expect(summary((await drain(anas, "shared", anaStart.cursor)).changes)).toEqual([
+    { id: file.id, deleted: true, gone: false },
+  ]);
+  expect(summary((await drain(bos, "shared", boStart.cursor)).changes)).toEqual([
+    { id: file.id, deleted: true, gone: true },
+  ]);
+});
+
+test("a node that moved away and was later handed over is not gone for whoever has it now", async () => {
+  const org = await createOrg(db, "sync-handed-back");
+  const ana = await createMember(db, org.id, "ana");
+  const bo = await createMember(db, org.id, "bo");
+  await setRole(db, ana.id, "owner");
+  const anas = forMember(db, ana.id).storage;
+  const bos = forMember(db, bo.id).storage;
+  const file = await addFile(bos, { space: "shared" }, "brief.txt");
+  expect((await bos.move(file.id, { space: "personal" })).status).toBe("ok");
+  expect((await handOverMemberStorage(db, { memberId: bo.id, toMemberId: ana.id })).status).toBe(
+    "ok",
+  );
+
+  const mine = await drain(anas, "personal");
+  expect(mine.changes.some((change) => change.id === file.id && !change.deleted)).toBe(true);
+  expect(summary((await drain(anas, "shared")).changes)).toEqual([
+    { id: file.id, deleted: true, gone: false },
+  ]);
+});
+
 test("a cursor behind swept tombstones expires; one past them does not", async () => {
   const org = await createOrg(db, "sync-sweep");
   const ana = await createMember(db, org.id, "ana");
@@ -153,7 +199,7 @@ test("a cursor behind swept tombstones expires; one past them does not", async (
   expect((await storage.trash(file.id)).status).toBe("ok");
   expect((await storage.deleteForever(file.id)).status).toBe("ok");
   const past = await drain(storage, "personal", behind.cursor);
-  expect(summary(past.changes)).toEqual([{ id: file.id, deleted: true }]);
+  expect(summary(past.changes)).toEqual([{ id: file.id, deleted: true, gone: true }]);
 
   const old = new Date(Date.now() - (STORAGE_TOMBSTONE_DAYS + 1) * 86_400_000);
   await db

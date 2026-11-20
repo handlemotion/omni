@@ -140,12 +140,24 @@ public final class SyncClient: Sendable {
 
     /// A file's bytes, into a temporary file the caller moves, and the `ETag` they were served
     /// with (the stored object's, not the content version). `progress` follows the transfer;
-    /// cancelling the calling task cancels it.
-    public func download(orgId: String, id: String, progress: Progress) async throws -> (URL, String?) {
+    /// cancelling the calling task cancels it. A dropped connection picks up where it stopped,
+    /// up to `resumes` times: URLSession asks for the rest with `Range` and `If-Range` (the
+    /// ETag), so bytes that changed meanwhile come whole instead.
+    public func download(orgId: String, id: String, progress: Progress, resumes: Int = 3) async throws -> (URL, String?) {
         let request = try get("\(orgId)/files/\(id)/content")
         let (url, response) = try await authorized(request) { request in
             let delegate = ProgressDelegate(progress)
-            return try await self.session.download(for: request, delegate: delegate)
+            var resumeData: Data?
+            var left = resumes
+            while true {
+                do {
+                    if let resumeData { return try await self.session.download(resumeFrom: resumeData, delegate: delegate) }
+                    return try await self.session.download(for: request, delegate: delegate)
+                } catch let error as URLError where left > 0 && error.code != .cancelled && error.downloadTaskResumeData != nil {
+                    resumeData = error.downloadTaskResumeData
+                    left -= 1
+                }
+            }
         }
         return (url, response.value(forHTTPHeaderField: "etag"))
     }
