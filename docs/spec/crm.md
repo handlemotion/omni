@@ -125,7 +125,10 @@ project: milestones in an order the team drags, each with a target day, and the 
 under them. A deliverable's file is a Drive file the member can open, usually in the deal's
 folder. Deleting a milestone keeps its deliverables on the deal, under none. A deal holds at most
 200 of each, so the plan is always read whole. Days are days (`YYYY-MM-DD`), the same on every
-client.
+client. The deal page's Plan tab draws the plan as a rail, like its
+timeline: each milestone opens a phase with its target day in the left column and its status on
+the spine, its deliverables follow with their due days, and a bar above counts the milestones
+done.
 
 **Project access.** Instead of roles and permissions, a project (a deal, usually won) lists the
 people from outside the team who reach it, by address, each with a scope (founder's call, Nov 20,
@@ -245,6 +248,8 @@ One list, newest first, of four kinds of item:
   id, `me` or `none`; `?due=` is `overdue`, `upcoming` or `none`. Each task carries its record's
   name.
 - A record's tasks are its own: a company's panel does not gather its deals' tasks.
+- A record's Tasks tab lays its tasks on the same rail as the Plan: due day on the left, the
+  check on the spine, open tasks first and then the done ones.
 - On the web a task opens in a panel beside the task list (`/crm/tasks?task=<id>`), like an
   email; `/crm/tasks/<id>` stays its full page.
 - The command menu (⌘K) finds open tasks by title, so the task list has no search of its own.

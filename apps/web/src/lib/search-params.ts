@@ -117,6 +117,8 @@ export const crmRecordSearch = z.object({
   folder: optionalId,
   file: optionalId,
   comments: optionalId,
+  /** The milestone or deliverable open beside a project's Plan tab. */
+  plan: optionalId,
 });
 
 export const draftsSearch = z.object({

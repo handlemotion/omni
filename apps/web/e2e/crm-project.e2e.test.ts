@@ -134,7 +134,20 @@ test("the team plans a project and adds a client from the deal page", async () =
     .where(eq(schema.crmDeliverables.title, "Homepage"));
   await page.reload();
   await page.getByRole("tab", { name: "Plan" }).click();
-  await page.getByText("Bigger logo").waitFor();
+  await page.getByRole("link", { name: "Homepage" }).click();
+  const panel = page.getByRole("region", { name: "Deliverable" });
+  await panel.getByText("Bigger logo").waitFor();
+  await panel.getByRole("textbox", { name: "Notes" }).fill("Hero, nav and footer");
+  await panel.getByRole("textbox", { name: "Notes" }).blur();
+  await expect
+    .poll(
+      async () => (await deliverables(deal.id)).find((d) => d.title === "Homepage")?.description,
+    )
+    .toBe("Hero, nav and footer");
+  await page.getByRole("link", { name: "Launch" }).click();
+  await page.getByRole("region", { name: "Milestone" }).getByText("Launch").first().waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByRole("region", { name: "Milestone" }).waitFor({ state: "detached" });
 
   await page.getByRole("button", { name: "Add someone" }).click();
   await page.getByRole("textbox", { name: "Email" }).fill("bea@client.test");

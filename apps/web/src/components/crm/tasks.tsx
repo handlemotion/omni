@@ -43,6 +43,7 @@ import { ListFilter } from "./list-toolbar.tsx";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { NewTaskDialog, useMemberNames } from "./task-dialog.tsx";
 import { TaskPanel, useOpenTask } from "./task-panel.tsx";
+import { TaskRail } from "./task-rail.tsx";
 
 /** Every task in the workspace: mine, everyone's (by assignee and due), or done. */
 export function TasksPage(props: {
@@ -175,8 +176,7 @@ export function RecordTasks(props: { kind: CrmRecordKind; id: string }) {
           New task
         </Button>
       </div>
-      <TaskList filter={{ ...filter, status: "open" }} grouped={false} showRecord={false} />
-      <DoneTasks filter={filter} />
+      <TaskRail filter={filter} />
       {adding && (
         <NewTaskDialog
           record={{ kind: props.kind, id: props.id }}
@@ -184,17 +184,6 @@ export function RecordTasks(props: { kind: CrmRecordKind; id: string }) {
         />
       )}
     </div>
-  );
-}
-
-function DoneTasks({ filter }: { filter: TaskFilter }) {
-  const list = useCrmTasks({ ...filter, status: "done" });
-  if (!list.tasks.length) return null;
-  return (
-    <section className="flex flex-col gap-1">
-      <h3 className="flex h-12 items-end px-2 pb-2 text-xs text-muted-foreground">Done</h3>
-      <TaskRows tasks={list.tasks} showRecord={false} />
-    </section>
   );
 }
 
