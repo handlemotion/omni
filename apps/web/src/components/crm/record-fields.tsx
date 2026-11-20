@@ -1,15 +1,18 @@
 import { parseDate, type CalendarDate } from "@internationalized/date";
 import { useMemo, useState, type ReactNode } from "react";
-import { IconX } from "@/components/icons/central";
+import { IconCalendar, IconX } from "@/components/icons/central";
+import { Button as AriaButton } from "react-aria-components/Button";
+import { Group } from "react-aria-components/Group";
+import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { DatePicker, DatePickerTrigger } from "@/components/ui/date-picker";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { currencyCodes, parseMoney } from "@/lib/crm.ts";
 import { Link } from "@/components/ui/link";
 import { ItemLabel } from "@/components/ui/dropdown";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
-import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
+import { useRecordHref } from "./record-trail.tsx";
 
 const PLAIN_TRIGGER =
   "border-transparent bg-transparent enabled:hover:border-transparent enabled:hover:bg-hover";
@@ -17,7 +20,7 @@ const PLAIN_TRIGGER =
 export function FieldRow(props: { label: string; children: ReactNode; htmlFor?: string }) {
   return (
     <div className="flex min-h-8 items-center gap-3">
-      <span className="w-24 shrink-0 truncate text-sm text-muted-foreground">{props.label}</span>
+      <span className="w-28 shrink-0 truncate text-sm text-muted-foreground">{props.label}</span>
       <div className="flex min-w-0 flex-1 items-center">{props.children}</div>
     </div>
   );
@@ -149,7 +152,12 @@ export function MoneyValue(props: {
   );
 }
 
-/** A calendar day (`YYYY-MM-DD`) picked in place; null once it is cleared. */
+const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+/**
+ * A calendar day (`YYYY-MM-DD`) picked in place: shown as text like the other values, a calendar
+ * opening under it; null once it is cleared.
+ */
 export function DayValue(props: {
   label: string;
   value: string | null;
@@ -165,9 +173,25 @@ export function DayValue(props: {
           const day = next?.toString() ?? null;
           if (day !== props.value) props.onSave(day);
         }}
-        className="w-full"
+        popover={{ placement: "bottom start" }}
+        className="min-w-0 flex-1"
       >
-        <DatePickerTrigger className="border-transparent bg-transparent hover:bg-hover" />
+        <Group className="flex">
+          <AriaButton
+            className={cn(
+              "flex h-8 w-full min-w-0 cursor-default items-center gap-x-2 rounded-lg px-2 text-start text-sm text-foreground outline-hidden",
+              "hover:bg-hover focus-visible:bg-hover data-pressed:bg-hover",
+            )}
+          >
+            <span className={cn("truncate tabular-nums", !props.value && "text-muted-foreground")}>
+              {props.value ? DAY.format(new Date(`${props.value}T00:00`)) : "–"}
+            </span>
+            <IconCalendar
+              aria-hidden
+              className="ms-auto -me-1 size-4 shrink-0 text-muted-foreground"
+            />
+          </AriaButton>
+        </Group>
       </DatePicker>
       {props.value && (
         <Button
@@ -189,13 +213,13 @@ export function LinkValue(props: {
   to?: { kind: "companies" | "people" | "deals"; id: string; name: string } | null;
   action?: ReactNode;
 }) {
-  const { href: inWorkspace } = useWorkspacePaths();
+  const recordHref = useRecordHref();
   return (
     <FieldRow label={props.label}>
       <span className="flex min-w-0 flex-1 items-center gap-1 px-2">
         {props.to ? (
           <Link
-            href={inWorkspace(`/crm/${props.to.kind}/${encodeURIComponent(props.to.id)}`)}
+            href={recordHref(props.to.kind, props.to.id)}
             className="truncate text-sm text-foreground underline-offset-2 hover:underline"
           >
             {props.to.name}

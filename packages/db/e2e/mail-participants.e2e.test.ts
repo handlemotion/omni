@@ -93,7 +93,13 @@ describe("threadsWith through the member door", () => {
     const query = { addresses: ["bea@client.test"], domains: ["client.test"] };
     const seen = await forMember(db, owner.id).threadsWith(query);
     expect(seen).toMatchObject([
-      { id: thread.threadId, orgId: org.id, mailboxId: box.id, subject: "Hello" },
+      {
+        id: thread.threadId,
+        orgId: org.id,
+        mailboxId: box.id,
+        subject: "Hello",
+        latestTo: [{ name: null, address: "bea@client.test" }],
+      },
     ]);
     expect(seen[0]!.snippet).toBe("Body text.");
     expect(await forMember(db, admin.id).threadsWith(query)).toEqual([]);

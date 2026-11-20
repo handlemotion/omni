@@ -99,6 +99,7 @@ export function CompanyPage({ id }: { id: string }) {
     <>
       <RecordLayout
         list="companies"
+        here={{ kind: "companies", id }}
         name={company.name}
         square
         who={domains[0] ? { domain: domains[0] } : null}
@@ -164,7 +165,13 @@ export function CompanyPage({ id }: { id: string }) {
 function useCompanyName(companyId: string | null) {
   const company = useCrmCompany(companyId ?? "", { enabled: !!companyId });
   if (!companyId) return null;
-  return company.data ? { id: companyId, name: company.data.company.name } : null;
+  return company.data
+    ? {
+        id: companyId,
+        name: company.data.company.name,
+        domain: company.data.company.domain ?? company.data.domains[0] ?? null,
+      }
+    : null;
 }
 
 export function PersonPage({ id }: { id: string }) {
@@ -183,6 +190,7 @@ export function PersonPage({ id }: { id: string }) {
     <>
       <RecordLayout
         list="people"
+        here={{ kind: "people", id }}
         name={person.name}
         who={byAddress(primary)}
         subtitle={person.jobTitle ?? primary}
@@ -268,9 +276,17 @@ export function DealPage({ id }: { id: string }) {
     <>
       <RecordLayout
         list={deal.stageKind === "won" ? "projects" : "deals"}
+        here={{ kind: "deals", id }}
         name={deal.name}
-        subtitle={<StageBadge stage={stage} deal={deal} />}
-        badge={archived && <ArchivedBadge />}
+        square
+        who={company?.domain ? { domain: company.domain } : null}
+        subtitle={company?.name}
+        badge={
+          <>
+            <StageBadge stage={stage} deal={deal} />
+            {archived && <ArchivedBadge />}
+          </>
+        }
         actions={<RecordActions kind="deals" id={id} name={deal.name} archived={archived} />}
         details={
           <>

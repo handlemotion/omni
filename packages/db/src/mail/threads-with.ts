@@ -27,6 +27,8 @@ export interface ThreadWith {
   subject: string;
   snippet: string;
   latestFrom: { name: string | null; address: string } | null;
+  /** Who the newest message went to (its To, then its Cc). */
+  latestTo: { name: string | null; address: string }[];
 }
 
 const preview = sql`left(btrim(regexp_replace(regexp_replace(left(m.clean_text, 1500), '\\(\\s*https?://[^\\s)]*\\s*\\)|https?://\\S+', ' ', 'g'), '\\s+', ' ', 'g')), 200)`;
@@ -82,7 +84,8 @@ export function participantQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL
             snippet: string;
             fromName: string | null;
             fromAddress: string;
-          } | null>`(select jsonb_build_object('subject', m.subject, 'snippet', ${preview}, 'fromName', m.from_name, 'fromAddress', m.from_address) from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1)`.as(
+            to: { name?: string | null; address: string }[];
+          } | null>`(select jsonb_build_object('subject', m.subject, 'snippet', ${preview}, 'fromName', m.from_name, 'fromAddress', m.from_address, 'to', m.to || m.cc) from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1)`.as(
             "latest",
           ),
         })
@@ -97,6 +100,7 @@ export function participantQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL
         subject: latest?.subject ?? "",
         snippet: latest?.snippet ?? "",
         latestFrom: latest ? { name: latest.fromName, address: latest.fromAddress } : null,
+        latestTo: (latest?.to ?? []).map((to) => ({ name: to.name ?? null, address: to.address })),
       })) satisfies ThreadWith[];
     },
   };

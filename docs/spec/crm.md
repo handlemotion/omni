@@ -273,8 +273,11 @@ board by stage; a won deal is the project.
   workspace default, else the device's. The API still refuses a value with no currency at all.
 - **Projects** are deals in a `won` stage (`kind=won`); the apps list them on their own.
 - **Navigation.** The sidebar (the iOS menu) lists the CRM's pages (Companies, People, Deals, …),
-  then **Active projects**: each deal in a `won` or `open` stage (projects and leads), by name,
-  with its client's logo at the end. There are no stage shortcuts: the board and filters do that.
+  then **Projects**: each deal in a `won` or `open` stage (projects and leads), by name, led by
+  its client's logo. There are no stage shortcuts: the board and filters do that.
+- **Crumbs** follow the path taken: a record opened from another record's page carries
+  `?via=deals:<id>,people:<id>` (up to four steps), and its header reads
+  `Projects › the project › the person`. A record opened from a list or the sidebar starts afresh.
 
 Still out: custom fields, saved views, several pipelines, merging duplicates, imports.
 

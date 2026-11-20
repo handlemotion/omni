@@ -195,15 +195,14 @@ export function CrmMenu() {
       {projects.length > 0 ? (
         <>
           <MenuDivider />
-          <MenuSection label="Active projects">
+          <MenuSection label="Projects">
             {projects.map(({ deal, client }) => (
               <MenuRow
                 key={deal.id}
                 nav
                 muted
                 icon={deal.stageKind === "won" ? IconProjects : IconHandshake}
-                label={deal.name}
-                trailing={
+                lead={
                   client ? (
                     <Avatar
                       name={client.name}
@@ -213,6 +212,7 @@ export function CrmMenu() {
                     />
                   ) : undefined
                 }
+                label={deal.name}
                 onPress={() => {
                   place.openPage("crm", deal.stageKind === "won" ? "projects" : "deals");
                   close();

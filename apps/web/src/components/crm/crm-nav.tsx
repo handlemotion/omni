@@ -79,7 +79,7 @@ function ActiveProjects({ search }: { search: string }) {
   );
   if (!isPending && projects.length === 0) return null;
   return (
-    <SidebarSection label="Active projects">
+    <SidebarSection label="Projects">
       {isPending ? (
         <SidebarTreeBones depth={0} />
       ) : (
@@ -106,14 +106,6 @@ function ProjectRow(props: { deal: CrmDeal; client: CrmCompany | undefined; sear
       isCurrent={pathname === href}
       depth={0}
       icon={
-        props.deal.stageKind === "won" ? (
-          <IconProjects className="size-icon" />
-        ) : (
-          <IconHandshake className="size-icon" />
-        )
-      }
-      label={props.deal.name}
-      detail={
         client ? (
           <span title={client.name} className="flex">
             <RecordMark
@@ -123,8 +115,13 @@ function ProjectRow(props: { deal: CrmDeal; client: CrmCompany | undefined; sear
               who={client.domain ? { domain: client.domain } : null}
             />
           </span>
-        ) : undefined
+        ) : props.deal.stageKind === "won" ? (
+          <IconProjects className="size-icon" />
+        ) : (
+          <IconHandshake className="size-icon" />
+        )
       }
+      label={props.deal.name}
     />
   );
 }

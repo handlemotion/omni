@@ -31,6 +31,9 @@ export const inboxSearch = z.object({
 
 export const listSearch = z.object({ mailbox: optionalId });
 
+/** A person's page: the records passed through to reach it, as `crmRecordSearch` has. */
+export const crmPersonSearch = z.object({ mailbox: optionalId, via: optional(z.string()) });
+
 /** Drive's Search: `q` matches file and folder names on the server. */
 export const fileSearchSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
 
@@ -107,6 +110,8 @@ export const filesSearch = z.object({
  */
 export const crmRecordSearch = z.object({
   mailbox: optionalId,
+  /** The records passed through to reach this one (`deals:<id>,people:<id>`), for the crumbs. */
+  via: optional(z.string()),
   folder: optionalId,
   file: optionalId,
   comments: optionalId,

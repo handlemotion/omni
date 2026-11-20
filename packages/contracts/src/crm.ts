@@ -166,6 +166,8 @@ export const crmThreadSchema = z.object({
   snippet: z.string(),
   lastMessageAt: isoDate,
   latestFrom: z.object({ name: z.string().nullable(), address: z.string() }).nullable(),
+  /** Who the newest message went to. Optional while an older Worker may answer. */
+  latestTo: z.array(z.object({ name: z.string().nullable(), address: z.string() })).optional(),
   /** Where it opens in the web app. */
   url: z.string(),
 });

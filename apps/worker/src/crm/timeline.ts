@@ -117,6 +117,7 @@ async function timeline(c: Context<AppEnv>, kind: RecordKind, id: string, page: 
         snippet: thread.snippet,
         lastMessageAt: thread.lastMessageAt.toISOString(),
         latestFrom: thread.latestFrom,
+        latestTo: thread.latestTo,
         url: threadUrl(webAppURL, thread.id),
       },
     })),

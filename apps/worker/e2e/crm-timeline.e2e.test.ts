@@ -61,6 +61,7 @@ test("two members open one person's timeline: each sees the thread from the inbo
   expect(thread.thread).toMatchObject({
     mailboxId: sales.id,
     url: expect.stringContaining("/all/"),
+    latestTo: [expect.objectContaining({ address: "sales@acme.test" })],
   });
 
   const beaView = await api(bea.jar, "GET", `/people/${id}/timeline`);

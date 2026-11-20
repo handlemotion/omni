@@ -9,6 +9,8 @@ import {
   createMember,
   createOrg,
   createTestDatabase,
+  grant,
+  seedMessage,
   signIn,
   startMailServiceEndpoint,
   startWorkerWithNetwork,
@@ -21,6 +23,7 @@ let db: TestDb;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
 let worker: Awaited<ReturnType<typeof startWorkerWithNetwork>>;
 let browser: Browser;
+const SHOTS = process.env.OMNI_E2E_SHOTS;
 const contexts: BrowserContext[] = [];
 
 beforeAll(async () => {
@@ -294,6 +297,108 @@ test("a person's page lists their deals and makes another address primary", asyn
     })
     .toEqual({ count: 2, primary: { address: "rita@work.test", isPrimary: true } });
 });
+
+test("a close date picked from the calendar is saved and shown as text", async () => {
+  const team = await workspace("closedate");
+  const { deal } = await team.api("POST", "/deals", { name: "Website rebuild" });
+  const page = await team.page(`/crm/deals/${deal.id}`);
+  await page.getByRole("group", { name: "Close date" }).getByRole("button").click();
+  const month = page.getByRole("grid");
+  await month.getByRole("button", { name: /\b15\b/ }).click();
+
+  const today = new Date();
+  const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-15`;
+  await expect
+    .poll(async () => (await dealCloseOn(deal.id)) ?? null, { timeout: 10_000 })
+    .toBe(day);
+  const shown = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${day}T00:00`));
+  await page.getByRole("group", { name: "Close date" }).getByText(shown).waitFor();
+  if (SHOTS) {
+    await page.getByRole("group", { name: "Close date" }).getByRole("button").click();
+    await page.getByRole("grid").waitFor();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/close-date-picker.png` });
+  }
+});
+
+test("a person opened from a project keeps the project in the crumbs, and its role shows on hover", async () => {
+  const team = await workspace("trail");
+  const { stages } = await team.api("GET", "/stages");
+  const won = stages.find((stage: { kind: string }) => stage.kind === "won");
+  const { company } = await team.api("POST", "/companies", { name: "Calpolli" });
+  const { person } = await team.api("POST", "/people", {
+    name: "Marisol Velazquez",
+    address: "marisol@calpolli.test",
+    companyId: company.id,
+    jobTitle: "Purchaser, Operations Division",
+  });
+  const { deal } = await team.api("POST", "/deals", {
+    name: "Serie Documental",
+    companyId: company.id,
+    personIds: [person.id],
+  });
+  await team.api("PATCH", `/deals/${deal.id}`, { stageId: won.id });
+  const box = await createMailbox(db, team.orgId, "studio@trail.test");
+  await grant(db, team.orgId, box.id, team.memberId);
+  await seedMessage(db, box, {
+    subject: "Contract for the series",
+    fromAddress: "studio@trail.test",
+    fromName: "Studio",
+    to: ["marisol@calpolli.test"],
+    folder: "Sent",
+    uid: 1,
+    text: "Hi Marisol, here is the contract.",
+  });
+
+  const page = await team.page(`/crm/deals/${deal.id}`);
+  const timeline = page.getByRole("list", { name: "Timeline" });
+  await timeline.getByText("wrote to").waitFor();
+  await timeline.getByText("Marisol Velazquez").waitFor();
+  const details = page.getByRole("complementary", { name: "Details" });
+  const row = details.getByRole("link", { name: "Marisol Velazquez" });
+  await row.waitFor();
+  expect(await details.getByText("Purchaser, Operations Division").count()).toBe(0);
+  const role = page.getByText("Purchaser, Operations Division");
+  await expect
+    .poll(
+      async () => {
+        await page.mouse.move(0, 0);
+        await row.getByText("Marisol Velazquez").hover();
+        return role.waitFor({ timeout: 1500 }).then(
+          () => true,
+          () => false,
+        );
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/project-page.png` });
+
+  await row.click();
+  await expect.poll(() => new URL(page.url()).pathname).toContain(`/crm/people/${person.id}`);
+  const crumbs = page.getByRole("list", { name: "Record" });
+  await crumbs.getByRole("link", { name: "Serie Documental" }).waitFor();
+  await crumbs.getByRole("link", { name: "Projects" }).waitFor();
+  expect(await crumbs.getByRole("link", { name: "People" }).count()).toBe(0);
+  await page.getByRole("heading", { name: "Marisol Velazquez" }).waitFor();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/person-from-project.png` });
+
+  await crumbs.getByRole("link", { name: "Serie Documental" }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toContain(`/crm/deals/${deal.id}`);
+  expect(new URL(page.url()).searchParams.get("via")).toBeNull();
+});
+
+async function dealCloseOn(id: string) {
+  const [row] = await db
+    .select({ closeOn: schema.crmDeals.expectedCloseOn })
+    .from(schema.crmDeals)
+    .where(eq(schema.crmDeals.id, id));
+  return row?.closeOn;
+}
 
 async function dealRow(id: string) {
   const [row] = await db

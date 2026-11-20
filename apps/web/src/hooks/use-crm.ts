@@ -122,12 +122,12 @@ export function useCrmCompany(id: string, options: { enabled?: boolean } = {}) {
   return useQuery({ ...crmCompanyQuery(id), enabled: options.enabled ?? true });
 }
 
-export function useCrmPerson(id: string) {
-  return useQuery(crmPersonQuery(id));
+export function useCrmPerson(id: string, options: { enabled?: boolean } = {}) {
+  return useQuery({ ...crmPersonQuery(id), enabled: options.enabled ?? true });
 }
 
-export function useCrmDeal(id: string) {
-  return useQuery(crmDealQuery(id));
+export function useCrmDeal(id: string, options: { enabled?: boolean } = {}) {
+  return useQuery({ ...crmDealQuery(id), enabled: options.enabled ?? true });
 }
 
 /** The pipeline, in order. */
