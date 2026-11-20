@@ -1,5 +1,6 @@
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
+import { STORAGE_FIND_LIMIT } from "../src/storage/find.ts";
 import { addFile, addFolder } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase } from "./support.ts";
 
@@ -26,6 +27,22 @@ test("Search shows the member's own files and Shared, live ones only", async () 
   expect((await mine.trash(old.id)).status).toBe("ok");
   expect(names(await mine.search("PLAN"))).toEqual(["plan-shared.txt", "plan.txt"]);
   expect(names(await mine.search("note"))).toEqual(["Notes"]);
+});
+
+test("Search fills its page with live matches past ones deep in Trash", async () => {
+  const org = await createOrg(db, "find-deep");
+  const ana = await createMember(db, org.id, "ana");
+  const mine = forMember(db, ana.id).storage;
+  const old = await addFolder(mine, { space: "personal" }, "Old");
+  const inner = await addFolder(mine, { parentId: old.id }, "Inner");
+  for (let i = 0; i < STORAGE_FIND_LIMIT; i += 1) {
+    await addFile(mine, { parentId: inner.id }, `a-report-${String(i).padStart(2, "0")}.txt`);
+  }
+  const kept = await addFolder(mine, { space: "personal" }, "Kept");
+  await addFile(mine, { parentId: kept.id }, "z-report.txt");
+  expect((await mine.trash(old.id)).status).toBe("ok");
+
+  expect(names(await mine.search("report"))).toEqual(["z-report.txt"]);
 });
 
 test("Search matches % and _ as themselves", async () => {
