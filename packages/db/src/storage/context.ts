@@ -190,7 +190,9 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
         : []),
       ...(addresses.length ? [grantedIn(addresses, only)] : []),
     ];
-    return within.length ? sql`(${sql.join(within, sql` or `)})` : null;
+    return within.length
+      ? sql`(not ${storageNodes.attached} and (${sql.join(within, sql` or `)}))`
+      : null;
   }
 
   async function candidates(query: string, limit: number, only?: string) {

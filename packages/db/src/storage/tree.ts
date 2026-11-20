@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageLocks, storageNodes } from "../schema/storage.ts";
-import type { Access, Door, StorageRole } from "./access.ts";
+import { editsContent, type Access, type Door, type StorageRole } from "./access.ts";
 import {
   chainOf,
   cleanName,
@@ -125,23 +125,53 @@ export async function reach(ex: Db, door: Door, nodeId: string) {
   return access ? { chain, node: chain[0]!, access } : null;
 }
 
+type Reached = NonNullable<Awaited<ReturnType<typeof reach>>>;
+
+const placeIn = (found: Reached, writable: boolean, attached: boolean) => ({
+  drive: driveOf(found.node),
+  parentId: found.node.id as string | null,
+  depth: found.chain.length,
+  writable,
+  chain: found.chain,
+  access: found.access as Access | null,
+  attached,
+});
+
 /** A live place to list or write in, resolved through the door. */
 export async function resolvePlace(ex: Db, door: Door, place: StoragePlace) {
   if ("parentId" in place) {
     const found = await reach(ex, door, place.parentId);
     if (!found || found.node.kind !== "folder" || inTrash(found.chain)) return null;
-    return {
-      drive: driveOf(found.node),
-      parentId: found.node.id as string | null,
-      depth: found.chain.length,
-      writable: found.access.inside,
-      chain: found.chain,
-      access: found.access as Access | null,
-    };
+    return placeIn(found, found.access.inside, false);
   }
   const drive = await door.root(ex, place.space);
   if (!drive) return null;
-  return { drive, parentId: null, depth: 0, writable: true, chain: [] as NodeRow[], access: null };
+  return {
+    drive,
+    parentId: null,
+    depth: 0,
+    writable: true,
+    chain: [] as NodeRow[],
+    access: null,
+    attached: false,
+  };
+}
+
+const isDocName = (name: string) => /\.(md|markdown)$/i.test(name);
+const isImageName = (name: string) => /\.(png|jpe?g|gif|webp)$/i.test(name);
+
+/**
+ * Where an upload named `name` goes: `place`, as for anything else, or, for an image whose place
+ * is a doc, into that doc. Such an image belongs to the doc (`attached`): whoever may edit the doc
+ * may add one, and whoever reaches the doc reaches its images.
+ */
+export async function resolveUploadPlace(ex: Db, door: Door, place: StoragePlace, name: string) {
+  if (!("parentId" in place)) return resolvePlace(ex, door, place);
+  const found = await reach(ex, door, place.parentId);
+  if (!found || inTrash(found.chain)) return null;
+  if (found.node.kind === "folder") return placeIn(found, found.access.inside, false);
+  if (found.node.attached || !isDocName(found.node.name) || !isImageName(name)) return null;
+  return placeIn(found, editsContent(found.access) && !found.node.lockedAt, true);
 }
 
 /** Runs `fn` again when two writers picked the same free name and the unique index refused one. */

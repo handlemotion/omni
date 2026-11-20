@@ -9,7 +9,7 @@ import { identityChecks, identityOf } from "@/lib/storage-uploads.ts";
 
 /** What a doc does with other Drive files: shows images, takes new ones, and finds files to link. */
 export interface DocFiles {
-  /** Puts a file next to the doc, and answers the path the doc's Markdown shows it by. */
+  /** Adds an image to the doc, and answers the path the doc's Markdown shows it by. */
   upload: (file: File) => Promise<string>;
   /** A URL the page may show an image of the doc by, or null when it is not a Drive file. */
   image: (src: string) => Promise<string | null>;
@@ -22,13 +22,12 @@ export function useDocFiles(file: StorageNode, shareId: string | undefined) {
   const client = useQueryClient();
   revokePreviewUrls(client);
   return useMemo(() => {
-    const place = file.parentId ? { parentId: file.parentId } : { space: file.space };
     const files: DocFiles = {
       upload: async (picked) => {
         const signal = new AbortController().signal;
         const made = await uploadFile({
           file: picked,
-          place,
+          place: { parentId: file.id },
           shareId,
           signal,
           onOpened: () => {},
@@ -50,5 +49,5 @@ export function useDocFiles(file: StorageNode, shareId: string | undefined) {
             ),
     };
     return files;
-  }, [client, file.id, file.parentId, file.space, shareId]);
+  }, [client, file.id, shareId]);
 }

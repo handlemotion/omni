@@ -21,6 +21,7 @@ import {
 import {
   reach,
   resolvePlace,
+  resolveUploadPlace,
   type Forbidden,
   type InvalidName,
   type Locked,
@@ -136,10 +137,11 @@ export function uploadOperations(db: Db, door: Door) {
       if (!target.nodeId) return null;
       return (await mayReplace(ex, door, target.nodeId)).status === "ok" ? upload : null;
     }
-    const at = await resolvePlace(
+    const at = await resolveUploadPlace(
       ex,
       door,
       upload.parentId ? { parentId: upload.parentId } : { space: upload.space },
+      upload.name,
     );
     return at?.writable ? upload : null;
   }
@@ -172,7 +174,7 @@ export function uploadOperations(db: Db, door: Door) {
       const name = cleanName(file.name);
       if (!name) return { status: "invalid_name" } satisfies OpenUploadResult;
       return db.transaction<OpenUploadResult>(async (tx) => {
-        const at = await resolvePlace(tx, door, place);
+        const at = await resolveUploadPlace(tx, door, place, name);
         if (!at) {
           const result: OpenUploadResult = NOT_FOUND;
           return result;
@@ -424,10 +426,11 @@ export function uploadOperations(db: Db, door: Door) {
             created: true,
           } satisfies CompleteUploadResult;
         }
-        const at = await resolvePlace(
+        const at = await resolveUploadPlace(
           tx,
           door,
           upload.parentId ? { parentId: upload.parentId } : { space: upload.space },
+          upload.name,
         );
         if (!at) {
           return (
@@ -448,6 +451,7 @@ export function uploadOperations(db: Db, door: Door) {
           r2Key: upload.r2Key,
           contentSha256: upload.sha256,
           createdByMemberId: upload.memberId,
+          attached: at.attached,
         });
         const node = await moveUploadLink(tx, upload.id, inserted);
         await addUsage(tx, upload.orgId, upload.size);

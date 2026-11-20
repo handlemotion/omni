@@ -175,7 +175,7 @@ const DOT_PNG = Buffer.from(
   "base64",
 );
 
-test("an image picked from / goes into Drive beside the doc, and @ links another file", async () => {
+test("an image picked from / goes into the doc, and @ links another file", async () => {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, `pics-${Date.now()}@gmail.test`);
   const own = await browser.newContext();
@@ -228,11 +228,7 @@ test("an image picked from / goes into Drive beside the doc, and @ links another
     .select({ id: schema.storageNodes.id, parentId: schema.storageNodes.parentId })
     .from(schema.storageNodes)
     .where(eq(schema.storageNodes.name, "dot.png"));
-  const [notes] = await db
-    .select({ parentId: schema.storageNodes.parentId })
-    .from(schema.storageNodes)
-    .where(eq(schema.storageNodes.id, notesId));
-  expect(dot?.parentId ?? null).toBe(notes?.parentId ?? null);
+  expect(dot?.parentId).toBe(notesId);
   await expect
     .poll(
       () =>

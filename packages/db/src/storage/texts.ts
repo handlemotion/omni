@@ -42,6 +42,7 @@ export async function storageFilesToRead(db: Db, limit: number, options: { ocr: 
     .where(
       and(
         eq(storageNodes.kind, "file"),
+        eq(storageNodes.attached, false),
         isNull(storageNodes.trashedAt),
         isNotNull(storageNodes.r2Key),
         or(

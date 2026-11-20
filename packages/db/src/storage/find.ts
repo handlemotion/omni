@@ -21,7 +21,8 @@ export function inDrives(drives: Drive[], alias: string) {
 function firstLiveMatches(drives: Drive[], pattern: string) {
   return sql`select c.id from (
     select n.id, n.kind, lower(n.name) as sort_name, n.parent_id from ${storageNodes} n
-      where (${inDrives(drives, "n")}) and n.trashed_at is null and n.name ilike ${pattern}
+      where (${inDrives(drives, "n")}) and n.trashed_at is null and not n.attached
+        and n.name ilike ${pattern}
       order by n.kind, sort_name, n.id offset 0
   ) c
   where not exists (

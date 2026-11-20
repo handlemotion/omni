@@ -449,6 +449,13 @@
       "when": 1795203414109,
       "tag": "0063_contract_people_team_only",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795209853832,
+      "tag": "0064_high_stone_men",
+      "breakpoints": true
     }
   ]
 }

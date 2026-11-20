@@ -175,7 +175,13 @@ async function feedPage(tx: Db, drive: Drive, cursor: StorageSyncCursor | null, 
     .select(nodeColumns)
     .from(storageNodes)
     .leftJoin(storageLocks, lockJoin)
-    .where(and(inDrive(storageNodes, drive), after(storageNodes, storageNodes.id, cursor)))
+    .where(
+      and(
+        inDrive(storageNodes, drive),
+        eq(storageNodes.attached, false),
+        after(storageNodes, storageNodes.id, cursor),
+      ),
+    )
     .orderBy(asc(storageNodes.revision), asc(storageNodes.id))
     .limit(limit + 1);
   const tombstones = await tx

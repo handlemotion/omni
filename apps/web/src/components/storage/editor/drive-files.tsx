@@ -42,7 +42,7 @@ const optionsOf = (editor: Editor) =>
     | DriveFilesOptions
     | undefined;
 
-/** Uploads images into Drive beside the doc and puts each in at `at` (the cursor when absent). */
+/** Uploads images into the doc and puts each in at `at` (the cursor when absent). */
 export function addImages(editor: Editor, files: File[], at?: number) {
   const options = optionsOf(editor);
   const drive = options?.files;
@@ -99,7 +99,7 @@ function linkedFile(node: PmNode | null | undefined) {
 }
 
 /**
- * A doc's ties to the rest of Drive: images pasted, dropped or picked go into Drive next to it and
+ * A doc's ties to the rest of Drive: images pasted, dropped or picked go into the doc itself and
  * show from there; `@` links another file; a click on such a link opens that file.
  */
 export const DriveFiles = Extension.create<DriveFilesOptions>({

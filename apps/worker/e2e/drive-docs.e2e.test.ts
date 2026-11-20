@@ -1,8 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type { Client } from "@modelcontextprotocol/client";
+import type { StorageNode } from "@omni/contracts";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { connectAgent } from "./mcp-support.ts";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
-import { WEB_ORIGIN } from "./support.ts";
+import { CookieJar, signIn, WEB_ORIGIN } from "./support.ts";
 
 let stack: StorageStack;
 beforeAll(async () => {
@@ -106,4 +108,60 @@ test("an agent writes a doc and edits it, only where its person may", async () =
   await expect(
     call(reader, "drive_create_doc", { name: "Nope", workspace: acme.id, markdown: "# Nope" }),
   ).rejects.toThrow(/drive:write/);
+});
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+const names = (body: { nodes: StorageNode[] }) => body.nodes.map((node) => node.name);
+
+async function outsider(nodeId: string, owner: Person, role: "editor" | "viewer") {
+  const email = `${role}-${randomUUID().slice(0, 8)}@outside.test`;
+  const path = `/nodes/${nodeId}/sharing/people/${encodeURIComponent(email)}`;
+  const granted = await stack.api(owner.jar, "PUT", path, { role });
+  expect(granted.status).toBe(200);
+  const jar = new CookieJar();
+  await signIn(stack.worker, stack.db, email, jar);
+  return { jar, base: `/shared/${granted.body.sharing.shareId as string}` };
+}
+
+type Guest = Awaited<ReturnType<typeof outsider>>;
+
+const open = (as: Guest | Person, parentId: string, name: string) =>
+  stack.api(as.jar, "POST", `${"base" in as ? as.base : ""}/uploads`, {
+    name,
+    size: PNG.length,
+    parentId,
+  });
+
+const see = (guest: Guest, nodeId: string) =>
+  stack.get(guest.jar, `${guest.base}/files/${nodeId}/content`);
+
+test("an image added to a doc belongs to it: shared with it, hidden from its folder", async () => {
+  const acme = await stack.company("pics");
+  const ana = await stack.member(acme.id, "owner");
+  const doc = await stack.upload(ana.jar, { space: "personal" }, "Plan.md", new Uint8Array(4));
+  const sheet = await stack.upload(ana.jar, { space: "personal" }, "notes.txt", new Uint8Array(4));
+  const editor = await outsider(doc.id, ana, "editor");
+  const viewer = await outsider(doc.id, ana, "viewer");
+
+  const image = await stack.upload(
+    editor.jar,
+    { parentId: doc.id },
+    "pasted.png",
+    PNG,
+    "image/png",
+    editor.base,
+  );
+  expect(image.parentId).toBe(doc.id);
+  expect((await see(viewer, image.id)).status).toBe(200);
+  expect((await open(viewer, doc.id, "mine.png")).status).toBe(403);
+  expect((await open(editor, doc.id, "script.js")).status).toBe(404);
+  expect((await open(ana, sheet.id, "pasted.png")).status).toBe(404);
+
+  const listed = await stack.api(ana.jar, "GET", "/nodes?space=personal");
+  expect(names(listed.body).toSorted()).toEqual(["Plan.md", "notes.txt"]);
+  const found = await stack.api(ana.jar, "GET", "/search?q=pasted");
+  expect(found.body.nodes).toEqual([]);
+
+  expect((await stack.api(ana.jar, "DELETE", `/nodes/${doc.id}`)).status).toBe(200);
+  expect((await see(viewer, image.id)).status).not.toBe(200);
 });

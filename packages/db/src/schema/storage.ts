@@ -114,6 +114,11 @@ export const storageNodes = pgTable(
      * above does not reach in; one on the node itself, or on something inside it, still does.
      */
     teamOnly: boolean("team_only").notNull().default(false),
+    /**
+     * An image that belongs to the doc it sits under (`parentId` is the doc): it follows the doc's
+     * sharing and Trash, and no folder listing, search, sync or archive shows it on its own.
+     */
+    attached: boolean("attached").notNull().default(false),
   },
   (t) => [
     unique("storage_nodes_id_org_id_unique").on(t.id, t.orgId),

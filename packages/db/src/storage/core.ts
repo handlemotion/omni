@@ -341,6 +341,7 @@ export interface NewNode {
   contentSha256?: string | null;
   createdByMemberId: string | null;
   teamOnly?: boolean;
+  attached?: boolean;
 }
 
 /**
@@ -367,6 +368,7 @@ export async function insertNode(tx: Db, input: NewNode) {
         contentSha256: input.contentSha256 ?? null,
         createdByMemberId: input.createdByMemberId,
         teamOnly: input.teamOnly ?? false,
+        attached: input.attached ?? false,
         revision,
       })
       .onConflictDoNothing()

@@ -476,3 +476,21 @@ test("an edit from the Mac replaces the file in place, and a stale one keeps bot
   const kept = await stack.download(ana.jar, file.id);
   expect(await kept.text()).toBe("third, from the web");
 });
+
+test("an image that belongs to a doc never reaches a synced computer", async () => {
+  const acme = await stack.company(`pics-${randomUUID().slice(0, 6)}`);
+  const ana = await stack.member(acme.id);
+  const doc = await stack.upload(ana.jar, { space: "personal" }, "Plan.md", bytes("# Plan"));
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  await stack.upload(ana.jar, { parentId: doc.id }, "pasted.png", png, "image/png");
+  const picked = await fetch(at("/api/oauth/workspace"), {
+    method: "POST",
+    headers: { cookie: ana.jar.header, "content-type": "application/json" },
+    body: JSON.stringify({ workspace: acme.id }),
+  });
+  expect(picked.status).toBe(200);
+
+  const token = await connect(ana);
+  const mine = await drain(token, acme.id, "personal");
+  expect(mine.changes.map((change) => change.node?.name)).toEqual(["Plan.md"]);
+});
