@@ -60,7 +60,7 @@ export function Timeline({ kind, id }: { kind: CrmRecordKind; id: string }) {
           </Button>
         </div>
       ) : (
-        <ol className="flex flex-col gap-5" aria-label="Timeline">
+        <ol className="flex flex-col gap-8" aria-label="Timeline">
           {timeline.items.map((item) => (
             <Item
               key={`${item.kind}:${item.id}`}
@@ -342,7 +342,7 @@ function Line(props: {
 }) {
   const Icon = props.icon;
   return (
-    <li className="relative flex flex-col gap-2 not-last:before:absolute not-last:before:start-2.5 not-last:before:top-5 not-last:before:-bottom-5 not-last:before:w-px not-last:before:-translate-x-1/2 not-last:before:bg-border not-last:before:content-['']">
+    <li className="relative flex flex-col gap-2 not-last:before:absolute not-last:before:start-2.5 not-last:before:top-5 not-last:before:-bottom-8 not-last:before:w-px not-last:before:-translate-x-1/2 not-last:before:bg-border not-last:before:content-['']">
       <div className="flex min-h-5 items-center gap-2 text-sm">
         {props.lead ? (
           <span className="flex size-5 shrink-0">{props.lead}</span>
@@ -449,7 +449,7 @@ function NoteComposer({ kind, id }: { kind: CrmRecordKind; id: string }) {
 
 function TimelineBones() {
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       {Array.from({ length: 6 }, (_, i) => (
         <div key={i} className="flex items-center gap-2">
           <SkeletonBox width={20} height={20} radius="999px" />
