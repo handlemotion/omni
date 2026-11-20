@@ -50,6 +50,8 @@ export interface StorageNode {
   contentVersion: number;
   /** Hex SHA-256 of the bytes when the uploader sent it. */
   contentSha256: string | null;
+  /** Only the workspace's members see it: a grant or link above it does not reach in. */
+  teamOnly: boolean;
 }
 
 export function toNode(row: NodeRow) {
@@ -71,6 +73,7 @@ export function toNode(row: NodeRow) {
     revision: row.revision,
     contentVersion: row.contentVersion,
     contentSha256: row.contentSha256,
+    teamOnly: row.teamOnly,
   } satisfies StorageNode;
 }
 
@@ -262,6 +265,7 @@ export async function listChildren(
   drive: Drive,
   parentId: string | null,
   page: { cursor?: StorageListCursor | null; limit?: number },
+  teamOnlyHidden = false,
 ) {
   const limit = pageSize(page.limit);
   const after = page.cursor
@@ -271,7 +275,14 @@ export async function listChildren(
     .select(nodeColumns)
     .from(storageNodes)
     .leftJoin(storageLocks, lockJoin)
-    .where(and(siblings(drive, parentId), sql`${storageNodes.trashedAt} is null`, after))
+    .where(
+      and(
+        siblings(drive, parentId),
+        sql`${storageNodes.trashedAt} is null`,
+        teamOnlyHidden ? sql`not ${storageNodes.teamOnly}` : undefined,
+        after,
+      ),
+    )
     .orderBy(storageNodes.kind, sql`lower(${storageNodes.name})`, storageNodes.id)
     .limit(limit + 1);
   const nodes = rows.slice(0, limit);
@@ -329,6 +340,7 @@ export interface NewNode {
   r2Key?: string | null;
   contentSha256?: string | null;
   createdByMemberId: string | null;
+  teamOnly?: boolean;
 }
 
 /**
@@ -354,6 +366,7 @@ export async function insertNode(tx: Db, input: NewNode) {
         r2Key: input.r2Key ?? null,
         contentSha256: input.contentSha256 ?? null,
         createdByMemberId: input.createdByMemberId,
+        teamOnly: input.teamOnly ?? false,
         revision,
       })
       .onConflictDoNothing()

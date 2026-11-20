@@ -167,13 +167,17 @@ async function leavingRefusal(tx: Db, door: Door, found: { node: NodeRow; access
   return null;
 }
 
+const stuck = (node: NodeRow, access: Access, filing?: boolean) =>
+  Boolean(node.lockedAt) && !(filing && access.role === "member");
+
 const moveInto: (
   tx: Db,
   door: Door,
   nodeId: string,
   to: StoragePlace,
   guard?: StorageGuard,
-) => Promise<MoveResult> = async (tx, door, nodeId, to, guard) => {
+  filing?: boolean,
+) => Promise<MoveResult> = async (tx, door, nodeId, to, guard, filing) => {
   const orgId = await orgOfNode(tx, nodeId);
   if (!orgId) return NOT_FOUND;
   await lockTree(tx, orgId);
@@ -182,7 +186,7 @@ const moveInto: (
   if (!found.access.change) return FORBIDDEN;
   const { node } = found;
   if (stale(node, guard)) return VERSION_CONFLICT;
-  if (node.lockedAt) return LOCKED;
+  if (stuck(node, found.access, filing)) return LOCKED;
   const dest = await resolvePlace(tx, door, to);
   if (!dest) return NOT_FOUND;
   if (!dest.writable || dest.drive.orgId !== node.orgId) return FORBIDDEN;
@@ -262,12 +266,13 @@ export function treeOperations(db: Db, door: Door) {
     ) {
       const at = await resolvePlace(db, door, place);
       if (!at) return NOT_FOUND satisfies ListResult;
-      const { nodes, nextCursor } = await listChildren(db, at.drive, at.parentId, page);
+      const guest = Boolean(at.access && at.access.role !== "member");
+      const { nodes, nextCursor } = await listChildren(db, at.drive, at.parentId, page, guest);
       const folder = at.access ? view(at.chain, at.access) : null;
       return { status: "ok", folder, nodes, nextCursor } satisfies ListResult;
     },
 
-    async createFolder(place: StoragePlace, name: string) {
+    async createFolder(place: StoragePlace, name: string, options: { teamOnly?: boolean } = {}) {
       const clean = cleanName(name);
       if (!clean) return { status: "invalid_name" } satisfies CreateFolderResult;
       return db.transaction<CreateFolderResult>(async (tx) => {
@@ -277,6 +282,7 @@ export function treeOperations(db: Db, door: Door) {
         const at = await resolvePlace(tx, door, place);
         if (!at) return NOT_FOUND;
         if (!at.writable) return FORBIDDEN;
+        if (options.teamOnly && (at.access?.role ?? "member") !== "member") return FORBIDDEN;
         if (at.depth + 1 > STORAGE_MAX_DEPTH) return { status: "too_deep" as const };
         const actor = await door.actor(tx, at.drive.orgId);
         if (!actor) return FORBIDDEN;
@@ -286,6 +292,7 @@ export function treeOperations(db: Db, door: Door) {
           kind: "folder",
           name: clean,
           createdByMemberId: actor,
+          teamOnly: options.teamOnly ?? false,
         });
         return { status: "ok" as const, node: toNode(row) };
       });
@@ -339,6 +346,12 @@ export function treeOperations(db: Db, door: Door) {
     move(nodeId: string, to: StoragePlace, guard?: StorageGuard) {
       return retryNameRace(() =>
         db.transaction((tx) => moveInto(tx, door, nodeId, to, guard)),
+      ) satisfies Promise<MoveResult>;
+    },
+
+    fileAway(nodeId: string, to: StoragePlace) {
+      return retryNameRace(() =>
+        db.transaction((tx) => moveInto(tx, door, nodeId, to, undefined, true)),
       ) satisfies Promise<MoveResult>;
     },
 

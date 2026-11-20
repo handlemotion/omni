@@ -163,6 +163,15 @@ export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
 };
 
 /**
+ * The part of a node's chain a grant or a link can reach it from: up to the nearest team-only
+ * folder, itself included (`storage_nodes.team_only`). Sharing above that folder does not reach in.
+ */
+export function shareableChain(chain: NodeRow[]) {
+  const wall = chain.findIndex((row) => row.teamOnly);
+  return wall < 0 ? chain : chain.slice(0, wall + 1);
+}
+
+/**
  * The addresses a grant may be addressed to for this session: every address the person has
  * verified or, for a session scoped to a company, only those on
  * that company's claimed domains.
@@ -206,7 +215,8 @@ export const grantDoor: (
     async access(ex, chain) {
       const node = chain[0];
       if (!node || inTrash(chain)) return null;
-      if (underShareId && !chain.some((row) => row.shareId === underShareId)) return null;
+      const reachable = shareableChain(chain);
+      if (underShareId && !reachable.some((row) => row.shareId === underShareId)) return null;
       const addresses = await grantAddresses(ex, userId, scopeOrgId);
       if (addresses.length === 0) return null;
       const grants = await ex
@@ -216,7 +226,7 @@ export const grantDoor: (
           and(
             inArray(
               storageGrants.nodeId,
-              chain.map((row) => row.id),
+              reachable.map((row) => row.id),
             ),
             inArray(storageGrants.email, addresses),
           ),
@@ -348,7 +358,7 @@ export const linkDoor: (shareId: string, visitor?: LinkVisitor) => Door = (
     kind: "link",
     async access(ex, chain) {
       if (chain.length === 0 || inTrash(chain)) return null;
-      const top = chain.findIndex((row) => row.shareId === shareId);
+      const top = shareableChain(chain).findIndex((row) => row.shareId === shareId);
       if (top < 0 || (await linkState(ex, chain[top]!, visitor)) !== "open") return null;
       return { role: "viewer", top, inside: false, change: false, remove: false, share: false };
     },

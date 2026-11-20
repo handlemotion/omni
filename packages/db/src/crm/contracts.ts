@@ -11,6 +11,14 @@ import {
   type InvalidContract,
   type InvalidTransition,
 } from "./contract-status.ts";
+import {
+  fileContract,
+  involves,
+  setPeople,
+  shareContract,
+  withPeople,
+  type InvalidPeople,
+} from "./contract-people.ts";
 import { withSigning, type CrmContractSigning } from "./contract-progress.ts";
 import {
   appendEvent,
@@ -48,6 +56,8 @@ export interface CrmContract {
   createdAt: Date;
   updatedAt: Date;
   signing: CrmContractSigning | null;
+  /** Who on the workspace it involves; a freelancer sees only contracts that involve them. */
+  memberIds: string[];
 }
 
 /** One signer of a contract signed outside Omni, as a member entered them. */
@@ -57,7 +67,7 @@ export interface ContractSignedBy {
 }
 
 /** A contract row, before its signing progress is read from Storage. */
-export type CrmContractRow = Omit<CrmContract, "signing">;
+export type CrmContractRow = Omit<CrmContract, "signing" | "memberIds">;
 
 /** Out for signature from Omni: void the request instead of changing it by hand. */
 export type SignatureOpen = { status: "signature_open" };
@@ -70,6 +80,8 @@ export interface ContractInput {
   documentNodeId?: string | null;
   effectiveOn?: string | null;
   expiresOn?: string | null;
+  /** Members of the workspace it involves. */
+  memberIds?: string[];
 }
 
 export interface ContractPatch {
@@ -79,6 +91,8 @@ export interface ContractPatch {
   signedAt?: Date;
   effectiveOn?: string | null;
   expiresOn?: string | null;
+  /** Replaces who it involves. */
+  memberIds?: string[];
 }
 
 export type ContractResult =
@@ -87,11 +101,14 @@ export type ContractResult =
   | ContractSigned
   | InvalidTransition
   | InvalidContract
+  | InvalidPeople
   | SignatureOpen;
 
 export type ListContractsInput = ({ companyId: string } | { dealId: string }) & {
   cursor?: CrmTimelineCursor | null;
   limit?: number;
+  /** Only those involving this member. */
+  involving?: string;
 };
 
 export type ContractListResult =
@@ -143,9 +160,14 @@ const eventRecord = (contract: { dealId: string | null; companyId: string | null
   return result;
 };
 
+/** Contracts as callers see them, with signing progress and the people they involve. */
+export async function asContracts(ex: Ex, orgId: string, rows: CrmContractRow[]) {
+  return (await withPeople(ex, await withSigning(ex, orgId, rows))) satisfies CrmContract[];
+}
+
 /** The contract as callers see it, with its signing progress. */
 export async function withProgress(ex: Ex, orgId: string, row: CrmContractRow) {
-  const [contract] = await withSigning(ex, orgId, [row]);
+  const [contract] = await asContracts(ex, orgId, [row]);
   return contract! satisfies CrmContract;
 }
 
@@ -210,10 +232,17 @@ export const listContracts: (
   const rows = await ex
     .select(contractColumns)
     .from(crmContracts)
-    .where(and(eq(crmContracts.orgId, member.orgId), column, older))
+    .where(
+      and(
+        eq(crmContracts.orgId, member.orgId),
+        column,
+        older,
+        input.involving ? involves(crmContracts.id, input.involving) : undefined,
+      ),
+    )
     .orderBy(desc(crmContracts.createdAt), desc(crmContracts.id))
     .limit(limit + 1);
-  const contracts = await withSigning(ex, member.orgId, rows.slice(0, limit));
+  const contracts = await asContracts(ex, member.orgId, rows.slice(0, limit));
   const last = contracts.at(-1);
   return {
     status: "ok",
@@ -266,6 +295,10 @@ export const createContract: (
       createdByMemberId: member.id,
     })
     .returning(contractColumns);
+  const people = await setPeople(tx, member, contract!.id, input.memberIds ?? []);
+  if (people.status !== "ok") refuse(people);
+  await fileContract(tx, member, contract!);
+  await shareContract(tx, member, contract!);
   await contractEvent(tx, member, contract!, "contract_created", { documentNodeId });
   return { status: "ok", contract: await withProgress(tx, member.orgId, contract!) };
 };
@@ -278,6 +311,20 @@ function fieldsOf(current: CrmContractRow, patch: ContractPatch) {
   return (
     datesRefusal(effectiveOn, expiresOn) ?? { status: "ok" as const, title, effectiveOn, expiresOn }
   );
+}
+
+async function involveAndFile(
+  tx: Ex,
+  member: CrmMember,
+  before: CrmContractRow,
+  after: CrmContractRow,
+  memberIds: string[] | undefined,
+) {
+  const people = memberIds === undefined ? null : await setPeople(tx, member, after.id, memberIds);
+  if (people && people.status !== "ok") refuse(people);
+  await fileContract(tx, member, after);
+  const oldFiles = [before.documentNodeId, before.signedNodeId].filter((n) => n !== null);
+  await shareContract(tx, member, after, { gone: people?.gone, oldFiles });
 }
 
 /**
@@ -316,6 +363,7 @@ export const updateContract: (
     })
     .where(eq(crmContracts.id, id))
     .returning(contractColumns);
+  await involveAndFile(tx, member, current, contract!, patch.memberIds);
   if (move.lock) {
     const locked = await memberStorage(tx as Db, member.id).lock(move.lock);
     if (locked.status !== "ok" || locked.node.space !== "shared") {

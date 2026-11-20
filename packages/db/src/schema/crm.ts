@@ -393,6 +393,7 @@ export const crmSettings = pgTable("crm_settings", {
   defaultCurrency: text("default_currency"),
   rootFolderNodeId: folderRef("root_folder_node_id"),
 });
+export * from "./crm/contract-people.ts";
 export * from "./crm/files.ts";
 export * from "./crm/projects.ts";
 export * from "./crm/tasks.ts";

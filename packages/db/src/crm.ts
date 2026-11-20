@@ -41,6 +41,7 @@ import {
   ANYONE,
   asMember,
   crmAudience,
+  TEAM_ONLY,
   writeAsMember,
   type CrmDoor,
   type CrmMember,
@@ -163,6 +164,11 @@ export {
   endExpiredContracts,
   type EndedContract,
 } from "./crm/contract-expiry.ts";
+export {
+  ADMIN_FOLDER_NAME,
+  CONTRACT_PEOPLE_MAX,
+  type InvalidPeople,
+} from "./crm/contract-people.ts";
 export type { CrmContractSigner, CrmContractSigning } from "./crm/contract-progress.ts";
 export type { SignedCopyInput } from "./crm/contract-signed-copy.ts";
 export {
@@ -373,7 +379,11 @@ export function memberCrm(db: Db, memberId: string) {
       writeAsMember(door, (m, tx) => unlinkFile(tx, m, record, nodeId), onProjectRecord(record)),
 
     listContracts: (input: ListContractsInput) =>
-      asMember(door, (m, ex) => listContracts(ex, m, input)),
+      asMember(
+        door,
+        (m, ex) => listContracts(ex, m, isFreelancer(m) ? { ...input, involving: m.id } : input),
+        "dealId" in input ? onProject(input.dealId) : TEAM_ONLY,
+      ),
     createContract: (input: ContractInput) =>
       writeAsMember(door, (m, tx) => createContract(tx, m, input)),
     updateContract: (id: string, patch: ContractPatch) =>

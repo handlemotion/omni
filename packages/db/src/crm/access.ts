@@ -1,10 +1,13 @@
 import { and, asc, eq, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
+import { crmContracts } from "../schema/crm.ts";
 import { crmPortals, crmProjectMembers } from "../schema/crm/projects.ts";
 import { userEmails } from "../schema/identity.ts";
 import { memberStorage } from "../storage.ts";
 import { FREELANCER_ROLE, NOT_FOUND, refuse, type CrmMember, type Ex } from "./core.ts";
+import { fileContract } from "./contract-people.ts";
+import { contractColumns } from "./contracts.ts";
 import { dealFolder } from "./folders.ts";
 import { loadDeal } from "./records.ts";
 
@@ -138,6 +141,15 @@ async function grantFolder(
     scope === "freelancer" ? folder.nodeId : await portalFolder(tx, member, dealId, folder.nodeId);
   const put = await storage.putGrant(target, email, scope === "freelancer" ? "editor" : "viewer");
   if (put.status !== "ok") sharingRefused(put.status);
+  if (scope === "freelancer") await fileContractsOf(tx, member, dealId);
+}
+
+async function fileContractsOf(tx: Ex, member: CrmMember, dealId: string) {
+  const contracts = await tx
+    .select(contractColumns)
+    .from(crmContracts)
+    .where(and(eq(crmContracts.orgId, member.orgId), eq(crmContracts.dealId, dealId)));
+  for (const contract of contracts) await fileContract(tx, member, contract);
 }
 
 async function revokeFolder(

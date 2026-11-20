@@ -109,6 +109,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "thread_participants_backfill",
       "crm_companies",
       "crm_company_domains",
+      "crm_contract_people",
       "crm_contracts",
       "crm_deal_people",
       "crm_deals",

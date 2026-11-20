@@ -170,7 +170,7 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
       union all
       select c.id, granted.depth + 1 from ${storageNodes} c
         join granted on c.parent_id = granted.id
-        where c.trashed_at is null and granted.depth < ${MAX_WALK}
+        where c.trashed_at is null and not c.team_only and granted.depth < ${MAX_WALK}
     ) select id from granted)`;
 
   const reachesShared = async (w: { personal: boolean; memberId: string }) =>

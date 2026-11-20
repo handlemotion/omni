@@ -154,6 +154,11 @@ export const crmContractSchema = z.object({
     .optional(),
   /** Where it is with its signers when it went out from Omni; null when sent by hand. */
   signing: crmContractSigningSchema.nullable().optional(),
+  /**
+   * Members it involves: teammates working it, or the freelancer it is with. A freelancer sees
+   * only contracts that involve them. Absent from a Worker older than it.
+   */
+  memberIds: z.array(id).optional(),
 });
 
 /** A thread the viewer can open, from any of their mailboxes in the session's scope. */
@@ -348,6 +353,8 @@ export const crmCreateContractBodySchema = z
     documentNodeId: id.nullable().optional(),
     effectiveOn: day.nullable().optional(),
     expiresOn: day.nullable().optional(),
+    /** Members of the workspace it involves. */
+    memberIds: z.array(id).max(20).optional(),
   })
   .refine((contract) => Boolean(contract.companyId || contract.dealId), {
     message: "give a companyId, a dealId or both",
@@ -366,6 +373,8 @@ export const crmUpdateContractBodySchema = z.object({
   signedAt: isoDate.optional(),
   effectiveOn: day.nullable().optional(),
   expiresOn: day.nullable().optional(),
+  /** Replaces the members it involves. */
+  memberIds: z.array(id).max(20).optional(),
 });
 
 /**

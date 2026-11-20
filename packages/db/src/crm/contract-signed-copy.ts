@@ -13,6 +13,7 @@ import {
   type ContractResult,
   type ContractSignedBy,
 } from "./contracts.ts";
+import { fileContract, shareContract } from "./contract-people.ts";
 import { NOT_FOUND, refuse, type CrmMember, type Ex } from "./core.ts";
 import { cleanName } from "./records.ts";
 
@@ -90,6 +91,8 @@ export const recordSignedCopy: (
     })
     .where(eq(crmContracts.id, id))
     .returning(contractColumns);
+  await fileContract(tx, member, contract!);
+  await shareContract(tx, member, contract!);
   const storage = memberStorage(tx as Db, member.id);
   for (const nodeId of new Set([documentNodeId, input.nodeId])) {
     const locked = await storage.lock(nodeId);

@@ -51,6 +51,7 @@ export function archiveOperations(db: Db, door: Door) {
             select c.id, down.path || '/' || c.name, down.depth + 1 from ${storageNodes} c
               join down on c.parent_id = down.id
               where c.trashed_at is null and down.depth < ${MAX_WALK}
+                ${found.access.role === "member" ? sql`` : sql`and not c.team_only`}
           )
           select n.kind, n.size, n.r2_key, n.updated_at, down.path
           from down join ${storageNodes} n on n.id = down.id

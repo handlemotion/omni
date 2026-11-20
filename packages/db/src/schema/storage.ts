@@ -109,6 +109,11 @@ export const storageNodes = pgTable(
     contentVersion: integer("content_version").notNull().default(1),
     /** Hex SHA-256 of the bytes, as the client that uploaded them sent it; null when unknown. */
     contentSha256: text("content_sha256"),
+    /**
+     * Only the workspace's own members see it and what is inside it. A grant or a link on a folder
+     * above does not reach in; one on the node itself, or on something inside it, still does.
+     */
+    teamOnly: boolean("team_only").notNull().default(false),
   },
   (t) => [
     unique("storage_nodes_id_org_id_unique").on(t.id, t.orgId),

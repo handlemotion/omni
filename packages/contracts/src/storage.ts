@@ -92,6 +92,11 @@ export const storageNodeSchema = z.object({
    * when it sent none.
    */
   contentSha256: z.string().nullable().optional(),
+  /**
+   * Only the workspace's members see it: a grant or a link on a folder above does not reach in.
+   * Absent from a Worker older than it.
+   */
+  teamOnly: z.boolean().optional(),
 });
 
 /** A node as its reader sees it. `path` runs from the highest folder they can open to the node. */

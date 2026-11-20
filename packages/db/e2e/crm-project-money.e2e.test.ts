@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
-import { members } from "../src/schema/index.ts";
+import { members, storageNodes } from "../src/schema/index.ts";
 import { addFile, createPerson, setRole } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase } from "./support.ts";
 
@@ -25,7 +26,7 @@ async function freelancer(orgId: string, email: string) {
       createdAt: new Date(),
     })
     .returning();
-  return forMember(db, member!.id).crm;
+  return { id: member!.id, ...forMember(db, member!.id) };
 }
 
 async function studio(slug: string) {
@@ -65,9 +66,22 @@ async function studio(slug: string) {
       }),
     );
   }
-  const fran = await freelancer(org.id, franAt);
-  const gus = await freelancer(org.id, gusAt);
-  return { team: team.crm, website, app, fran, gus, client: `bea@${slug}-client.test` };
+  const franDoor = await freelancer(org.id, franAt);
+  const gusDoor = await freelancer(org.id, gusAt);
+  return {
+    org,
+    teamDoor: team,
+    team: team.crm,
+    website,
+    app,
+    folder,
+    pdf,
+    fran: franDoor.crm,
+    gus: gusDoor.crm,
+    franDoor,
+    gusDoor,
+    client: `bea@${slug}-client.test`,
+  };
 }
 
 const noValue = { valueMinor: null, valueCurrency: null };
@@ -103,7 +117,7 @@ test("a freelancer never reads what a project is worth, by any route", async () 
 test("contracts, their events and the team's notes stay with the team", async () => {
   const { team, website, fran, gus } = await studio("money-records");
 
-  expect((await fran.listContracts({ dealId: website.id })).status).toBe("not_found");
+  expect(ok(await fran.listContracts({ dealId: website.id })).contracts).toEqual([]);
   const events = ok(await fran.events({ dealId: website.id })).items.map((e) => e.kind);
   expect(events).toContain("created");
   expect(events.filter((kind) => kind.startsWith("contract_") || kind === "value_changed")).toEqual(
@@ -119,4 +133,59 @@ test("contracts, their events and the team's notes stay with the team", async ()
   expect(await bodies(fran)).toEqual(["Fonts are licensed"]);
   expect(await bodies(gus)).toEqual(["Fonts are licensed"]);
   expect(await bodies(team)).toEqual(["Fonts are licensed", "Budget is 15k, firm"]);
+});
+
+test("contract files go into the project's Admin folder, which no freelancer reaches", async () => {
+  const { teamDoor, website, folder, pdf, franDoor } = await studio("money-admin");
+  const brief = await addFile(teamDoor.storage, { parentId: folder }, "brief.pdf");
+
+  const inFolder = ok(await teamDoor.storage.list({ parentId: folder })).nodes;
+  const admin = inFolder.find((node) => node.name === "Admin")!;
+  expect(admin).toMatchObject({ kind: "folder", teamOnly: true });
+  expect((await teamDoor.storage.node(pdf.id))?.path.at(-2)).toMatchObject({ name: "Admin" });
+
+  const theirs = ok(await franDoor.storage.list({ parentId: folder })).nodes.map((n) => n.name);
+  expect(theirs).toEqual(["brief.pdf"]);
+  expect(await franDoor.storage.node(admin.id)).toBeNull();
+  expect(await franDoor.storage.node(pdf.id)).toBeNull();
+  expect((await franDoor.storage.node(brief.id))?.role).toBe("editor");
+  expect((await franDoor.storage.archive([folder], 100)).status).toBe("ok");
+  const zipped = ok(await franDoor.storage.archive([folder], 100)).entries.map((e) => e.path);
+  expect(zipped.toSorted()).toEqual(["website", "website/brief.pdf"]);
+  expect((await franDoor.storage.move(brief.id, { parentId: admin.id })).status).toBe("not_found");
+  expect(ok(await franDoor.crm.dealFolder(website.id)).nodeId).toBe(folder);
+});
+
+test("a freelancer sees and opens only the contracts that involve them", async () => {
+  const { team, website, pdf, fran, gus, franDoor, gusDoor } = await studio("money-people");
+  const [contract] = ok(await team.listContracts({ dealId: website.id })).contracts;
+
+  const involved = ok(await team.updateContract(contract!.id, { memberIds: [franDoor.id] }));
+  expect(involved.contract.memberIds).toEqual([franDoor.id]);
+  const seen = ok(await fran.listContracts({ dealId: website.id })).contracts;
+  expect(seen.map((c) => [c.title, c.memberIds])).toEqual([["MSA", [franDoor.id]]]);
+  expect((await franDoor.storage.node(pdf.id))?.role).toBe("viewer");
+  expect(ok(await gus.listContracts({ dealId: website.id })).contracts).toEqual([]);
+  expect(await gusDoor.storage.node(pdf.id)).toBeNull();
+
+  const strangers = await team.updateContract(contract!.id, { memberIds: [randomUUID()] });
+  expect(strangers).toMatchObject({ status: "invalid_contract", param: "memberIds" });
+
+  ok(await team.updateContract(contract!.id, { memberIds: [] }));
+  expect(ok(await fran.listContracts({ dealId: website.id })).contracts).toEqual([]);
+  expect(await franDoor.storage.node(pdf.id)).toBeNull();
+});
+
+test("a locked contract filed before the Admin folder is filed when a freelancer joins", async () => {
+  const { org, teamDoor, team, website, folder, pdf } = await studio("money-locked");
+  ok(await teamDoor.storage.lock(pdf.id));
+  await db.update(storageNodes).set({ parentId: folder }).where(eq(storageNodes.id, pdf.id));
+  const halAt = "hal@money-locked.test";
+  ok(await team.grantProjectAccess(website.id, { email: halAt, scope: "freelancer" }));
+  const hal = await freelancer(org.id, halAt);
+
+  const filed = await teamDoor.storage.node(pdf.id);
+  expect(filed?.path.at(-2)).toMatchObject({ name: "Admin" });
+  expect(filed?.node.lockedAt).not.toBeNull();
+  expect(await hal.storage.node(pdf.id)).toBeNull();
 });

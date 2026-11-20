@@ -180,6 +180,7 @@ public struct StorageNode: Codable, Equatable {
     public let revision: Int?
     public let size: Int
     public let space: Space
+    public let teamOnly: Bool?
     public let trashedAt: String?
     public let updatedAt: String
 
@@ -199,11 +200,12 @@ public struct StorageNode: Codable, Equatable {
         case revision = "revision"
         case size = "size"
         case space = "space"
+        case teamOnly = "teamOnly"
         case trashedAt = "trashedAt"
         case updatedAt = "updatedAt"
     }
 
-    public init(contentSha256: String?, contentVersion: Int?, createdAt: String, createdByMemberId: String?, id: String, kind: Kind, lockedAt: String?, mimeType: String?, name: String, orgId: String, ownerMemberId: String?, parentId: String?, revision: Int?, size: Int, space: Space, trashedAt: String?, updatedAt: String) {
+    public init(contentSha256: String?, contentVersion: Int?, createdAt: String, createdByMemberId: String?, id: String, kind: Kind, lockedAt: String?, mimeType: String?, name: String, orgId: String, ownerMemberId: String?, parentId: String?, revision: Int?, size: Int, space: Space, teamOnly: Bool?, trashedAt: String?, updatedAt: String) {
         self.contentSha256 = contentSha256
         self.contentVersion = contentVersion
         self.createdAt = createdAt
@@ -219,6 +221,7 @@ public struct StorageNode: Codable, Equatable {
         self.revision = revision
         self.size = size
         self.space = space
+        self.teamOnly = teamOnly
         self.trashedAt = trashedAt
         self.updatedAt = updatedAt
     }
@@ -258,6 +261,7 @@ public extension StorageNode {
         revision: Int?? = nil,
         size: Int? = nil,
         space: Space? = nil,
+        teamOnly: Bool?? = nil,
         trashedAt: String?? = nil,
         updatedAt: String? = nil
     ) -> StorageNode {
@@ -277,6 +281,7 @@ public extension StorageNode {
             revision: revision ?? self.revision,
             size: size ?? self.size,
             space: space ?? self.space,
+            teamOnly: teamOnly ?? self.teamOnly,
             trashedAt: trashedAt ?? self.trashedAt,
             updatedAt: updatedAt ?? self.updatedAt
         )

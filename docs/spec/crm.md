@@ -150,6 +150,19 @@ people from outside the team who reach it, by address, each with a scope (founde
   contracts and no contract or value events on the timeline, and of the notes only those written
   by freelancers: a teammate's note is the team's own record (budgets, what we think of the
   client). The server leaves these out; the apps only stop showing the empty places.
+- **Admin folder.** Each project's folder holds an `Admin` folder that only the team sees
+  (founder's call, Nov 20, 2026: split the administrative files from the creative ones). It is a
+  team-only folder in Drive (`storage_nodes.team_only`): a grant or a link on a folder above it does
+  not reach in, so a freelancer with editor on the project's folder neither lists, opens, searches,
+  downloads nor moves anything into it; a grant on something inside it still works. A deal
+  contract's document and signed copy go there when they sit loose in the project's folder: when
+  the contract is made or changed, when its signed copy is recorded, and, for older contracts,
+  when a freelancer is added. Locked files move too and stay locked; a file the team keeps
+  elsewhere stays where it is. The sealed copy lands beside its document.
+- **People involved in a contract.** A contract lists the members it involves (`memberIds`, at
+  most 20): teammates working it, or the freelancer it is with. A freelancer sees, on their
+  projects, only the contracts that involve them, and gets viewer on those contracts' files;
+  taking them off takes that away.
 - **Clients** reach the project on the client portal only (below). They need no workspace.
 
 A teammate's address cannot be added. A project holds at most 50 people from outside the team.
