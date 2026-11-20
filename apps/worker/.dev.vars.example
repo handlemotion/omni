@@ -45,6 +45,10 @@ MAIL_SERVICE_HMAC_SECRET=
 # (its domain onboarded there; `wrangler dev` only simulates it). Leave empty to disable email sign-in.
 SYSTEM_MAIL_FROM=
 
+# Optional. iOS apps that open this host's Drive share links (/s/<id>), as <team id>.<bundle id>,
+# comma-separated. Served at /.well-known/apple-app-site-association. Empty: none.
+IOS_APP_IDS=
+
 # Optional. Largest file one upload may stage for a send, in bytes. Empty: 26214400 (25 MB).
 UPLOAD_MAX_BYTES=
 

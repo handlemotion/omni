@@ -49,6 +49,9 @@ export const keys = {
   senderLogo: (who: string) => ["sender-logo", who] as const,
   search: (q: string) => ["search", q] as const,
   driveSearch: (q: string) => ["drive", "search", q] as const,
+  /** A `/s/<shareId>` link, as the person opened it: outside `["drive"]`, it is no workspace's. */
+  driveLinkAll: (shareId: string) => ["drive-link", shareId] as const,
+  driveLink: (shareId: string, node?: string) => ["drive-link", shareId, node ?? "root"] as const,
   crmSearch: (q: string) => ["crm", "search", q] as const,
   attachmentFile: (attachmentId: string) => ["attachment", attachmentId] as const,
 };

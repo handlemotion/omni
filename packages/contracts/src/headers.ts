@@ -11,3 +11,6 @@ export const WORKSPACE_HEADER = "omni-workspace";
  * header: a download it navigates to, an image or file preview it loads.
  */
 export const WORKSPACE_PARAM = "workspace";
+
+/** The header a native client sends a password-protected link's unlock key in. */
+export const STORAGE_LINK_KEY_HEADER = "x-omni-link-key";

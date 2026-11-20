@@ -42,8 +42,7 @@ export const storageLinkPasswordSchema = z.string().min(4).max(128);
  */
 export const storageUnlockBodySchema = z.object({ password: z.string().min(1).max(128) });
 export const storageUnlockResponseSchema = z.object({ key: z.string(), expiresAt: isoDate });
-/** The header a native client sends an unlock key in. */
-export const STORAGE_LINK_KEY_HEADER = "x-omni-link-key";
+export { STORAGE_LINK_KEY_HEADER } from "./headers.ts";
 
 export type StorageLink = z.infer<typeof storageLinkSchema>;
 export type StoragePolicy = z.infer<typeof storagePolicySchema>;

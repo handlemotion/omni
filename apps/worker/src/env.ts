@@ -13,6 +13,7 @@ declare global {
       DOMAIN_CONNECT_PRIVATE_KEY?: string;
       STRIPE_SECRET_KEY?: string;
       STRIPE_WEBHOOK_SECRET?: string;
+      IOS_APP_IDS?: string;
     }
   }
 }
@@ -107,6 +108,12 @@ const configSchema = z
     S2_BASIN: optionalText,
     S2_ACCESS_TOKEN: optionalText,
     EXPO_ACCESS_TOKEN: optionalText,
+    IOS_APP_IDS: optionalText.transform((value) =>
+      (value ?? "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
     RATE_LIMIT_AUTH: rateLimit("60/60"),
     RATE_LIMIT_MAGIC_LINK: rateLimit("5/900"),
     RATE_LIMIT_INVITE: rateLimit("30/3600"),

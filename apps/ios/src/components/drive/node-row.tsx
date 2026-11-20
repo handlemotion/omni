@@ -13,10 +13,13 @@ import { FileTile } from "./file-glyph.tsx";
 export function NodeRow({
   node,
   detail,
+  onPress,
   onLongPress,
 }: {
   node: DriveNode;
   detail?: string;
+  /** Where a tap goes, when not Drive's own folder or file page (a link's, `LinkPage`). */
+  onPress?: () => void;
   /** A long press: the node's actions (`NodeSheet`). */
   onLongPress?: () => void;
 }) {
@@ -31,12 +34,13 @@ export function NodeRow({
       onPress={
         node.trashedAt
           ? undefined
-          : () =>
+          : (onPress ??
+            (() =>
               router.push(
                 folder
                   ? { pathname: "/drive/folder/[id]", params: { id: node.id, name: node.name } }
                   : { pathname: "/drive/file/[id]", params: { id: node.id, name: node.name } },
-              )
+              )))
       }
     >
       <FileTile node={node} />

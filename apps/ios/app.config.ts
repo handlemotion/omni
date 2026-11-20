@@ -3,6 +3,7 @@ import { type ConfigPlugin, withXcodeProject } from "expo/config-plugins";
 import pkg from "./package.json";
 
 const scheme = process.env.OMNI_IOS_SCHEME || "omni";
+const linkHost = process.env.OMNI_IOS_LINK_HOST;
 
 const config: ExpoConfig = {
   name: process.env.OMNI_IOS_NAME || "Omni",
@@ -16,6 +17,7 @@ const config: ExpoConfig = {
     bundleIdentifier: process.env.OMNI_IOS_BUNDLE_ID || "app.omni.ios",
     buildNumber: process.env.OMNI_IOS_BUILD_NUMBER || "1",
     ...(process.env.OMNI_IOS_TEAM_ID ? { appleTeamId: process.env.OMNI_IOS_TEAM_ID } : {}),
+    ...(linkHost ? { associatedDomains: [`applinks:${linkHost}`] } : {}),
     supportsTablet: false,
     config: { usesNonExemptEncryption: false },
   },

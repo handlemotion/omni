@@ -52,6 +52,7 @@ import { storageSigning } from "./storage/signing.ts";
 import { storageSync } from "./storage/sync.ts";
 import { workspaces } from "./routes/workspaces.ts";
 import { join } from "./routes/join.ts";
+import { appLinks } from "./routes/app-links.ts";
 import { mcp } from "./routes/mcp.ts";
 import { oauth } from "./routes/oauth.ts";
 import { limitAuth } from "./rate-limiter.ts";
@@ -169,6 +170,7 @@ export const app = new Hono<AppEnv>()
   .use("/api/*", requestScope)
   .use("/mcp", requestScope)
   .use("/.well-known/*", requestScope)
+  .route("/", appLinks)
   .route("/", mcp)
   .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
   .route("/api/auth/stripe/webhook", stripeWebhook)
