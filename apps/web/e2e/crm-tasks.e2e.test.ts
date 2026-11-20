@@ -85,6 +85,60 @@ test("checking a task off in the list completes it, and notes typed on its page 
   await context.close();
 });
 
+test("a task dragged onto Today is due today, and onto No due date has no due date", async () => {
+  const origin = String(worker.url);
+  const org = await createOrg(db, "planner");
+  await db.insert(schema.orgSetup).values({ orgId: org.id, step: "complete" });
+  const email = `planner-${Date.now()}@studio.test`;
+  const member = await createMember(db, org.id, email);
+  await db.update(schema.members).set({ role: "owner" }).where(eq(schema.members.id, member.id));
+  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const headers = { cookie, origin, "content-type": "application/json", "omni-workspace": org.id };
+  const made = await fetch(new URL("/api/crm/tasks", origin), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ title: "Call the client" }),
+  });
+  const { task } = (await made.json()) as { task: { id: string } };
+
+  const context = await browser.newContext();
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await context.newPage();
+  await page.goto(new URL(`/${org.slug}/crm/tasks?view=all`, origin).toString());
+  const drag = async (to: string) => {
+    const from = (await page
+      .getByRole("listitem")
+      .filter({ hasText: "Call the client" })
+      .boundingBox())!;
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 + 10, { steps: 3 });
+    const target = (await page.getByRole("region", { name: to, exact: true }).boundingBox())!;
+    await page.mouse.move(target.x + target.width / 2, target.y + target.height - 8, { steps: 8 });
+    await page.mouse.up();
+  };
+
+  await page.getByRole("region", { name: "No due date" }).getByText("Call the client").waitFor();
+  await drag("Today");
+  await page.getByRole("region", { name: "Today" }).getByText("Call the client").waitFor();
+  const endOfToday = await page.evaluate(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+  });
+  await expect
+    .poll(async () => (await row(task.id))?.dueAt?.getTime() ?? null, { timeout: 10_000 })
+    .toBe(endOfToday);
+
+  await drag("No due date");
+  await expect.poll(async () => (await row(task.id))?.dueAt, { timeout: 10_000 }).toBeNull();
+  await context.close();
+});
+
 async function row(id: string) {
   const [found] = await db.select().from(schema.crmTasks).where(eq(schema.crmTasks.id, id));
   return found;

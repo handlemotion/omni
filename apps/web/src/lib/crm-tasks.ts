@@ -2,6 +2,7 @@ import {
   infiniteQueryOptions,
   mutationOptions,
   queryOptions,
+  type InfiniteData,
   type QueryClient,
 } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
@@ -32,6 +33,7 @@ export interface TaskFilter {
 
 const taskKeys = {
   all: () => [...keys.crm(), "tasks"] as const,
+  lists: () => [...keys.crm(), "tasks", "list"] as const,
   list: (filter: TaskFilter) => [...keys.crm(), "tasks", "list", filter] as const,
   one: (id: string) => [...keys.crm(), "tasks", "one", id] as const,
   counts: () => [...keys.crm(), "tasks", "counts"] as const,
@@ -84,13 +86,37 @@ export const updateTaskMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, ...json }: TaskChange & { id: string }) =>
       call(api.crm.tasks[":id"].$patch({ param: { id }, json })),
-    onMutate: async ({ id, done }) => {
-      if (done === undefined) return;
+    onMutate: async ({ id, done, dueAt }) => {
+      if (done === undefined && dueAt === undefined) return;
       await client.cancelQueries({ queryKey: taskKeys.all() });
-      const completedAt = done ? new Date().toISOString() : null;
+      const before = client.getQueriesData<InfiniteData<CrmTaskPage>>({
+        queryKey: taskKeys.lists(),
+      });
+      const patch = (task: CrmTask) => ({
+        ...task,
+        ...(done === undefined ? {} : { completedAt: done ? new Date().toISOString() : null }),
+        ...(dueAt === undefined ? {} : { dueAt }),
+      });
       client.setQueryData(taskKeys.one(id), (data: { task: CrmTask } | undefined) =>
-        data ? { task: { ...data.task, completedAt } } : data,
+        data ? { task: patch(data.task) } : data,
       );
+      if (dueAt !== undefined) {
+        client.setQueriesData<InfiniteData<CrmTaskPage>>({ queryKey: taskKeys.lists() }, (data) =>
+          data
+            ? {
+                ...data,
+                pages: data.pages.map((page) => ({
+                  ...page,
+                  tasks: page.tasks.map((task) => (task.id === id ? patch(task) : task)),
+                })),
+              }
+            : data,
+        );
+      }
+      return { before };
+    },
+    onError: (_error, _change, context) => {
+      for (const [key, data] of context?.before ?? []) client.setQueryData(key, data);
     },
     ...settle(client),
   });
@@ -157,6 +183,23 @@ export function dueGroup(task: CrmTask, now = new Date()) {
   else if (new Date(task.dueAt) < now) group = "overdue";
   else if (dayOf(task.dueAt) === dayOf(now.toISOString())) group = "today";
   return group;
+}
+
+/**
+ * The due time a task takes when dropped on `group`: the end of today, of tomorrow, or none.
+ * Undefined when the drop changes nothing: an open task can't be moved into Overdue, and a task
+ * already in the group keeps its own day.
+ */
+export function dueOnDrop(task: CrmTask, group: DueGroup, now = new Date()) {
+  if (group === "overdue" || dueGroup(task, now) === group) return undefined;
+  if (group === "none") return null;
+  const day = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + (group === "today" ? 0 : 1),
+    12,
+  );
+  return dueAtOf(dayOf(day.toISOString()));
 }
 
 const SHORT = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });

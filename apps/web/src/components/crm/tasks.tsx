@@ -1,3 +1,15 @@
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -21,9 +33,11 @@ import {
   DUE_GROUPS,
   dueGroup,
   dueLabel,
+  dueOnDrop,
   recordFilter,
   taskRecord,
   type CrmTask,
+  type DueGroup,
   type TaskFilter,
 } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
@@ -253,27 +267,114 @@ function TaskList(props: {
       </div>
     );
   }
-  const now = new Date();
   return (
     <div className="flex flex-col">
-      {DUE_GROUPS.filter(({ id }) => list.tasks.some((task) => dueGroup(task, now) === id)).map(
-        ({ id, label }, index) => {
-          const tasks = list.tasks.filter((task) => dueGroup(task, now) === id);
-          return (
-            <section key={id} aria-label={label} className="flex flex-col">
-              <h3
-                className={`flex items-end gap-1.5 px-2 pb-2 text-sm text-muted-foreground ${index ? "h-12" : "h-9"}`}
-              >
-                {label}
-                <span className="text-subtle-foreground tabular-nums">{tasks.length}</span>
-              </h3>
-              <TaskRows tasks={tasks} showRecord={props.showRecord} />
-            </section>
-          );
-        },
-      )}
+      <DueSections tasks={list.tasks} showRecord={props.showRecord} />
       {more}
     </div>
+  );
+}
+
+function DueSections(props: { tasks: CrmTask[]; showRecord: boolean }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const update = useUpdateTask();
+  const [lifted, setLifted] = useState<CrmTask | null>(null);
+  const now = new Date();
+  const drop = (event: DragEndEvent) => {
+    setLifted(null);
+    const task = props.tasks.find((each) => each.id === event.active.id);
+    const group = DUE_GROUPS.find(({ id }) => id === event.over?.id);
+    if (!task || !group) return;
+    const dueAt = dueOnDrop(task, group.id, now);
+    if (dueAt === undefined) return;
+    update.mutate(
+      { id: task.id, dueAt },
+      { onError: (error) => crmErrorToast(error, "The task was not rescheduled") },
+    );
+  };
+  const shown = DUE_GROUPS.filter(
+    ({ id }) =>
+      props.tasks.some((task) => dueGroup(task, now) === id) || (lifted && id !== "overdue"),
+  );
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragStart={(event: DragStartEvent) =>
+        setLifted(props.tasks.find((task) => task.id === event.active.id) ?? null)
+      }
+      onDragEnd={drop}
+      onDragCancel={() => setLifted(null)}
+    >
+      {shown.map(({ id, label }, index) => (
+        <DueSection
+          key={id}
+          group={id}
+          label={label}
+          first={index === 0}
+          tasks={props.tasks.filter((task) => dueGroup(task, now) === id)}
+          lifted={lifted}
+          showRecord={props.showRecord}
+        />
+      ))}
+      <DragOverlay dropAnimation={null}>
+        {lifted && (
+          <ul className="cursor-grabbing rounded-lg border bg-background">
+            <TaskRow task={lifted} showRecord={props.showRecord} />
+          </ul>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function DueSection(props: {
+  group: DueGroup;
+  label: string;
+  first: boolean;
+  tasks: CrmTask[];
+  lifted: CrmTask | null;
+  showRecord: boolean;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: props.group,
+    disabled: props.group === "overdue",
+  });
+  const taking = isOver && !!props.lifted && dueOnDrop(props.lifted, props.group) !== undefined;
+  return (
+    <section
+      ref={setNodeRef}
+      aria-label={props.label}
+      data-taking={taking || undefined}
+      className="flex flex-col rounded-lg transition-colors duration-150 ease-out data-taking:bg-hover"
+    >
+      <h3
+        className={`flex items-end gap-1.5 px-2 pb-2 text-sm text-muted-foreground ${props.first ? "h-9" : "h-12"}`}
+      >
+        {props.label}
+        <span className="text-subtle-foreground tabular-nums">{props.tasks.length}</span>
+      </h3>
+      <ul className="flex min-h-12 flex-col">
+        {props.tasks.map((task) => (
+          <DraggableTask key={task.id} task={task} showRecord={props.showRecord} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function DraggableTask(props: { task: CrmTask; showRecord: boolean }) {
+  const { setNodeRef, listeners, isDragging } = useDraggable({ id: props.task.id });
+  return (
+    <TaskRow
+      task={props.task}
+      showRecord={props.showRecord}
+      lift={{
+        ref: setNodeRef,
+        onPointerDownCapture: listeners?.onPointerDown as React.PointerEventHandler | undefined,
+        hidden: isDragging,
+      }}
+    />
   );
 }
 
@@ -288,7 +389,15 @@ function TaskRows(props: { tasks: CrmTask[]; showRecord: boolean }) {
 }
 
 /** One task: its check, title, record, due day and assignee. */
-export function TaskRow(props: { task: CrmTask; showRecord: boolean }) {
+export function TaskRow(props: {
+  task: CrmTask;
+  showRecord: boolean;
+  lift?: {
+    ref: (element: HTMLElement | null) => void;
+    onPointerDownCapture: React.PointerEventHandler | undefined;
+    hidden: boolean;
+  };
+}) {
   const { task } = props;
   const { href: inWorkspace } = useWorkspacePaths();
   const update = useUpdateTask();
@@ -303,7 +412,11 @@ export function TaskRow(props: { task: CrmTask; showRecord: boolean }) {
       { onError: (error) => crmErrorToast(error, "The task was not changed") },
     );
   return (
-    <li className="group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out hover:bg-hover">
+    <li
+      ref={props.lift?.ref}
+      onPointerDownCapture={props.lift?.onPointerDownCapture}
+      className={`group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out hover:bg-hover ${props.lift?.hidden ? "invisible" : ""}`}
+    >
       <CheckboxField
         aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
         isSelected={done}
