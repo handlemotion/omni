@@ -1,4 +1,4 @@
-import type { CrmCompany, CrmPerson } from "@omni/db";
+import type { CrmPerson } from "@omni/db";
 import { z } from "zod";
 import { companyRow, crmOf, personRow, rowContext, type CrmWorkspace } from "../crm.ts";
 import type { ToolContext } from "../server.ts";
@@ -157,24 +157,6 @@ async function addCompany(context: ToolContext, workspace: CrmWorkspace, input: 
   return added.status === "ok" ? { company: added.company } : refusal(added);
 }
 
-async function changeDomains(
-  context: ToolContext,
-  workspace: CrmWorkspace,
-  id: string,
-  input: CompanyInput,
-) {
-  const crm = crmOf(context, workspace);
-  for (const domain of input.add_domains ?? []) {
-    const added = await crm.addCompanyDomain(id, domain);
-    if (added.status !== "ok") return refusal(added);
-  }
-  for (const domain of input.remove_domains ?? []) {
-    const removed = await crm.removeCompanyDomain(id, domain);
-    if (removed.status !== "ok") return refusal(removed);
-  }
-  return null;
-}
-
 async function changeCompany(
   context: ToolContext,
   workspace: CrmWorkspace,
@@ -182,35 +164,19 @@ async function changeCompany(
   input: CompanyInput,
 ) {
   if (input.domains) return { error: "Change domains with `add_domains` and `remove_domains`." };
-  const crm = crmOf(context, workspace);
   const owner = await ownerId(context, workspace, input.owner);
   if ("error" in owner) return owner;
-  const domainsRefused = await changeDomains(context, workspace, id, input);
-  if (domainsRefused) return domainsRefused;
-  let company: CrmCompany | undefined;
-  if (input.name !== undefined || input.description !== undefined || owner.id !== undefined) {
-    const changed = await crm.updateCompany(id, {
-      name: input.name,
-      description: input.description,
-      ownerMemberId: owner.id,
-    });
-    if (changed.status !== "ok") return refusal(changed);
-    company = changed.company;
+  if (!changesFields(input) && input.archived === undefined) {
+    return { error: "Give at least one field to change." };
   }
-  if (input.archived !== undefined) {
-    const moved = input.archived ? await crm.archiveCompany(id) : await crm.restoreCompany(id);
-    if (moved.status !== "ok") return refusal(moved);
-    company = moved.company;
-  }
-  if (!company) {
-    if (!input.add_domains && !input.remove_domains) {
-      return { error: "Give at least one field to change." };
-    }
-    const found = await crm.company(id);
-    if (found.status !== "ok") return refusal(found);
-    company = found.company;
-  }
-  return { company };
+  const changed = await crmOf(context, workspace).changeCompany(id, {
+    patch: { name: input.name, description: input.description, ownerMemberId: owner.id },
+    addDomains: input.add_domains,
+    removeDomains: input.remove_domains,
+    archived: input.archived,
+  });
+  if (changed.status !== "ok" || !("company" in changed)) return refusal(changed);
+  return { company: changed.company };
 }
 
 export async function writeCompany(

@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { CrmCompany, CrmDeal, CrmPerson } from "@omni/db";
+import type { CrmCompany, CrmDeal, CrmPerson, ListCompaniesInput, MemberCrm } from "@omni/db";
 import { z } from "zod";
 import {
   companyRow,
@@ -63,6 +63,18 @@ async function ownerFilter(context: ToolContext, workspace: CrmWorkspace, owner?
   return id === null ? null : { id };
 }
 
+async function companiesIn(crm: MemberCrm, input: ListCompaniesInput) {
+  const q = input.q ?? "";
+  const [byName, byDomain] = await Promise.all([
+    crm.listCompanies(input),
+    q && !/\s/.test(q) ? crm.listCompanies({ ...input, q: undefined, domain: q }) : null,
+  ]);
+  if (byName.status !== "ok" || byDomain?.status !== "ok") return byName;
+  const seen = new Set(byName.companies.map((c) => c.id));
+  const extra = byDomain.companies.filter((c) => !seen.has(c.id));
+  return { ...byName, companies: [...byName.companies, ...extra].slice(0, input.limit) };
+}
+
 async function listIn(
   context: ToolContext,
   workspace: CrmWorkspace,
@@ -81,7 +93,7 @@ async function listIn(
   };
   const [people, companies, deals] = await Promise.all([
     wants("person") ? crm.listPeople(common) : null,
-    wants("company") ? crm.listCompanies(common) : null,
+    wants("company") ? companiesIn(crm, common) : null,
     wants("deal")
       ? crm.listDeals({
           ...common,

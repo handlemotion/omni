@@ -296,6 +296,13 @@ export function refusalText(refusal: { status: string }) {
       return "A task needs a title of 1 to 500 characters.";
     case "invalid_assignee":
       return "That assignee is not in this workspace.";
+    case "invalid_contract":
+      return "That contract change is not valid: a document is a file in Shared, dates are YYYY-MM-DD, and it cannot expire before it starts.";
+    case "invalid_transition":
+    case "contract_signed":
+      return "That contract can no longer change that way: a signed contract keeps its document and terms.";
+    case "signature_open":
+      return "It is out for signature: a person voids the request in Omni before it changes.";
     case "invalid_action":
       return "That change does not apply to this kind of record.";
     default:

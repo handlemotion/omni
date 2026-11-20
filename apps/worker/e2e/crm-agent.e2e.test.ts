@@ -230,6 +230,61 @@ interface Task {
   assignee: { address: string } | null;
 }
 
+describe("companies", () => {
+  test("a filtered search still finds a company by its domain", async () => {
+    const { agent, crm } = await workspace("agentdomain");
+    const acme = await crm.createCompany({ name: "Acme", domains: ["acme-domain.test"] });
+    if (acme.status !== "ok") throw new Error("seed");
+    const plain = await call<Found>(agent, "crm_search", { query: "acme-domain.test" });
+    expect(names(plain.companies)).toEqual(["Acme"]);
+    const mine = await call<Found>(agent, "crm_search", { query: "acme-domain.test", owner: "me" });
+    expect(names(mine.companies)).toEqual(["Acme"]);
+    const withArchived = await call<Found>(agent, "crm_search", {
+      query: "acme-domain",
+      archived: "include",
+    });
+    expect(names(withArchived.companies)).toEqual(["Acme"]);
+  });
+
+  test("a company change that is refused part way changes nothing", async () => {
+    const { agent, crm } = await workspace("agentatomic");
+    const made = await crm.createCompany({ name: "Atomic", domains: ["atomic.test"] });
+    if (made.status !== "ok") throw new Error("seed");
+    const id = made.company.id;
+
+    expect(
+      await refusal(agent, "crm_write", {
+        company: { id, name: "Atomic Labs", add_domains: ["atomic-labs.test", "gmail.com"] },
+      }),
+    ).toMatch(/webmail/);
+    expect(
+      await refusal(agent, "crm_write", {
+        company: {
+          id,
+          remove_domains: ["atomic.test"],
+          add_domains: ["gmail.com"],
+          archived: true,
+        },
+      }),
+    ).toMatch(/webmail/);
+    const after = await crm.company(id);
+    if (after.status !== "ok") throw new Error("read");
+    expect(after.company.name).toBe("Atomic");
+    expect(after.company.archivedAt).toBeNull();
+    expect(after.domains).toEqual(["atomic.test"]);
+
+    const changed = await call<{ company: Row }>(agent, "crm_write", {
+      company: { id, name: "Atomic Labs", add_domains: ["atomic-labs.test"], archived: true },
+    });
+    expect(changed.company).toMatchObject({ name: "Atomic Labs", archived: true });
+    const done = await crm.company(id);
+    expect(done.status === "ok" && done.domains.toSorted()).toEqual([
+      "atomic-labs.test",
+      "atomic.test",
+    ]);
+  });
+});
+
 describe("tasks", () => {
   test("an agent adds a task on a deal for a teammate, finds it, and completes it", async () => {
     const { org, ben, agent, crm } = await workspace("agenttasks");
@@ -272,6 +327,27 @@ describe("tasks", () => {
     expect(done.tasks.map((t) => t.id)).toEqual([task.id]);
     const stored = await crm.task(task.id);
     expect(stored.status === "ok" && stored.task.completedAt).toBeInstanceOf(Date);
+  });
+
+  test("an agent pages through more tasks than one call returns", async () => {
+    const { agent, crm } = await workspace("agenttaskpages");
+    for (let i = 0; i < 5; i++) {
+      const made = await crm.createTask({ title: `Follow up ${i}` });
+      if (made.status !== "ok") throw new Error("seed");
+    }
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 5; page++) {
+      const answer: { tasks: Task[]; next_cursor: string | null } = await call(agent, "crm_tasks", {
+        limit: 2,
+        ...(cursor ? { cursor } : {}),
+      });
+      seen.push(...answer.tasks.map((t) => t.title));
+      if (!answer.next_cursor) break;
+      cursor = answer.next_cursor;
+    }
+    expect(seen.toSorted()).toEqual([0, 1, 2, 3, 4].map((i) => `Follow up ${i}`));
+    expect(await refusal(agent, "crm_tasks", { cursor: "not-a-cursor" })).toMatch(/cursor/);
   });
 
   test("tasks stay in their workspace, and reading them needs crm:read", async () => {

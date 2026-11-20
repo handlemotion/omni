@@ -13,6 +13,7 @@ import {
   type ListCompaniesInput,
 } from "./crm/companies.ts";
 import { bulkCrm, type CrmBulkAction, type CrmBulkRecords } from "./crm/bulk.ts";
+import { changeCompany, type CompanyChange } from "./crm/company-change.ts";
 import {
   contractToSend,
   markContractSent,
@@ -93,6 +94,7 @@ export {
   type CrmBulkResult,
 } from "./crm/bulk.ts";
 export type { CrmListCursor, CrmSort, CrmSortDir, CrmSortKey } from "./crm/list-order.ts";
+export type { CompanyChange } from "./crm/company-change.ts";
 export type {
   CompanyPatch,
   CreatedRange,
@@ -224,6 +226,8 @@ export function memberCrm(db: Db, memberId: string) {
       writeAsMember(door, (m, tx) => createCompany(tx, m, input)),
     updateCompany: (id: string, patch: CompanyPatch) =>
       writeAsMember(door, (m, tx) => updateCompany(tx, m, id, patch)),
+    changeCompany: (id: string, change: CompanyChange) =>
+      writeAsMember(door, (m, tx) => changeCompany(tx, m, id, change)),
     archiveCompany: (id: string) => writeAsMember(door, (m, tx) => archiveCompany(tx, m, id)),
     restoreCompany: (id: string) => writeAsMember(door, (m, tx) => restoreCompany(tx, m, id)),
     deleteCompany: (id: string) => writeAsMember(door, (m, tx) => deleteCompany(tx, m, id)),

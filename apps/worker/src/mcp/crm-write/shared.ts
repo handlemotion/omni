@@ -8,6 +8,7 @@ import {
   teammate,
   type CrmWorkspace,
 } from "../crm.ts";
+import { contractRowSchema, fileRowSchema } from "../crm-attachments.ts";
 import { taskRowSchema } from "../crm-tasks.ts";
 import type { ToolContext } from "../server.ts";
 
@@ -24,6 +25,8 @@ export const outputSchema = z.object({
   company: companyRowSchema.optional(),
   deal: dealRowSchema.optional(),
   task: taskRowSchema.optional(),
+  contract: contractRowSchema.optional(),
+  files: z.array(fileRowSchema).optional().describe("The record's linked files after the change."),
   note: z.object({ id: z.string(), record: recordRefSchema, at: z.string() }).optional(),
   bulk: z
     .object({

@@ -34,7 +34,12 @@ export function nodeUrl(webAppURL: string, found: ContextNode) {
     }
     return url.toString();
   }
-  const drive = `/${encodeURIComponent(workspace.slug)}/files/${DRIVE_PATH[node.space]}`;
+  return memberNodeUrl(webAppURL, workspace.slug, node);
+}
+
+/** Where a node a member reaches in their own workspace opens: its folder, with a file open. */
+export function memberNodeUrl(webAppURL: string, slug: string, node: StorageNode) {
+  const drive = `/${encodeURIComponent(slug)}/files/${DRIVE_PATH[node.space]}`;
   if (node.kind === "folder") {
     return new URL(`${drive}/${encodeURIComponent(node.id)}`, webAppURL).toString();
   }

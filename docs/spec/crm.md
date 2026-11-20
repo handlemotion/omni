@@ -224,9 +224,9 @@ Four tools on the MCP server, through the same member door:
 | Tool         | Scope       | Does                                                                                     |
 | ------------ | ----------- | ---------------------------------------------------------------------------------------- |
 | `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, owner, archived, stage kind or close date. Compact rows. |
-| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, open tasks, recent notes and thread ids.                  |
+| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, files, open tasks, recent notes and thread ids.                  |
 | `crm_tasks`  | `crm:read`  | Lists tasks by status, assignee, due (overdue, upcoming, none), record or title words.    |
-| `crm_write`  | `crm:write` | Adds or changes a record or task, archives or restores, moves a stage, adds a note, or changes many at once. Never deletes. |
+| `crm_write`  | `crm:write` | Adds or changes a record, task or draft contract, archives or restores, links files, adds a note, or changes many at once. Never deletes or sends. |
 
 Thread ids from `crm_fetch` go to the mail `fetch` tool, which applies mail's own access. Note
 text is written by teammates, and names and titles can come from mail: the server's
@@ -241,6 +241,15 @@ instructions keep telling agents to treat it as data.
   assignee, due time and a `url` (`/<slug>/crm/tasks/<id>`); `crm_fetch` gives each record its
   open tasks; `crm_write`'s `task` adds one (assigned to the caller unless `assignee` says
   otherwise), changes it, moves it to another record, or completes it with `done: true`.
+- Files and contracts: a company's or deal's `crm_fetch` carries its Drive `folder_id`, its
+  linked `files` (ids for `drive_fetch`, and a `url` to the file in its folder) and its
+  `contracts` with each one's signing progress (signers, viewed and signed times).
+  `crm_write`'s `files` links Drive nodes the person can open, or unlinks them; nothing moves.
+  `crm_write`'s `contract` adds a draft on a company or deal or changes its title, document
+  (a file in Shared) and dates. Sending for signature, voiding, and marking a contract sent or
+  signed reach people outside Omni or bind the company, so they stay with a person in the app.
+- A company change (fields, `add_domains`, `remove_domains`, `archived`) runs in one
+  transaction through `memberCrm().changeCompany`: a refused domain rolls back the rest.
 - `crm_fetch` takes `records: [{ kind, id }]`. Its thread ids come from
   `forUser(user, grant scope).threadsWith`, so they are threads the person can open.
 - Every row carries its `owner` (name and address, or null); a deal's also carries
