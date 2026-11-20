@@ -9,7 +9,7 @@ import {
   crmPersonEmails,
   crmStages,
 } from "../schema/crm.ts";
-import { likePrefix, wordsOf, type CrmMember, type Ex } from "./core.ts";
+import { likePrefix, projectsOnly, wordsOf, type CrmMember, type Ex } from "./core.ts";
 import {
   companyColumns,
   dealColumns,
@@ -82,6 +82,7 @@ export const searchCrm: (
     .where(
       and(
         eq(crmDeals.orgId, member.orgId),
+        projectsOnly(crmDeals.id, member),
         isNull(crmDeals.archivedAt),
         ...words.map((word) => nameStarts(crmDeals.name, word)),
       ),
@@ -186,6 +187,7 @@ export const lookupCrm: (
           .where(
             and(
               eq(crmDeals.orgId, member.orgId),
+              projectsOnly(crmDeals.id, member),
               isNull(crmDeals.archivedAt),
               inArray(crmStages.kind, ["open", "won"]),
               or(...linked),

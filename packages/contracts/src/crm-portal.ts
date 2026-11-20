@@ -77,7 +77,14 @@ export const portalProjectResponseSchema = z.object({
   deliverables: z.array(portalDeliverableSchema),
   contracts: z.array(portalContractSchema),
   /** The project's `Client` folder; null until someone is added as a client. */
-  folder: z.object({ id, files: z.array(portalFileSchema) }).nullable(),
+  folder: z
+    .object({
+      id,
+      /** Where the client opens it and its files: `/s/<shareId>`, `?node=<id>` for one inside. */
+      shareId: z.string().nullable(),
+      files: z.array(portalFileSchema),
+    })
+    .nullable(),
 });
 
 /**

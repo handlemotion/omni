@@ -8,7 +8,7 @@ import {
   memberDoor,
   type LinkVisitor,
 } from "./storage/access.ts";
-import type { StorageListCursor, StorageSpace } from "./storage/core.ts";
+import { inTrash, type StorageListCursor, type StorageSpace } from "./storage/core.ts";
 import { storagePeakOf } from "./storage/billing.ts";
 import { commentOperations } from "./storage/comments.ts";
 import { contextOperations } from "./storage/context.ts";
@@ -27,6 +27,7 @@ import { signingOperations } from "./storage/signing.ts";
 import { listChanges, listSyncWorkspaces, type StorageSyncCursor } from "./storage/sync.ts";
 import { trashOperations } from "./storage/trash.ts";
 import {
+  reach,
   treeOperations,
   type FileResult,
   type ListResult,
@@ -278,6 +279,10 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
     ...through(),
     ...signerOperations(db, userId, scopeOrgId),
     under: (shareId: string) => through(shareId),
+    async linkOf(nodeId: string) {
+      const found = await reach(db, grantDoor(userId, scopeOrgId), nodeId);
+      return found && !inTrash(found.chain) ? found.node.shareId : null;
+    },
     context: contextOperations(db, userId, scopeOrgId),
     syncWorkspaces: () => listSyncWorkspaces(db, userId, scopeOrgId),
     async sharedWithMe(page: { cursor?: SharedWithMeCursor | null; limit?: number } = {}) {

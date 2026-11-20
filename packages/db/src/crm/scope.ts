@@ -1,9 +1,8 @@
 import { and, eq, inArray, or } from "drizzle-orm";
-import { crmDeals, crmNotes, crmStages } from "../schema/crm.ts";
+import { crmNotes } from "../schema/crm.ts";
 import { crmDeliverables, crmMilestones } from "../schema/crm/projects.ts";
 import { crmTasks } from "../schema/crm/tasks.ts";
 import type { CrmRecordRef, Ex, Freelancer, Gate } from "./core.ts";
-import { dealColumns } from "./records.ts";
 import { searchCrm, lookupCrm } from "./search.ts";
 import { listTasks, type ListTasksInput, type TaskPatch } from "./tasks.ts";
 
@@ -59,18 +58,6 @@ export const taskChangeOnProject = (id: string, patch: TaskPatch) =>
     (await taskOnProject(id)(member, ex)) &&
     (patch.record === undefined || onProjectRecord(patch.record)(member))) satisfies Gate;
 
-/** Their projects, by name, as one page. */
-export async function projectDeals(ex: Ex, member: Freelancer) {
-  if (member.projects.length === 0) return { status: "ok" as const, deals: [], nextCursor: null };
-  const deals = await ex
-    .select(dealColumns)
-    .from(crmDeals)
-    .innerJoin(crmStages, eq(crmStages.id, crmDeals.stageId))
-    .where(and(eq(crmDeals.orgId, member.orgId), inArray(crmDeals.id, member.projects)))
-    .orderBy(crmDeals.name, crmDeals.id);
-  return { status: "ok" as const, deals, nextCursor: null };
-}
-
 /** A freelancer's tasks: one project's, or else those assigned to them. */
 export function freelancerTasks(ex: Ex, member: Freelancer, input: ListTasksInput) {
   if (input.record) {
@@ -82,21 +69,20 @@ export function freelancerTasks(ex: Ex, member: Freelancer, input: ListTasksInpu
   return listTasks(ex, member, { ...input, assigneeMemberId: member.id });
 }
 
-const onlyProjects = <R extends { deals: { id: string }[] }>(member: Freelancer, found: R) => ({
+const onlyProjects = <R extends { deals: { id: string }[] }>(found: R) => ({
   ...found,
   people: [],
   companies: [],
-  deals: found.deals.filter((deal) => member.projects.includes(deal.id)),
 });
 
 /** Search, for a freelancer: their projects whose name matches, and no people or companies. */
 export async function freelancerSearch(ex: Ex, member: Freelancer, input: { q: string }) {
-  const found = await searchCrm(ex, member, { ...input, limit: 50 });
-  return found.status === "ok" ? onlyProjects(member, found) : found;
+  const found = await searchCrm(ex, member, input);
+  return found.status === "ok" ? onlyProjects(found) : found;
 }
 
 /** A thread's addresses, for a freelancer: their projects with those people, nothing else. */
 export async function freelancerLookup(ex: Ex, member: Freelancer, input: { addresses: string[] }) {
   const found = await lookupCrm(ex, member, input);
-  return found.status === "ok" ? onlyProjects(member, found) : found;
+  return found.status === "ok" ? onlyProjects(found) : found;
 }

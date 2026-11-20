@@ -72,6 +72,7 @@ export type CrmRefusal =
 type PlanRefusal =
   | { status: "invalid_milestone" }
   | { status: "invalid_file" }
+  | { status: "plan_full" }
   | { status: "invalid_email" }
   | { status: "already_teammate" }
   | { status: "too_many" }
@@ -148,6 +149,7 @@ const PLAN_ANSWERS: Record<PlanRefusal["status"], Answer> = {
     message: "that is not a file you can open",
     param: "nodeId",
   },
+  plan_full: { code: "conflict", message: "a project holds at most 200 of these" },
   invalid_email: { code: "invalid_email", message: "that is not an email address", param: "email" },
   already_teammate: {
     code: "conflict",

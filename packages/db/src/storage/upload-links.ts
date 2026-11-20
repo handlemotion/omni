@@ -237,7 +237,9 @@ export function uploadLinkOperations(db: Db, door: Door) {
       .where(stillUploading(uploadId));
     if (!live) return NOT_FOUND;
     const place = upload.parentId ? { parentId: upload.parentId } : { space: upload.space };
-    if (!(await resolvePlace(ex, door, place))) return NOT_FOUND;
+    const resolved = await resolvePlace(ex, door, place);
+    if (!resolved) return NOT_FOUND;
+    if (resolved.access && !resolved.access.share) return FORBIDDEN;
     const above = upload.parentId ? ((await chainOf(ex, upload.parentId)) ?? []) : [];
     return { status: "ok" as const, upload, above };
   }

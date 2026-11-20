@@ -22,6 +22,7 @@ import {
   isCurrency,
   NOT_FOUND,
   pageSize,
+  projectsOnly,
   type CrmMember,
   type Ex,
   type NotFound,
@@ -158,6 +159,7 @@ export async function listDeals(ex: Ex, member: CrmMember, input: ListDealsInput
     .where(
       and(
         eq(crmDeals.orgId, member.orgId),
+        projectsOnly(crmDeals.id, member),
         live(crmDeals.archivedAt, input.includeArchived || input.archivedOnly),
         input.archivedOnly ? isNotNull(crmDeals.archivedAt) : undefined,
         input.stageId ? eq(crmDeals.stageId, input.stageId) : undefined,

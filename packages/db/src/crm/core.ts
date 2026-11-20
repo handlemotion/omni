@@ -33,6 +33,12 @@ export interface CrmMember {
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 export const FREELANCER_ROLE = "freelancer";
 
+/** Narrows a deal query to the member's projects; a teammate's is not narrowed. */
+export const projectsOnly = (dealId: AnyColumn, member: CrmMember) => {
+  if (member.projects === null) return undefined;
+  return member.projects.length > 0 ? inArray(dealId, member.projects) : sql`false`;
+};
+
 export const hasRole = (roles: string, role: string) =>
   roles.split(",").some((one) => one.trim() === role);
 

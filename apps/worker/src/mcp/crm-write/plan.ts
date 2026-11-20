@@ -37,6 +37,7 @@ const planRefusal = (r: { status: string }) => {
   if (r.status === "invalid_title") return { error: "Give a title of 1 to 300 characters." };
   if (r.status === "invalid_milestone") return { error: "That milestone is not on this deal." };
   if (r.status === "invalid_file") return { error: "That is not a Drive file you can open." };
+  if (r.status === "plan_full") return { error: "A project holds at most 200 of these." };
   return refusal(r);
 };
 

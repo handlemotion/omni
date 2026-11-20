@@ -58,7 +58,7 @@ export interface PortalProjectDetail {
   deliverables: PortalDeliverable[];
   contracts: PortalContract[];
   /** The portal's folder and what is in it; null until the team made one. */
-  folder: { id: string; files: PortalFile[] } | null;
+  folder: { id: string; shareId: string | null; files: PortalFile[] } | null;
 }
 
 const projectColumns = {
@@ -174,12 +174,11 @@ async function folderOf(person: PortalPerson, project: PortalProject) {
     .from(crmPortals)
     .where(and(eq(crmPortals.dealId, project.id), isNotNull(crmPortals.folderNodeId)));
   if (!portal?.folderNodeId) return null;
-  const listed = await userStorage(person.db, person.userId, person.scopeOrgId).list(
-    { parentId: portal.folderNodeId },
-    { limit: 200 },
-  );
+  const storage = userStorage(person.db, person.userId, person.scopeOrgId);
+  const listed = await storage.list({ parentId: portal.folderNodeId }, { limit: 200 });
   if (listed.status !== "ok") return null;
-  return { id: portal.folderNodeId, files: listed.nodes.map(toFile) };
+  const shareId = await storage.linkOf(portal.folderNodeId);
+  return { id: portal.folderNodeId, shareId, files: listed.nodes.map(toFile) };
 }
 
 async function deliverablesOf(person: PortalPerson, deliverables: CrmDeliverable[]) {

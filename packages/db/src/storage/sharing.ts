@@ -176,9 +176,9 @@ export function linkDetail(change: Partial<NodeRow>, reset: boolean) {
 }
 
 export function sharingOperations(db: Db, door: Door) {
-  async function shareable(ex: Db, nodeId: string) {
+  async function shareable(ex: Db, nodeId: string, evenInTrash = false) {
     const found = await reach(ex, door, nodeId);
-    if (!found || inTrash(found.chain)) return NOT_FOUND;
+    if (!found || (!evenInTrash && inTrash(found.chain))) return NOT_FOUND;
     if (!found.access.share) return FORBIDDEN;
     return { status: "ok" as const, ...found };
   }
@@ -322,7 +322,7 @@ export function sharingOperations(db: Db, door: Door) {
 
     removeGrant(nodeId: string, email: string) {
       return db.transaction<RemoveGrantResult>(async (tx) => {
-        const found = await shareable(tx, nodeId);
+        const found = await shareable(tx, nodeId, true);
         if (found.status !== "ok") return found satisfies RemoveGrantResult;
         const address = normalizeAddress(email);
         const removed = await tx

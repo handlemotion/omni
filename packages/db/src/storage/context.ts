@@ -3,7 +3,14 @@ import type { Db } from "../client.ts";
 import { members, organizations } from "../schema/auth.ts";
 import { personalSpaces } from "../schema/identity.ts";
 import { storageGrants, storageNodes, storageTexts } from "../schema/storage.ts";
-import { grantAddresses, grantDoor, memberDoor, type Door, type StorageRole } from "./access.ts";
+import {
+  grantAddresses,
+  grantDoor,
+  loadMember,
+  memberDoor,
+  type Door,
+  type StorageRole,
+} from "./access.ts";
 import {
   inTrash,
   MAX_WALK,
@@ -166,11 +173,15 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
         where c.trashed_at is null and granted.depth < ${MAX_WALK}
     ) select id from granted)`;
 
+  const reachesShared = async (w: { personal: boolean; memberId: string }) =>
+    !w.personal && !(await loadMember(db, w.memberId))?.freelancer;
+
   async function scope(only?: string) {
     const reached = await workspaces(only);
-    const drives: Drive[] = reached.flatMap((w) => [
+    const shared = await Promise.all(reached.map(reachesShared));
+    const drives: Drive[] = reached.flatMap((w, i) => [
       { orgId: w.id, space: "personal" as const, ownerMemberId: w.memberId },
-      ...(w.personal ? [] : [{ orgId: w.id, space: "shared" as const, ownerMemberId: null }]),
+      ...(shared[i] ? [{ orgId: w.id, space: "shared" as const, ownerMemberId: null }] : []),
     ]);
     const addresses = await grantAddresses(db, userId, scopeOrgId);
     const within = [
@@ -221,6 +232,8 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
   async function facts(ids: string[]) {
     if (!ids.length) return [] satisfies ContextFile[];
     const reached = await workspaces();
+    const sharedOf = await Promise.all(reached.map(reachesShared));
+    const shared = new Set(reached.filter((_, i) => sharedOf[i]).map((w) => w.id));
     const rows = await db
       .select({
         id: storageNodes.id,
@@ -246,7 +259,9 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
     const byId = new Map(
       rows.map((row) => {
         const member = reached.find((w) => w.id === row.orgId);
-        const mine = member && (row.space === "shared" || row.ownerMemberId === member.memberId);
+        const mine =
+          member &&
+          (row.space === "shared" ? shared.has(row.orgId) : row.ownerMemberId === member.memberId);
         const drive = row.space === "shared" ? "Shared" : "My files";
         return [
           row.id,

@@ -32,7 +32,11 @@ const wireDetail = (detail: PortalProjectDetail) =>
     })),
     contracts: detail.contracts.map((c) => ({ ...c, signedAt: isoOrNull(c.signedAt) })),
     folder: detail.folder
-      ? { id: detail.folder.id, files: detail.folder.files.map(wireFile) }
+      ? {
+          id: detail.folder.id,
+          shareId: detail.folder.shareId,
+          files: detail.folder.files.map(wireFile),
+        }
       : null,
   }) satisfies PortalProjectResponse;
 

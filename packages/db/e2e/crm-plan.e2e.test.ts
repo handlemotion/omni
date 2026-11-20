@@ -1,5 +1,6 @@
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
+import { crmMilestones } from "../src/schema/index.ts";
 import { addFile } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase } from "./support.ts";
 
@@ -63,6 +64,9 @@ test("a deliverable takes only a milestone of its own deal and a file its author
   expect(
     await ana.crm.createDeliverable(website.id, { title: "Home", nodeId: bensPrivate.id }),
   ).toEqual({ status: "invalid_file" });
+  expect(await ana.crm.createDeliverable(website.id, { title: "Home", nodeId: folder })).toEqual({
+    status: "invalid_file",
+  });
   const made = ok(
     await ana.crm.createDeliverable(website.id, { title: "Home", nodeId: shared.id }),
   ).deliverable;
@@ -80,6 +84,13 @@ test("a moved milestone lands where it was dropped, and deleting one keeps its d
   for (const title of titles) {
     made.push(ok(await ana.crm.createMilestone(deal.id, { title })).milestone);
   }
+  const moves = await Promise.all([
+    ana.crm.updateMilestone(made[2]!.id, { position: 3 }),
+    ana.crm.updateMilestone(made[0]!.id, { position: 3 }),
+  ]);
+  expect(moves.map((m) => m.status)).toEqual(["ok", "ok"]);
+  ok(await ana.crm.updateMilestone(made[0]!.id, { position: 0 }));
+  ok(await ana.crm.updateMilestone(made[2]!.id, { position: 2 }));
   ok(await ana.crm.updateMilestone(made[3]!.id, { position: 0 }));
   const order = async () =>
     ok(await ana.crm.plan(deal.id)).plan.milestones.map((m) => [m.title, m.position]);
@@ -104,4 +115,22 @@ test("a moved milestone lands where it was dropped, and deleting one keeps its d
   const plan = ok(await ana.crm.plan(deal.id)).plan;
   expect(plan.deliverables).toMatchObject([{ id: deliverable.id, milestoneId: null }]);
   expect(plan.milestones.map((m) => m.title)).toEqual(["Ship", "Discovery", "Build"]);
+});
+
+test("a full plan refuses one more milestone instead of hiding it", async () => {
+  const { org, ana } = await team("plan-full");
+  const deal = ok(await ana.crm.createDeal({ name: "Big" })).deal;
+  await db.insert(crmMilestones).values(
+    Array.from({ length: 199 }, (_, position) => ({
+      orgId: org.id,
+      dealId: deal.id,
+      title: `M${position}`,
+      position,
+    })),
+  );
+  ok(await ana.crm.createMilestone(deal.id, { title: "Last" }));
+  expect(await ana.crm.createMilestone(deal.id, { title: "One more" })).toEqual({
+    status: "plan_full",
+  });
+  expect(ok(await ana.crm.plan(deal.id)).plan.milestones).toHaveLength(200);
 });

@@ -68,6 +68,10 @@ test("a client sees only the projects they are a client on, and only what is mea
   ]);
   expect(detail.contracts).toEqual([]);
   expect(detail.folder?.files.map((f) => f.name)).toEqual(["brief.pdf"]);
+  const shareId = detail.folder?.shareId;
+  expect(shareId).toEqual(expect.any(String));
+  const opened = forUser(db, bea.id).storage.under(shareId!);
+  expect((await opened.node(brief.id))?.node.name).toBe("brief.pdf");
 
   expect((await portal.project(app.deal.id)).status).toBe("not_found");
   expect(
@@ -152,4 +156,35 @@ test("a freelancer turned client loses the project's folder", async () => {
   expect(ok(await forUser(db, fran.id).crm.projects()).projects.map((p) => p.orgId)).toEqual([
     org.id,
   ]);
+});
+
+test("a client folder replaced after Trash still opens to every client, and not to one removed", async () => {
+  const { team, website } = await studio("portal-trash");
+  const [bea, cleo] = await Promise.all([
+    createPerson(db, "bea@trash.test"),
+    createPerson(db, "cleo@trash.test"),
+  ]);
+  for (const email of ["bea@trash.test", "cleo@trash.test"]) {
+    ok(await team.crm.grantProjectAccess(website.deal.id, { email, scope: "client" }));
+  }
+  const old = ok(await forUser(db, bea.id).crm.project(website.deal.id)).detail.folder!.id;
+  const kept = await addFile(team.storage, { parentId: old }, "old-brief.pdf");
+  ok(await team.storage.trash(old));
+  ok(await team.crm.revokeProjectAccess(website.deal.id, "bea@trash.test"));
+
+  ok(
+    await team.crm.grantProjectAccess(website.deal.id, {
+      email: "dan@trash.test",
+      scope: "client",
+    }),
+  );
+  const fresh = ok(await forUser(db, cleo.id).crm.project(website.deal.id)).detail.folder!;
+  expect(fresh.id).not.toBe(old);
+  const brief = await addFile(team.storage, { parentId: fresh.id }, "brief.pdf");
+  expect((await forUser(db, cleo.id).storage.node(brief.id))?.node.name).toBe("brief.pdf");
+
+  ok(await team.crm.revokeProjectAccess(website.deal.id, "cleo@trash.test"));
+  ok(await team.storage.restore(old));
+  expect(await forUser(db, bea.id).storage.node(kept.id)).toBeNull();
+  expect(await forUser(db, cleo.id).storage.node(kept.id)).toBeNull();
 });

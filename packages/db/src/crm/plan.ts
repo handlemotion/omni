@@ -77,17 +77,20 @@ export type DeliverablePatch = Partial<DeliverableInput>;
 export type InvalidPlanTitle = { status: "invalid_title" };
 export type InvalidMilestone = { status: "invalid_milestone" };
 export type InvalidFile = { status: "invalid_file" };
+export type PlanFull = { status: "plan_full" };
 
 export type MilestoneResult =
   | { status: "ok"; milestone: CrmMilestone }
   | typeof NOT_FOUND
-  | InvalidPlanTitle;
+  | InvalidPlanTitle
+  | PlanFull;
 export type DeliverableResult =
   | { status: "ok"; deliverable: CrmDeliverable }
   | typeof NOT_FOUND
   | InvalidPlanTitle
   | InvalidMilestone
-  | InvalidFile;
+  | InvalidFile
+  | PlanFull;
 
 export const CRM_PLAN_TITLE_MAX = 300;
 export const CRM_PLAN_DESCRIPTION_MAX = 20_000;
@@ -161,13 +164,25 @@ export async function getPlan(ex: Ex, member: CrmMember, dealId: string) {
   return { status: "ok" as const, plan: await planOf(ex, member.orgId, dealId) };
 }
 
-const loadMilestone = async (ex: Ex, orgId: string, id: string) => {
-  const [row] = await ex
+const loadMilestone = async (ex: Ex, orgId: string, id: string, lock = true) => {
+  const query = ex
     .select(milestoneColumns)
     .from(crmMilestones)
-    .where(and(eq(crmMilestones.orgId, orgId), eq(crmMilestones.id, id)))
-    .for("update");
+    .where(and(eq(crmMilestones.orgId, orgId), eq(crmMilestones.id, id)));
+  const [row] = lock ? await query.for("update") : await query;
   return row ?? null;
+};
+
+const planFull = async (
+  tx: Ex,
+  table: typeof crmMilestones | typeof crmDeliverables,
+  dealId: string,
+) => {
+  const [{ count }] = (await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(table)
+    .where(eq(table.dealId, dealId))) as [{ count: number }];
+  return count >= CRM_PLAN_MAX;
 };
 
 export const loadDeliverable = async (ex: Ex, orgId: string, id: string) => {
@@ -193,6 +208,7 @@ export async function createMilestone(
   const title = cleanPlanTitle(input.title);
   if (!title) return { status: "invalid_title" } as const;
   if (!(await loadDeal(tx, member.orgId, dealId, true))) return NOT_FOUND;
+  if (await planFull(tx, crmMilestones, dealId)) return { status: "plan_full" } as const;
   const [{ next }] = (await tx
     .select({ next: sql<number>`coalesce(max(${crmMilestones.position}) + 1, 0)::int` })
     .from(crmMilestones)
@@ -233,14 +249,16 @@ export async function updateMilestone(
   id: string,
   patch: MilestonePatch,
 ) {
-  const current = await loadMilestone(tx, member.orgId, id);
-  if (!current) return NOT_FOUND;
   const title = patch.title === undefined ? undefined : cleanPlanTitle(patch.title);
   if (title === null) return { status: "invalid_title" } as const;
   if (patch.position !== undefined) {
-    await loadDeal(tx, member.orgId, current.dealId, true);
-    await reorder(tx, current.dealId, id, patch.position);
+    const peek = await loadMilestone(tx, member.orgId, id, false);
+    if (!peek) return NOT_FOUND;
+    await loadDeal(tx, member.orgId, peek.dealId, true);
   }
+  const current = await loadMilestone(tx, member.orgId, id);
+  if (!current) return NOT_FOUND;
+  if (patch.position !== undefined) await reorder(tx, current.dealId, id, patch.position);
   const [milestone] = await tx
     .update(crmMilestones)
     .set({
@@ -280,7 +298,9 @@ async function milestoneOnDeal(ex: Ex, orgId: string, dealId: string, id: string
 
 async function fileOpenable(ex: Ex, member: CrmMember, nodeId: string) {
   const view = await memberStorage(ex as Db, member.id).node(nodeId);
-  return Boolean(view && !view.inTrash && view.node.orgId === member.orgId);
+  return Boolean(
+    view && !view.inTrash && view.node.kind === "file" && view.node.orgId === member.orgId,
+  );
 }
 
 async function checkDeliverable(
@@ -306,9 +326,10 @@ export async function createDeliverable(
 ) {
   const title = cleanPlanTitle(input.title);
   if (!title) return { status: "invalid_title" } as const;
-  if (!(await loadDeal(tx, member.orgId, dealId))) return NOT_FOUND;
+  if (!(await loadDeal(tx, member.orgId, dealId, true))) return NOT_FOUND;
   const refused = await checkDeliverable(tx, member, dealId, input);
   if (refused) return refused;
+  if (await planFull(tx, crmDeliverables, dealId)) return { status: "plan_full" } as const;
   const [deliverable] = await tx
     .insert(crmDeliverables)
     .values({

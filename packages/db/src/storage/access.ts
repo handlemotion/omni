@@ -65,6 +65,7 @@ const ADMIN_ROLES = new Set(["owner", "admin"]);
 export interface StorageMember {
   id: string;
   orgId: string;
+  userId: string;
   /** Owner or admin of the workspace. */
   admin: boolean;
   /** The workspace is a Personal space: it has My files and no Shared. */
@@ -84,6 +85,7 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
     .select({
       id: members.id,
       orgId: members.organizationId,
+      userId: members.userId,
       role: members.role,
       personal: sql<boolean>`exists (select 1 from ${personalSpaces} where ${personalSpaces.orgId} = ${members.organizationId})`,
     })
@@ -93,7 +95,14 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
   const roles = row.role.split(",").map((role) => role.trim());
   const admin = roles.some((role) => ADMIN_ROLES.has(role));
   const freelancer = !admin && roles.includes("freelancer");
-  return { id: row.id, orgId: row.orgId, admin, personal: row.personal, freelancer };
+  return {
+    id: row.id,
+    orgId: row.orgId,
+    userId: row.userId,
+    admin,
+    personal: row.personal,
+    freelancer,
+  };
 };
 
 /**
@@ -101,15 +110,22 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
  * member's My files, whatever their role. In Shared everyone writes, and only the uploader,
  * owners and admins move a node out of it (to Trash or to My files); a folder's uploader only
  * while everything inside it is theirs too, or moving a colleague's file into a folder of one's
- * own would be a way to take it.
+ * own would be a way to take it. A freelancer reaches in Shared only what was shared with them,
+ * as the grant door would let them: `viaGrants` false leaves that out, for the grant door itself.
  */
-export const memberDoor: (memberId: string) => Door = (memberId) => {
+export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
+  memberId,
+  viaGrants = true,
+) => {
   return {
     kind: "member",
     async access(ex, chain) {
       const node = chain[0];
       const member = await loadMember(ex, memberId);
       if (!node || !member || node.orgId !== member.orgId) return null;
+      if (viaGrants && member.freelancer && node.space === "shared") {
+        return grantDoor(member.userId).access(ex, chain);
+      }
       const mine = node.space === "personal" && node.ownerMemberId === member.id;
       const shared = node.space === "shared" && !member.personal && !member.freelancer;
       if (!mine && !shared) return null;
@@ -183,7 +199,7 @@ export const grantDoor: (
       .select({ id: members.id })
       .from(members)
       .where(and(eq(members.userId, userId), eq(members.organizationId, node.orgId)));
-    return row ? memberDoor(row.id) : null;
+    return row ? memberDoor(row.id, false) : null;
   }
   return {
     kind: "grant",

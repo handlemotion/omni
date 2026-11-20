@@ -106,7 +106,6 @@ import {
   noteOnProject,
   onProject,
   onProjectRecord,
-  projectDeals,
   taskChangeOnProject,
   taskOnProject,
 } from "./crm/scope.ts";
@@ -335,11 +334,7 @@ export function memberCrm(db: Db, memberId: string) {
     deletePerson: (id: string) => writeAsMember(door, (m, tx) => deletePerson(tx, m, id)),
 
     listDeals: (input: ListDealsInput = {}) =>
-      asMember(
-        door,
-        (m, ex) => (isFreelancer(m) ? projectDeals(ex, m) : listDeals(ex, m, input)),
-        ANYONE,
-      ),
+      asMember(door, (m, ex) => listDeals(ex, m, input), ANYONE),
     deal: (id: string) => asMember(door, (m, ex) => getDeal(ex, m, id), onProject(id)),
     createDeal: (input: DealInput) => writeAsMember(door, (m, tx) => createDeal(tx, m, input)),
     updateDeal: (id: string, patch: DealPatch) =>
