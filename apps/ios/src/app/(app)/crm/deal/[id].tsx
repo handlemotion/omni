@@ -4,6 +4,7 @@ import { Fields, RecordView, Section } from "@/components/crm/record-view.tsx";
 import { RecordActions } from "@/components/crm/record-actions.tsx";
 import { ContractsSection } from "@/components/crm/contracts-section.tsx";
 import { RecordFilesSection } from "@/components/crm/record-files.tsx";
+import { TaskSection } from "@/components/crm/task-section.tsx";
 import { TimelineSection } from "@/components/crm/timeline-section.tsx";
 import { dayText, dealValue, useDeal, useStageNames } from "@/lib/crm.ts";
 import { useMemberNames } from "@/lib/crm-timeline.ts";
@@ -50,6 +51,7 @@ export default function Deal() {
               name={data.deal.name}
               folderId={data.deal.folderNodeId}
             />
+            <TaskSection kind="deals" id={id} />
             <TimelineSection kind="deals" id={id} />
           </>
         )}

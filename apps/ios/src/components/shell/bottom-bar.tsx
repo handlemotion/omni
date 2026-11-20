@@ -21,6 +21,7 @@ const NEW_RECORD: Record<CrmPage, { kind: string; label: string }> = {
   people: { kind: "person", label: "New person" },
   deals: { kind: "deal", label: "New deal" },
   projects: { kind: "deal", label: "New deal" },
+  tasks: { kind: "task", label: "New task" },
 };
 
 /**
@@ -53,7 +54,10 @@ export function BottomBar() {
     crm: {
       icon: IconPlus,
       label: record.label,
-      run: () => router.push({ pathname: "/crm/form", params: { kind: record.kind } }),
+      run: () =>
+        record.kind === "task"
+          ? router.push("/crm/task-new")
+          : router.push({ pathname: "/crm/form", params: { kind: record.kind } }),
     },
   }[module];
   return (

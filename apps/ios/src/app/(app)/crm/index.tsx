@@ -5,6 +5,7 @@ import { CrmSearch } from "@/components/crm/crm-search.tsx";
 import { DealBoard } from "@/components/crm/deal-board.tsx";
 import { ListControls } from "@/components/crm/list-controls.tsx";
 import { CompanyList, DealList, PersonList } from "@/components/crm/record-lists.tsx";
+import { TaskList } from "@/components/crm/task-list.tsx";
 import { FLOATING_BAR_SPACE } from "@/components/shell/floating-bar.tsx";
 import { useMenu } from "@/components/shell/menu-context.tsx";
 import { ModuleRoot } from "@/components/shell/module-root.tsx";
@@ -13,7 +14,7 @@ import { useDebounced } from "@/lib/use-debounced.ts";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 
 /**
- * A CRM list: Companies, People, Deals (as a list or a board) or Projects, each with its own
+ * A CRM list: Companies, People, Deals (as a list or a board), Projects or Tasks, each with its own
  * order and filters, kept while you move between them. A Personal space has no CRM: it goes to
  * Mail.
  */
@@ -31,6 +32,8 @@ export default function CrmHome() {
     <ModuleRoot module="crm">
       {typed ? (
         <CrmSearch q={q} footerSpace={FLOATING_BAR_SPACE} />
+      ) : page === "tasks" ? (
+        <TaskList footerSpace={FLOATING_BAR_SPACE} />
       ) : (
         <View style={styles.page}>
           <ListControls

@@ -77,8 +77,8 @@ function TaskView({ task }: { task: CrmTask }) {
               </CheckboxField>
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-3">
-              <TitleField key={task.title} task={task} onSave={(title) => save({ title })} />
-              <BodyField key={task.body ?? ""} task={task} onSave={(body) => save({ body })} />
+              <TitleField task={task} onSave={(title) => save({ title })} />
+              <BodyField task={task} onSave={(body) => save({ body })} />
             </div>
           </div>
         </main>
@@ -93,9 +93,29 @@ function TaskView({ task }: { task: CrmTask }) {
   );
 }
 
+function useDraft(saved: string) {
+  const [draft, setDraft] = useState(saved);
+  const [seen, setSeen] = useState(saved);
+  const [editing, setEditing] = useState(false);
+  if (saved !== seen && !editing) {
+    setSeen(saved);
+    setDraft(saved);
+  }
+  return {
+    draft,
+    setDraft,
+    onFocus: () => setEditing(true),
+    done: () => {
+      setEditing(false);
+      setSeen(saved);
+    },
+  };
+}
+
 function TitleField(props: { task: CrmTask; onSave: (title: string) => void }) {
-  const [draft, setDraft] = useState(props.task.title);
+  const { draft, setDraft, onFocus, done } = useDraft(props.task.title);
   const commit = () => {
+    done();
     const title = draft.trim();
     if (!title) return setDraft(props.task.title);
     if (title !== props.task.title) props.onSave(title);
@@ -112,6 +132,7 @@ function TitleField(props: { task: CrmTask; onSave: (title: string) => void }) {
         plain
         autoComplete="off"
         className="h-9 w-full rounded-md px-2 text-md hover:bg-hover focus:bg-hover"
+        onFocus={onFocus}
         onBlur={commit}
         onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
       />
@@ -120,7 +141,7 @@ function TitleField(props: { task: CrmTask; onSave: (title: string) => void }) {
 }
 
 function BodyField(props: { task: CrmTask; onSave: (body: string | null) => void }) {
-  const [draft, setDraft] = useState(props.task.body ?? "");
+  const { draft, setDraft, onFocus, done } = useDraft(props.task.body ?? "");
   return (
     <Textarea
       plain
@@ -131,7 +152,9 @@ function BodyField(props: { task: CrmTask; onSave: (body: string | null) => void
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       className="min-h-40 w-full resize-none rounded-md px-2 py-1.5 text-sm hover:bg-hover focus:bg-hover sm:px-2"
+      onFocus={onFocus}
       onBlur={() => {
+        done();
         const body = draft.trim() || null;
         if (body !== (props.task.body ?? null)) props.onSave(body);
       }}

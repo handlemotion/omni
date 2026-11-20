@@ -17,6 +17,7 @@ export function ItemRow({
   title,
   detail,
   trailing,
+  trailingTone,
   ellipsize,
   ...rest
 }: Omit<PressableRowProps, "children" | "style"> & {
@@ -26,9 +27,11 @@ export function ItemRow({
   title: string;
   detail?: string | null;
   trailing?: string | null;
+  /** The trailing note's ink: `danger` when it warns (a task past due). */
+  trailingTone?: "mutedForeground" | "danger";
   ellipsize?: "tail" | "middle";
 }) {
-  const props = { icon, lead, title, detail, trailing, ellipsize };
+  const props = { icon, lead, title, detail, trailing, trailingTone, ellipsize };
   const Icon = props.icon;
   return (
     <PressableRow {...rest} style={styles.row}>
@@ -49,7 +52,13 @@ export function ItemRow({
         ) : null}
       </View>
       {props.trailing ? (
-        <Text size="sm" tone="mutedForeground" tabular numberOfLines={1} style={styles.trailing}>
+        <Text
+          size="sm"
+          tone={props.trailingTone ?? "mutedForeground"}
+          tabular
+          numberOfLines={1}
+          style={styles.trailing}
+        >
           {props.trailing}
         </Text>
       ) : null}

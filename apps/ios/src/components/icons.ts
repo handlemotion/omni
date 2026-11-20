@@ -77,3 +77,4 @@ export { IconProjects } from "@central-icons-react-native/round-outlined-radius-
 export { IconCalendar1 as IconCalendar } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCalendar1";
 export { IconCoins } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCoins";
 export { IconText1 as IconName } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconText1";
+export { IconChecklist } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconChecklist";

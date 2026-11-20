@@ -6,6 +6,7 @@ export const CRM_PAGES = {
   people: { label: "People", icon: "person.2", empty: "No people yet" },
   deals: { label: "Deals", icon: "briefcase", empty: "No deals yet" },
   projects: { label: "Projects", icon: "checkmark.seal", empty: "No projects yet" },
+  tasks: { label: "Tasks", icon: "checklist", empty: "No tasks yet" },
 } as const satisfies Record<string, { label: string; icon: SymbolName; empty: string }>;
 
 export type CrmPage = keyof typeof CRM_PAGES;

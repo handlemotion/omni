@@ -5,6 +5,7 @@ import { crmErrorAlert } from "@/lib/crm-errors.ts";
 import { useAddDomain, useMoveDeal, type CrmRecordKind } from "@/lib/crm-mutations.ts";
 import { useStages, type CrmStage } from "@/lib/crm-timeline.ts";
 import type { RecordFormKind } from "./record-form-sheet.tsx";
+import { openNewTask } from "./task-section.tsx";
 
 const FORM_KIND: Record<CrmRecordKind, RecordFormKind> = {
   companies: "company",
@@ -92,6 +93,9 @@ export function RecordActions(props: {
         ) : null}
         <Stack.Toolbar.MenuAction icon="square.and.pencil" onPress={() => openNote(kind, id)}>
           Add note
+        </Stack.Toolbar.MenuAction>
+        <Stack.Toolbar.MenuAction icon="checklist" onPress={() => openNewTask({ kind, id })}>
+          Add task
         </Stack.Toolbar.MenuAction>
         {company ? (
           <Stack.Toolbar.MenuAction icon="globe" onPress={promptDomain}>
