@@ -32,6 +32,7 @@ import {
   type StorageNodeView,
 } from "./storage/tree.ts";
 import type { ArchiveResult } from "./storage/archive.ts";
+import { uploadLinkOperations } from "./storage/upload-links.ts";
 import { uploadOperations } from "./storage/uploads.ts";
 import { versionOperations } from "./storage/versions.ts";
 
@@ -114,6 +115,14 @@ export {
   type TooManyUploads,
   type UploadCaps,
 } from "./storage/uploads.ts";
+export {
+  openUploadLink,
+  uploadingIn,
+  uploadLinkOf,
+  UPLOADING_LISTED,
+  type OpenUploadLinkResult,
+  type UploadingFile,
+} from "./storage/upload-links.ts";
 export {
   linkOf,
   recordShareEvent,
@@ -198,6 +207,7 @@ export function memberStorage(db: Db, memberId: string) {
     ...iconOperations(db, door),
     ...trashOperations(db, door, memberId),
     ...sharingOperations(db, door),
+    ...uploadLinkOperations(db, door),
     ...policyOperations(db, memberId),
     ...lockOperations(db, door, memberId),
     ...signingOperations(db, door, memberId),

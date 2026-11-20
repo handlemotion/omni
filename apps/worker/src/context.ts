@@ -1,6 +1,14 @@
 import { createAuth, usesOAuthProvider, type Auth, type InvitationMessage } from "@omni/auth";
 import { WORKSPACE_HEADER, WORKSPACE_PARAM } from "@omni/contracts/headers";
-import { forUser, isCompany, schema, sessionAccess, type Db, type SharedAccess } from "@omni/db";
+import {
+  forUser,
+  isCompany,
+  schema,
+  sessionAccess,
+  type Db,
+  type OpenUploadLinkResult,
+  type SharedAccess,
+} from "@omni/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
@@ -40,6 +48,8 @@ export interface AppEnv {
     shared?: SharedAccess;
     /** Set beside `shared`: the signed-in person who opened it, or null for a visitor. */
     linkUser?: SessionUser | null;
+    /** Set instead of `shared` when the link was made for a file that is still uploading. */
+    uploadingLink?: Extract<OpenUploadLinkResult, { status: "open" }>;
     /** Set under `/api/storage/sync` only: who a desktop sync token acts for. */
     syncCaller?: SyncCaller;
   };

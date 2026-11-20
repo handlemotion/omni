@@ -37,6 +37,7 @@ import {
   type TooManyUploads,
   type UploadCaps,
 } from "./upload-rows.ts";
+import { moveUploadLink } from "./upload-links.ts";
 import { mayReplace, replaceContent, staleFor, type StaleContent } from "./versions.ts";
 
 export {
@@ -436,7 +437,7 @@ export function uploadOperations(db: Db, door: Door) {
         if (!at.writable) return FORBIDDEN satisfies CompleteUploadResult;
         const refusal = await full();
         if (refusal) return refusal satisfies CompleteUploadResult;
-        const node = await insertNode(tx, {
+        const inserted = await insertNode(tx, {
           id: upload.id,
           drive: at.drive,
           parentId: at.parentId,
@@ -448,6 +449,7 @@ export function uploadOperations(db: Db, door: Door) {
           contentSha256: upload.sha256,
           createdByMemberId: upload.memberId,
         });
+        const node = await moveUploadLink(tx, upload.id, inserted);
         await addUsage(tx, upload.orgId, upload.size);
         await tx
           .update(storageUploads)

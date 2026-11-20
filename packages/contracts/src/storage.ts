@@ -3,6 +3,7 @@ import {
   storageLinkPasswordSchema,
   storageLinkSchema,
   storagePolicySchema,
+  storageSharedUploadSchema,
 } from "./storage-links.ts";
 
 /** Bytes in every part of an upload but the last (R2 wants them uniform). */
@@ -307,6 +308,12 @@ export const storageSharingResponseSchema = z.object({ sharing: storageSharingSc
  * `PUT /nodes/:id/sharing/link`: set who it opens for, `reset` for a new link (the old one stops
  * working, settings stay), or change its settings: `expiresAt` (null: never), `password` (null
  * removes it) and `downloads`. `403 sharing_policy` when the workspace's policy refuses it.
+ *
+ * `GET /uploads/:id/sharing` and `PUT /uploads/:id/sharing/link` do the same for a new file
+ * before it finishes uploading, for its uploader: `/s/<shareId>` opens from the start and shows
+ * the upload's progress until the file is there. `nodeId` is the upload's id, which the file
+ * keeps; completing moves the link onto the file. People are added once it is a file. After it
+ * completes both answer as the file's own routes do.
  */
 export const storageSetLinkBodySchema = z.union([
   z.strictObject({ linkAccess: storageLinkAccessSchema }),
@@ -361,6 +368,7 @@ export const storageSharedWithMeResponseSchema = z.object({
  * when that workspace is read-only, whatever the reader's own.
  */
 export const storageSharedQuerySchema = z.object({ node: id.optional(), ...page });
+
 export const storageSharedResponseSchema = z.object({
   /** The node opened: the shared one, or `node` inside it. */
   item: storageNodeViewSchema,
@@ -372,6 +380,12 @@ export const storageSharedResponseSchema = z.object({
    * from a Worker older than link settings.
    */
   downloads: z.boolean().optional(),
+  /**
+   * Files still uploading: the item itself, when the link was made for a file before it finished
+   * (then `item` is that file as it will be, and `/content` answers `404` until it completes), or
+   * those uploading into the folder, on its first page. Absent from a Worker older than this.
+   */
+  uploading: z.array(storageSharedUploadSchema).optional(),
 });
 
 /**

@@ -275,11 +275,16 @@ export interface LinkVisitor {
 
 /**
  * What a link does for `visitor`: `open`, `locked` until they give its password, or `closed`.
- * `node` is the node carrying the link. A link opens nothing once it expires, while the
+ * `node` is what carries the link: a node, or a file still uploading. A link opens nothing once it expires, while the
  * workspace's policy forbids links open to anyone, or, when it is open to the workspace's
  * members, for anyone else.
  */
-export async function linkState(ex: Db, node: NodeRow, visitor: LinkVisitor = {}) {
+export type LinkFields = Pick<
+  NodeRow,
+  "orgId" | "shareId" | "linkAccess" | "linkExpiresAt" | "linkPasswordHash"
+>;
+
+export async function linkState(ex: Db, node: LinkFields, visitor: LinkVisitor = {}) {
   const now = visitor.now ?? new Date();
   if (!node.shareId || node.linkAccess === "restricted") return "closed";
   if (node.linkExpiresAt && node.linkExpiresAt <= now) return "closed";

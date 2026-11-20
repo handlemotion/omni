@@ -133,6 +133,26 @@ export const storageSharing = new Hono<AppEnv>()
     return answer(c, changed.sharing);
   })
 
+  .get("/uploads/:id/sharing", async (c) => {
+    const found = await memberStorage(c).uploadSharing(c.req.param("id"));
+    if (found.status !== "ok") return refused(c, found.status);
+    return answer(c, found.sharing);
+  })
+
+  .put("/uploads/:id/sharing/link", zValidator("json", storageSetLinkBodySchema), async (c) => {
+    const body = c.req.valid("json");
+    const files = memberStorage(c);
+    const id = c.req.param("id");
+    const changed =
+      "reset" in body
+        ? await files.resetUploadLink(id)
+        : "linkAccess" in body
+          ? await files.setUploadLinkAccess(id, body.linkAccess)
+          : await files.setUploadLinkSettings(id, await linkSettings(body));
+    if (changed.status !== "ok") return refused(c, changed.status);
+    return answer(c, changed.sharing);
+  })
+
   .put(
     "/nodes/:id/sharing/people/:email",
     zValidator("json", storagePutPersonBodySchema),

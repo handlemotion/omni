@@ -489,6 +489,30 @@ export const storageUploadTargets = pgTable(
 );
 
 /**
+ * A link made for a file while it still uploads. Its `share_id` opens `/s/<shareId>` from the
+ * start: a processing page with the upload's progress, under the same rules as a node's link
+ * (who it opens for, expiry, password, downloads, the workspace's policy). Completing the upload
+ * moves the link onto the new file, whose id is the upload's, so the address never changes. Goes
+ * with the upload when it is cancelled or expires.
+ */
+export const storageUploadLinks = pgTable(
+  "storage_upload_links",
+  {
+    uploadId: text("upload_id")
+      .primaryKey()
+      .references(() => storageUploads.id, { onDelete: "cascade" }),
+    orgId: orgId(),
+    shareId: text("share_id").notNull(),
+    linkAccess: storageLinkAccess("link_access").notNull().default("restricted"),
+    linkExpiresAt: timestamptz("link_expires_at"),
+    linkPasswordHash: text("link_password_hash"),
+    linkDownloads: boolean("link_downloads").notNull().default(true),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (t) => [unique("storage_upload_links_share_id_unique").on(t.shareId)],
+);
+
+/**
  * Bytes a workspace stores, trashed files included. One row per workspace, changed in the same
  * transaction as the node it counts and recomputed from `storage_nodes` daily.
  */

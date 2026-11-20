@@ -20,6 +20,7 @@ export type SharedWithMeItem = InferResponseType<
   200
 >["items"][number];
 export type StorageLinkPage = InferResponseType<Api["storage"]["shared"][":shareId"]["$get"], 200>;
+export type StorageLinkUpload = NonNullable<StorageLinkPage["uploading"]>[number];
 
 const PAGE_SIZE = "100";
 
@@ -28,6 +29,16 @@ export const storageSharingQuery = (nodeId: string) =>
     queryKey: keys.storageSharing(nodeId),
     queryFn: ({ signal }) =>
       call(api.storage.nodes[":id"].sharing.$get({ param: { id: nodeId } }, { init: { signal } })),
+  });
+
+/** The sharing of a new file still uploading, by its upload id (which the file keeps). */
+export const storageUploadSharingQuery = (uploadId: string) =>
+  queryOptions({
+    queryKey: keys.storageSharing(uploadId),
+    queryFn: ({ signal }) =>
+      call(
+        api.storage.uploads[":id"].sharing.$get({ param: { id: uploadId } }, { init: { signal } }),
+      ),
   });
 
 const sharingChanged =
@@ -57,6 +68,21 @@ export const setLinkMutation = (client: QueryClient) =>
       | { reset: true }
       | StorageLinkChange
     )) => call(api.storage.nodes[":id"].sharing.link.$put({ param: { id }, json })),
+    onSuccess: sharingChanged(client),
+  });
+
+/** `setLinkMutation` for a new file still uploading, by its upload id. */
+export const setUploadLinkMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: ({
+      id,
+      ...json
+    }: { id: string } & (
+      | { linkAccess: StorageLinkAccess }
+      | { reset: true }
+      | StorageLinkChange
+    )) => call(api.storage.uploads[":id"].sharing.link.$put({ param: { id }, json })),
     onSuccess: sharingChanged(client),
   });
 
@@ -119,6 +145,15 @@ export const storageLinkQuery = (shareId: string, nodeId?: string) =>
     getNextPageParam: (page) => page.nextCursor,
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
   });
+
+/** The files still uploading behind a link: the linked file itself, or those in `nodeId`. */
+export const linkUploading = (shareId: string, nodeId?: string, signal?: AbortSignal) =>
+  call(
+    api.storage.shared[":shareId"].uploading.$get(
+      { param: { shareId }, query: nodeId ? { node: nodeId } : {} },
+      { init: signal ? { signal } : {} },
+    ),
+  );
 
 /** Unlocks a password link for this browser: the Worker sets a cookie scoped to the link. */
 export const unlockLink = (shareId: string, password: string) =>

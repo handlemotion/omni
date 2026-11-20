@@ -10,12 +10,14 @@ import {
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ProgressBar, ProgressBarTrack } from "@/components/ui/progress-bar";
+import { EmptyState } from "@/components/empty/empty-state.tsx";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
-import { useStorageLink, useTrashNode } from "@/hooks/use-storage.ts";
+import { useLinkUploading, useStorageLink, useTrashNode } from "@/hooks/use-storage.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
-import { unlockLink } from "@/lib/storage-sharing.ts";
+import { unlockLink, type StorageLinkUpload } from "@/lib/storage-sharing.ts";
 import { sharedFileUrl } from "@/lib/urls.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { CommentsPanel } from "./comments-panel.tsx";
@@ -29,8 +31,18 @@ import { downloadFile, downloadZip } from "@/lib/download.ts";
 export function LinkPage({ shareId, nodeId }: { shareId: string; nodeId?: string | undefined }) {
   const link = useStorageLink(shareId, nodeId);
   const item = link.item;
+  if (!item && link.isError) {
+    return (
+      <LinkFrame>
+        <EmptyState figure="loupe" title="Not found" />
+      </LinkFrame>
+    );
+  }
   if (!item) return null;
-  const downloads = link.data?.pages[0]?.downloads !== false;
+  const first = link.data?.pages[0];
+  const downloads = first?.downloads !== false;
+  const upload = first?.uploading?.find((pending) => pending.id === item.node.id);
+  if (upload) return <UploadingCard shareId={shareId} upload={upload} />;
   if (item.node.kind === "file") {
     return (
       <FileCard
@@ -82,6 +94,75 @@ export function UnlockLink(props: { shareId: string; onUnlocked: () => void }) {
         </Card>
       </div>
     </LinkFrame>
+  );
+}
+
+function UploadingCard(props: { shareId: string; upload: StorageLinkUpload }) {
+  const uploading = useLinkUploading(props.shareId, undefined, [props.upload]);
+  const upload = uploading[0] ?? props.upload;
+  return (
+    <LinkFrame>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-4 pb-[12vh]">
+        <Card className="w-full max-w-90 items-center gap-0 px-6 text-center">
+          <FileGlyph
+            kind={fileType(upload.name, upload.mimeType).kind}
+            className="size-5 text-muted-foreground"
+          />
+          <h1 className="mt-3 max-w-full truncate text-base text-foreground">{upload.name}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
+            {formatBytes(upload.size)}
+          </p>
+          <UploadProgress className="mt-5 w-full" upload={upload} />
+        </Card>
+      </div>
+    </LinkFrame>
+  );
+}
+
+function UploadProgress(props: { upload: StorageLinkUpload; className?: string }) {
+  const { upload } = props;
+  const percent = upload.size ? Math.floor((upload.uploadedBytes / upload.size) * 100) : 0;
+  return (
+    <div className={`flex flex-col gap-1.5 ${props.className ?? ""}`}>
+      <div className="flex h-6 items-center gap-2 text-sm">
+        <span className="min-w-0 flex-1 truncate text-start">Uploading</span>
+        <span className="shrink-0 text-muted-foreground tabular-nums">{percent}%</span>
+      </div>
+      <ProgressBar aria-label={`Uploading ${upload.name}`} value={percent}>
+        <ProgressBarTrack />
+      </ProgressBar>
+    </div>
+  );
+}
+
+function FolderUploading(props: {
+  shareId: string;
+  nodeId: string | undefined;
+  initial: StorageLinkUpload[] | undefined;
+}) {
+  const uploading = useLinkUploading(props.shareId, props.nodeId, props.initial);
+  if (!uploading.length) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-4 bottom-4 z-20 flex justify-start">
+      <ul className="pointer-events-auto flex max-h-72 w-80 max-w-full flex-col overflow-y-auto rounded-lg border bg-background px-3 py-1.5 shadow-(--shadow-overlay)">
+        {uploading.map((upload) => (
+          <li key={upload.id} className="flex h-12 shrink-0 flex-col justify-center gap-1.5">
+            <div className="flex h-6 items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{upload.name}</span>
+              <span className="shrink-0 text-muted-foreground tabular-nums">
+                {upload.size ? Math.floor((upload.uploadedBytes / upload.size) * 100) : 0}%
+              </span>
+            </div>
+            <ProgressBar
+              aria-label={`Uploading ${upload.name}`}
+              value={upload.size ? (upload.uploadedBytes / upload.size) * 100 : 0}
+            >
+              <ProgressBarTrack />
+            </ProgressBar>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -169,6 +250,11 @@ function SharedFolder(props: {
   );
   return (
     <LinkFrame>
+      <FolderUploading
+        shareId={shareId}
+        nodeId={props.nodeId}
+        initial={props.link.data?.pages[0]?.uploading}
+      />
       <FolderView
         sidebar={false}
         title={

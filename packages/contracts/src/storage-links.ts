@@ -49,3 +49,28 @@ export type StorageLink = z.infer<typeof storageLinkSchema>;
 export type StoragePolicy = z.infer<typeof storagePolicySchema>;
 export type StoragePolicyResponse = z.infer<typeof storagePolicyResponseSchema>;
 export type StorageUnlockResponse = z.infer<typeof storageUnlockResponseSchema>;
+
+/**
+ * A file still uploading, as a link shows it: through a link made for it while it uploads, or in
+ * a shared folder it is uploading into. `id` is the file's id once it completes.
+ */
+export const storageSharedUploadSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  size: z.number().int().nonnegative(),
+  mimeType: z.string().nullable(),
+  /** Bytes stored so far. */
+  uploadedBytes: z.number().int().nonnegative(),
+});
+
+/**
+ * `GET /shared/:shareId/uploading?node=`: what `uploading` above holds now, to follow progress
+ * without listing again. Empty once everything finished: list again for the files.
+ */
+export const storageSharedUploadingQuerySchema = z.object({ node: z.string().min(1).optional() });
+export const storageSharedUploadingResponseSchema = z.object({
+  uploading: z.array(storageSharedUploadSchema),
+});
+
+export type StorageSharedUpload = z.infer<typeof storageSharedUploadSchema>;
+export type StorageSharedUploadingResponse = z.infer<typeof storageSharedUploadingResponseSchema>;

@@ -21,6 +21,7 @@ import {
   useRemoveStoragePerson,
   useSetStorageLink,
   useStorageSharing,
+  useUploadSharing,
 } from "@/hooks/use-storage.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import {
@@ -55,22 +56,48 @@ const roleLabel = (role: StorageGrantRole) => ROLES.find((r) => r.id === role)?.
 export function ShareDialog(props: { node: StorageNode; onClose: () => void }) {
   const sharing = useStorageSharing(props.node.id);
   return (
+    <SharingDialog name={props.node.name} sharing={sharing.data?.sharing} onClose={props.onClose}>
+      <AddPerson nodeId={props.node.id} />
+    </SharingDialog>
+  );
+}
+
+/**
+ * Sharing a new file before it finishes uploading, by its upload id: its link only, which opens
+ * on a page that follows the upload and becomes the file's link. People are added once it is a
+ * file.
+ */
+export function ShareUploadDialog(props: { uploadId: string; name: string; onClose: () => void }) {
+  const sharing = useUploadSharing(props.uploadId);
+  return (
+    <SharingDialog
+      name={props.name}
+      sharing={sharing.data?.sharing}
+      onClose={props.onClose}
+      uploading
+    />
+  );
+}
+
+function SharingDialog(props: {
+  name: string;
+  sharing: StorageSharing | undefined;
+  uploading?: boolean;
+  onClose: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
     <Dialog size="md" isOpen onOpenChange={(open) => !open && props.onClose()}>
       <DialogHeader>
-        <DialogTitle className="truncate">Share “{props.node.name}”</DialogTitle>
+        <DialogTitle className="truncate">Share “{props.name}”</DialogTitle>
       </DialogHeader>
       <DialogBody className="gap-5">
-        <AddPerson nodeId={props.node.id} />
-        <Skeleton
-          id="storage-sharing"
-          data={sharing.data?.sharing}
-          sample={SAMPLE}
-          label="Loading sharing"
-        >
+        {props.children}
+        <Skeleton id="storage-sharing" data={props.sharing} sample={SAMPLE} label="Loading sharing">
           {(state) => (
             <div className="flex flex-col gap-5">
               <People sharing={state} />
-              <GeneralAccess sharing={state} />
+              <GeneralAccess sharing={state} uploading={props.uploading ?? false} />
             </div>
           )}
         </Skeleton>
@@ -225,8 +252,8 @@ function PersonRow(props: { email: string; from?: string; children: React.ReactN
   );
 }
 
-function GeneralAccess({ sharing }: { sharing: StorageSharing }) {
-  const setLink = useSetStorageLink();
+function GeneralAccess({ sharing, uploading }: { sharing: StorageSharing; uploading: boolean }) {
+  const setLink = useSetStorageLink(uploading);
   const open = sharing.linkAccess !== "restricted";
   const Icon = sharing.linkAccess === "anyone" ? IconGlobe : IconLock;
   const choices = ACCESS.filter(
@@ -281,15 +308,18 @@ function GeneralAccess({ sharing }: { sharing: StorageSharing }) {
           </Button>
         </li>
       )}
-      {open && sharing.link && <LinkSettings nodeId={sharing.nodeId} link={sharing.link} />}
+      {open && sharing.link && (
+        <LinkSettings nodeId={sharing.nodeId} link={sharing.link} uploading={uploading} />
+      )}
     </Group>
   );
 }
 
 type Link = NonNullable<StorageSharing["link"]>;
 
-function LinkSettings({ nodeId, link }: { nodeId: string; link: Link }) {
-  const setLink = useSetStorageLink();
+function LinkSettings(props: { nodeId: string; link: Link; uploading: boolean }) {
+  const { nodeId, link } = props;
+  const setLink = useSetStorageLink(props.uploading);
   const change = (json: StorageLinkChange, failed: string) =>
     setLink.mutate(
       { id: nodeId, ...json },

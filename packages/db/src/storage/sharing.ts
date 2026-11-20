@@ -112,7 +112,21 @@ async function insideCompany(ex: Db, orgId: string, address: string) {
   return member !== undefined;
 }
 
-async function readSharing(ex: Db, chain: NodeRow[]) {
+/** What a link's owner reads about it: on a node, or on a file still uploading. */
+export type SharedThing = Pick<
+  NodeRow,
+  | "id"
+  | "orgId"
+  | "name"
+  | "shareId"
+  | "linkAccess"
+  | "linkExpiresAt"
+  | "linkPasswordHash"
+  | "linkDownloads"
+>;
+
+/** `chain` runs from the shared thing up through the folders above it. */
+export async function readSharing(ex: Db, chain: [SharedThing, ...NodeRow[]] | NodeRow[]) {
   const node = chain[0]!;
   const names = new Map(chain.map((row) => [row.id, row.name]));
   const grants = await ex
@@ -147,7 +161,7 @@ async function readSharing(ex: Db, chain: NodeRow[]) {
   } satisfies StorageSharing;
 }
 
-function linkDetail(change: Partial<NodeRow>, reset: boolean) {
+export function linkDetail(change: Partial<NodeRow>, reset: boolean) {
   return {
     ...(change.linkAccess ? { linkAccess: change.linkAccess } : {}),
     ...(change.linkExpiresAt !== undefined

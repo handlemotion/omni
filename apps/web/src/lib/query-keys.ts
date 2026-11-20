@@ -141,6 +141,9 @@ export const keys = {
   /** What a link opens: the shared node, or a folder inside it. */
   storageLink: (shareId: string, nodeId: string | undefined) =>
     [...storage(), "link", shareId, nodeId ?? null] as const,
+  /** The files still uploading behind a link, polled while there are any. */
+  storageLinkUploading: (shareId: string, nodeId: string | undefined) =>
+    [...storage(), "link-uploading", shareId, nodeId ?? null] as const,
 
   /** The CRM: every list, record, timeline and the stages. */
   crm: () => crm(),

@@ -2,9 +2,12 @@ import { linkKeyMatches, linkPasswordMatches, signLinkKey } from "@omni/crypto";
 import {
   STORAGE_LINK_KEY_HEADER,
   storageSharedQuerySchema,
+  storageSharedUploadingQuerySchema,
   storageUnlockBodySchema,
   type StorageNodeView,
   type StorageSharedResponse,
+  type StorageSharedUpload,
+  type StorageSharedUploadingResponse,
   type StorageUnlockResponse,
 } from "@omni/contracts";
 import {
@@ -12,12 +15,17 @@ import {
   forUser,
   linkOf,
   linkState,
+  openUploadLink,
   publicStorage,
   recordShareEvent,
+  uploadingIn,
+  uploadLinkOf,
   type LinkVisitor,
   type MemberStorage,
+  type OpenUploadLinkResult,
   type ShareEventInput,
   type SharedStorage,
+  type UploadingFile,
 } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -76,8 +84,11 @@ function visitorOf(c: Context<AppEnv>, user: SessionUser | null) {
   } satisfies LinkVisitor;
 }
 
+type UploadingLink = Extract<OpenUploadLinkResult, { status: "open" }>;
+
 type Opened =
   | { status: "ok"; shared: SharedAccess }
+  | { status: "uploading"; link: UploadingLink }
   | { status: "locked" }
   | { status: "not_found" };
 
@@ -102,6 +113,9 @@ const openShared: (
   const link = publicStorage(db, shareId, visitor);
   const root = await link.node();
   if (!root) {
+    const uploading = await openUploadLink(db, shareId, visitor);
+    if (uploading.status === "open") return { status: "uploading", link: uploading };
+    if (uploading.status === "locked") return uploading;
     const node = await linkOf(db, shareId);
     const locked = node && !node.trashedAt && (await linkState(db, node, visitor)) === "locked";
     return locked ? { status: "locked" } : { status: "not_found" };
@@ -122,6 +136,53 @@ const openShared: (
   };
 };
 
+const readsWhileUploading = (c: Context<AppEnv>) => {
+  const prefix = `/shared/${c.req.param("shareId") ?? ""}`;
+  const rest = c.req.path.slice(c.req.path.lastIndexOf(prefix) + prefix.length);
+  return rest === "" || rest === "/" || rest === "/uploading";
+};
+
+const wireUploading = ({ id, name, size, mimeType, uploadedBytes }: UploadingFile) =>
+  ({ id, name, size, mimeType, uploadedBytes }) satisfies StorageSharedUpload;
+
+function uploadingView(link: UploadingLink) {
+  const { upload } = link;
+  const at = upload.createdAt.toISOString();
+  return {
+    node: {
+      id: upload.id,
+      orgId: link.via === "link" ? "" : link.orgId,
+      space: upload.space,
+      ownerMemberId: null,
+      parentId: null,
+      kind: "file",
+      name: upload.name,
+      size: upload.size,
+      mimeType: upload.mimeType,
+      createdByMemberId: null,
+      createdAt: at,
+      updatedAt: at,
+      trashedAt: null,
+      lockedAt: null,
+      contentSha256: null,
+    },
+    role: "viewer",
+    path: [{ id: upload.id, name: upload.name }],
+  } satisfies StorageNodeView;
+}
+
+async function uploadingNow(c: Context<AppEnv>, nodeId: string | undefined) {
+  const link = c.var.uploadingLink;
+  if (link) {
+    return nodeId && nodeId !== link.upload.id ? null : [wireUploading(link.upload)];
+  }
+  const shared = c.var.shared!;
+  const item = nodeId ? await shared.node(nodeId) : shared.root;
+  if (!item) return null;
+  if (item.node.kind !== "folder") return [];
+  return (await uploadingIn(c.var.db, item.node.id)).map(wireUploading);
+}
+
 const visitorKey = (c: Context<AppEnv>, user: SessionUser | null) =>
   user ? `user:${user.id}` : `ip:${clientIp(c.req.raw)}`;
 
@@ -134,6 +195,12 @@ const open = createMiddleware<AppEnv>(async (c, next) => {
   const opened = await openShared(c, c.req.param("shareId") ?? "", user);
   if (opened.status === "locked") {
     return apiError(c, "link_locked", "this link needs its password");
+  }
+  if (opened.status === "uploading") {
+    if (c.req.method !== "GET" || !readsWhileUploading(c)) return refused(c, "not_found");
+    c.set("uploadingLink", opened.link);
+    c.set("linkUser", user);
+    return next();
   }
   if (opened.status !== "ok") return refused(c, "not_found");
   const { shared } = opened;
@@ -169,15 +236,16 @@ async function audit(
   nodeId: string,
   detail: Record<string, unknown> = {},
 ) {
-  const shared = c.var.shared!;
+  const shared = c.var.shared;
+  const uploading = c.var.uploadingLink;
   const user = c.var.linkUser ?? null;
   await recordShareEvent(c.var.db, {
-    orgId: shared.root.node.orgId,
+    orgId: shared?.root.node.orgId ?? uploading!.orgId,
     nodeId,
     kind,
-    via: shared.via,
+    via: shared?.via ?? uploading!.via,
     actorUserId: user?.id ?? null,
-    detail: { shareNodeId: shared.root.node.id, ...detail },
+    detail: { shareNodeId: shared?.root.node.id ?? nodeId, ...detail },
   });
 }
 
@@ -195,7 +263,10 @@ export const storageShared = new Hono<AppEnv>()
       `${shareId}:${visitorKey(c, user)}`,
     );
     if (wait) return tooManyRequests(c, wait, "storageLinkPassword");
-    const node = await linkOf(db, shareId);
+    const pending = await uploadLinkOf(db, shareId);
+    const node = pending
+      ? { ...pending.link, orgId: pending.upload.orgId, trashedAt: null }
+      : await linkOf(db, shareId);
     const visitor = { ...visitorOf(c, user), unlocked: async () => false };
     const lockedNow =
       node?.shareId && node.linkPasswordHash && !node.trashedAt
@@ -225,8 +296,26 @@ export const storageShared = new Hono<AppEnv>()
 
   .use("/:shareId/*", open)
 
+  .get("/:shareId/uploading", zValidator("query", storageSharedUploadingQuerySchema), async (c) => {
+    const uploading = await uploadingNow(c, c.req.valid("query").node);
+    if (!uploading) return refused(c, "not_found");
+    return c.json({ uploading } satisfies StorageSharedUploadingResponse);
+  })
+
   .get("/:shareId", zValidator("query", storageSharedQuerySchema), async (c) => {
     const { node, cursor, limit } = c.req.valid("query");
+    const pending = c.var.uploadingLink;
+    if (pending) {
+      if (node && node !== pending.upload.id) return refused(c, "not_found");
+      if (!cursor) await audit(c, "viewed", pending.upload.id, { uploading: true });
+      return c.json({
+        item: uploadingView(pending),
+        nodes: [],
+        nextCursor: null,
+        downloads: pending.downloads,
+        uploading: [wireUploading(pending.upload)],
+      } satisfies StorageSharedResponse);
+    }
     const shared = c.var.shared!;
     const item = node ? await shared.node(node) : shared.root;
     if (!item) return refused(c, "not_found");
@@ -238,6 +327,7 @@ export const storageShared = new Hono<AppEnv>()
         nodes: [],
         nextCursor: null,
         downloads: shared.downloads,
+        uploading: [],
       } satisfies StorageSharedResponse);
     }
     const listed = await shared.list(item.node.id, {
@@ -245,7 +335,9 @@ export const storageShared = new Hono<AppEnv>()
       limit,
     });
     if (listed.status !== "ok") return refused(c, listed.status);
+    const uploading = cursor ? [] : await uploadingIn(c.var.db, item.node.id);
     return c.json({
+      uploading: uploading.map(wireUploading),
       item: show(wireView(item)),
       nodes: listed.nodes
         .map(wireNode)

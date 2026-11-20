@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   changeNodeMutation,
   createFolderMutation,
@@ -13,13 +13,18 @@ import {
   type StoragePlace,
   type StorageSpace,
 } from "../lib/storage.ts";
+import { keys } from "../lib/query-keys.ts";
 import {
+  linkUploading,
   putPersonMutation,
   removePersonMutation,
   setLinkMutation,
+  setUploadLinkMutation,
+  storageUploadSharingQuery,
   storageLinkQuery,
   storageSharedWithMeQuery,
   storageSharingQuery,
+  type StorageLinkUpload,
 } from "../lib/storage-sharing.ts";
 import {
   addUploads,
@@ -191,9 +196,18 @@ export function useStorageSharing(nodeId: string) {
   return useQuery(storageSharingQuery(nodeId));
 }
 
-/** `mutate({ id, linkAccess })` sets general access; `mutate({ id, reset: true })` a new link. */
-export function useSetStorageLink() {
-  return useMutation(setLinkMutation(useQueryClient()));
+/** The sharing of a new file still uploading, by its upload id. */
+export function useUploadSharing(uploadId: string) {
+  return useQuery(storageUploadSharingQuery(uploadId));
+}
+
+/**
+ * `mutate({ id, linkAccess })` sets general access; `mutate({ id, reset: true })` a new link.
+ * With `uploading`, `id` is a file still uploading.
+ */
+export function useSetStorageLink(uploading = false) {
+  const client = useQueryClient();
+  return useMutation(uploading ? setUploadLinkMutation(client) : setLinkMutation(client));
 }
 
 /** `mutate({ id, email, role })` adds a person or changes their role. */
@@ -228,4 +242,34 @@ export function useStorageLink(
   });
   const nodes = useMemo(() => query.data?.pages.flatMap((page) => page.nodes) ?? [], [query.data]);
   return { ...query, nodes, item: query.data?.pages[0]?.item };
+}
+
+const UPLOADING_POLL_MS = 2000;
+
+/**
+ * The files still uploading behind a link, from `initial` (the link's first page), polled while
+ * any are. Each time one finishes, the link is read again so it shows as a file.
+ */
+export function useLinkUploading(
+  shareId: string,
+  nodeId: string | undefined,
+  initial: StorageLinkUpload[] | undefined,
+) {
+  const client = useQueryClient();
+  const query = useQuery({
+    queryKey: keys.storageLinkUploading(shareId, nodeId),
+    queryFn: ({ signal }) => linkUploading(shareId, nodeId, signal),
+    initialData: initial ? { uploading: initial } : undefined,
+    enabled: (initial?.length ?? 0) > 0,
+    refetchInterval: (state) => (state.state.data?.uploading.length ? UPLOADING_POLL_MS : false),
+  });
+  const uploading = useMemo(() => query.data?.uploading ?? [], [query.data]);
+  const seen = useRef(new Set<string>());
+  useEffect(() => {
+    const now = new Set(uploading.map((upload) => upload.id));
+    const finished = [...seen.current].some((id) => !now.has(id));
+    seen.current = now;
+    if (finished) void client.invalidateQueries({ queryKey: keys.storageLink(shareId, nodeId) });
+  }, [client, nodeId, shareId, uploading]);
+  return uploading;
 }

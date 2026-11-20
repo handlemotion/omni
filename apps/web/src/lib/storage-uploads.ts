@@ -24,6 +24,11 @@ export interface UploadItem {
   status: "queued" | "uploading" | "failed";
   /** Why it failed, as the API (or the network) said it: the screen words it. */
   error?: unknown;
+  /**
+   * The server's id for it once opened, when it makes a new file in the member's own drive:
+   * it can be shared before it finishes, and the file keeps the id.
+   */
+  shareable?: string | undefined;
 }
 
 /** Thrown when the session changed since the file was queued: it is not sent, and not retried. */
@@ -129,18 +134,25 @@ let nextId = 1;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<() => void>();
 
+const shareableOf = (job: Job) =>
+  job.status === "uploading" && !job.batch.target.shareId && !job.batch.target.replaces
+    ? job.uploadId
+    : undefined;
+
 const viewOf = (job: Job) => {
   const { id, name, size, sent, status, error, view } = job;
+  const shareable = shareableOf(job);
   if (
     view &&
     view.sent === sent &&
     view.status === status &&
     view.error === error &&
-    view.name === name
+    view.name === name &&
+    view.shareable === shareable
   ) {
     return view;
   }
-  job.view = { id, name, size, sent, status, error };
+  job.view = { id, name, size, sent, status, error, shareable };
   return job.view;
 };
 
