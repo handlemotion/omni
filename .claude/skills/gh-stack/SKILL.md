@@ -27,6 +27,27 @@ The upstream guidance below is generic; where it conflicts with `AGENTS.md`, the
 - **Restore the original layer, not the top.** `gh stack top` does not return to the layer the
   task began on. Record the checked-out branch first and `gh stack checkout <branch>` to return.
 
+## In a Claude Code cloud session
+
+`gh` works here; do not fall back to hand-opened PRs. The proxy authenticates REST calls but
+blocks GraphQL, and `gh auth status` reports the token invalid even though `gh api user` succeeds.
+`gh stack` looks up and creates PRs over GraphQL, so split the work:
+
+| Step                     | Command in the cloud                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Start or adopt layers    | `gh stack init <branch>...`, `gh stack add <branch>` (a GraphQL 403 is fine)                          |
+| Restack                  | `gh stack rebase`, `gh stack rebase --upstack`                                                        |
+| Push every layer         | `gh stack push --remote origin`                                                                       |
+| Open a layer's PR        | `gh api repos/{owner}/{repo}/pulls -f head=<layer> -f base=<below> -f title=… -f body=…`              |
+| Link the stack (≥ 2 PRs) | `echo '{"pull_requests":[<bottom>,…,<top>]}' \| gh api -X POST repos/{owner}/{repo}/stacks --input -` |
+| Add a new top PR         | `echo '{"pull_requests":[<n>]}' \| gh api -X POST repos/{owner}/{repo}/stacks/<stack>/add --input -`  |
+| Read the stack           | `gh api "repos/{owner}/{repo}/stacks?pull_request=<n>"`, `gh stack view --json`                       |
+| Edit a PR or its base    | `gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -f base=…` (or the GitHub MCP)                        |
+
+Name layers `<session branch>-<layer>` so the session may push them. `submit`, `link`, `sync` and
+`merge` need GraphQL; leave merging to the user, who runs `gh stack merge` locally. The REST API is
+documented in gh-stack's `docs/src/content/docs/reference/rest-api.md`.
+
 `gh stack` is a [GitHub CLI](https://cli.github.com/) extension for stacked branches and pull
 requests. A stack is an ordered chain of branches rooted on a trunk, where each branch has one PR
 based on the branch below it, so a reviewer sees only that layer's diff.
@@ -159,7 +180,7 @@ an ancestor of the branch.
 | 1    | Generic error              | Read stderr                                                |
 | 2    | Not in a stack             | `gh stack init`, or `gh stack checkout <target>`           |
 | 3    | Rebase conflict            | Follow the Exit 3 recovery below                           |
-| 4    | GitHub API failure         | Check `gh auth status`, retry                              |
+| 4    | GitHub API failure         | In the cloud: GraphQL is blocked, use the REST table above |
 | 5    | Invalid arguments          | Fix the invocation; see `<command> --help`                 |
 | 6    | Disambiguation required    | Branch is in several stacks; check out a non-shared branch |
 | 7    | Rebase already in progress | `gh stack rebase --continue` or `--abort`                  |
