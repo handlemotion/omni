@@ -16,7 +16,7 @@ import { BlockHandle, FormatBar } from "./block-tools.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useStorageHref } from "../file-list.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
-import { docExtensions } from "./doc-schema.ts";
+import { docExtensions } from "@omni/docs";
 import { DriveFiles } from "./drive-files.tsx";
 import { SlashMenu } from "./slash-menu.tsx";
 import SourceEditor from "./source-editor.tsx";

@@ -311,6 +311,31 @@ read files the way they find and read mail.
   and never Trash. Search narrows in SQL and the door decides. Leak cases are in
   `apps/worker/e2e/drive-context.e2e.test.ts`.
 
+### Docs: `drive_create_doc`, `drive_edit_doc`
+
+Scope `drive:write`, not read-only, not destructive (every change is a new version; the old ones
+stay in the file's history). A doc is a Markdown file (`.md`) that opens in Omni as a page people edit together.
+
+- **Create.** `drive_create_doc { name, markdown, folder_id? | workspace?, space? }` writes a new
+  doc in the person's My files (default), a company's Shared, or a folder they can write to.
+  `.md` is added to the name when missing.
+- **Edit.** `drive_edit_doc { id, edits? | markdown? }`. `edits` are `{ find, replace }` pairs
+  applied in order, each `find` quoting Markdown that occurs exactly once in the doc now; all
+  apply or none do, and a miss answers with the doc as it reads now, so the agent can retry
+  without another `drive_fetch`. `markdown` replaces the whole doc.
+- **Live merge.** When people have the doc open (its live document, `docs/<nodeId>` in S2, holds
+  the file's current version), the edit is made on the live document, unsaved typing included:
+  the Worker reads the stream into a Yjs document, turns the new Markdown into the smallest Yjs
+  change (`@omni/docs` `rewriteLive`), appends it, passes it to everyone editing through the
+  realtime Durable Object, saves the merged result as the next version and records the save in
+  the stream. Open editors take that save as theirs, so nobody is asked about a conflict. With no
+  one editing, the edit is the file's next version, checked against the version it was made on.
+- **Shared code.** `packages/docs` (`@omni/docs`) holds the editor's schema, Markdown to and
+  from it, the live helpers and `applyEdits`, used by both the web editor and the Worker.
+- **Limits.** Docs up to 1 MB; Markdown in up to 200k characters; up to 50 edits a call; the
+  `actions` rate limit; refused in a workspace whose plan is unpaid. Every write is audited as
+  `mcp.drive_doc`.
+
 ## Authorization
 
 OAuth 2.1, per the MCP 2026-07-28 authorization spec, with Omni's own Better Auth as the
@@ -350,7 +375,7 @@ additive.
   `https://chatgpt.com/connector_platform_oauth_redirect`.
 
 **Scopes.** `mail:read`, `mail:triage`, `mail:draft`, `crm:read` and `crm:write` (the CRM
-tools, `docs/spec/crm.md` "Agents"), plus `openid`, `email`, `profile` and
+tools, `docs/spec/crm.md` "Agents"), `drive:read` and `drive:write` (Drive and docs), plus `openid`, `email`, `profile` and
 `offline_access` (offered, never challenged). Consent lists the scopes the client asked for;
 Claude and ChatGPT ask for every advertised scope. A tool that needs a scope the token lacks answers HTTP 403 `error=
 "insufficient_scope"` naming every scope it needs, so the client can step up.

@@ -2,6 +2,7 @@ import {
   CRM_READ_SCOPE,
   CRM_WRITE_SCOPE,
   DRIVE_READ_SCOPE,
+  DRIVE_WRITE_SCOPE,
   MAIL_DRAFT_SCOPE,
   MAIL_TRIAGE_SCOPE,
 } from "@omni/auth";
@@ -17,6 +18,7 @@ import { registerCrmSearch } from "./tools/crm-search.ts";
 import { registerCrmTasks } from "./tools/crm-tasks.ts";
 import { registerCrmWrite } from "./tools/crm-write.ts";
 import { registerDraftReply } from "./tools/draft-reply.ts";
+import { registerDriveDocs } from "./tools/drive-docs.ts";
 import { registerDriveFetch } from "./tools/drive-fetch.ts";
 import { registerDriveList } from "./tools/drive-list.ts";
 import { registerDriveSearch } from "./tools/drive-search.ts";
@@ -67,6 +69,8 @@ export const TOOL_SCOPES: Record<string, string> = {
   drive_search: DRIVE_READ_SCOPE,
   drive_list: DRIVE_READ_SCOPE,
   drive_fetch: DRIVE_READ_SCOPE,
+  drive_create_doc: DRIVE_WRITE_SCOPE,
+  drive_edit_doc: DRIVE_WRITE_SCOPE,
 };
 
 function serverIcons(webAppURL: string) {
@@ -100,5 +104,6 @@ export function createServer(context: ToolContext) {
   registerDriveSearch(server, context);
   registerDriveList(server, context);
   registerDriveFetch(server, context);
+  registerDriveDocs(server, context);
   return server;
 }

@@ -1,6 +1,7 @@
 import type { StorageSpace } from "@omni/contracts";
 import type { Context } from "hono";
 import type { AppEnv } from "../context.ts";
+import type { Logger } from "../log.ts";
 
 /** Where a node lives: its drive. */
 interface Placed {
@@ -29,6 +30,17 @@ const listingsOf = (touched: Touched) => [
  * folders whose listing changed so open apps refetch only those.
  */
 export function announceDrives(c: Context<AppEnv>, touched: (Touched | null | undefined)[]) {
+  announceTo(
+    { env: c.env, waitUntil: (work) => c.executionCtx.waitUntil(work), log: c.var.log },
+    touched,
+  );
+}
+
+/** `announceDrives` away from a request's context: from a tool, a job or a queue. */
+export function announceTo(
+  at: { env: Env; waitUntil: (work: Promise<unknown>) => void; log: Logger },
+  touched: (Touched | null | undefined)[],
+) {
   const drives = new Map<string, Placed & { parentIds: Set<string | null> }>();
   for (const one of touched) {
     if (!one) continue;
@@ -38,11 +50,11 @@ export function announceDrives(c: Context<AppEnv>, touched: (Touched | null | un
     drives.set(key, drive);
   }
   for (const { orgId, space, ownerMemberId, parentIds } of drives.values()) {
-    const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
-    c.executionCtx.waitUntil(
+    const stub = at.env.REALTIME.get(at.env.REALTIME.idFromName(orgId));
+    at.waitUntil(
       stub
         .storageChanged(space, ownerMemberId, [...parentIds])
-        .catch((error: unknown) => c.var.log.warn("storage.announce_failed", { error })),
+        .catch((error: unknown) => at.log.warn("storage.announce_failed", { error })),
     );
   }
 }

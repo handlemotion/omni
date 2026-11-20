@@ -24,6 +24,7 @@
     "@internationalized/date": "^3.12.4",
     "@lucasmarkes/hairline": "0.5.1",
     "@omni/client": "workspace:*",
+    "@omni/docs": "workspace:*",
     "@omni/mail-core": "workspace:*",
     "@react-stately/color": "^3.10.1",
     "@ridemountainpig/svgl-react": "^1.0.19",

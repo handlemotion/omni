@@ -4,6 +4,7 @@ import type {
   HelpdeskRealtimeEvent,
   SlaTarget,
   StorageChangedEvent,
+  StorageDocEvent,
   StorageSpace,
 } from "@omni/contracts";
 import {
@@ -25,6 +26,7 @@ import {
   MAX_PRESENCE_MESSAGE,
   onDocAppend,
   onDocPresence,
+  passOnRecords,
 } from "./realtime-docs.ts";
 import {
   filePresenceMessage,
@@ -135,6 +137,10 @@ export class Realtime extends DurableObject<Env> {
    * workspace for Shared. App sockets and sync sockets alike. `parentIds` are the folders whose
    * listing changed (`null` for the drive's top), so an app refetches only those.
    */
+  async docRecords(nodeId: string, events: StorageDocEvent[]) {
+    passOnRecords(this.ctx, nodeId, events);
+  }
+
   async storageChanged(
     space: StorageSpace,
     ownerMemberId: string | null,

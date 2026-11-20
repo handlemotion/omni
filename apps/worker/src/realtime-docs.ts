@@ -121,3 +121,17 @@ export async function onDocAppend(
     } catch {}
   }
 }
+
+/**
+ * Passes records the Worker appended itself (a change made through an agent, and its save) to
+ * every socket editing the file, the way `onDocAppend` passes on an app's.
+ */
+export function passOnRecords(ctx: DurableObjectState, nodeId: string, events: StorageDocEvent[]) {
+  const sockets = ctx.getWebSockets().filter((socket) => {
+    const at = editingOf(socket);
+    return at?.nodeId === nodeId && !at.locked;
+  });
+  for (const event of events) {
+    for (const socket of sockets) send(socket, event);
+  }
+}

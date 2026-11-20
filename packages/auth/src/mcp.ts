@@ -17,6 +17,8 @@ export const CRM_WRITE_SCOPE = "crm:write";
 
 /** Read Drive: `drive_search`, `drive_list`, `drive_fetch`. */
 export const DRIVE_READ_SCOPE = "drive:read";
+/** Write and edit docs in Drive, never delete: `drive_create_doc`, `drive_edit_doc`. */
+export const DRIVE_WRITE_SCOPE = "drive:write";
 
 /**
  * Sync Storage with the desktop app's Finder folder. Only the first-party Omni
@@ -41,6 +43,7 @@ export const MCP_SCOPES = [
   CRM_READ_SCOPE,
   CRM_WRITE_SCOPE,
   DRIVE_READ_SCOPE,
+  DRIVE_WRITE_SCOPE,
 ] as const;
 
 /** The access-token claim naming the one workspace a grant reaches; absent for every workspace. */

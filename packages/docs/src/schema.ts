@@ -2,7 +2,7 @@ import { Image } from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
-import type { Extensions } from "@tiptap/react";
+import type { Extensions } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 
 /**

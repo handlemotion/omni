@@ -37,6 +37,7 @@ const SCOPE_LINES: { scopes: string[]; icon: Icon; label: string }[] = [
   { scopes: ["crm:read"], icon: IconUsers, label: "Read your CRM" },
   { scopes: ["crm:write"], icon: IconUserAdd, label: "Add and change CRM records" },
   { scopes: ["drive:read"], icon: IconFolder, label: "Read your files" },
+  { scopes: ["drive:write"], icon: IconFolder, label: "Write and edit docs" },
   {
     scopes: ["offline_access"],
     icon: IconArrowRotateClockwise,

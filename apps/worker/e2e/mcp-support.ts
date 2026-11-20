@@ -3,7 +3,6 @@ import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/cli
 import { type CookieJar, WEB_ORIGIN } from "./support.ts";
 
 const BASE = "http://localhost:8787";
-const RESOURCE = `${BASE}/mcp`;
 const REDIRECT_URI = "http://127.0.0.1:43123/callback";
 const NAVIGATION = { accept: "text/html", "sec-fetch-mode": "navigate" };
 
@@ -20,8 +19,9 @@ async function step(response: Response) {
 export async function connectAgent(
   workerUrl: string | URL,
   jar: CookieJar,
-  options: { scope: string; workspace?: string | null },
+  options: { scope: string; workspace?: string | null; authURL?: string },
 ) {
+  const resource = `${options.authURL ?? BASE}/mcp`;
   const at = (path: string) => new URL(path, workerUrl);
   const browser = (path: string, init: RequestInit = {}) =>
     fetch(at(path), {
@@ -52,7 +52,7 @@ export async function connectAgent(
     state: "state-1",
     code_challenge: createHash("sha256").update(verifier).digest("base64url"),
     code_challenge_method: "S256",
-    resource: RESOURCE,
+    resource,
   }).toString();
   const consentPage = await step(
     await browser(authorize.pathname + authorize.search, { headers: NAVIGATION }),
@@ -77,7 +77,7 @@ export async function connectAgent(
       redirect_uri: REDIRECT_URI,
       client_id: clientId,
       code_verifier: verifier,
-      resource: RESOURCE,
+      resource,
     }),
   });
   const { access_token } = (await token.json()) as { access_token: string };

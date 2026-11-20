@@ -5,6 +5,7 @@
     { "path": "./packages/mail-core" },
     { "path": "./packages/ai" },
     { "path": "./packages/crypto" },
+    { "path": "./packages/docs" },
     { "path": "./packages/contracts" },
     { "path": "./packages/auth" },
     { "path": "./apps/mail" },

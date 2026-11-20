@@ -9,7 +9,7 @@ import {
   type MarkSerializer,
   type NodeSerializer,
 } from "prosemirror-docx";
-import { docExtensions } from "./doc-schema.ts";
+import { docExtensions } from "@omni/docs";
 import "./rich-editor.css";
 
 /** What a doc can leave Drive as, besides its own Markdown. */

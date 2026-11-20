@@ -104,6 +104,7 @@ export class LiveDoc {
   private next = 0;
   private last = { seqNum: -1, mine: false };
   private lastFold = -1;
+  private folds = new Set<number>();
   private pending = new Map<number, { record: StorageLiveRecord; matchSeqNum?: number }>();
   private answers = new Map<number, (event: StorageDocEvent) => void>();
   private batch: Uint8Array[] = [];
@@ -222,6 +223,20 @@ export class LiveDoc {
     if (answer.type === "doc.appended") this.lastFold = Math.max(this.lastFold, boundary);
   }
 
+  /**
+   * Whether this document was saved as `contentVersion`, by this tab or anyone in it (an agent
+   * too): then a save that found the file at that version lost nothing. Waits a while for the
+   * record, since the save itself can be heard first.
+   */
+  async savedAs(contentVersion: number) {
+    const until = Date.now() + SETTLE_MS;
+    while (!this.folds.has(contentVersion) && Date.now() < until && !this.closed) {
+      void this.catchUp();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return this.folds.has(contentVersion);
+  }
+
   /** Sends this tab's changes now and waits (a while) for the stream to take them all. */
   async settle() {
     clearTimeout(this.timer);
@@ -331,6 +346,7 @@ export class LiveDoc {
     if (record.t !== "seed" && record.e !== this.epoch) return this.markKnown(seqNum, false);
     if (record.t === "fold") {
       this.lastFold = Math.max(this.lastFold, record.s);
+      this.folds.add(record.cv);
       this.options.onFolded(record.cv);
     } else {
       Y.applyUpdate(this.doc, fromBase64(record.u), REMOTE);

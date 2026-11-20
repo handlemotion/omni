@@ -174,6 +174,9 @@ export async function mayReplace(ex: Db, door: Door, nodeId: string) {
 
 export function versionOperations(db: Db, door: Door) {
   return {
+    async mayWrite(nodeId: string) {
+      return (await mayReplace(db, door, nodeId)).status;
+    },
     async versions(nodeId: string) {
       const found = await editable(db, door, nodeId);
       if (found.status !== "ok") return found satisfies VersionsResult;

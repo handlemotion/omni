@@ -66,6 +66,9 @@ export interface LiveSetup {
 }
 
 const FOLD_MS = 2000;
+
+const savedLive = async (live: LiveDoc | null, contentVersion: number) =>
+  !!live && (await live.savedAs(contentVersion));
 const FOLD_WAIT_MS = 5000;
 
 const isMarkdown = (node: StorageNode) =>
@@ -168,7 +171,10 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
       if (opened) void abortUpload(opened, shareId);
       const now = session.current === mine ? conflictOf(error) : undefined;
       if (now === undefined) storageErrorToast(error, `“${node.name}” was not saved`);
-      else setConflict(now);
+      else if (await savedLive(live.current, now)) {
+        base.current = now;
+        latestFold.current();
+      } else setConflict(now);
       return false;
     } finally {
       inFlight.current = false;
