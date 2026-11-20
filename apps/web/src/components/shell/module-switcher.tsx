@@ -1,7 +1,17 @@
 import { useLocation, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useMemo, useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import {
+  IconChevronLeft,
+  IconChevronRight,
   IconChevronsUpDown,
   IconCircleCheckFilled,
   IconConnections,
@@ -28,6 +38,7 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { useMember, useSignOut } from "@/hooks/use-session.ts";
 import { useOpenSettings } from "@/hooks/use-settings.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
+import { useSidewaysSwipe } from "./module-swipe";
 import { useOpenWorkspace, useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 
@@ -157,58 +168,80 @@ export function useOpenModule() {
   };
 }
 
-/** The sidebar's foot: the module on screen, and Switch, whose menu opens the other module. */
+let lastShown: ModuleId | undefined;
+
+/**
+ * The sidebar's foot, as on iOS: the module on screen in a pill, between a chevron each way to its
+ * neighbour (disabled where there is none). A two-finger sideways swipe in the sidebar steps too.
+ * The pill's mark and name slide in from the side they came from; with reduced motion they just
+ * appear.
+ */
 export function ModuleSwitcher() {
   const current = BY_ID[useCurrentModule()];
   const open = useOpenModule();
   const modules = useHasCrm() ? MODULES : MODULES.filter((module) => module.id !== "crm");
+  const index = Math.max(0, modules.indexOf(current));
   const row = useRef<HTMLDivElement>(null);
-  const rowBox = useMemo(
-    () => ({ getBoundingClientRect: () => row.current?.getBoundingClientRect() ?? new DOMRect() }),
-    [],
-  );
+  const arrival = () => {
+    const from = modules.findIndex((module) => module.id === lastShown);
+    return { id: current.id, came: from < 0 || from === index ? 0 : index > from ? 1 : -1 };
+  };
+  const [shown, setShown] = useState(arrival);
+  if (shown.id !== current.id) setShown(arrival());
+  const { came } = shown.id === current.id ? shown : arrival();
+  useEffect(() => {
+    lastShown = current.id;
+  }, [current.id]);
+  const go = (to: number) => {
+    const module = modules[to];
+    if (module && to !== index) open(module.id);
+  };
+  useSidewaysSwipe(row, (by) => go(index + by));
 
   return (
-    <div ref={row} className="flex h-8 min-w-0 items-center gap-2.5 ps-2">
-      <span className="grid size-icon shrink-0 place-items-center">
-        <span className="-m-[1.5px]">
-          <ModuleMark module={current} />
+    <div
+      ref={row}
+      role="group"
+      aria-label="Modules"
+      className="flex h-8 items-center justify-center gap-1"
+    >
+      <Step module={modules[index - 1]} direction="previous" onPress={() => go(index - 1)} />
+      <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden rounded-full border border-border ps-1.5 pe-3">
+        <span
+          key={current.id}
+          className={cn(
+            "flex min-w-0 items-center gap-2 motion-reduce:animate-none",
+            came !== 0 && "animate-in fade-in duration-150 ease-out",
+            came > 0 && "slide-in-from-right-2",
+            came < 0 && "slide-in-from-left-2",
+          )}
+        >
+          <ModuleMark module={current} className="size-5 rounded-[6px]" />
+          <span className="truncate text-sm font-medium">{current.label}</span>
         </span>
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{current.label}</span>
-      <MenuTrigger>
-        <Button
-          intent="outline"
-          size="sm"
-          isCircle
-          aria-label={`Switch module, currently ${current.label}`}
-        >
-          Switch
-        </Button>
-        <Menu
-          placement="top start"
-          popover={{
-            anchor: rowBox,
-            offset: 4,
-            collisionPadding: 8,
-            className: "w-(--anchor-width) min-w-(--anchor-width)",
-          }}
-        >
-          {modules.map((module) => (
-            <MenuItem
-              key={module.id}
-              id={module.id}
-              textValue={module.label}
-              onAction={() => module.id !== current.id && open(module.id)}
-              className="ps-1.5 pe-1.5"
-            >
-              <ModuleMark module={module} className="me-(--me-icon)" />
-              <Label name={module.label} current={module.id === current.id} />
-            </MenuItem>
-          ))}
-        </Menu>
-      </MenuTrigger>
+      </div>
+      <Step module={modules[index + 1]} direction="next" onPress={() => go(index + 1)} />
     </div>
+  );
+}
+
+function Step(props: {
+  module: Module | undefined;
+  direction: "previous" | "next";
+  onPress: () => void;
+}) {
+  const Icon = props.direction === "previous" ? IconChevronLeft : IconChevronRight;
+  return (
+    <Button
+      intent="plain"
+      size="sq-xs"
+      isCircle
+      isDisabled={!props.module}
+      aria-label={props.module ? `Go to ${props.module.label}` : `No ${props.direction} module`}
+      onPress={props.onPress}
+    >
+      <Icon />
+    </Button>
   );
 }
 

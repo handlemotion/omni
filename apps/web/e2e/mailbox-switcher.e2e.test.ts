@@ -277,8 +277,7 @@ test("switching workspace keeps the module; switching module keeps the workspace
     );
   const before = await active();
 
-  await page.getByRole("button", { name: "Switch module, currently Mail" }).click();
-  await page.getByRole("menuitem", { name: "Drive" }).click();
+  await page.getByRole("button", { name: "Go to Drive" }).click();
   await page.waitForURL((url) => place(url) === "/files/my");
   expect(await active()).toBe(before);
   expect(await page.getByRole("link", { name: "Later", exact: true }).count()).toBe(0);
@@ -289,7 +288,7 @@ test("switching workspace keeps the module; switching module keeps the workspace
   await page.getByRole("button", { name: /^Switch workspace, currently / }).click();
   await page.getByRole("menuitem", { name: other }).click();
   await page.getByRole("button", { name: `Switch workspace, currently ${other}` }).waitFor();
-  await page.getByRole("button", { name: "Switch module, currently Drive" }).waitFor();
+  await page.getByRole("group", { name: "Modules" }).getByText("Drive").waitFor();
   expect(place(page.url())).toBe("/files/trash");
   await expect.poll(active).toBe(other === "Beta" ? beta.orgId : acme.orgId);
 });
@@ -304,8 +303,7 @@ test("g then f keeps the mailbox for the way back to Mail", async () => {
   await page.keyboard.press("g");
   await page.keyboard.press("f");
   await page.waitForURL((url) => place(url) === "/files/my");
-  await page.getByRole("button", { name: "Switch module, currently Drive" }).click();
-  await page.getByRole("menuitem", { name: "Mail" }).click();
+  await page.getByRole("button", { name: "Go to Mail" }).click();
   await page.waitForURL((url) => place(url) === "/mail/inbox");
   expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.support.id);
   await page.getByRole("button", { name: /^Switch mailbox, currently Support/ }).waitFor();
