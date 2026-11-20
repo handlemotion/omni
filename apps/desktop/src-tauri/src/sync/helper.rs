@@ -66,9 +66,15 @@ pub async fn connect<R: Runtime>(
     org_id: String,
 ) -> Result<DesktopWorkspaceSync, String> {
     if keychain::holds(app) {
-        return call(vec!["connect".into(), org_id]).await;
+        let answer: DesktopWorkspaceSync = call(vec!["connect".into(), org_id.clone()]).await?;
+        // A grant without `sync.json` (kept from an earlier install or a sign-out) cannot turn
+        // sync on: the helper answers `needs_attention` and the switch flips back with no error,
+        // every time. Sign in again instead, which writes `sync.json`.
+        if answer.state != DesktopSyncState::NeedsAttention {
+            return Ok(answer);
+        }
     }
-    // No sync grant: the server's authorize page, in the window already signed in there.
+    // No usable sync grant: the server's authorize page, in the window already signed in there.
     let window = app.get_webview_window("main").ok_or("no main window")?;
     let here = window.url().map_err(|error| error.to_string())?;
     let origin = here.origin().ascii_serialization();

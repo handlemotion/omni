@@ -30,12 +30,15 @@ public struct SignIn: Codable, Equatable, Sendable {
     public static func finish(callback: URL, container: URL, session: URLSession = .shared) async throws -> (SignIn, SyncTokens) {
         let file = container.appendingPathComponent(fileName)
         guard let saved = try? JSONDecoder().decode(SignIn.self, from: Data(contentsOf: file)) else {
-            throw TokenError.signedOut
+            throw SignInRefused(status: 0, error: "no sign-in was started here")
         }
         let query = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
         guard query.first(where: { $0.name == "state" })?.value == saved.state,
               let code = query.first(where: { $0.name == "code" })?.value
-        else { throw TokenError.signedOut }
+        else {
+            let error = query.first(where: { $0.name == "error" })?.value
+            throw SignInRefused(status: 0, error: error ?? "the callback's state is not this sign-in's")
+        }
         try? FileManager.default.removeItem(at: file)
 
         var request = URLRequest(url: saved.origin.appendingPathComponent("api/auth/oauth2/token"))
@@ -50,7 +53,8 @@ public struct SignIn: Codable, Equatable, Sendable {
             ("resource", saved.origin.appendingPathComponent("api/storage/sync").absoluteString),
         ])
         let (data, response) = try await session.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw TokenError.signedOut }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else { throw SignInRefused(status: status, error: OAuthError.code(in: data)) }
         return (saved, try TokenStore.tokens(from: data, keeping: nil))
     }
 
@@ -63,5 +67,21 @@ public struct SignIn: Codable, Equatable, Sendable {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+/// Why the sync sign-in did not finish: the token endpoint's status and OAuth `error`, or the
+/// step that refused. Says what failed, never a code or a token.
+public struct SignInRefused: Error, CustomStringConvertible {
+    public let status: Int
+    public let error: String?
+    public var description: String { "sync sign-in refused (status \(status), \(error ?? "no error code"))" }
+}
+
+enum OAuthError {
+    /// The `error` field of an OAuth error body.
+    static func code(in data: Data) -> String? {
+        struct Body: Decodable { let error: String? }
+        return (try? JSONDecoder().decode(Body.self, from: data))?.error
     }
 }
