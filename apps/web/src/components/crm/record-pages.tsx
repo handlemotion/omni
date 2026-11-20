@@ -15,6 +15,8 @@ import {
 } from "@/hooks/use-crm.ts";
 import { formatMoney, lastContactedAt, valueCurrency } from "@/lib/crm.ts";
 import { Contracts } from "./contracts.tsx";
+import { AccessSection } from "./project-access.tsx";
+import { ProjectPlan } from "./project-plan.tsx";
 import { crmErrorToast } from "./crm-errors.ts";
 import { StageBadge } from "./list-pages.tsx";
 import { NewDealDialog, NewPersonDialog } from "./new-records.tsx";
@@ -316,10 +318,12 @@ export function DealPage({ id }: { id: string }) {
                 save({ id, personIds: people.map((p) => p.id).filter((p) => p !== personId) })
               }
             />
+            <AccessSection dealId={id} />
           </>
         }
         tabs={[
           { id: "timeline", label: "Timeline", panel: <Timeline kind="deals" id={id} /> },
+          { id: "plan", label: "Plan", panel: <ProjectPlan dealId={id} /> },
           { id: "tasks", label: "Tasks", panel: <RecordTasks kind="deals" id={id} /> },
           {
             id: "files",

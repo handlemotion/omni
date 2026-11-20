@@ -25,7 +25,7 @@ interface RowAction {
   onAction: () => void;
 }
 
-function RowWithMenu(props: { label: string; actions: RowAction[]; children: ReactNode }) {
+export function RowWithMenu(props: { label: string; actions: RowAction[]; children: ReactNode }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
       <div className="flex min-w-0 flex-1 flex-col">{props.children}</div>

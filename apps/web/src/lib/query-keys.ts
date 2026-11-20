@@ -161,6 +161,10 @@ export const keys = {
   crmStages: () => [...crm(), "stages"] as const,
   crmSettings: () => [...crm(), "settings"] as const,
   crmTimeline: (kind: string, id: string) => [...crm(), "timeline", kind, id] as const,
+  /** A project's milestones and deliverables. */
+  crmPlan: (dealId: string) => [...crm(), "plan", dealId] as const,
+  /** The people outside the team on a project. */
+  crmAccess: (dealId: string) => [...crm(), "access", dealId] as const,
   crmContracts: (where: { company: string } | { deal: string }) =>
     [...crm(), "contracts", where] as const,
   /** People, companies and deals whose name starts with `q`, for pickers. */

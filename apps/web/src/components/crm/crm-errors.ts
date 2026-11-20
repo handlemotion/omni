@@ -16,6 +16,8 @@ const BY_CODE: Partial<Record<ErrorCode, string>> = {
   not_found: "That's no longer here",
   locked: "That file is locked",
   rate_limited: "Too many at once. Try again in a minute",
+  invalid_email: "That isn't an email address",
+  sharing_policy: "Drive's sharing settings don't allow that",
 };
 
 /** Why `error` refused the action, or `fallback`. */
