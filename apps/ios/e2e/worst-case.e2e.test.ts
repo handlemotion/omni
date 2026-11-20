@@ -45,6 +45,7 @@ const LONG = {
 };
 
 const TODAYS_TIME = /^\d{1,2}:\d{2}\s?[AP]M$/;
+const TODAYS_ROW_META = /^(.+ · )?Today( · .+)?$/;
 
 interface Seeded {
   threadId: string;
@@ -87,8 +88,8 @@ const SCREENS: {
   {
     name: "Mail reply",
     path: (s) => `/mail/compose?threadId=${s.threadId}`,
-    shows: "maximiliana@partners.test",
-    clamped: [["maximiliana@partners.test", 1]],
+    shows: LONG.sender,
+    clamped: [[LONG.sender, 1]],
   },
   {
     name: "Mail reply to an unbreakable address",
@@ -103,7 +104,7 @@ const SCREENS: {
     clamped: [
       [LONG.folder, 2],
       [LONG.file, 1],
-      [TODAYS_TIME, 1],
+      [TODAYS_ROW_META, 1],
     ],
   },
   {
@@ -113,7 +114,7 @@ const SCREENS: {
     clamped: [
       [LONG.folder, 1],
       [LONG.file, 1],
-      [TODAYS_TIME, 1],
+      [TODAYS_ROW_META, 1],
     ],
   },
   { name: "Drive trash, empty", path: () => "/drive?page=trash", shows: "Trash is empty" },
