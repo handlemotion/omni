@@ -116,12 +116,13 @@ function decodeEntities(text: string) {
   });
 }
 
-const tidy = (text: string) =>
+const squeeze = (text: string) =>
   text
     .replace(/\r\n?/g, "\n")
     .replace(/[ \t\f\v]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .replace(/\n{3,}/g, "\n\n");
+
+const tidy = (text: string) => squeeze(text).trim();
 
 function html(source: string) {
   return decodeEntities(
@@ -200,18 +201,25 @@ function cellText(cell: string, strings: string[]) {
   return type === "s" ? (strings[Number(value)] ?? "") : decodeEntities(value);
 }
 
+const LAST_COLUMN = 16_383;
+const MAX_EMPTY_COLUMNS = 32;
+
 function columnOf(cell: string) {
-  const letters = /\br="([A-Z]+)\d+"/.exec(cell)?.[1];
+  const letters = /\br="([A-Z]{1,3})\d+"/.exec(cell)?.[1];
   if (!letters) return null;
-  return [...letters].reduce((n, letter) => n * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+  const column = [...letters].reduce((n, letter) => n * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+  return column <= LAST_COLUMN ? column : null;
 }
 
 function sheetRow(row: string, strings: string[]) {
   const values: string[] = [];
+  let at = -1;
   for (const [cell] of row.matchAll(/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g)) {
-    const column = columnOf(cell) ?? values.length;
-    while (values.length < column) values.push("");
-    values[column] = cellText(cell, strings);
+    const column = Math.max(columnOf(cell) ?? at + 1, at + 1);
+    const gap = Math.min(column - at - 1, MAX_EMPTY_COLUMNS);
+    for (let i = 0; i < gap; i++) values.push("");
+    values.push(cellText(cell, strings));
+    at = column;
   }
   return values.join("\t").trimEnd();
 }
@@ -252,14 +260,20 @@ function xlsx(bytes: Uint8Array) {
       name === "xl/_rels/workbook.xml.rels",
   );
   const strings = sharedStrings(parts.get("xl/sharedStrings.xml"));
-  return sheetsInOrder(parts, sheet)
-    .map(({ name, part }) => {
-      const rows = [...parts.get(part)!.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)]
-        .map((row) => sheetRow(row[1]!, strings))
-        .filter((row) => row.length > 0);
-      return `--- Sheet: ${name} ---\n${rows.join("\n")}`;
-    })
-    .join("\n\n");
+  const out: string[] = [];
+  let size = 0;
+  for (const { name, part } of sheetsInOrder(parts, sheet)) {
+    out.push(`--- Sheet: ${name} ---`);
+    for (const [, row] of parts.get(part)!.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+      const line = squeeze(sheetRow(row!, strings));
+      if (!line) continue;
+      out.push(line);
+      size += line.length + 1;
+      if (size > TEXT_MAX_CHARS) return out.join("\n");
+    }
+    out.push("");
+  }
+  return out.join("\n");
 }
 
 async function pdf(bytes: Uint8Array) {
