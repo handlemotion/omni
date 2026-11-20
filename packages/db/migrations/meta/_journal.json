@@ -428,6 +428,13 @@
       "when": 1795189056633,
       "tag": "0060_storage_text_ocr",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795192725074,
+      "tag": "0061_crm_projects",
+      "breakpoints": true
     }
   ]
 }

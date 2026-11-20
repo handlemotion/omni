@@ -65,7 +65,11 @@ export type CrmRefusal =
   | InvalidTitle
   | InvalidAssignee
   | Exclude<ReplaceStagesResult, { status: "ok" }>
-  | FilesRefusal;
+  | FilesRefusal
+  | PlanRefusal;
+
+/** What a project's plan adds: a milestone on another deal, a file the caller cannot open. */
+type PlanRefusal = { status: "invalid_milestone" } | { status: "invalid_file" };
 
 /** What contracts and record folders add: Storage's refusals to make a folder among them. */
 type FilesRefusal =
@@ -127,8 +131,24 @@ const FILES_STATUSES = new Set([
 const isFilesRefusal = (refusal: CrmRefusal): refusal is FilesRefusal =>
   FILES_STATUSES.has(refusal.status);
 
+const PLAN_ANSWERS: Record<PlanRefusal["status"], Answer> = {
+  invalid_milestone: {
+    code: "bad_request",
+    message: "that milestone is not on this deal",
+    param: "milestoneId",
+  },
+  invalid_file: {
+    code: "bad_request",
+    message: "that is not a file you can open",
+    param: "nodeId",
+  },
+};
+
 function answerFor(refusal: CrmRefusal) {
   if (isFilesRefusal(refusal)) return filesAnswerFor(refusal) satisfies Answer;
+  if (refusal.status === "invalid_milestone" || refusal.status === "invalid_file") {
+    return PLAN_ANSWERS[refusal.status];
+  }
   switch (refusal.status) {
     case "no_crm":
       return { code: "no_crm", message: "a Personal space has no CRM" } satisfies Answer;

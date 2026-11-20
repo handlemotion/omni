@@ -73,6 +73,19 @@ import {
   type ListPeopleInput,
   type UpdatePersonInput,
 } from "./crm/people.ts";
+import {
+  createDeliverable,
+  createMilestone,
+  deleteDeliverable,
+  deleteMilestone,
+  getPlan,
+  updateDeliverable,
+  updateMilestone,
+  type DeliverableInput,
+  type DeliverablePatch,
+  type MilestoneInput,
+  type MilestonePatch,
+} from "./crm/plan.ts";
 import { lookupCrm, searchCrm } from "./crm/search.ts";
 import { getSettings, putSettings } from "./crm/settings.ts";
 import { replaceStages, stagesOf, type StageInput } from "./crm/stages.ts";
@@ -180,6 +193,22 @@ export type {
   UpdatePersonInput,
   UpdatePersonResult,
 } from "./crm/people.ts";
+export {
+  CRM_PLAN_DESCRIPTION_MAX,
+  CRM_PLAN_MAX,
+  CRM_PLAN_TITLE_MAX,
+  type CrmDeliverable,
+  type CrmMilestone,
+  type CrmPlan,
+  type DeliverableInput,
+  type DeliverablePatch,
+  type DeliverableResult,
+  type DeliverableStatus,
+  type MilestoneInput,
+  type MilestonePatch,
+  type MilestoneResult,
+  type MilestoneStatus,
+} from "./crm/plan.ts";
 export type { CrmCompany, CrmDeal, CrmPerson, CrmPersonAddress } from "./crm/records.ts";
 export {
   LOOKUP_MAX_ADDRESSES,
@@ -316,6 +345,18 @@ export function memberCrm(db: Db, memberId: string) {
     updateTask: (id: string, patch: TaskPatch) =>
       writeAsMember(door, (m, tx) => updateTask(tx, m, id, patch)),
     deleteTask: (id: string) => writeAsMember(door, (m, tx) => deleteTask(tx, m, id)),
+
+    plan: (dealId: string) => asMember(door, (m, ex) => getPlan(ex, m, dealId)),
+    createMilestone: (dealId: string, input: MilestoneInput) =>
+      writeAsMember(door, (m, tx) => createMilestone(tx, m, dealId, input)),
+    updateMilestone: (id: string, patch: MilestonePatch) =>
+      writeAsMember(door, (m, tx) => updateMilestone(tx, m, id, patch)),
+    deleteMilestone: (id: string) => writeAsMember(door, (m, tx) => deleteMilestone(tx, m, id)),
+    createDeliverable: (dealId: string, input: DeliverableInput) =>
+      writeAsMember(door, (m, tx) => createDeliverable(tx, m, dealId, input)),
+    updateDeliverable: (id: string, patch: DeliverablePatch) =>
+      writeAsMember(door, (m, tx) => updateDeliverable(tx, m, id, patch)),
+    deleteDeliverable: (id: string) => writeAsMember(door, (m, tx) => deleteDeliverable(tx, m, id)),
 
     search: (input: { q: string; limit?: number }) =>
       asMember(door, (m, ex) => searchCrm(ex, m, input)),

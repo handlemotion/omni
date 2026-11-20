@@ -63,6 +63,11 @@ mail and the files the workspace already has in Omni.
   file, on a deal or a company.
 - **Task.** A title, notes, an assignee, a due time, done or open, on one company, person or
   deal, or on none.
+- **Milestone.** A checkpoint on a deal: a title, a description, a target day, a status
+  (`planned`, `in_progress`, `done`) and a place in the deal's order.
+- **Deliverable.** Something a deal hands over: a title, a description, maybe a milestone of the
+  same deal, maybe a Drive file, a due day, a status (`draft`, `in_review`, `approved`,
+  `changes_requested`) and whether the client sees it.
 
 Every member of the company sees and edits all of it.
 
@@ -113,6 +118,13 @@ CRM's minute job records the contract `signed` with that copy (`signedNodeId`). 
 back to `draft`. A signed contract with an end date shows when it ends within 30 days, and the
 daily job ends it after that date.
 
+**Plan a project.** A deal's plan is its milestones and deliverables, the way Linear plans a
+project: milestones in an order the team drags, each with a target day, and the deliverables
+under them. A deliverable's file is a Drive file the member can open, usually in the deal's
+folder. Deleting a milestone keeps its deliverables on the deal, under none. A deal holds at most
+200 of each, so the plan is always read whole. Days are days (`YYYY-MM-DD`), the same on every
+client.
+
 ## API
 
 All under `/api/crm` on the Worker, for the active workspace. Shapes live in
@@ -142,6 +154,9 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `GET /settings` · `PUT /settings`                                   | The default currency.                                                                                        |
 | `GET /tasks` · `POST /tasks` · `GET /tasks/counts`                  | List by `?status=`, `?assignee=`, `?due=`, `?company=`/`?person=`/`?deal=`, `?q=` (see Tasks). Create. Counts.    |
 | `GET /tasks/:id` · `PATCH` · `DELETE`                               | Read. Change, complete or reopen (`done`), move to another record. Delete.                                   |
+| `GET /deals/:id/plan`                                               | The deal's milestones in order and its deliverables, oldest first.                                           |
+| `POST /deals/:id/milestones` · `PATCH /milestones/:id` · `DELETE`   | Add one last. Change; `position` moves it. Delete; its deliverables stay, under no milestone.                 |
+| `POST /deals/:id/deliverables` · `PATCH /deliverables/:id` · `DELETE` | Add, change, delete. `milestoneId` is one of the deal's, `nodeId` a file the member can open.              |
 
 - Every list takes `sort` (`name`, `created`, `updated`; deals also `value`, `closeOn`,
   `stageEntered`), `dir`, `owner` (an id or `none`), `createdAfter`, `createdBefore` and
@@ -232,9 +247,9 @@ Four tools on the MCP server, through the same member door:
 | Tool         | Scope       | Does                                                                                     |
 | ------------ | ----------- | ---------------------------------------------------------------------------------------- |
 | `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, owner, archived, stage kind or close date. Compact rows. |
-| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, files, open tasks, recent notes and thread ids.                  |
+| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, files, open tasks, a deal's plan, recent notes and thread ids. |
 | `crm_tasks`  | `crm:read`  | Lists tasks by status, assignee, due (overdue, upcoming, none), record or title words.    |
-| `crm_write`  | `crm:write` | Adds or changes a record, task or draft contract, archives or restores, links files, adds a note, or changes many at once. Never deletes or sends. |
+| `crm_write`  | `crm:write` | Adds or changes a record, task, milestone, deliverable or draft contract, archives or restores, links files, adds a note, or changes many at once. Never deletes or sends. |
 
 Thread ids from `crm_fetch` go to the mail `fetch` tool, which applies mail's own access. Note
 text is written by teammates, and names and titles can come from mail: the server's
@@ -256,6 +271,9 @@ instructions keep telling agents to treat it as data.
   `crm_write`'s `contract` adds a draft on a company or deal or changes its title, document
   (a file in Shared) and dates. Sending for signature, voiding, and marking a contract sent or
   signed reach people outside Omni or bind the company, so they stay with a person in the app.
+- Plans: a deal's `crm_fetch` carries its `plan` (milestones in order, deliverables with their
+  `file_id`, status and `client_visible`). `crm_write`'s `milestone` and `deliverable` add one
+  (`deal` and `title`) or change one by `id`; nothing is deleted.
 - A company change (fields, `add_domains`, `remove_domains`, `archived`) runs in one
   transaction through `memberCrm().changeCompany`: a refused domain rolls back the rest.
 - `crm_fetch` takes `records: [{ kind, id }]`. Its thread ids come from
