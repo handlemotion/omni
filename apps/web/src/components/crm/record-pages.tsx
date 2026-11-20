@@ -1,3 +1,4 @@
+import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import { useState } from "react";
 import {
   useCrmCompany,
@@ -229,6 +230,7 @@ export function DealPage({ id }: { id: string }) {
   const move = useMoveDeal();
   const stages = useCrmStages().data ?? [];
   const workspaceCurrency = useCrmDefaultCurrency();
+  const freelancer = useFreelancer();
   const company = useCompanyName(query.data?.deal.companyId ?? null);
   if (!query.data) return <RecordState list="deals" query={query} />;
   const { deal, people } = query.data;
@@ -271,13 +273,15 @@ export function DealPage({ id }: { id: string }) {
                     move.mutate({ dealId: id, stage: next }, onFail("The deal was not moved"));
                 }}
               />
-              <MoneyValue
-                label="Value"
-                value={formatMoney(deal.valueMinor, null)}
-                currency={currency}
-                onSaveAmount={(valueMinor) => save({ id, valueMinor, currency })}
-                onSaveCurrency={(next) => save({ id, currency: next })}
-              />
+              {!freelancer && (
+                <MoneyValue
+                  label="Value"
+                  value={formatMoney(deal.valueMinor, null)}
+                  currency={currency}
+                  onSaveAmount={(valueMinor) => save({ id, valueMinor, currency })}
+                  onSaveCurrency={(next) => save({ id, currency: next })}
+                />
+              )}
               <DayValue
                 label="Close date"
                 value={deal.expectedCloseOn ?? null}

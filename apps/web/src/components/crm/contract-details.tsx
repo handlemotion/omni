@@ -9,10 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useVoidContract } from "@/hooks/use-crm.ts";
+import { useUpdateContract, useVoidContract } from "@/hooks/use-crm.ts";
+import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import type { CrmContract } from "@/lib/crm.ts";
 import { downloadFile } from "@/lib/download.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
+import { ContractPeopleField } from "./contract-people.tsx";
 import { takesSignedCopy } from "./contract-signed-copy-dialog.tsx";
 import { contractBadge, contractDates } from "./contract-status.ts";
 import { crmErrorToast } from "./crm-errors.ts";
@@ -41,14 +43,15 @@ export function ContractDetailsDialog(props: {
 }) {
   const { contract } = props;
   const voiding = useVoidContract();
+  const team = !useFreelancer();
   const badge = contractBadge(contract);
   const signing = contract.signing;
   const dates = contractDates(contract);
   const signedId = contract.signedNodeId ?? signing?.sealedNodeId;
-  const canSend = contract.status === "draft" && Boolean(contract.documentNodeId);
-  const out = contract.status === "sent" && signing?.status === "sent";
+  const canSend = team && contract.status === "draft" && Boolean(contract.documentNodeId);
+  const out = team && contract.status === "sent" && signing?.status === "sent";
   const signedBy = contract.signedBy ?? [];
-  const canUpload = takesSignedCopy(contract);
+  const canUpload = team && takesSignedCopy(contract);
   return (
     <Dialog size="md" isOpen onOpenChange={(isOpen) => !isOpen && props.onClose()}>
       <DialogHeader>
@@ -94,6 +97,7 @@ export function ContractDetailsDialog(props: {
             ))}
           </ul>
         )}
+        {team && <ContractPeople contract={contract} />}
       </DialogBody>
       <DialogFooter>
         {contract.documentNodeId && (
@@ -138,5 +142,21 @@ export function ContractDetailsDialog(props: {
         )}
       </DialogFooter>
     </Dialog>
+  );
+}
+
+function ContractPeople({ contract }: { contract: CrmContract }) {
+  const update = useUpdateContract();
+  return (
+    <ContractPeopleField
+      value={contract.memberIds ?? []}
+      isDisabled={update.isPending}
+      onChange={(memberIds) =>
+        update.mutate(
+          { id: contract.id, memberIds },
+          { onError: (error) => crmErrorToast(error, "The contract was not changed") },
+        )
+      }
+    />
   );
 }

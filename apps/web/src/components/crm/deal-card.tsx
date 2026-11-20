@@ -1,5 +1,6 @@
 import { Link } from "@/components/ui/link";
 import { useCrmCompanyIndex, useOwners } from "@/hooks/use-crm.ts";
+import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { formatMoney, type CrmDeal } from "@/lib/crm.ts";
 import { calendarDay } from "./list-columns.tsx";
@@ -34,7 +35,7 @@ export function LiftedDealCard({ deal }: { deal: CrmDeal }) {
 function DealFace({ deal }: { deal: CrmDeal }) {
   const company = useCrmCompanyIndex().get(deal.companyId ?? "");
   const owner = useOwners().find((member) => member.id === deal.ownerMemberId);
-  const value = formatMoney(deal.valueMinor, deal.valueCurrency);
+  const value = useFreelancer() ? null : formatMoney(deal.valueMinor, deal.valueCurrency);
   const closes = calendarDay(deal.expectedCloseOn);
   return (
     <>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { byAddress } from "@/components/avatar/sender-avatar";
 import { useCrmCompanies, useCrmDeals, useCrmPeople } from "@/hooks/use-crm.ts";
+import { useFreelancer, withoutValue } from "@/hooks/use-freelancer.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import {
   BOARD_SORTS,
@@ -123,6 +124,10 @@ export function DealsPage({ search }: { search: CrmDealsSearch }) {
   const list = useCrmDeals(dealsFilter(search), { all: true });
   const view = useListView("deals", search, list.deals);
   const [adding, setAdding] = useState(false);
+  const freelancer = useFreelancer();
+  const dealFilters = withoutValue(DEAL_FILTERS, (kind) => kind === "value", freelancer);
+  const columns = withoutValue(DEAL_COLUMNS, (column) => column.sort === "value", freelancer);
+  const sorts = withoutValue(BOARD_SORTS, (sort) => sort === "value", freelancer);
   return (
     <>
       <RecordList
@@ -130,14 +135,14 @@ export function DealsPage({ search }: { search: CrmDealsSearch }) {
         noun="deal"
         search={{ ...text, q }}
         source={sourceOf(list, list.deals)}
-        columns={DEAL_COLUMNS}
+        columns={columns}
         filtered={isFiltered(search)}
         {...view}
         mark={(deal) => <DealIcon deal={deal} />}
         href={recordHref(inWorkspace, "deals")}
         onNew={() => setAdding(true)}
-        extra={<BoardSort search={search} sorts={BOARD_SORTS} />}
-        filter={<ListFilter search={search} filters={DEAL_FILTERS} />}
+        extra={<BoardSort search={search} sorts={sorts} />}
+        filter={<ListFilter search={search} filters={dealFilters} />}
         replaceBody={<DealBoard deals={list.deals} list={list} />}
       />
       {adding && <NewDealDialog onClose={() => setAdding(false)} />}
@@ -152,14 +157,20 @@ export function ProjectsPage({ search }: { search: CrmProjectsSearch }) {
   const text = useListSearch(q);
   const list = useCrmDeals(projectsFilter(search));
   const view = useListView("deals", search, list.deals);
+  const freelancer = useFreelancer();
   return (
     <RecordList
       title="Projects"
       noun="project"
       search={{ ...text, q }}
       source={sourceOf(list, list.deals)}
-      columns={DEAL_COLUMNS}
-      filter={<ListFilter search={search} filters={PROJECT_FILTERS} />}
+      columns={withoutValue(DEAL_COLUMNS, (column) => column.sort === "value", freelancer)}
+      filter={
+        <ListFilter
+          search={search}
+          filters={withoutValue(PROJECT_FILTERS, (kind) => kind === "value", freelancer)}
+        />
+      }
       filtered={isFiltered(search)}
       {...view}
       mark={(deal) => <DealIcon deal={deal} />}

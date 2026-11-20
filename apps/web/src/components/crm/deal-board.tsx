@@ -1,3 +1,4 @@
+import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import {
   closestCenter,
   DndContext,
@@ -124,7 +125,8 @@ function Column(props: {
 }) {
   const { stage, deals } = props;
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
-  const total = sumValues(deals);
+  const freelancer = useFreelancer();
+  const total = freelancer ? null : sumValues(deals);
   const taking = isOver && !!props.lifted && props.lifted.stageId !== stage.id;
   return (
     <section

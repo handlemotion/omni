@@ -37,6 +37,8 @@ import { nextStatuses, type ContractChange } from "@/lib/crm-mutations.ts";
 import type { CrmContract, CrmContractStatus } from "@/lib/crm.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import { ContractDetailsDialog } from "./contract-details.tsx";
+import { ContractPeopleField } from "./contract-people.tsx";
+import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import { DayField } from "./day-field.tsx";
 import { FilePicker, type Owner } from "./contract-file-picker.tsx";
 import { SignedCopyDialog, takesSignedCopy } from "./contract-signed-copy-dialog.tsx";
@@ -62,15 +64,18 @@ export function Contracts(props: { owner: Owner; folderId: string | null }) {
     "dealId" in props.owner ? { deal: props.owner.dealId } : { company: props.owner.companyId };
   const list = useCrmContracts(where);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const freelancer = useFreelancer();
   const close = () => setDialog(null);
   return (
     <div className="flex flex-1 flex-col gap-3">
-      <div className="flex justify-end">
-        <Button size="sm" onPress={() => setDialog({ kind: "new" })}>
-          <IconPlus />
-          New contract
-        </Button>
-      </div>
+      {!freelancer && (
+        <div className="flex justify-end">
+          <Button size="sm" onPress={() => setDialog({ kind: "new" })}>
+            <IconPlus />
+            New contract
+          </Button>
+        </div>
+      )}
       {list.isPending ? (
         <Skeleton loading label="Loading contracts" skeleton={<ContractBones />}>
           {null}
@@ -132,6 +137,9 @@ export function Contracts(props: { owner: Owner; folderId: string | null }) {
   );
 }
 
+const forViewer = (items: SettingsRowMenuItem[], freelancer: boolean) =>
+  freelancer ? items.filter((item) => item.icon === IconDownload) : items;
+
 function ContractRow(props: {
   contract: CrmContract;
   onAttach: () => void;
@@ -143,6 +151,7 @@ function ContractRow(props: {
   const update = useUpdateContract();
   const remove = useDeleteContract();
   const voiding = useVoidContract();
+  const freelancer = useFreelancer();
   const locked = contract.status === "signed" || contract.status === "ended";
   const out = contract.status === "sent" && contract.signing?.status === "sent";
   const fileId = contract.documentNodeId;
@@ -213,6 +222,7 @@ function ContractRow(props: {
           },
         ]),
   ];
+  const shown = forViewer(items, freelancer);
   const line = contractLine(contract);
   const badge = contractBadge(contract);
   const Icon = locked ? IconFileLock : IconFileText;
@@ -234,7 +244,7 @@ function ContractRow(props: {
         )}
       </Pressable>
       <Badge intent={badge.intent}>{badge.label}</Badge>
-      <SettingsRowMenu label={`Actions for ${contract.title}`} items={items} />
+      <SettingsRowMenu label={`Actions for ${contract.title}`} items={shown} />
     </li>
   );
 }
@@ -252,6 +262,7 @@ function NewContractDialog(props: { owner: Owner; folderId: string | null; onClo
   const [file, setFile] = useState<string | null>(null);
   const [effectiveOn, setEffectiveOn] = useState<string | null>(null);
   const [expiresOn, setExpiresOn] = useState<string | null>(null);
+  const [memberIds, setMemberIds] = useState<string[]>([]);
   const backwards = !!effectiveOn && !!expiresOn && effectiveOn > expiresOn;
   const pick = (id: string | null, name: string | null) => {
     setFile(id);
@@ -278,6 +289,7 @@ function NewContractDialog(props: { owner: Owner; folderId: string | null; onClo
             documentNodeId: file,
             effectiveOn,
             expiresOn,
+            memberIds,
           },
           {
             onSuccess: props.onClose,
@@ -300,6 +312,7 @@ function NewContractDialog(props: { owner: Owner; folderId: string | null; onClo
         <DayField label="Starts" value={effectiveOn} onChange={setEffectiveOn} />
         <DayField label="Ends" value={expiresOn} onChange={setExpiresOn} isInvalid={backwards} />
       </div>
+      <ContractPeopleField value={memberIds} onChange={setMemberIds} />
     </SettingsFormDialog>
   );
 }
