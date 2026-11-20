@@ -467,7 +467,7 @@ function ModeComposer(props: {
           edited(next);
         }}
       />
-      <SubjectRow mode={mode} source={replied} />
+      <SubjectRow mode={mode} source={source} />
       <Body
         ref={textarea}
         label={mode === "reply" ? "Reply" : "Message"}
