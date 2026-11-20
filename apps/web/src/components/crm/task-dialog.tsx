@@ -4,6 +4,7 @@ import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-d
 import { ComboBox, ComboBoxContent, ComboBoxInput, ComboBoxItem } from "@/components/ui/combo-box";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { ItemLabel } from "@/components/ui/dropdown";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import { useCrmFind } from "@/hooks/use-crm.ts";
@@ -15,13 +16,19 @@ import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import type { CrmRecordKind } from "@/lib/crm.ts";
 import { dueAtOf, onRecord } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
+import { MemberAvatar } from "./member-avatar.tsx";
 import { NAME_MAX } from "./new-records.tsx";
 
 /** The workspace's members as `{ id, name }`, for assignee pickers. */
 export function useMemberNames() {
   const members = useMembers().data?.members;
   return useMemo(
-    () => (members ?? []).map((m) => ({ id: m.id, name: m.user.name || m.user.email })),
+    () =>
+      (members ?? []).map((m) => ({
+        id: m.id,
+        name: m.user.name || m.user.email,
+        image: m.user.image ?? null,
+      })),
     [members],
   );
 }
@@ -41,7 +48,8 @@ export function AssigneePicker(props: {
   /** In a details pane: no label and no border, as `ChoiceValue`. */
   inline?: boolean;
 }) {
-  const people = [...useMemberNames(), { id: NOBODY, name: "Nobody" }];
+  const people = [...useMemberNames(), { id: NOBODY, name: "Nobody", image: null }];
+  const chosen = people.find((person) => person.id === props.value);
   return (
     <Select
       aria-label="Assignee"
@@ -55,11 +63,13 @@ export function AssigneePicker(props: {
             ? "border-transparent bg-transparent enabled:hover:border-transparent enabled:hover:bg-hover"
             : undefined
         }
+        leading={chosen && <MemberAvatar name={chosen.name} image={chosen.image} />}
       />
       <SelectContent items={people}>
         {(person) => (
           <SelectItem id={person.id} textValue={person.name}>
-            {person.name}
+            {person.id !== NOBODY && <MemberAvatar name={person.name} image={person.image} />}
+            <ItemLabel>{person.name}</ItemLabel>
           </SelectItem>
         )}
       </SelectContent>

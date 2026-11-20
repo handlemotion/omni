@@ -37,6 +37,7 @@ import {
 } from "./record-fields.tsx";
 import { RecordFiles } from "./record-files.tsx";
 import { byAddress } from "@/components/avatar/sender-avatar";
+import { MemberAvatar } from "./member-avatar.tsx";
 import { DetailSection, RecordLayout, RecordState } from "./record-layout.tsx";
 import { DAY } from "./record-list.tsx";
 import {
@@ -72,8 +73,11 @@ function OwnerValue(props: {
     <ChoiceValue
       label="Owner"
       value={props.value ?? NO_OWNER}
-      options={[...owners, { id: NO_OWNER, name: "No owner" }]}
+      options={[...owners, { id: NO_OWNER, name: "No owner", image: null }]}
       onSave={(id) => props.onSave(id === NO_OWNER ? null : id)}
+      mark={(owner) =>
+        owner.id === NO_OWNER ? undefined : <MemberAvatar name={owner.name} image={owner.image} />
+      }
     />
   );
 }
@@ -103,7 +107,7 @@ export function CompanyPage({ id }: { id: string }) {
         actions={<RecordActions kind="companies" id={id} name={company.name} archived={archived} />}
         details={
           <>
-            <DetailSection title="Details">
+            <DetailSection>
               <TextValue
                 label="Name"
                 required
@@ -186,7 +190,7 @@ export function PersonPage({ id }: { id: string }) {
         actions={<RecordActions kind="people" id={id} name={person.name} archived={archived} />}
         details={
           <>
-            <DetailSection title="Details">
+            <DetailSection>
               <TextValue
                 label="Name"
                 required
@@ -270,7 +274,7 @@ export function DealPage({ id }: { id: string }) {
         actions={<RecordActions kind="deals" id={id} name={deal.name} archived={archived} />}
         details={
           <>
-            <DetailSection title="Details">
+            <DetailSection>
               <TextValue
                 label="Name"
                 required

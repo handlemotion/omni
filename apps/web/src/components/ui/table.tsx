@@ -418,7 +418,7 @@ export function TableRow<T extends object>({
   ...props
 }: TableRowProps<T>) {
   const { selectionBehavior, allowsDragging } = useTableOptions();
-  const { striped } = useTableContext();
+  const { striped, variant } = useTableContext();
   return (
     <Row
       ref={ref}
@@ -451,6 +451,9 @@ export function TableRow<T extends object>({
               isFocusVisibleWithin &&
               "bg-(--table-selected-background)/50 selected:bg-(--table-selected-background)/50 text-foreground",
             isDisabled && "opacity-50",
+            isSelected &&
+              variant === "page" &&
+              "bg-primary-subtle hover:bg-primary-subtle **:data-[slot=avatar]:mix-blend-multiply",
             className,
           ),
       )}
@@ -518,6 +521,7 @@ export function TableCell({ className, actions = false, ref, ...props }: TableCe
           !bleed && "sm:first:ps-1 sm:last:pe-1",
           allowResize && "truncate overflow-hidden",
           variant === "page" && (rowSize === "lg" ? "h-14 py-0" : "h-11 py-0"),
+          variant === "page" && "overflow-hidden",
           actions && "px-0 last:pe-2.5",
         ),
         className,
@@ -533,7 +537,13 @@ export function TableCell({ className, actions = false, ref, ...props }: TableCe
         (children, { hasChildItems, isTreeColumn, isExpanded, isDisabled }) => (
           <div
             className={
-              isTreeColumn ? "flex items-center" : actions ? "flex justify-end" : undefined
+              isTreeColumn
+                ? "flex items-center"
+                : actions
+                  ? "flex justify-end"
+                  : variant === "page"
+                    ? "truncate"
+                    : undefined
             }
             {...(actions ? STOP : {})}
           >

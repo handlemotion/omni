@@ -9,10 +9,14 @@ export function StorageFrame(props: {
   actions?: ReactNode;
   /** False outside the app shell (a shared link's page). */
   sidebar?: boolean;
+  /** A line under the header, for a page whose panes meet it (a record's details and tabs). */
+  bordered?: boolean;
   children: ReactNode;
 }) {
   const header = (toggle: ReactNode, inset: string) => (
-    <header className={`flex h-12 shrink-0 items-center gap-2 pe-2.5 ${inset}`}>
+    <header
+      className={`flex h-12 shrink-0 items-center gap-2 pe-2.5 ${inset} ${props.bordered ? "border-b" : ""}`}
+    >
       {toggle}
       <div className="flex min-w-0 items-center">{props.title}</div>
       <span className="min-w-0 flex-1 truncate text-xs text-subtle-foreground">

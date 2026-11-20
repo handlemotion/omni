@@ -12,6 +12,7 @@ import {
 } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Menu, MenuItem, MenuLabel, MenuSubMenu, MenuTrigger } from "@/components/ui/menu";
 import { useCrmStages, useOwners } from "@/hooks/use-crm.ts";
@@ -79,15 +80,16 @@ const shortDay = (iso: string) => DAY.format(new Date(`${iso}T00:00:00`));
 const range = (from: string | null, to: string | null) =>
   from && to ? `${from} – ${to}` : from ? `≥ ${from}` : `≤ ${to}`;
 
-/** The chips of the filters in use, then the menu that adds one. */
-export function FilterBar(props: {
-  kinds: FilterKind[];
-  values: FilterValues;
-  onChange: (patch: Patch) => void;
-}) {
-  const [editing, setEditing] = useState<"close" | "value" | null>(null);
+type FilterProps = { kinds: FilterKind[]; values: FilterValues; onChange: (patch: Patch) => void };
+
+/** True when any of `kinds` narrows the list, so its chips need a row. */
+export const anyFilterSet = (kinds: FilterKind[], values: FilterValues) =>
+  kinds.some((kind) => isSet(kind, values));
+
+/** The set filters, each a chip that edits it and an X that clears it. */
+export function FilterChips(props: FilterProps) {
+  const [editing, setEditing] = useState<Editing>(null);
   const shown = props.kinds.filter((kind) => isSet(kind, props.values));
-  const left = props.kinds.filter((kind) => !isSet(kind, props.values));
   return (
     <>
       {shown.map((kind) => (
@@ -108,42 +110,63 @@ export function FilterBar(props: {
           </Button>
         </ButtonGroup>
       ))}
-      {left.length > 0 && (
-        <MenuTrigger>
-          <Button intent="plain" size="sm">
-            <IconFilter />
-            Filter
-          </Button>
-          <Menu placement="bottom start" aria-label="Filter by">
-            {left.map((kind) => (
-              <FilterMenuEntry
-                key={kind}
-                kind={kind}
-                onChange={props.onChange}
-                onEdit={setEditing}
-              />
-            ))}
-          </Menu>
-        </MenuTrigger>
-      )}
-      {editing === "close" && (
-        <CloseDateDialog
-          after={props.values.closeAfter}
-          before={props.values.closeBefore}
-          onSave={(closeAfter, closeBefore) => props.onChange({ closeAfter, closeBefore })}
-          onClose={() => setEditing(null)}
-        />
-      )}
-      {editing === "value" && (
-        <ValueRangeDialog
-          min={props.values.minValue}
-          max={props.values.maxValue}
-          onSave={(minValue, maxValue) => props.onChange({ minValue, maxValue })}
-          onClose={() => setEditing(null)}
-        />
-      )}
+      <FilterDialogs {...props} editing={editing} onClose={() => setEditing(null)} />
     </>
   );
+}
+
+/** Filter, in the page header: a menu of the filters not set yet. */
+export function FilterMenu(props: FilterProps) {
+  const [editing, setEditing] = useState<Editing>(null);
+  const phone = useIsMobile();
+  const left = props.kinds.filter((kind) => !isSet(kind, props.values));
+  if (!left.length) return null;
+  return (
+    <>
+      <MenuTrigger>
+        <Button
+          intent="plain"
+          size={phone ? "sq-sm" : "sm"}
+          aria-label={phone ? "Filter" : undefined}
+        >
+          <IconFilter />
+          {!phone && "Filter"}
+        </Button>
+        <Menu placement="bottom end" aria-label="Filter by">
+          {left.map((kind) => (
+            <FilterMenuEntry key={kind} kind={kind} onChange={props.onChange} onEdit={setEditing} />
+          ))}
+        </Menu>
+      </MenuTrigger>
+      <FilterDialogs {...props} editing={editing} onClose={() => setEditing(null)} />
+    </>
+  );
+}
+
+type Editing = "close" | "value" | null;
+
+function FilterDialogs(props: FilterProps & { editing: Editing; onClose: () => void }) {
+  if (props.editing === "close") {
+    return (
+      <CloseDateDialog
+        after={props.values.closeAfter}
+        before={props.values.closeBefore}
+        onSave={(closeAfter, closeBefore) => props.onChange({ closeAfter, closeBefore })}
+        onClose={props.onClose}
+      />
+    );
+  }
+  if (props.editing === "value") {
+    return (
+      <ValueRangeDialog
+        min={props.values.minValue}
+        max={props.values.maxValue}
+        onSave={(minValue, maxValue) => props.onChange({ minValue, maxValue })}
+        onClose={props.onClose}
+      />
+    );
+  }
+  return null;
 }
 
 function FilterMenuEntry(props: {

@@ -99,8 +99,10 @@ interface RecordListProps<T> {
   mark: (row: T) => ReactNode;
   href: (row: T) => string;
   onNew?: () => void;
-  /** Between the search and New: the deals' Board and List. */
+  /** Before the search: the deals' Board and List. */
   extra?: ReactNode;
+  /** Filter: in the header beside the search, and beside the bulk bar while rows are picked. */
+  filter?: ReactNode;
   /** Under the header: the sort and the filters. */
   toolbar?: ReactNode;
   /** A filter narrows the list, so an empty one says nothing matches. */
@@ -116,7 +118,16 @@ export function RecordList<T extends { id: string; name: string }>(props: Record
   return (
     <StorageFrame
       title={<Heading className="truncate text-md">{props.title}</Heading>}
-      actions={picking ? props.selection?.bar : <HeaderActions {...props} />}
+      actions={
+        picking ? (
+          <>
+            {props.filter}
+            {props.selection?.bar}
+          </>
+        ) : (
+          <HeaderActions {...props} />
+        )
+      }
     >
       {props.toolbar}
       {props.replaceBody ?? (
@@ -134,6 +145,7 @@ function HeaderActions<T>(props: RecordListProps<T>) {
   return (
     <>
       {props.extra}
+      {props.filter}
       <SearchField
         aria-label={`Search ${props.title.toLowerCase()}`}
         value={props.search.text}

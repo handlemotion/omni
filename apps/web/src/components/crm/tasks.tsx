@@ -10,6 +10,7 @@ import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { Heading } from "@/components/ui/heading";
 import { Link } from "@/components/ui/link";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
+import { ItemLabel } from "@/components/ui/dropdown";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useCrmTaskCounts, useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
@@ -28,6 +29,7 @@ import {
 import { crmErrorToast } from "./crm-errors.ts";
 import { useListSearch } from "./record-list.tsx";
 import { RecordMark } from "./record-list.tsx";
+import { MemberAvatar } from "./member-avatar.tsx";
 import { NewTaskDialog, useMemberNames } from "./task-dialog.tsx";
 
 export type TasksView = "mine" | "all" | "done";
@@ -48,9 +50,20 @@ export function TasksPage(props: { view: TasksView; assignee?: string; q: string
     assignee: props.view === "mine" ? "me" : props.assignee,
     q: props.q,
   };
+  const views = (
+    <>
+      <ViewTabs view={props.view} />
+      {props.view !== "mine" && <AssigneeFilter value={props.assignee} />}
+    </>
+  );
   return (
     <StorageFrame
-      title={<Heading className="truncate text-md">Tasks</Heading>}
+      title={
+        <div className="flex min-w-0 items-center gap-3">
+          <Heading className="truncate text-md">Tasks</Heading>
+          {!phone && views}
+        </div>
+      }
       actions={
         <>
           <SearchField
@@ -72,10 +85,7 @@ export function TasksPage(props: { view: TasksView; assignee?: string; q: string
         </>
       }
     >
-      <div className="flex shrink-0 items-center gap-2 px-5 pb-2">
-        <ViewTabs view={props.view} />
-        {props.view !== "mine" && <AssigneeFilter value={props.assignee} />}
-      </div>
+      {phone && <div className="flex shrink-0 items-center gap-2 px-5 pb-2">{views}</div>}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6">
         <TaskList filter={filter} grouped={props.view !== "done"} showRecord searched={!!props.q} />
       </div>
@@ -124,11 +134,13 @@ const ANYONE = "anyone";
 
 function AssigneeFilter({ value }: { value: string | undefined }) {
   const navigate = useNavigate();
+  const members = useMemberNames();
   const people = [
-    { id: ANYONE, name: "Anyone" },
-    ...useMemberNames(),
-    { id: "none", name: "Unassigned" },
+    { id: ANYONE, name: "Anyone", image: null },
+    ...members,
+    { id: "none", name: "Unassigned", image: null },
   ];
+  const chosen = members.find((member) => member.id === value);
   return (
     <Select
       aria-label="Assignee"
@@ -145,11 +157,15 @@ function AssigneeFilter({ value }: { value: string | undefined }) {
       }
       className="w-44"
     >
-      <SelectTrigger className="h-7" />
+      <SelectTrigger
+        className="h-7"
+        leading={chosen && <MemberAvatar name={chosen.name} image={chosen.image} />}
+      />
       <SelectContent items={people}>
         {(person) => (
           <SelectItem id={person.id} textValue={person.name}>
-            {person.name}
+            {members.includes(person) && <MemberAvatar name={person.name} image={person.image} />}
+            <ItemLabel>{person.name}</ItemLabel>
           </SelectItem>
         )}
       </SelectContent>
@@ -186,7 +202,7 @@ function DoneTasks({ filter }: { filter: TaskFilter }) {
   if (!list.tasks.length) return null;
   return (
     <section className="flex flex-col gap-1">
-      <h3 className="px-2 text-sm text-muted-foreground">Done</h3>
+      <h3 className="flex h-12 items-end px-2 pb-2 text-sm text-muted-foreground">Done</h3>
       <TaskRows tasks={list.tasks} showRecord={false} />
     </section>
   );
@@ -239,20 +255,23 @@ function TaskList(props: {
   }
   const now = new Date();
   return (
-    <div className="flex flex-col gap-4">
-      {DUE_GROUPS.map(({ id, label }) => {
-        const tasks = list.tasks.filter((task) => dueGroup(task, now) === id);
-        if (!tasks.length) return null;
-        return (
-          <section key={id} aria-label={label} className="flex flex-col gap-1">
-            <h3 className="flex items-center gap-2 px-2 text-sm text-muted-foreground">
-              {label}
-              <span className="text-subtle-foreground tabular-nums">{tasks.length}</span>
-            </h3>
-            <TaskRows tasks={tasks} showRecord={props.showRecord} />
-          </section>
-        );
-      })}
+    <div className="flex flex-col">
+      {DUE_GROUPS.filter(({ id }) => list.tasks.some((task) => dueGroup(task, now) === id)).map(
+        ({ id, label }, index) => {
+          const tasks = list.tasks.filter((task) => dueGroup(task, now) === id);
+          return (
+            <section key={id} aria-label={label} className="flex flex-col">
+              <h3
+                className={`flex items-end gap-1.5 px-2 pb-2 text-sm text-muted-foreground ${index ? "h-12" : "h-9"}`}
+              >
+                {label}
+                <span className="text-subtle-foreground tabular-nums">{tasks.length}</span>
+              </h3>
+              <TaskRows tasks={tasks} showRecord={props.showRecord} />
+            </section>
+          );
+        },
+      )}
       {more}
     </div>
   );
@@ -284,7 +303,7 @@ export function TaskRow(props: { task: CrmTask; showRecord: boolean }) {
       { onError: (error) => crmErrorToast(error, "The task was not changed") },
     );
   return (
-    <li className="group flex h-10 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out hover:bg-hover">
+    <li className="group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out hover:bg-hover">
       <CheckboxField
         aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
         isSelected={done}
@@ -318,7 +337,7 @@ export function TaskRow(props: { task: CrmTask; showRecord: boolean }) {
         {dueLabel(done ? task.completedAt : task.dueAt)}
       </span>
       <span className="flex w-5 shrink-0 justify-center" title={assignee?.name}>
-        {assignee && <RecordMark name={assignee.name} size={20} />}
+        {assignee && <MemberAvatar name={assignee.name} image={assignee.image} size={20} />}
       </span>
     </li>
   );
@@ -328,7 +347,7 @@ function TaskBones() {
   return (
     <div className="flex flex-col">
       {Array.from({ length: 10 }, (_, i) => (
-        <div key={i} className="flex h-10 items-center gap-3 px-2">
+        <div key={i} className="flex h-12 items-center gap-3 px-2">
           <SkeletonBox width={16} height={16} radius="4px" />
           <span className="min-w-0 flex-1">
             <SkeletonBox width={`${30 + ((i * 17) % 40)}%`} height={10} />

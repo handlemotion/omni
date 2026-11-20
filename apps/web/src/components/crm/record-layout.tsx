@@ -38,7 +38,7 @@ export function RecordLayout(props: {
       <div className="flex min-h-0 flex-1 overflow-y-auto max-lg:flex-col lg:overflow-hidden">
         <aside
           aria-label="Details"
-          className="flex shrink-0 flex-col gap-6 px-5 py-5 lg:w-80 lg:overflow-y-auto lg:border-e"
+          className="flex shrink-0 flex-col gap-6 px-5 py-5 lg:w-96 lg:overflow-y-auto lg:border-e"
         >
           <div className="flex min-w-0 items-center gap-3">
             <RecordMark name={props.name} square={props.square} who={props.who} size={32} />
@@ -54,9 +54,9 @@ export function RecordLayout(props: {
           </div>
           {props.details}
         </aside>
-        <main className="min-w-0 flex-1 px-5 py-4 lg:overflow-y-auto">
+        <main className="min-w-0 flex-1 pb-4 lg:overflow-y-auto">
           <Tabs className="w-full">
-            <TabList aria-label="Record">
+            <TabList aria-label="Record" className="px-5 pt-2">
               {props.tabs.map((tab) => (
                 <Tab key={tab.id} id={tab.id}>
                   {tab.label}
@@ -64,7 +64,7 @@ export function RecordLayout(props: {
               ))}
             </TabList>
             {props.tabs.map((tab) => (
-              <TabPanel key={tab.id} id={tab.id} className="pt-2">
+              <TabPanel key={tab.id} id={tab.id} className="px-5 pt-2">
                 {tab.panel}
               </TabPanel>
             ))}
@@ -95,20 +95,23 @@ export function RecordFrame(props: {
         </Breadcrumbs>
       }
       actions={props.actions}
+      bordered
     >
       {props.children}
     </StorageFrame>
   );
 }
 
-/** A titled group in the left pane: Details, People, Deals. */
-export function DetailSection(props: { title: string; action?: ReactNode; children: ReactNode }) {
+/** A group in the left pane: the record's fields (untitled), then People, Deals. */
+export function DetailSection(props: { title?: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex h-7 items-center justify-between">
-        <h3 className="text-sm text-muted-foreground">{props.title}</h3>
-        {props.action}
-      </div>
+    <section className="flex flex-col gap-1">
+      {props.title && (
+        <div className="flex h-7 items-center justify-between">
+          <h3 className="text-sm text-muted-foreground">{props.title}</h3>
+          {props.action}
+        </div>
+      )}
       <div className="flex flex-col gap-0.5">{props.children}</div>
     </section>
   );
@@ -179,7 +182,7 @@ export function RecordState(props: {
 function RecordBones() {
   return (
     <div className="flex gap-0 max-lg:flex-col">
-      <div className="flex flex-col gap-4 px-5 py-5 lg:w-80">
+      <div className="flex flex-col gap-4 px-5 py-5 lg:w-96">
         <div className="flex items-center gap-3">
           <SkeletonBox width={32} height={32} radius="999px" />
           <SkeletonBox width={140} height={12} />

@@ -6,6 +6,7 @@ import { DatePicker, DatePickerTrigger } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { currencyCodes, parseMoney } from "@/lib/crm.ts";
 import { Link } from "@/components/ui/link";
+import { ItemLabel } from "@/components/ui/dropdown";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
@@ -73,13 +74,16 @@ export function TextValue(props: {
   );
 }
 
-/** One of a few values (a stage, an owner), saved when picked. */
+/** One of a few values (a stage, an owner), saved when picked; `mark` leads each (an avatar). */
 export function ChoiceValue<T extends { id: string; name: string }>(props: {
   label: string;
   value: string | null;
   options: T[];
   onSave: (id: string) => void;
+  mark?: (option: T) => ReactNode;
 }) {
+  const { mark } = props;
+  const chosen = props.options.find((option) => option.id === props.value);
   return (
     <FieldRow label={props.label}>
       <Select
@@ -89,11 +93,12 @@ export function ChoiceValue<T extends { id: string; name: string }>(props: {
         placeholder="–"
         className="w-full"
       >
-        <SelectTrigger className={PLAIN_TRIGGER} />
+        <SelectTrigger className={PLAIN_TRIGGER} leading={mark && chosen && mark(chosen)} />
         <SelectContent items={props.options}>
           {(option) => (
             <SelectItem id={option.id} textValue={option.name}>
-              {option.name}
+              {mark?.(option)}
+              <ItemLabel>{option.name}</ItemLabel>
             </SelectItem>
           )}
         </SelectContent>

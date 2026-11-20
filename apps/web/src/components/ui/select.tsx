@@ -105,13 +105,15 @@ function itemsOf(children: ReactNode) {
 
 export interface SelectTriggerProps {
   prefix?: ReactNode;
+  /** Before the chosen value, at full colour: the chosen person's avatar. */
+  leading?: ReactNode;
   className?: string;
   /** Replaces the chosen value and chevron. */
   children?: ReactNode;
 }
 
 /** The `md` control size, like `Input` and `Button`: 32px tall, 8px in. */
-export function SelectTrigger({ children, className, prefix }: SelectTriggerProps) {
+export function SelectTrigger({ children, className, prefix, leading }: SelectTriggerProps) {
   const own = use(SelectTriggerContext);
   return (
     <SelectTriggerPrimitive
@@ -128,6 +130,11 @@ export function SelectTrigger({ children, className, prefix }: SelectTriggerProp
       {prefix && <span className="text-muted-foreground">{prefix}</span>}
       {children ?? (
         <>
+          {leading && (
+            <span className="flex shrink-0 *:data-[slot=avatar]:[--avatar-size:--spacing(4)]">
+              {leading}
+            </span>
+          )}
           <SelectValue
             className={twJoin(
               "truncate text-start data-placeholder:text-muted-foreground sm:text-sm/6",
@@ -159,7 +166,7 @@ export function SelectContent<T extends object>({
   popover,
   className,
 }: SelectContentProps<T>) {
-  const { side, align } = toSideAlign(popover?.placement ?? "bottom");
+  const { side, align } = toSideAlign(popover?.placement ?? "bottom start");
   return (
     <SelectContentPrimitive
       side={side}
@@ -167,7 +174,7 @@ export function SelectContent<T extends object>({
       sideOffset={4}
       className={cn(
         popupSurface,
-        "grid w-max max-w-80 min-w-(--anchor-width) grid-cols-[auto_1fr] gap-y-1 overflow-y-auto p-1",
+        "grid w-max max-w-80 min-w-(--anchor-width) auto-rows-min grid-cols-[auto_1fr] content-start gap-y-1 overflow-y-auto p-1",
         popover?.className,
         className,
       )}

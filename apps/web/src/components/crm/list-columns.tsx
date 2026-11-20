@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useCrmCompanyIndex, useCrmStages, useOwners } from "@/hooks/use-crm.ts";
 import {
@@ -10,6 +8,7 @@ import {
   type CrmPerson,
   type CrmStage,
 } from "@/lib/crm.ts";
+import { MemberAvatar } from "./member-avatar.tsx";
 import { DAY, Muted, RecordMark, type RecordColumn } from "./record-list.tsx";
 
 const day = (iso: string | null) => (iso ? DAY.format(new Date(iso)) : null);
@@ -28,19 +27,12 @@ export function StageBadge({ stage, deal }: { stage: CrmStage | undefined; deal:
   );
 }
 
-const MARK = { "--avatar-size": "18px" } as CSSProperties;
-
 function OwnerCell({ id }: { id: string | null | undefined }) {
   const owner = useOwners().find((o) => o.id === id);
   if (!owner) return <Muted>{null}</Muted>;
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <Avatar
-        src={owner.image}
-        initials={owner.name.slice(0, 1)}
-        className="bg-secondary text-muted-foreground outline-0 mix-blend-multiply"
-        style={MARK}
-      />
+      <MemberAvatar name={owner.name} image={owner.image} size={18} />
       <Muted>{owner.name}</Muted>
     </span>
   );

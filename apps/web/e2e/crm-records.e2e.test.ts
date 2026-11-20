@@ -85,7 +85,7 @@ test("sorting the deals list by value persists in the URL and the order", async 
   await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("value");
   expect(new URL(page.url()).searchParams.get("dir")).toBe("desc");
   await expect.poll(() => names(page)).toEqual(["Large", "Medium", "Small"]);
-  await page.getByRole("button", { name: "Descending" }).click();
+  await page.getByRole("columnheader", { name: "Value" }).click();
   await expect.poll(() => names(page)).toEqual(["Small", "Medium", "Large"]);
   await page.reload();
   await page.getByRole("row", { name: /Small/ }).waitFor();

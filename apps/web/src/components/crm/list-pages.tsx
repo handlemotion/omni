@@ -20,8 +20,8 @@ import type {
 } from "@/lib/search-params.ts";
 import { DealBoard } from "./deal-board.tsx";
 import { COMPANY_COLUMNS, DEAL_COLUMNS, PEOPLE_COLUMNS } from "./list-columns.tsx";
-import { DEAL_SORTS, RECORD_SORTS } from "./list-sort.tsx";
-import { ListToolbar } from "./list-toolbar.tsx";
+import type { FilterKind } from "./list-filters.tsx";
+import { ListFilter, ListToolbar } from "./list-toolbar.tsx";
 import { isFiltered, useListView } from "./list-view.tsx";
 import { NewCompanyDialog, NewDealDialog, NewPersonDialog } from "./new-records.tsx";
 import { RecordList, RecordMark, useListSearch } from "./record-list.tsx";
@@ -50,6 +50,12 @@ const sourceOf = <T,>(query: PagedQuery, rows: T[]) => ({
 const recordHref = (inWorkspace: (path: string) => string, kind: string) => (row: { id: string }) =>
   inWorkspace(`/crm/${kind}/${encodeURIComponent(row.id)}`);
 
+const COMPANY_FILTERS: FilterKind[] = ["owner", "archived"];
+const PEOPLE_FILTERS: FilterKind[] = ["owner", "company", "archived"];
+const BOARD_FILTERS: FilterKind[] = ["owner", "close", "value"];
+const DEAL_FILTERS: FilterKind[] = ["owner", "stage", "close", "value", "archived"];
+const PROJECT_FILTERS: FilterKind[] = ["owner", "close", "value", "archived"];
+
 export function CompaniesPage({ search }: { search: CrmCompaniesSearch }) {
   const { href: inWorkspace } = useWorkspacePaths();
   const q = search.q ?? "";
@@ -65,9 +71,8 @@ export function CompaniesPage({ search }: { search: CrmCompaniesSearch }) {
         search={{ ...text, q }}
         source={sourceOf(list, list.companies)}
         columns={COMPANY_COLUMNS}
-        toolbar={
-          <ListToolbar search={search} sorts={RECORD_SORTS} filters={["owner", "archived"]} />
-        }
+        toolbar={<ListToolbar search={search} filters={COMPANY_FILTERS} />}
+        filter={<ListFilter search={search} filters={COMPANY_FILTERS} />}
         filtered={isFiltered(search)}
         {...view}
         mark={(company) => (
@@ -100,13 +105,8 @@ export function PeoplePage({ search }: { search: CrmPeopleSearch }) {
         search={{ ...text, q }}
         source={sourceOf(list, list.people)}
         columns={PEOPLE_COLUMNS}
-        toolbar={
-          <ListToolbar
-            search={search}
-            sorts={RECORD_SORTS}
-            filters={["owner", "company", "archived"]}
-          />
-        }
+        toolbar={<ListToolbar search={search} filters={PEOPLE_FILTERS} />}
+        filter={<ListFilter search={search} filters={PEOPLE_FILTERS} />}
         filtered={isFiltered(search)}
         {...view}
         mark={(person) => (
@@ -132,6 +132,8 @@ export function DealsPage({ search }: { search: CrmDealsSearch }) {
   const list = useCrmDeals(dealsFilter(search, board), { all: board });
   const view = useListView("deals", search, list.deals);
   const [adding, setAdding] = useState(false);
+  const dealSearch = board ? { ...search, archived: undefined } : search;
+  const dealFilters = board ? BOARD_FILTERS : DEAL_FILTERS;
   return (
     <>
       <RecordList
@@ -142,11 +144,9 @@ export function DealsPage({ search }: { search: CrmDealsSearch }) {
         columns={DEAL_COLUMNS}
         toolbar={
           <ListToolbar
-            search={board ? { ...search, archived: undefined } : search}
-            sorts={board ? BOARD_SORTS : DEAL_SORTS}
-            filters={
-              board ? ["owner", "close", "value"] : ["owner", "stage", "close", "value", "archived"]
-            }
+            search={dealSearch}
+            sorts={board ? BOARD_SORTS : undefined}
+            filters={dealFilters}
           />
         }
         filtered={isFiltered(search)}
@@ -155,6 +155,7 @@ export function DealsPage({ search }: { search: CrmDealsSearch }) {
         href={recordHref(inWorkspace, "deals")}
         onNew={() => setAdding(true)}
         extra={<ViewToggle view={shown} />}
+        filter={<ListFilter search={dealSearch} filters={dealFilters} />}
         replaceBody={board ? <DealBoard deals={list.deals} list={list} /> : undefined}
       />
       {adding && <NewDealDialog onClose={() => setAdding(false)} />}
@@ -176,13 +177,8 @@ export function ProjectsPage({ search }: { search: CrmProjectsSearch }) {
       search={{ ...text, q }}
       source={sourceOf(list, list.deals)}
       columns={DEAL_COLUMNS}
-      toolbar={
-        <ListToolbar
-          search={search}
-          sorts={DEAL_SORTS}
-          filters={["owner", "close", "value", "archived"]}
-        />
-      }
+      toolbar={<ListToolbar search={search} filters={PROJECT_FILTERS} />}
+      filter={<ListFilter search={search} filters={PROJECT_FILTERS} />}
       filtered={isFiltered(search)}
       {...view}
       mark={(deal) => <RecordMark name={deal.name} />}
