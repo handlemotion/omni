@@ -21,7 +21,16 @@ interface Actions {
   onNewDoc?: (() => void) | undefined;
   newDocPending?: boolean | undefined;
   onFiles: (files: File[] | Picked) => void;
+  /** The page's own actions (a record's Add from Drive), placed before New doc. */
+  extra?: ReactNode;
 }
+
+/** Loaded and holding nothing: the actions leave the header for the empty state. */
+export const folderIsEmpty = (source: FolderSource, drafts: Drafts) =>
+  !source.list.isPending &&
+  !source.list.isError &&
+  !source.list.nodes.length &&
+  !drafts.list.length;
 
 export function FolderBody(
   props: Actions & {
@@ -91,7 +100,8 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
     return (
       <Centered>
         <EmptyState figure="drawer" {...source.empty}>
-          {source.canWrite && <EmptyActions {...props} />}
+          {props.extra}
+          <HeaderActions {...props} canWrite={source.canWrite} empty />
         </EmptyState>
       </Centered>
     );
@@ -130,21 +140,11 @@ function Centered({ children }: { children: ReactNode }) {
   return <div className="flex flex-1 flex-col">{children}</div>;
 }
 
-function EmptyActions(props: Actions) {
-  return (
-    <>
-      <FileTrigger allowsMultiple onSelect={(files) => props.onFiles([...(files ?? [])])}>
-        <Button size="sm">Upload</Button>
-      </FileTrigger>
-      <Button size="sm" intent="outline" onPress={props.onNewFolder}>
-        New folder
-      </Button>
-    </>
-  );
-}
-
-/** New doc, New folder and Upload, for whoever may write: labels alone, as the page's text actions. */
-export function HeaderActions(props: Actions & { canWrite: boolean }) {
+/**
+ * New doc, New folder and Upload, for whoever may write: labels alone, as the page's text actions
+ * in the header, or centered in the empty state while the folder holds nothing.
+ */
+export function HeaderActions(props: Actions & { canWrite: boolean; empty?: boolean }) {
   if (!props.canWrite) return null;
   return (
     <>
@@ -156,14 +156,16 @@ export function HeaderActions(props: Actions & { canWrite: boolean }) {
       <Button intent="outline" size="sm" onPress={props.onNewFolder}>
         New folder
       </Button>
-      <FileTrigger
-        acceptDirectory
-        onSelect={(files) => props.onFiles(pickedFromInput([...(files ?? [])]))}
-      >
-        <Button intent="outline" size="sm">
-          Upload folder
-        </Button>
-      </FileTrigger>
+      {!props.empty && (
+        <FileTrigger
+          acceptDirectory
+          onSelect={(files) => props.onFiles(pickedFromInput([...(files ?? [])]))}
+        >
+          <Button intent="outline" size="sm">
+            Upload folder
+          </Button>
+        </FileTrigger>
+      )}
       <FileTrigger allowsMultiple onSelect={(files) => props.onFiles([...(files ?? [])])}>
         <Button size="sm">Upload</Button>
       </FileTrigger>

@@ -23,7 +23,7 @@ const FIGURES = {
 /**
  * Top to bottom: the figure (208px, 20px above the text), a title, a description only when it
  * helps, an identifier a person may quote (`meta`, meta-sized and selectable), then, 24px below,
- * the actions as small buttons.
+ * the actions as small buttons, wrapping onto a second row when they outgrow the column.
  */
 export function EmptyState(props: {
   figure: keyof typeof FIGURES;
@@ -50,7 +50,9 @@ export function EmptyState(props: {
         )}
       </EmptyHeader>
       {props.children && (
-        <EmptyContent className="flex-row justify-center gap-2">{props.children}</EmptyContent>
+        <EmptyContent className="flex-row flex-wrap justify-center gap-2">
+          {props.children}
+        </EmptyContent>
       )}
     </Empty>
   );

@@ -24,7 +24,7 @@ import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { isDoc } from "./editor/document-editor.tsx";
 import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderIconDialog } from "./folder-icons.tsx";
-import { FolderBody, HeaderActions } from "./folder-body.tsx";
+import { FolderBody, folderIsEmpty, HeaderActions } from "./folder-body.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
 import { SelectionBar, useBulkTrash } from "./selection-bar.tsx";
 import { ShareDialog } from "./share-dialog.tsx";
@@ -161,6 +161,7 @@ export function FolderView(props: {
           actions={
             <FolderActions
               extra={props.actions}
+              empty={folderIsEmpty(source, drafts)}
               selection={selection}
               source={source}
               onNewFolder={folders.start}
@@ -179,7 +180,10 @@ export function FolderView(props: {
             open={open}
             drafts={drafts}
             rename={rename}
+            extra={props.actions}
             onNewFolder={folders.start}
+            onNewDoc={docs.make}
+            newDocPending={docs.making}
             onFiles={send}
           />
           <UploadsPanel />
@@ -416,6 +420,7 @@ function useSelectionKeys(selection: NodeSelection, source: FolderSource) {
 
 function FolderActions(props: {
   extra: ReactNode;
+  empty: boolean;
   selection: NodeSelection;
   source: FolderSource;
   onNewFolder: () => void;
@@ -426,6 +431,7 @@ function FolderActions(props: {
 }) {
   const { selection, source } = props;
   if (!selection.active) {
+    if (props.empty) return null;
     return (
       <>
         {props.extra}

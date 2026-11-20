@@ -14,7 +14,6 @@ import { CreateMenu } from "./create-menu.tsx";
 import { createContext, use, useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
-import { IconPlus } from "@/components/icons/central";
 import { ListFailed } from "@/components/inbox/thread-list";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { Button } from "@/components/ui/button";
@@ -102,12 +101,13 @@ export function TasksPage(props: {
         </>
       }
     >
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-6">
         <TaskList
           filter={filter}
           grouped={props.status !== "done"}
           showRecord
           searched={!!props.q}
+          onNew={() => setAdding(true)}
         />
       </div>
       {adding && <NewTaskDialog onClose={() => setAdding(false)} />}
@@ -187,13 +187,7 @@ export function RecordTasks(props: { kind: CrmRecordKind; id: string }) {
   const filter = recordFilter(props.kind, props.id);
   return (
     <div className="flex flex-col gap-6 lg:min-h-[calc(100dvh-8rem)]">
-      <TaskRail filter={filter} />
-      <div className="sticky bottom-0 mt-auto flex min-h-8 justify-end bg-background pt-3">
-        <Button size="sm" onPress={() => setAdding(true)}>
-          <IconPlus />
-          New task
-        </Button>
-      </div>
+      <TaskRail filter={filter} onNew={() => setAdding(true)} />
       {adding && (
         <NewTaskDialog
           record={{ kind: props.kind, id: props.id }}
@@ -209,6 +203,7 @@ function TaskList(props: {
   grouped: boolean;
   showRecord: boolean;
   searched?: boolean;
+  onNew?: () => void;
 }) {
   const list = useCrmTasks(props.filter);
   if (list.isPending) {
@@ -227,7 +222,13 @@ function TaskList(props: {
       <EmptyState
         figure="cabinet"
         title={props.filter.status === "done" ? "No done tasks" : "No tasks"}
-      />
+      >
+        {props.onNew && props.filter.status !== "done" && (
+          <Button size="sm" onPress={props.onNew}>
+            New task
+          </Button>
+        )}
+      </EmptyState>
     );
   }
   const more = list.hasNextPage && (

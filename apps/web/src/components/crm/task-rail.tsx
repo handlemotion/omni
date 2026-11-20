@@ -1,5 +1,7 @@
 import { Skeleton, SkeletonBox } from "skullet/react";
+import { EmptyState } from "@/components/empty/empty-state";
 import { ListFailed } from "@/components/inbox/thread-list";
+import { IconPlus } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
@@ -12,8 +14,11 @@ import { useMemberNames } from "./task-dialog.tsx";
 
 type RailItem = { kind: "task"; task: CrmTask } | { kind: "done" };
 
-/** A record's tasks on a rail by due day, like its Plan: open ones first, then the done ones. */
-export function TaskRail({ filter }: { filter: TaskFilter }) {
+/**
+ * A record's tasks on a rail by due day, like its Plan: open ones first, then the done ones.
+ * New task sits below the rail, or centered in the empty state when there are no tasks.
+ */
+export function TaskRail({ filter, onNew }: { filter: TaskFilter; onNew: () => void }) {
   const open = useCrmTasks({ ...filter, status: "open" });
   const done = useCrmTasks({ ...filter, status: "done" });
   if (open.isPending || done.isPending) {
@@ -29,7 +34,15 @@ export function TaskRail({ filter }: { filter: TaskFilter }) {
     ...(done.tasks.length ? [{ kind: "done" as const }] : []),
     ...done.tasks.map((task) => ({ kind: "task" as const, task })),
   ];
-  if (!items.length) return null;
+  if (!items.length) {
+    return (
+      <EmptyState figure="cabinet" title="No tasks">
+        <Button size="sm" onPress={onNew}>
+          New task
+        </Button>
+      </EmptyState>
+    );
+  }
   const more = (list: ReturnType<typeof useCrmTasks>) =>
     list.hasNextPage && (
       <Button
@@ -43,22 +56,30 @@ export function TaskRail({ filter }: { filter: TaskFilter }) {
       </Button>
     );
   return (
-    <div className="flex flex-col gap-1">
-      <ol aria-label="Tasks" className="group/rail -mt-2 flex flex-col">
-        {items.map((item, i) => {
-          const place = railPlace(i, items.length);
-          return item.kind === "done" ? (
-            <RailRow key="done" opens place={place} mark={<span className="size-1.5" />}>
-              <h3 className="flex h-10 items-center px-2 text-xs text-muted-foreground">Done</h3>
-            </RailRow>
-          ) : (
-            <TaskRailRow key={item.task.id} task={item.task} place={place} />
-          );
-        })}
-      </ol>
-      {more(open)}
-      {more(done)}
-    </div>
+    <>
+      <div className="flex flex-col gap-1">
+        <ol aria-label="Tasks" className="group/rail -mt-2 flex flex-col">
+          {items.map((item, i) => {
+            const place = railPlace(i, items.length);
+            return item.kind === "done" ? (
+              <RailRow key="done" opens place={place} mark={<span className="size-1.5" />}>
+                <h3 className="flex h-10 items-center px-2 text-xs text-muted-foreground">Done</h3>
+              </RailRow>
+            ) : (
+              <TaskRailRow key={item.task.id} task={item.task} place={place} />
+            );
+          })}
+        </ol>
+        {more(open)}
+        {more(done)}
+      </div>
+      <div className="sticky bottom-0 mt-auto flex min-h-8 justify-end bg-background pt-3">
+        <Button size="sm" onPress={onNew}>
+          <IconPlus />
+          New task
+        </Button>
+      </div>
+    </>
   );
 }
 

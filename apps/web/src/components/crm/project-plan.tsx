@@ -160,7 +160,14 @@ export function ProjectPlan(props: { dealId: string }) {
         className={`flex min-w-0 flex-1 flex-col gap-6 lg:min-h-[calc(100dvh-8rem)] ${item ? "max-lg:hidden" : ""}`}
       >
         {rows.length === 0 ? (
-          <EmptyState figure="cabinet" title="No milestones" />
+          <EmptyState figure="cabinet" title="No milestones">
+            <Button size="sm" intent="outline" onPress={() => setAdding("deliverable")}>
+              New deliverable
+            </Button>
+            <Button size="sm" onPress={() => setAdding("milestone")}>
+              New milestone
+            </Button>
+          </EmptyState>
         ) : (
           <ol aria-label="Plan" className="group/rail -mt-2 flex flex-col">
             {rows.map((row, i) => {
@@ -193,7 +200,7 @@ export function ProjectPlan(props: { dealId: string }) {
             })}
           </ol>
         )}
-        {controls}
+        {rows.length > 0 && controls}
       </div>
       {item && <PlanPanel item={item} milestones={milestones} onClose={opened.close} />}
       {dialogs}

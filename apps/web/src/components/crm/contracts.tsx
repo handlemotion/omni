@@ -66,11 +66,12 @@ export function Contracts(props: { owner: Owner; folderId: string | null }) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const freelancer = useFreelancer();
   const close = () => setDialog(null);
+  const create = () => setDialog({ kind: "new" });
   return (
     <div className="flex flex-1 flex-col gap-3">
-      {!freelancer && (
+      {!freelancer && list.contracts.length > 0 && (
         <div className="flex justify-end">
-          <Button size="sm" onPress={() => setDialog({ kind: "new" })}>
+          <Button size="sm" onPress={create}>
             <IconPlus />
             New contract
           </Button>
@@ -90,7 +91,13 @@ export function Contracts(props: { owner: Owner; folderId: string | null }) {
           Try again
         </Button>
       ) : list.contracts.length === 0 ? (
-        <EmptyState figure="cabinet" title="No contracts yet" />
+        <EmptyState figure="cabinet" title="No contracts yet">
+          {!freelancer && (
+            <Button size="sm" onPress={create}>
+              New contract
+            </Button>
+          )}
+        </EmptyState>
       ) : (
         <ul className="flex flex-col divide-y overflow-hidden rounded-xl border bg-background">
           {list.contracts.map((contract) => (
