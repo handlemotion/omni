@@ -319,8 +319,8 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
     voidSignature(requestId: string, origin: StorageSigningOrigin) {
       return db.transaction<SignatureRequestResult>(async (tx) => {
         const request = await loadRequest(tx, requestId, true);
-        if (!request || !(await reachFile(tx, request.nodeId)))
-          return NOT_FOUND satisfies SignatureRequestResult;
+        const found = request ? await reachFile(tx, request.nodeId) : null;
+        if (!request || !found?.access.change) return NOT_FOUND satisfies SignatureRequestResult;
         if (request.status !== "sent")
           return { status: "signature_closed" } satisfies SignatureRequestResult;
         const [row] = await tx

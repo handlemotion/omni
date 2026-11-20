@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { DetailSection, NoneRow } from "@/components/crm/record-layout.tsx";
@@ -16,14 +15,8 @@ import { ApiError } from "@/lib/api.ts";
 import { DELIVERABLE_STATUSES, MILESTONE_STATUSES } from "@/lib/crm-project.ts";
 import { dueLabel } from "@/lib/crm-tasks.ts";
 import { fileType } from "@/lib/file-kind.ts";
-import {
-  portalProjectQuery,
-  portalProjectsQuery,
-  reviewMutation,
-  type PortalDeliverable,
-  type PortalDetail,
-  type PortalFile,
-} from "@/lib/portal.ts";
+import { usePortalProject, usePortalProjects, useReviewDeliverable } from "@/hooks/use-portal.ts";
+import { type PortalDeliverable, type PortalDetail, type PortalFile } from "@/lib/portal.ts";
 
 const dayLabel = (day: string | null) => (day ? dueLabel(`${day}T12:00:00`) : null);
 const label = (list: { id: string; label: string }[], id: string) =>
@@ -68,7 +61,7 @@ function Rows() {
 
 /** Every project the signed-in person is a client on, in any studio. */
 export function PortalHome() {
-  const projects = useQuery(portalProjectsQuery());
+  const projects = usePortalProjects();
   return (
     <PortalBody>
       <h1 className="text-lg text-foreground">Projects</h1>
@@ -103,7 +96,7 @@ export function PortalHome() {
 
 /** One project as its client sees it: the plan, what waits on them, contracts and files. */
 export function PortalProjectPage(props: { id: string }) {
-  const project = useQuery(portalProjectQuery(props.id));
+  const project = usePortalProject(props.id);
   if (project.isPending) {
     return (
       <PortalBody>
@@ -129,7 +122,6 @@ export function PortalProjectPage(props: { id: string }) {
 }
 
 function ProjectDetail({ detail }: { detail: PortalDetail }) {
-  const shareId = detail.folder?.shareId ?? null;
   return (
     <PortalBody>
       <header className="flex flex-col gap-1">
@@ -160,7 +152,6 @@ function ProjectDetail({ detail }: { detail: PortalDetail }) {
               key={deliverable.id}
               projectId={detail.project.id}
               deliverable={deliverable}
-              shareId={shareId}
             />
           ))
         ) : (
@@ -195,7 +186,7 @@ function ProjectDetail({ detail }: { detail: PortalDetail }) {
       </DetailSection>
       <DetailSection title="Files">
         {detail.folder?.files.length ? (
-          detail.folder.files.map((file) => <FileRow key={file.id} file={file} shareId={shareId} />)
+          detail.folder.files.map((file) => <FileRow key={file.id} file={file} />)
         ) : (
           <NoneRow />
         )}
@@ -204,12 +195,14 @@ function ProjectDetail({ detail }: { detail: PortalDetail }) {
   );
 }
 
-const fileHref = (shareId: string | null, file: PortalFile) =>
-  shareId ? `/s/${encodeURIComponent(shareId)}?node=${encodeURIComponent(file.id)}` : null;
+const fileHref = (file: PortalFile) =>
+  file.shareId
+    ? `/s/${encodeURIComponent(file.shareId)}?node=${encodeURIComponent(file.id)}`
+    : null;
 
-function FileRow(props: { file: PortalFile; shareId: string | null }) {
+function FileRow(props: { file: PortalFile }) {
   const { file } = props;
-  const href = fileHref(props.shareId, file);
+  const href = fileHref(file);
   const glyph = (
     <FileGlyph
       kind={file.kind === "folder" ? "folder" : fileType(file.name, file.mimeType).kind}
@@ -233,13 +226,9 @@ function FileRow(props: { file: PortalFile; shareId: string | null }) {
   );
 }
 
-function DeliverableRow(props: {
-  projectId: string;
-  deliverable: PortalDeliverable;
-  shareId: string | null;
-}) {
+function DeliverableRow(props: { projectId: string; deliverable: PortalDeliverable }) {
   const { deliverable } = props;
-  const review = useMutation(reviewMutation(useQueryClient()));
+  const review = useReviewDeliverable();
   const [asking, setAsking] = useState(false);
   const decide = (decision: "approve" | "request_changes", note?: string, then?: () => void) =>
     review.mutate(
@@ -250,7 +239,7 @@ function DeliverableRow(props: {
       },
     );
   const file = deliverable.file;
-  const href = file ? fileHref(props.shareId, file) : null;
+  const href = file ? fileHref(file) : null;
   return (
     <div className="flex flex-col gap-1 py-1">
       <div className="flex min-h-8 min-w-0 items-center gap-2 text-sm">

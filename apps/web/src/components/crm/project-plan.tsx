@@ -298,7 +298,7 @@ function DeliverableRow({ deliverable }: { deliverable: CrmDeliverable }) {
       {deliverable.status === "changes_requested" && deliverable.reviewNote && (
         <p className="flex min-w-0 gap-1.5 ps-6 pb-2.5 text-sm">
           <span className="shrink-0 text-muted-foreground">{deliverable.reviewedByEmail}</span>
-          <span className="line-clamp-3 text-foreground">{deliverable.reviewNote}</span>
+          <span className="whitespace-pre-wrap text-foreground">{deliverable.reviewNote}</span>
         </p>
       )}
     </li>

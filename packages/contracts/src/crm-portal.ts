@@ -23,6 +23,8 @@ export const portalFileSchema = z.object({
   size: z.number().int(),
   mimeType: z.string().nullable(),
   updatedAt: isoDate,
+  /** The link it opens under: `/s/<shareId>?node=<id>`. */
+  shareId: z.string().nullable(),
 });
 
 export const portalMilestoneSchema = z.object({

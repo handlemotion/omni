@@ -265,3 +265,31 @@ test("Drive search offers a freelancer only their projects' files, before anythi
   expect(await names("pdf")).toEqual(["website.pdf"]);
   expect(await names("pricing")).toEqual([]);
 });
+
+test("a freelancer who can only view a file cannot cancel its signature request", async () => {
+  const { org, team } = await studio("access-void");
+  const { door } = await freelancer(org.id, "fran@void.test");
+  const folder = ok(await team.storage.createFolder({ space: "shared" }, "Contracts")).node;
+  const opened = ok(
+    await team.storage.openUpload(
+      { parentId: folder.id },
+      { name: "sow.pdf", size: 4, mimeType: "application/pdf", limitBytes: null },
+    ),
+  );
+  await team.storage.recordUploadPart(opened.upload.id, { partNumber: 1, etag: "e", size: 4 });
+  const file = ok(await team.storage.completeUpload(opened.upload.id, { limitBytes: null })).node;
+  const sent = ok(
+    await team.storage.sendForSignature(file.id, {
+      contentVersion: file.contentVersion,
+      sha256: "0".repeat(64),
+      signers: [{ email: "client@void.test", name: "Client" }],
+      origin: { email: "ana@void.test", ip: null, userAgent: null },
+    }),
+  );
+  ok(await team.storage.putGrant(folder.id, "fran@void.test", "viewer"));
+  expect((await door.storage.node(file.id))?.node.name).toBe("sow.pdf");
+  const origin = { email: "fran@void.test", ip: null, userAgent: null };
+  expect(await door.storage.voidSignature(sent.request.id, origin)).toEqual({
+    status: "not_found",
+  });
+});

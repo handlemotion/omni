@@ -34,6 +34,8 @@ export interface PortalFile {
   size: number;
   mimeType: string | null;
   updatedAt: Date;
+  /** The link it opens under for them: `/s/<shareId>?node=<id>`. */
+  shareId: string | null;
 }
 
 export interface PortalContract {
@@ -125,7 +127,7 @@ async function projectFor(person: PortalPerson, dealId: string) {
   return row ? { project: toProject(row), addresses } : null;
 }
 
-const toFile = (node: StorageNode) =>
+const toFile = (node: StorageNode, shareId: string | null) =>
   ({
     id: node.id,
     name: node.name,
@@ -133,6 +135,7 @@ const toFile = (node: StorageNode) =>
     size: node.size,
     mimeType: node.mimeType,
     updatedAt: node.updatedAt,
+    shareId,
   }) satisfies PortalFile;
 
 async function contractsOf(person: PortalPerson, project: PortalProject) {
@@ -178,7 +181,11 @@ async function folderOf(person: PortalPerson, project: PortalProject) {
   const listed = await storage.list({ parentId: portal.folderNodeId }, { limit: 200 });
   if (listed.status !== "ok") return null;
   const shareId = await storage.linkOf(portal.folderNodeId);
-  return { id: portal.folderNodeId, shareId, files: listed.nodes.map(toFile) };
+  return {
+    id: portal.folderNodeId,
+    shareId,
+    files: listed.nodes.map((node) => toFile(node, shareId)),
+  };
 }
 
 async function deliverablesOf(person: PortalPerson, deliverables: CrmDeliverable[]) {
@@ -188,7 +195,8 @@ async function deliverablesOf(person: PortalPerson, deliverables: CrmDeliverable
       .filter((d) => d.clientVisible)
       .map(async ({ createdByMemberId: _by, clientVisible: _shown, ...d }) => {
         const view = d.nodeId ? await storage.node(d.nodeId) : null;
-        return { ...d, file: view ? toFile(view.node) : null } satisfies PortalDeliverable;
+        const file = view ? toFile(view.node, await storage.linkOf(view.node.id)) : null;
+        return { ...d, file } satisfies PortalDeliverable;
       }),
   );
 }

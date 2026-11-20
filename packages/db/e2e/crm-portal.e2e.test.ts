@@ -188,3 +188,25 @@ test("a client folder replaced after Trash still opens to every client, and not 
   expect(await forUser(db, bea.id).storage.node(kept.id)).toBeNull();
   expect(await forUser(db, cleo.id).storage.node(kept.id)).toBeNull();
 });
+
+test("a deliverable's file opens under the folder that shares it, even another project's", async () => {
+  const { team, website, app } = await studio("portal-elsewhere");
+  const bea = await createPerson(db, "bea@elsewhere.test");
+  for (const project of [website, app]) {
+    ok(
+      await team.crm.grantProjectAccess(project.deal.id, {
+        email: "bea@elsewhere.test",
+        scope: "client",
+      }),
+    );
+  }
+  const portal = forUser(db, bea.id).crm;
+  const appFolder = ok(await portal.project(app.deal.id)).detail.folder!;
+  const brief = await addFile(team.storage, { parentId: appFolder.id }, "brief.pdf");
+  ok(await team.crm.updateDeliverable(website.shown.id, { nodeId: brief.id }));
+
+  const [shown] = ok(await portal.project(website.deal.id)).detail.deliverables;
+  expect(shown?.file).toMatchObject({ name: "brief.pdf", shareId: appFolder.shareId });
+  const opened = forUser(db, bea.id).storage.under(shown!.file!.shareId!);
+  expect((await opened.node(brief.id))?.node.name).toBe("brief.pdf");
+});

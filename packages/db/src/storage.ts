@@ -281,7 +281,9 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
     under: (shareId: string) => through(shareId),
     async linkOf(nodeId: string) {
       const found = await reach(db, grantDoor(userId, scopeOrgId), nodeId);
-      return found && !inTrash(found.chain) ? found.node.shareId : null;
+      return found && !inTrash(found.chain)
+        ? (found.chain[found.access.top]?.shareId ?? null)
+        : null;
     },
     context: contextOperations(db, userId, scopeOrgId),
     syncWorkspaces: () => listSyncWorkspaces(db, userId, scopeOrgId),
