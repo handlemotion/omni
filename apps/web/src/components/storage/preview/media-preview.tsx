@@ -20,7 +20,7 @@ export function VideoPreview(props: {
         playsInline
         preload="metadata"
         onError={() => setBroken(true)}
-        className="max-h-full max-w-full rounded-lg bg-foreground shadow-raised"
+        className="max-h-full max-w-full rounded-lg border bg-foreground"
       />
     </div>
   );

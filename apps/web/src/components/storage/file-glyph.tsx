@@ -65,7 +65,7 @@ export function FileTile(props: { kind: FileKind | "folder"; size?: keyof typeof
   return (
     <span
       aria-hidden
-      className={`flex shrink-0 items-center justify-center border bg-background text-muted-foreground shadow-raised ${TILE[props.size ?? "sm"]}`}
+      className={`flex shrink-0 items-center justify-center border bg-background text-muted-foreground ${TILE[props.size ?? "sm"]}`}
     >
       <FileGlyph kind={props.kind} />
     </span>

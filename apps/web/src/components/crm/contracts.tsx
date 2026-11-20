@@ -86,7 +86,7 @@ export function Contracts(props: { owner: Owner; folderId: string | null }) {
       ) : list.contracts.length === 0 ? (
         <EmptyState figure="cabinet" title="No contracts yet" />
       ) : (
-        <ul className="flex flex-col divide-y overflow-hidden rounded-xl border bg-background shadow-(--shadow-raised)">
+        <ul className="flex flex-col divide-y overflow-hidden rounded-xl border bg-background">
           {list.contracts.map((contract) => (
             <ContractRow
               key={contract.id}

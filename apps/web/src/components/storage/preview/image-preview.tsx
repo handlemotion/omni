@@ -48,7 +48,7 @@ export function ImagePreview(props: {
             })
           }
           onError={() => setBroken(true)}
-          className="block size-full max-h-full max-w-full rounded-lg object-contain shadow-raised"
+          className="block size-full max-h-full max-w-full rounded-lg border object-contain"
         />
         {natural && <PageMarks page={1} />}
       </div>

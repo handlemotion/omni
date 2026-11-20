@@ -111,7 +111,7 @@
   word-break: normal;
 }
 .collaboration-carets__label {
-  @apply absolute bottom-[calc(100%+3px)] -left-px flex items-center gap-1 rounded-md rounded-bl-none p-1 pe-1.5 text-xs/4 font-normal whitespace-nowrap text-collaborator-foreground shadow-(--shadow-raised) select-none;
+  @apply absolute bottom-[calc(100%+3px)] -left-px flex items-center gap-1 rounded-md rounded-bl-none p-1 pe-1.5 text-xs/4 font-normal whitespace-nowrap text-collaborator-foreground select-none;
 }
 .collaboration-carets__avatar {
   @apply flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-collaborator-foreground/25 object-cover text-[10px]/4;

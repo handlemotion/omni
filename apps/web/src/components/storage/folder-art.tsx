@@ -42,7 +42,7 @@ export function FolderArt(props: {
     <div
       aria-hidden
       data-slot="folder-art"
-      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised"
+      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface"
     >
       <span ref={anchor} className="absolute inset-0" />
       {empty && <IconFolderOpenFilled className="size-12 text-subtle-foreground" />}
@@ -79,7 +79,7 @@ function Card(props: { node: StorageNode; url: string; style: CSSProperties }) {
   return (
     <div
       style={props.style}
-      className="absolute flex items-center justify-center overflow-hidden rounded-md border bg-background shadow-raised"
+      className="absolute flex items-center justify-center overflow-hidden rounded-md border bg-background"
     >
       {type ? (
         <FileGlyph kind={type.kind} className="size-6 text-muted-foreground" />

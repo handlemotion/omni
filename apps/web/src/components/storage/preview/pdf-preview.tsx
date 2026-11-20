@@ -74,7 +74,7 @@ function LazyPage(props: {
       ref={ref}
       aria-label={`Page ${props.number}`}
       style={{ width: props.width, minHeight: props.height }}
-      className="relative rounded-sm border bg-background shadow-raised"
+      className="relative rounded-sm border bg-background"
     >
       {near && (
         <Page

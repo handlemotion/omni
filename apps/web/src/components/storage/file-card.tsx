@@ -57,7 +57,7 @@ export function FileCard(props: {
       {node.kind === "folder" ? (
         <FolderArt node={node} peek={props.peek} fileUrl={props.fileUrl} />
       ) : (
-        <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
+        <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface">
           {hasThumbnail(node) ? (
             <Thumbnail node={node} url={props.url} />
           ) : type?.preview === "pdf" ? (

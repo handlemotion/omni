@@ -32,14 +32,13 @@
   --brand-cream: #dcc7a8;
 
   /* Tactility (`.claude/skills/tactile-design`): depth and press, layered on the Figma look
-     without changing it. Crisp, never a big soft blur: a 1px drop, plus one short drop for
-     things that float. Drawn in the foreground's ink, not pure black. */
+     without changing it. Cards take no drop, only their border; things that float take one
+     short drop, never a big soft blur. Drawn in the foreground's ink, not pure black. */
   --shadow-ink: 23 23 23;
   /* A well: sunk one step into its surface (the copy field). */
   --well: #f0f0f0;
   --well-hover: #e8e8e8;
   --hairline-line: #d9d9d9;
-  --shadow-raised: 0 1px 2px 0 rgb(var(--shadow-ink) / 0.06);
   /* A button's build (the danger button's, now every button's): a faint highlight along the
      top edge inside. No outer drop: the edge, a step darker than the fill, gives the depth. */
   --shadow-button: inset 0 1px 0 rgb(255 255 255 / 0.15);
