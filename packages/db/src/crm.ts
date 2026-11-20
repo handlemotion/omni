@@ -41,7 +41,6 @@ import {
   ANYONE,
   asMember,
   crmAudience,
-  TEAM_ONLY,
   writeAsMember,
   type CrmDoor,
   type CrmMember,
@@ -99,7 +98,11 @@ import {
 } from "./crm/plan.ts";
 import {
   deliverableOnProject,
+  freelancerDeal,
+  freelancerDeals,
+  freelancerEvents,
   freelancerLookup,
+  freelancerNotes,
   freelancerSearch,
   freelancerTasks,
   milestoneOnProject,
@@ -335,8 +338,17 @@ export function memberCrm(db: Db, memberId: string) {
     deletePerson: (id: string) => writeAsMember(door, (m, tx) => deletePerson(tx, m, id)),
 
     listDeals: (input: ListDealsInput = {}) =>
-      asMember(door, (m, ex) => listDeals(ex, m, input), ANYONE),
-    deal: (id: string) => asMember(door, (m, ex) => getDeal(ex, m, id), onProject(id)),
+      asMember(
+        door,
+        (m, ex) => (isFreelancer(m) ? freelancerDeals(ex, m, input) : listDeals(ex, m, input)),
+        ANYONE,
+      ),
+    deal: (id: string) =>
+      asMember(
+        door,
+        (m, ex) => (isFreelancer(m) ? freelancerDeal(ex, m, id) : getDeal(ex, m, id)),
+        onProject(id),
+      ),
     createDeal: (input: DealInput) => writeAsMember(door, (m, tx) => createDeal(tx, m, input)),
     updateDeal: (id: string, patch: DealPatch) =>
       writeAsMember(door, (m, tx) => updateDeal(tx, m, id, patch)),
@@ -361,11 +373,7 @@ export function memberCrm(db: Db, memberId: string) {
       writeAsMember(door, (m, tx) => unlinkFile(tx, m, record, nodeId), onProjectRecord(record)),
 
     listContracts: (input: ListContractsInput) =>
-      asMember(
-        door,
-        (m, ex) => listContracts(ex, m, input),
-        "dealId" in input ? onProject(input.dealId) : TEAM_ONLY,
-      ),
+      asMember(door, (m, ex) => listContracts(ex, m, input)),
     createContract: (input: ContractInput) =>
       writeAsMember(door, (m, tx) => createContract(tx, m, input)),
     updateContract: (id: string, patch: ContractPatch) =>
@@ -400,9 +408,17 @@ export function memberCrm(db: Db, memberId: string) {
     deleteNote: (id: string) =>
       writeAsMember(door, (m, tx) => deleteNote(tx, m, id), noteOnProject(id)),
     events: (record: CrmRecordRef, page: TimelinePage = {}) =>
-      asMember(door, (m, ex) => eventsOf(ex, m, record, page), onProjectRecord(record)),
+      asMember(
+        door,
+        (m, ex) => eventsOf(ex, m, record, page, isFreelancer(m) ? freelancerEvents : undefined),
+        onProjectRecord(record),
+      ),
     notes: (record: CrmRecordRef, page: TimelinePage = {}) =>
-      asMember(door, (m, ex) => notesOf(ex, m, record, page), onProjectRecord(record)),
+      asMember(
+        door,
+        (m, ex) => notesOf(ex, m, record, page, isFreelancer(m) ? freelancerNotes : undefined),
+        onProjectRecord(record),
+      ),
 
     listTasks: (input: ListTasksInput = {}) =>
       asMember(

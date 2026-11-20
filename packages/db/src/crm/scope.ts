@@ -1,8 +1,12 @@
-import { and, eq, inArray, or } from "drizzle-orm";
-import { crmNotes } from "../schema/crm.ts";
+import { and, eq, inArray, notInArray, or, sql } from "drizzle-orm";
+import { members } from "../schema/auth.ts";
+import { crmEvents, crmNotes } from "../schema/crm.ts";
 import { crmDeliverables, crmMilestones } from "../schema/crm/projects.ts";
 import { crmTasks } from "../schema/crm/tasks.ts";
-import type { CrmRecordRef, Ex, Freelancer, Gate } from "./core.ts";
+import { FREELANCER_ROLE, type CrmRecordRef, type Ex, type Freelancer, type Gate } from "./core.ts";
+import { getDeal, listDeals, type ListDealsInput } from "./deals.ts";
+import type { TimelineNarrowing } from "./notes.ts";
+import type { CrmDeal } from "./records.ts";
 import { searchCrm, lookupCrm } from "./search.ts";
 import { listTasks, type ListTasksInput, type TaskPatch } from "./tasks.ts";
 
@@ -69,8 +73,61 @@ export function freelancerTasks(ex: Ex, member: Freelancer, input: ListTasksInpu
   return listTasks(ex, member, { ...input, assigneeMemberId: member.id });
 }
 
-const onlyProjects = <R extends { deals: { id: string }[] }>(found: R) => ({
+/**
+ * What we charge stays with the team (`docs/spec/crm.md`, "What a freelancer does not see"): a
+ * freelancer's deal carries no value or currency.
+ */
+export const withoutValue = (deal: CrmDeal) =>
+  ({ ...deal, valueMinor: null, valueCurrency: null }) satisfies CrmDeal;
+
+/**
+ * A freelancer's deals, without their values. Filtering or sorting by value would tell the value
+ * as surely as showing it, so both are dropped and the list comes back by name.
+ */
+export async function freelancerDeals(ex: Ex, member: Freelancer, input: ListDealsInput) {
+  const { minValue: _min, maxValue: _max, ...rest } = input;
+  const byValue = input.sort?.key === "value";
+  const listed = await listDeals(ex, member, {
+    ...rest,
+    sort: byValue ? undefined : input.sort,
+    cursor: byValue ? undefined : input.cursor,
+  });
+  return { ...listed, deals: listed.deals.map(withoutValue) };
+}
+
+/** One of their projects, without its value. */
+export async function freelancerDeal(ex: Ex, member: Freelancer, id: string) {
+  const found = await getDeal(ex, member, id);
+  return found.status === "ok" ? { ...found, deal: withoutValue(found.deal) } : found;
+}
+
+/** Events about money and contracts: what was charged and what was signed for it. */
+export const TEAM_EVENTS = [
+  "value_changed",
+  "contract_created",
+  "contract_status_changed",
+  "contract_document_changed",
+  "contract_deleted",
+] as const;
+
+/** A freelancer's timeline events: none about money or contracts. */
+export const freelancerEvents: TimelineNarrowing = () =>
+  notInArray(crmEvents.kind, [...TEAM_EVENTS]);
+
+/**
+ * A freelancer's notes: those written by freelancers. A teammate's note is the team's own record
+ * (what the client said about budget, what we think of them) and stays with the team.
+ */
+export const freelancerNotes: TimelineNarrowing = (orgId) =>
+  inArray(
+    crmNotes.authorMemberId,
+    sql`(select ${members.id} from ${members} where ${members.organizationId} = ${orgId}
+      and ${FREELANCER_ROLE} = any(string_to_array(replace(${members.role}, ' ', ''), ',')))`,
+  );
+
+const onlyProjects = <R extends { deals: CrmDeal[] }>(found: R) => ({
   ...found,
+  deals: found.deals.map(withoutValue),
   people: [],
   companies: [],
 });

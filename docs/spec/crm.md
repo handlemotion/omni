@@ -144,6 +144,12 @@ people from outside the team who reach it, by address, each with a scope (founde
   operation stays closed to them until it says otherwise. In Drive they have My files and no Shared:
   being added gives them editor on the project's folder, which they open from Shared with me, and
   being taken off removes it. They hear no realtime CRM changes.
+- **What we charge stays with the team** (founder's call, Nov 20, 2026). A freelancer reads no
+  deal value or currency anywhere (the deal, lists, search, the conversation sidebar, MCP), and a
+  filter or sort by value is ignored for them, since it would tell the value as well. They see no
+  contracts and no contract or value events on the timeline, and of the notes only those written
+  by freelancers: a teammate's note is the team's own record (budgets, what we think of the
+  client). The server leaves these out; the apps only stop showing the empty places.
 - **Clients** reach the project on the client portal only (below). They need no workspace.
 
 A teammate's address cannot be added. A project holds at most 50 people from outside the team.

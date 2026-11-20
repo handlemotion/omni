@@ -80,7 +80,7 @@ test("a freelancer reaches only the projects they were added to, in the CRM and 
   expect(ok(await crm.plan(website.deal.id)).plan.milestones.map((m) => m.title)).toEqual([
     "website kickoff",
   ]);
-  expect(ok(await crm.notes({ dealId: website.deal.id })).items).toHaveLength(1);
+  expect(ok(await crm.notes({ dealId: website.deal.id })).items).toEqual([]);
   expect(
     ok(await crm.listTasks({ record: { dealId: website.deal.id } })).tasks.map((t) => t.title),
   ).toEqual(["website task"]);

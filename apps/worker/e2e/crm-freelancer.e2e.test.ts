@@ -30,7 +30,10 @@ test("a freelancer invited as one sees only their project over HTTP, in the CRM 
   expect(invited.body.invitation).toMatchObject({ role: "freelancer" });
 
   const deal = async (name: string) =>
-    ((await api(owner.jar, "POST", "/crm/deals", { name })).body.deal as { id: string }).id;
+    (
+      (await api(owner.jar, "POST", "/crm/deals", { name, valueMinor: 900_000, currency: "USD" }))
+        .body.deal as { id: string }
+    ).id;
   const website = await deal("Website");
   const app = await deal("App");
   const added = await put(owner.jar, `/crm/deals/${website}/access/${encodeURIComponent(email)}`, {
@@ -49,6 +52,14 @@ test("a freelancer invited as one sees only their project over HTTP, in the CRM 
 
   const deals = await api(jar, "GET", "/crm/deals");
   expect((deals.body.deals as { name: string }[]).map((d) => d.name)).toEqual(["Website"]);
+  expect(deals.body.deals).toMatchObject([{ valueMinor: null, valueCurrency: null }]);
+  const opened = await api(jar, "GET", `/crm/deals/${website}`);
+  expect(opened.body).toMatchObject({
+    deal: { valueMinor: null, valueCurrency: null },
+    contracts: [],
+  });
+  const byValue = await api(jar, "GET", "/crm/deals?minValue=1000000");
+  expect((byValue.body.deals as unknown[]).length).toBe(1);
   expect((await api(jar, "GET", `/crm/deals/${website}/plan`)).status).toBe(200);
   expect((await api(jar, "GET", `/crm/deals/${app}`)).status).toBe(404);
   expect((await api(jar, "GET", `/crm/deals/${app}/plan`)).status).toBe(404);

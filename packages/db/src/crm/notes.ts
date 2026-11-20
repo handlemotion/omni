@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { crmEvents, crmNotes } from "../schema/crm.ts";
 import {
   FORBIDDEN,
@@ -147,6 +147,9 @@ export interface TimelinePage {
   limit?: number;
 }
 
+/** What a reader may see of a timeline beyond the record: all of it, unless narrowed. */
+export type TimelineNarrowing = (orgId: string) => SQL | undefined;
+
 type Table = typeof crmNotes | typeof crmEvents;
 
 function timelineWhere(
@@ -186,13 +189,14 @@ export const eventsOf: (
   member: CrmMember,
   record: CrmRecordRef,
   page?: TimelinePage,
-) => Promise<TimelineResult<CrmEvent>> = async (ex, member, record, page = {}) => {
+  narrow?: TimelineNarrowing,
+) => Promise<TimelineResult<CrmEvent>> = async (ex, member, record, page = {}, narrow) => {
   if (!(await recordExists(ex, member.orgId, record))) return NOT_FOUND;
   const limit = pageSize(page.limit);
   const rows = await ex
     .select(eventColumns)
     .from(crmEvents)
-    .where(timelineWhere(crmEvents, member.orgId, record, page.cursor))
+    .where(and(timelineWhere(crmEvents, member.orgId, record, page.cursor), narrow?.(member.orgId)))
     .orderBy(desc(crmEvents.createdAt), desc(crmEvents.id))
     .limit(limit + 1);
   return { status: "ok", ...cut(rows, limit) };
@@ -204,13 +208,14 @@ export const notesOf: (
   member: CrmMember,
   record: CrmRecordRef,
   page?: TimelinePage,
-) => Promise<TimelineResult<CrmNote>> = async (ex, member, record, page = {}) => {
+  narrow?: TimelineNarrowing,
+) => Promise<TimelineResult<CrmNote>> = async (ex, member, record, page = {}, narrow) => {
   if (!(await recordExists(ex, member.orgId, record))) return NOT_FOUND;
   const limit = pageSize(page.limit);
   const rows = await ex
     .select(noteColumns)
     .from(crmNotes)
-    .where(timelineWhere(crmNotes, member.orgId, record, page.cursor))
+    .where(and(timelineWhere(crmNotes, member.orgId, record, page.cursor), narrow?.(member.orgId)))
     .orderBy(desc(crmNotes.createdAt), desc(crmNotes.id))
     .limit(limit + 1);
   return { status: "ok", ...cut(rows, limit) };
