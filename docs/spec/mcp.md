@@ -290,8 +290,17 @@ read files the way they find and read mail.
   are in `fixtures/drive/` (`pnpm --filter @omni/ai record:ocr`).
 - **Search.** `drive_search { query, workspace?, limit? }` matches names and text with Postgres
   full text (`simple` config: Spanish and English sit side by side and an English stemmer would
-  mangle Spanish), names first, then `ts_rank`, with a `ts_headline` snippet. It returns the
-  ChatGPT `{ id, title, url }` shape plus where the file is.
+  mangle Spanish), names first, then `ts_rank`, with a `ts_headline` snippet. With
+  `TYPESAFE_API_KEY` set, it also searches by meaning the way mail search does
+  (`apps/worker/src/storage/meaning.ts`): Jev judges the 30 best word matches and the person's
+  200 most recently changed files with text (name, where it is, when it changed, the start of its
+  text), word matches are reordered by fit, and a file with no word in common joins at 0.5 or
+  more, marked `match: "meaning"` (so "waterproofing budget" finds a Spanish scan about
+  _impermeabilización_). Candidates come from the same drives and grants in SQL; only the chosen
+  ids are opened through the doors. A failed or slow judge (1.5 s) answers with word matches
+  alone. It returns the ChatGPT `{ id, title, url }` shape plus where the file is. Recordings:
+  `fixtures/drive/search.json` (`pnpm --filter @omni/ai record:drive-search`; 8/8 top-1, Jev MRR
+  1.00).
 - **Read.** `drive_fetch { id, ids?, max_chars? }` returns up to 10 files' text, the budget split
   evenly, with `text_status` (`pending` until the indexer reaches it).
 - **Browse.** `drive_list` without arguments names the drives and what was shared with the

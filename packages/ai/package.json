@@ -13,7 +13,8 @@
     "record": "doppler run -p omni -c dev_worker -- node eval/record.ts",
     "record:search": "doppler run -p omni -c dev_worker -- node eval/record-search.ts",
     "record:helpdesk": "doppler run -p omni -c dev_worker -- node eval/record-helpdesk.ts",
-    "record:ocr": "doppler run -p omni -c dev_worker -- node eval/record-ocr.ts"
+    "record:ocr": "doppler run -p omni -c dev_worker -- node eval/record-ocr.ts",
+    "record:drive-search": "doppler run -p omni -c dev_worker -- node eval/record-drive-search.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",

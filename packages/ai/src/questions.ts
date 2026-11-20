@@ -223,3 +223,16 @@ export const teammateQuestion: (role: string) => NoulQuestion = (role) => {
     },
   };
 };
+
+/** Shared facts for every Drive relevance question. `{today}` is filled in by `search.ts`. */
+export const FILE_SEARCH_NOTE =
+  "A person, or an AI assistant working for them, searched their company's Drive for `query` to find a file. Today is {today}.";
+
+export const FILE_RELEVANCE_INSTRUCTIONS =
+  "Is `file` the file the person who searched for `query` is looking for?";
+
+export const FILE_RELEVANCE_CRITERIA = {
+  true: "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+  false:
+    "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names.",
+};

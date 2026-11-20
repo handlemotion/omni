@@ -22,6 +22,7 @@ import { reach, treeOperations, type ListResult } from "./tree.ts";
 /** Search answers this many at most. */
 export const STORAGE_CONTEXT_SEARCH_MAX = 50;
 const SNIPPET_SOURCE = 50_000;
+const EXCERPT_CHARS = 1_500;
 
 /** A workspace the person reaches Drive in as a member. */
 export interface ContextWorkspace {
@@ -52,6 +53,18 @@ export interface ContextHit extends ContextNode {
   snippet: string;
 }
 
+/** What a relevance judge reads about a file before anyone opens it. */
+export interface ContextFile {
+  id: string;
+  name: string;
+  /** "Acme · Shared", "Acme · My files", or "Shared with you". */
+  location: string;
+  modifiedAt: Date;
+  contentVersion: number;
+  /** The start of its current text; empty when it has none. */
+  excerpt: string;
+}
+
 export interface ContextText {
   status: StorageTextStatus | "pending";
   text: string;
@@ -66,7 +79,9 @@ type Opened = ContextNode & { door: Door };
  * Drive for a person's agent, read only, across every workspace the session reaches: their My
  * files and their companies' Shared as a member, and what was shared with their addresses. Each
  * node is opened through the same member and grant doors the app uses, so nothing is reachable
- * here that the person cannot open in Drive, and nothing in Trash.
+ * here that the person cannot open in Drive, and nothing in Trash. `wordMatches` and
+ * `recentFiles` describe candidates (best word matches; most recently changed files with text)
+ * for a relevance judge before any door opens; `reveal` then opens the chosen ids in order.
  */
 export function contextOperations(db: Db, userId: string, scopeOrgId?: string | null) {
   const workspaces = async (only?: string) => {
@@ -151,7 +166,7 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
         where c.trashed_at is null and granted.depth < ${MAX_WALK}
     ) select id from granted)`;
 
-  async function candidates(query: string, limit: number, only?: string) {
+  async function scope(only?: string) {
     const reached = await workspaces(only);
     const drives: Drive[] = reached.flatMap((w) => [
       { orgId: w.id, space: "personal" as const, ownerMemberId: w.memberId },
@@ -164,7 +179,12 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
         : []),
       ...(addresses.length ? [grantedIn(addresses, only)] : []),
     ];
-    if (!within.length) return [];
+    return within.length ? sql`(${sql.join(within, sql` or `)})` : null;
+  }
+
+  async function candidates(query: string, limit: number, only?: string) {
+    const within = await scope(only);
+    if (!within) return [];
     const words = sql`websearch_to_tsquery('simple', ${query})`;
     const nameWords = sql`to_tsvector('simple', regexp_replace(${storageNodes.name}, '[._-]+', ' ', 'g'))`;
     const named = sql`(${storageNodes.name} ilike ${`%${likeEscaped(query)}%`} or ${nameWords} @@ ${words})`;
@@ -178,18 +198,87 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
           eq(storageTexts.contentVersion, storageNodes.contentVersion),
         ),
       )
-      .where(
-        and(
-          sql`(${sql.join(within, sql` or `)})`,
-          sql`(${named} or ${storageTexts.searchVector} @@ ${words})`,
-        ),
-      )
+      .where(and(within, sql`(${named} or ${storageTexts.searchVector} @@ ${words})`))
       .orderBy(
         sql`${named} desc`,
         sql`coalesce(ts_rank(${storageTexts.searchVector}, ${words}), 0) desc`,
         sql`${storageNodes.updatedAt} desc`,
         storageNodes.id,
       )
+      .limit(limit);
+  }
+
+  const noTrashAbove = sql`not exists (
+    with recursive up(parent_id, trashed, depth) as (
+      select p.parent_id, p.trashed_at is not null, 1 from ${storageNodes} p
+        where p.id = ${storageNodes.parentId}
+      union all
+      select p.parent_id, p.trashed_at is not null, up.depth + 1 from ${storageNodes} p
+        join up on p.id = up.parent_id
+        where not up.trashed and up.depth < ${MAX_WALK}
+    ) select 1 from up where trashed)`;
+
+  async function facts(ids: string[]) {
+    if (!ids.length) return [] satisfies ContextFile[];
+    const reached = await workspaces();
+    const rows = await db
+      .select({
+        id: storageNodes.id,
+        name: storageNodes.name,
+        orgId: storageNodes.orgId,
+        orgName: organizations.name,
+        space: storageNodes.space,
+        ownerMemberId: storageNodes.ownerMemberId,
+        contentVersion: storageNodes.contentVersion,
+        modifiedAt: storageNodes.updatedAt,
+        excerpt: sql<string>`coalesce(left(${storageTexts.text}, ${EXCERPT_CHARS}), '')`,
+      })
+      .from(storageNodes)
+      .innerJoin(organizations, eq(organizations.id, storageNodes.orgId))
+      .leftJoin(
+        storageTexts,
+        and(
+          eq(storageTexts.nodeId, storageNodes.id),
+          eq(storageTexts.contentVersion, storageNodes.contentVersion),
+        ),
+      )
+      .where(and(inArray(storageNodes.id, ids), noTrashAbove));
+    const byId = new Map(
+      rows.map((row) => {
+        const member = reached.find((w) => w.id === row.orgId);
+        const mine = member && (row.space === "shared" || row.ownerMemberId === member.memberId);
+        const drive = row.space === "shared" ? "Shared" : "My files";
+        return [
+          row.id,
+          {
+            id: row.id,
+            name: row.name,
+            location: mine ? `${row.orgName} · ${drive}` : "Shared with you",
+            modifiedAt: row.modifiedAt,
+            contentVersion: row.contentVersion ?? 0,
+            excerpt: row.excerpt,
+          } satisfies ContextFile,
+        ];
+      }),
+    );
+    return ids.map((id) => byId.get(id)).filter((row): row is ContextFile => !!row);
+  }
+
+  async function recent(limit: number, only?: string) {
+    const within = await scope(only);
+    if (!within) return [];
+    return db
+      .select({ id: storageNodes.id })
+      .from(storageNodes)
+      .innerJoin(
+        storageTexts,
+        and(
+          eq(storageTexts.nodeId, storageNodes.id),
+          eq(storageTexts.contentVersion, storageNodes.contentVersion),
+        ),
+      )
+      .where(and(within, eq(storageTexts.status, "ok")))
+      .orderBy(sql`${storageNodes.updatedAt} desc`, storageNodes.id)
       .limit(limit);
   }
 
@@ -215,6 +304,23 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
 
   const strip = ({ door: _door, ...node }: Opened) => node satisfies ContextNode;
 
+  async function reveal(ids: string[], query: string, limit: number) {
+    const opened: Opened[] = [];
+    for (const id of ids) {
+      if (opened.length >= limit) break;
+      const node = await open(id);
+      if (node) opened.push(node);
+    }
+    const marked = await snippets(
+      opened.map((hit) => hit.node.id),
+      query,
+    );
+    return opened.map((hit) => ({
+      ...strip(hit),
+      snippet: marked.get(hit.node.id) ?? "",
+    })) satisfies ContextHit[];
+  }
+
   return {
     workspaces: () => workspaces(),
 
@@ -223,21 +329,25 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
       if (!text) return [] satisfies ContextHit[];
       const limit = Math.min(options.limit, STORAGE_CONTEXT_SEARCH_MAX);
       const found = await candidates(text, limit * 3, options.workspace);
-      const opened: Opened[] = [];
-      for (const { id } of found) {
-        if (opened.length >= limit) break;
-        const node = await open(id);
-        if (node) opened.push(node);
-      }
-      const marked = await snippets(
-        opened.map((hit) => hit.node.id),
+      return reveal(
+        found.map((row) => row.id),
         text,
+        limit,
       );
-      return opened.map((hit) => ({
-        ...strip(hit),
-        snippet: marked.get(hit.node.id) ?? "",
-      })) satisfies ContextHit[];
     },
+
+    async wordMatches(query: string, options: { limit: number; workspace?: string }) {
+      const text = query.trim();
+      if (!text) return [] satisfies ContextFile[];
+      return facts((await candidates(text, options.limit, options.workspace)).map((r) => r.id));
+    },
+
+    async recentFiles(options: { limit: number; workspace?: string }) {
+      return facts((await recent(options.limit, options.workspace)).map((r) => r.id));
+    },
+
+    reveal: (ids: string[], query: string, limit: number) =>
+      reveal(ids, query.trim(), Math.min(limit, STORAGE_CONTEXT_SEARCH_MAX)),
 
     async read(nodeIds: string[]) {
       const opened = (await Promise.all(nodeIds.map((id) => open(id)))).filter(

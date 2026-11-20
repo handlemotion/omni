@@ -1,0 +1,240 @@
+{
+  "request": {
+    "model": "jev-1.14.0",
+    "state": {
+      "search_note": "A person, or an AI assistant working for them, searched their company's Drive for `query` to find a file. Today is Friday, November 20, 2026.",
+      "query": "waterproofing budget approval"
+    },
+    "questions": {
+      "candidate_0": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "scan-0001.pdf",
+            "location": "Acme · Shared",
+            "modified": "November 3, 2026 (2 weeks ago)",
+            "excerpt": "--- Page 1 ---\nMINUTA DE REUNIÓN — Comité de obra\nFecha: 3 de noviembre de 2026\nAsistentes: Lucía Pérez, Tomás Ibarra, Ana Soto\n\n1. El proveedor de acero entrega el 18 de noviembre.\n2. Se aprueba el presupuesto de impermeabilización: $412,000 MXN más IVA.\n3. Revisar la grieta del muro norte antes del colado.\n\n--- Page 2 ---\nAcuerdos y responsables\n\n- Tomás pide tres cotizaciones de cimbra.\n- Ana envía el calendario actualizado el viernes.\n- Próxima reunión: 10 de noviembre, 9:00.\n\nFirma: Lucía Pérez"
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_1": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "Nómina 2026-10.xlsx",
+            "location": "Acme · My files",
+            "modified": "October 31, 2026 (2 weeks ago)",
+            "excerpt": "--- Sheet: Nómina ---\nEmpleado\tPuesto\tSueldo neto\nLucía Pérez\tDirectora de obra\t$62,500\nTomás Ibarra\tResidente\t$38,000\nAna Soto\tAdministración\t$29,000\nTotal\t\t$129,500"
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_2": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "lumen-invoice-oct.pdf",
+            "location": "Acme · My files",
+            "modified": "October 15, 2026 (5 weeks ago)",
+            "excerpt": "--- Page 1 ---\nLumen Hosting invoice for October: 3 servers, $96.00, charged to the card ending 4242 on October 15."
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_3": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "IMG_2041.jpg",
+            "location": "Acme · My files",
+            "modified": "October 14, 2026 (5 weeks ago)",
+            "excerpt": "TAQUERÍA EL FAROLITO\nAv. Juárez 118, CDMX\nTicket 004417\t14/10/2026\n\n2\tTacos al pastor\t$70.00\n1\tAgua de jamaica\t$35.00\n1\tQuesadilla de flor\t$55.00\n\nSubtotal\t$160.00\nPropina\t$24.00\nTOTAL\t$184.00\n\n¡Gracias por su visita!"
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_4": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "Board update 2026-10.pptx",
+            "location": "Acme · My files",
+            "modified": "October 9, 2026 (6 weeks ago)",
+            "excerpt": "--- Slide 1 ---\nQ3 2026 board update\n--- Slide 2 ---\nRevenue $2.4M, up 18% from Q2\nGross margin 61%\n--- Slide 3 ---\nThree new retainers: Brightside, Nimbus, Calder\n--- Slide 4 ---\nRunway: 22 months"
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_5": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "Brightside redesign proposal v3.pptx",
+            "location": "Acme · Shared",
+            "modified": "October 2, 2026 (7 weeks ago)",
+            "excerpt": "--- Slide 1 ---\nWebsite redesign for Brightside Labs\n--- Slide 2 ---\nScope: new marketing site, 14 pages, CMS migration\n--- Slide 3 ---\nTimeline: 10 weeks from kickoff\n--- Slide 4 ---\nFee: $38,000 USD, 40% on signature"
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_6": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "Brightside NDA (signed).pdf",
+            "location": "Acme · Shared",
+            "modified": "September 12, 2026 (2 months ago)",
+            "excerpt": "--- Page 1 ---\nMUTUAL NON-DISCLOSURE AGREEMENT\nThis Agreement is entered into by Acme Studio and Brightside Labs Inc. Each party may disclose Confidential Information to the other in order to evaluate a possible website redesign engagement. The receiving party shall hold it in strict confidence for three (3) years.\n--- Page 2 ---\nSigned: Lena Park, Brightside Labs. Signed: Sam Rivera, Acme Studio."
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_7": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "First week.md",
+            "location": "Acme · Shared",
+            "modified": "June 18, 2026 (5 months ago)",
+            "excerpt": "# First week\n\nDay 1: pick up your laptop from Ana, set up your email and Drive, and join #studio.\nDay 2: shadow a site visit with Tomás.\nDay 3: read the brand guide and the project templates.\nYour buddy answers questions all week."
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_8": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "Brand guide 2026.pdf",
+            "location": "Acme · Shared",
+            "modified": "March 4, 2026 (8 months ago)",
+            "excerpt": "--- Page 1 ---\nAcme Studio brand guide\n--- Page 2 ---\nPrimary colour: Tile Red #D33311. Secondary: Off-white #FAFAFA.\nKeep clear space around the mark equal to the height of the A.\nTypeface: PP Kyoto for titles, Geist for text."
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_9": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "Contrato Insurgentes 1602.docx",
+            "location": "Acme · Shared",
+            "modified": "February 1, 2026 (9 months ago)",
+            "excerpt": "CONTRATO DE ARRENDAMIENTO que celebran Inmobiliaria Sur, S.A. de C.V. (el Arrendador) y Acme Studio, S.C. (el Arrendatario) respecto del piso 7 de Av. Insurgentes Sur 1602, Ciudad de México. Renta mensual: $28,000 MXN más IVA, pagadera los primeros cinco días de cada mes. Vigencia: 24 meses a partir del 1 de febrero de 2026. Depósito en garantía: dos meses de renta."
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      },
+      "candidate_10": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `file` the file the person who searched for `query` is looking for?",
+          "file": {
+            "name": "Póliza auto 2026.pdf",
+            "location": "Acme · My files",
+            "modified": "January 20, 2026 (10 months ago)",
+            "excerpt": "--- Page 1 ---\nPóliza de seguro de automóvil No. 88-21-55410. Vehículo: Nissan NP300 2023. Cobertura amplia. Vigencia del 20/01/2026 al 20/01/2027. Prima anual: $18,940 MXN."
+          }
+        },
+        "criteria": {
+          "true": "The file is about what `query` describes, in any language, and fits any person, company, kind of document, or time `query` names.",
+          "false": "The file only shares some words with `query`, or it is about a different person, company, kind of document, or time than `query` names."
+        }
+      }
+    }
+  },
+  "response": {
+    "model": "jev-1.14.0",
+    "answers": {
+      "candidate_0": {
+        "type": "noul",
+        "noul": 0.95
+      },
+      "candidate_1": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_2": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_3": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_4": {
+        "type": "noul",
+        "noul": 0.02
+      },
+      "candidate_5": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_6": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_7": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_8": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_9": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_10": {
+        "type": "noul",
+        "noul": 0.01
+      }
+    },
+    "usage": {
+      "input_tokens": 3208,
+      "output_tokens": 203
+    }
+  }
+}

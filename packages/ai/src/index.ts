@@ -38,9 +38,12 @@ export {
 } from "./questions.ts";
 export {
   describeDate,
+  jevFileSearchRequest,
   jevSearchRequest,
+  judgeFileRelevance,
   judgeRelevance,
   rankByRelevance,
+  type FileCandidate,
   type SearchCandidate,
 } from "./search.ts";
 export {

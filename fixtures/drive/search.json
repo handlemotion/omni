@@ -1,0 +1,96 @@
+{
+  "now": "2026-11-20T15:00:00Z",
+  "files": [
+    {
+      "id": "farolito-receipt",
+      "name": "IMG_2041.jpg",
+      "location": "Acme · My files",
+      "modifiedAt": "2026-10-14T21:40:00Z",
+      "text": "TAQUERÍA EL FAROLITO\nAv. Juárez 118, CDMX\nTicket 004417\t14/10/2026\n\n2\tTacos al pastor\t$70.00\n1\tAgua de jamaica\t$35.00\n1\tQuesadilla de flor\t$55.00\n\nSubtotal\t$160.00\nPropina\t$24.00\nTOTAL\t$184.00\n\n¡Gracias por su visita!"
+    },
+    {
+      "id": "obra-minutes",
+      "name": "scan-0001.pdf",
+      "location": "Acme · Shared",
+      "modifiedAt": "2026-11-03T18:05:00Z",
+      "text": "--- Page 1 ---\nMINUTA DE REUNIÓN — Comité de obra\nFecha: 3 de noviembre de 2026\nAsistentes: Lucía Pérez, Tomás Ibarra, Ana Soto\n\n1. El proveedor de acero entrega el 18 de noviembre.\n2. Se aprueba el presupuesto de impermeabilización: $412,000 MXN más IVA.\n3. Revisar la grieta del muro norte antes del colado.\n\n--- Page 2 ---\nAcuerdos y responsables\n\n- Tomás pide tres cotizaciones de cimbra.\n- Ana envía el calendario actualizado el viernes.\n- Próxima reunión: 10 de noviembre, 9:00.\n\nFirma: Lucía Pérez"
+    },
+    {
+      "id": "office-lease",
+      "name": "Contrato Insurgentes 1602.docx",
+      "location": "Acme · Shared",
+      "modifiedAt": "2026-02-01T12:00:00Z",
+      "text": "CONTRATO DE ARRENDAMIENTO que celebran Inmobiliaria Sur, S.A. de C.V. (el Arrendador) y Acme Studio, S.C. (el Arrendatario) respecto del piso 7 de Av. Insurgentes Sur 1602, Ciudad de México. Renta mensual: $28,000 MXN más IVA, pagadera los primeros cinco días de cada mes. Vigencia: 24 meses a partir del 1 de febrero de 2026. Depósito en garantía: dos meses de renta."
+    },
+    {
+      "id": "brightside-nda",
+      "name": "Brightside NDA (signed).pdf",
+      "location": "Acme · Shared",
+      "modifiedAt": "2026-09-12T10:20:00Z",
+      "text": "--- Page 1 ---\nMUTUAL NON-DISCLOSURE AGREEMENT\nThis Agreement is entered into by Acme Studio and Brightside Labs Inc. Each party may disclose Confidential Information to the other in order to evaluate a possible website redesign engagement. The receiving party shall hold it in strict confidence for three (3) years.\n--- Page 2 ---\nSigned: Lena Park, Brightside Labs. Signed: Sam Rivera, Acme Studio."
+    },
+    {
+      "id": "brightside-proposal",
+      "name": "Brightside redesign proposal v3.pptx",
+      "location": "Acme · Shared",
+      "modifiedAt": "2026-10-02T16:45:00Z",
+      "text": "--- Slide 1 ---\nWebsite redesign for Brightside Labs\n--- Slide 2 ---\nScope: new marketing site, 14 pages, CMS migration\n--- Slide 3 ---\nTimeline: 10 weeks from kickoff\n--- Slide 4 ---\nFee: $38,000 USD, 40% on signature"
+    },
+    {
+      "id": "q3-board-deck",
+      "name": "Board update 2026-10.pptx",
+      "location": "Acme · My files",
+      "modifiedAt": "2026-10-09T09:00:00Z",
+      "text": "--- Slide 1 ---\nQ3 2026 board update\n--- Slide 2 ---\nRevenue $2.4M, up 18% from Q2\nGross margin 61%\n--- Slide 3 ---\nThree new retainers: Brightside, Nimbus, Calder\n--- Slide 4 ---\nRunway: 22 months"
+    },
+    {
+      "id": "payroll-october",
+      "name": "Nómina 2026-10.xlsx",
+      "location": "Acme · My files",
+      "modifiedAt": "2026-10-31T19:00:00Z",
+      "text": "--- Sheet: Nómina ---\nEmpleado\tPuesto\tSueldo neto\nLucía Pérez\tDirectora de obra\t$62,500\nTomás Ibarra\tResidente\t$38,000\nAna Soto\tAdministración\t$29,000\nTotal\t\t$129,500"
+    },
+    {
+      "id": "onboarding",
+      "name": "First week.md",
+      "location": "Acme · Shared",
+      "modifiedAt": "2026-06-18T14:00:00Z",
+      "text": "# First week\n\nDay 1: pick up your laptop from Ana, set up your email and Drive, and join #studio.\nDay 2: shadow a site visit with Tomás.\nDay 3: read the brand guide and the project templates.\nYour buddy answers questions all week."
+    },
+    {
+      "id": "brand-guide",
+      "name": "Brand guide 2026.pdf",
+      "location": "Acme · Shared",
+      "modifiedAt": "2026-03-04T11:30:00Z",
+      "text": "--- Page 1 ---\nAcme Studio brand guide\n--- Page 2 ---\nPrimary colour: Tile Red #D33311. Secondary: Off-white #FAFAFA.\nKeep clear space around the mark equal to the height of the A.\nTypeface: PP Kyoto for titles, Geist for text."
+    },
+    {
+      "id": "car-insurance",
+      "name": "Póliza auto 2026.pdf",
+      "location": "Acme · My files",
+      "modifiedAt": "2026-01-20T08:00:00Z",
+      "text": "--- Page 1 ---\nPóliza de seguro de automóvil No. 88-21-55410. Vehículo: Nissan NP300 2023. Cobertura amplia. Vigencia del 20/01/2026 al 20/01/2027. Prima anual: $18,940 MXN."
+    },
+    {
+      "id": "hosting-invoice",
+      "name": "lumen-invoice-oct.pdf",
+      "location": "Acme · My files",
+      "modifiedAt": "2026-10-15T07:30:00Z",
+      "text": "--- Page 1 ---\nLumen Hosting invoice for October: 3 servers, $96.00, charged to the card ending 4242 on October 15."
+    }
+  ],
+  "queries": [
+    { "id": "taco-dinner", "query": "how much was the taco dinner", "best": "farolito-receipt" },
+    { "id": "waterproofing", "query": "waterproofing budget approval", "best": "obra-minutes" },
+    { "id": "office-rent", "query": "office rent agreement", "best": "office-lease" },
+    {
+      "id": "brightside-confidentiality",
+      "query": "confidentiality contract with Brightside",
+      "best": "brightside-nda"
+    },
+    { "id": "last-quarter", "query": "how did we do last quarter", "best": "q3-board-deck" },
+    { "id": "salaries", "query": "october salaries", "best": "payroll-october" },
+    { "id": "new-hire", "query": "new hire setup steps", "best": "onboarding" },
+    { "id": "logo-red", "query": "what red do we use in the logo", "best": "brand-guide" }
+  ]
+}

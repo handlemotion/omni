@@ -177,6 +177,7 @@ export {
 } from "./storage/seal.ts";
 export {
   STORAGE_CONTEXT_SEARCH_MAX,
+  type ContextFile,
   type ContextHit,
   type ContextNode,
   type ContextRead,

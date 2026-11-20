@@ -1,6 +1,9 @@
 import { ask, JevError, NoulAnswer, type JevClient } from "./jev.ts";
 import { truncateToTokens } from "./policy.ts";
 import {
+  FILE_RELEVANCE_CRITERIA,
+  FILE_RELEVANCE_INSTRUCTIONS,
+  FILE_SEARCH_NOTE,
   JEV_MODEL,
   RELEVANCE_CRITERIA,
   RELEVANCE_INSTRUCTIONS,
@@ -133,6 +136,79 @@ export const judgeRelevance: (
 ) => {
   if (candidates.length === 0) return { relevance: new Map(), model: client.model, tokensIn: 0 };
   const body = jevSearchRequest(query, candidates, { now: options.now, model: client.model });
+  const response = await ask(client, body, options.signal);
+  const relevance = new Map<string, number>();
+  candidates.forEach((candidate, i) => {
+    const answer = NoulAnswer.safeParse(response.answers[questionId(i)]);
+    if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${questionId(i)}`);
+    relevance.set(candidate.id, answer.data.noul);
+  });
+  return { relevance, model: response.model, tokensIn: response.usage.input_tokens };
+};
+
+/** A Drive file a search found or a recent one, as the person would see it. */
+export interface FileCandidate {
+  /** Stable key, e.g. the node id. Never sent to the model. */
+  id: string;
+  name: string;
+  /** Where it is: the workspace and drive, e.g. "Acme · Shared". */
+  location: string;
+  modifiedAt: Date;
+  /** The start of the file's text. */
+  excerpt: string;
+}
+
+function fileFacts(candidate: FileCandidate, now: Date) {
+  return {
+    name: candidate.name,
+    location: candidate.location,
+    modified: describeDate(candidate.modifiedAt, now),
+    excerpt: truncateToTokens(candidate.excerpt, SEARCH_EXCERPT_TOKENS),
+  };
+}
+
+/** The exact Drive relevance body sent to `POST /v1/systemone`. */
+export function jevFileSearchRequest(
+  query: string,
+  candidates: readonly FileCandidate[],
+  options: { now: Date; model?: string },
+) {
+  return {
+    model: options.model ?? JEV_MODEL,
+    state: {
+      search_note: FILE_SEARCH_NOTE.replace("{today}", longDate.format(options.now)),
+      query,
+    },
+    questions: Object.fromEntries(
+      candidates.map((candidate, i) => [
+        questionId(i),
+        {
+          type: "noul",
+          instructions: {
+            question: FILE_RELEVANCE_INSTRUCTIONS,
+            file: fileFacts(candidate, options.now),
+          },
+          criteria: FILE_RELEVANCE_CRITERIA,
+        },
+      ]),
+    ),
+  };
+}
+
+/** Jev's probability, per file id, that the file is what the query looks for. Throws `JevError`. */
+export const judgeFileRelevance: (
+  client: JevClient,
+  query: string,
+  candidates: readonly FileCandidate[],
+  options: { now: Date; signal?: AbortSignal },
+) => Promise<{ relevance: Map<string, number>; model: string; tokensIn: number }> = async (
+  client,
+  query,
+  candidates,
+  options,
+) => {
+  if (candidates.length === 0) return { relevance: new Map(), model: client.model, tokensIn: 0 };
+  const body = jevFileSearchRequest(query, candidates, { now: options.now, model: client.model });
   const response = await ask(client, body, options.signal);
   const relevance = new Map<string, number>();
   candidates.forEach((candidate, i) => {
