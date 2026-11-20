@@ -189,6 +189,8 @@ export const crmDeals = pgTable(
     closedAt: timestamptz("closed_at"),
     /** When the team expects it to close. */
     expectedCloseOn: date("expected_close_on", { mode: "string" }),
+    /** The uploaded picture standing for it (its SHA-256 in the bucket); null for its client's logo. */
+    iconId: text("icon_id"),
     folderNodeId: folderRef("folder_node_id"),
     createdByMemberId: memberRef("created_by_member_id"),
     archivedAt: timestamptz("archived_at"),

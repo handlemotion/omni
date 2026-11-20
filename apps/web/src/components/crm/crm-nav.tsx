@@ -106,13 +106,14 @@ function ProjectRow(props: { deal: CrmDeal; client: CrmCompany | undefined; sear
       isCurrent={pathname === href}
       depth={0}
       icon={
-        client ? (
-          <span title={client.name} className="flex">
+        client || props.deal.iconUrl ? (
+          <span title={client?.name} className="flex">
             <RecordMark
-              name={client.name}
+              name={client?.name ?? props.deal.name}
               square
               size={16}
-              who={client.domain ? { domain: client.domain } : null}
+              src={props.deal.iconUrl}
+              who={client?.domain ? { domain: client.domain } : null}
             />
           </span>
         ) : props.deal.stageKind === "won" ? (

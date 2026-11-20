@@ -62,6 +62,8 @@ export interface CrmDeal {
   closedAt: Date | null;
   /** `YYYY-MM-DD`: when the team expects it to close. */
   expectedCloseOn: string | null;
+  /** An uploaded picture's SHA-256; null when it shows its client's logo. */
+  iconId: string | null;
   folderNodeId: string | null;
   createdByMemberId: string | null;
   archivedAt: Date | null;
@@ -108,6 +110,7 @@ export const dealColumns = {
   wonAt: crmDeals.wonAt,
   closedAt: crmDeals.closedAt,
   expectedCloseOn: crmDeals.expectedCloseOn,
+  iconId: crmDeals.iconId,
   folderNodeId: crmDeals.folderNodeId,
   createdByMemberId: crmDeals.createdByMemberId,
   archivedAt: crmDeals.archivedAt,

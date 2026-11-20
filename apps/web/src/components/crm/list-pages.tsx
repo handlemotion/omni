@@ -21,6 +21,7 @@ import type { FilterKind } from "./list-filters.tsx";
 import { BoardSort, ListFilter } from "./list-toolbar.tsx";
 import { isFiltered, useListView } from "./list-view.tsx";
 import { NewCompanyDialog, NewDealDialog, NewPersonDialog } from "./new-records.tsx";
+import { DealIcon } from "./deal-mark.tsx";
 import { RecordList, RecordMark, useListSearch } from "./record-list.tsx";
 
 export { StageBadge } from "./list-columns.tsx";
@@ -132,7 +133,7 @@ export function DealsPage({ search }: { search: CrmDealsSearch }) {
         columns={DEAL_COLUMNS}
         filtered={isFiltered(search)}
         {...view}
-        mark={(deal) => <RecordMark name={deal.name} />}
+        mark={(deal) => <DealIcon deal={deal} />}
         href={recordHref(inWorkspace, "deals")}
         onNew={() => setAdding(true)}
         extra={<BoardSort search={search} sorts={BOARD_SORTS} />}
@@ -161,7 +162,7 @@ export function ProjectsPage({ search }: { search: CrmProjectsSearch }) {
       filter={<ListFilter search={search} filters={PROJECT_FILTERS} />}
       filtered={isFiltered(search)}
       {...view}
-      mark={(deal) => <RecordMark name={deal.name} />}
+      mark={(deal) => <DealIcon deal={deal} />}
       href={recordHref(inWorkspace, "deals")}
     />
   );

@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/empty/empty-state";
 import { IconPlus } from "@/components/icons/central";
 import { ListFailed } from "@/components/inbox/thread-list";
 import { StorageFrame } from "@/components/storage/storage-frame";
+import { Avatar } from "@/components/ui/avatar";
 import { SenderAvatar } from "@/components/avatar/sender-avatar";
 import type { SenderLogoFor } from "@/lib/sender-logo";
 import type { CrmSort } from "@/lib/crm.ts";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { descriptorOf, fromDescriptor, type SortState } from "./list-sort.tsx";
+import { withWorkspace } from "@/lib/current-workspace.ts";
 
 export const DAY = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -65,8 +67,21 @@ export function RecordMark(props: {
   square?: boolean;
   size?: number;
   who?: SenderLogoFor | null;
+  /** An uploaded picture, over `who`: a project's own icon. */
+  src?: string | null;
 }) {
   const size = props.size ?? 20;
+  if (props.src) {
+    return (
+      <Avatar
+        src={withWorkspace(props.src)}
+        initials={props.name.trim().slice(0, 1).toUpperCase() || "?"}
+        isSquare={props.square}
+        className="bg-secondary text-muted-foreground outline-0"
+        style={{ "--avatar-size": `${size}px` } as React.CSSProperties}
+      />
+    );
+  }
   return (
     <SenderAvatar
       who={props.who ?? null}

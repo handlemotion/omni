@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { byAddress } from "@/components/avatar/sender-avatar";
-import { IconEllipsis, IconPlus, IconStar, IconTrash } from "@/components/icons/central";
+import { IconEllipsis, IconMail, IconPlus, IconStar, IconTrash } from "@/components/icons/central";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { useCrmStages, useRemoveDomain, useUpdatePerson } from "@/hooks/use-crm.ts";
+import { openComposeTo } from "@/hooks/use-compose-pane.ts";
 import type { CrmDeal, CrmPerson } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { DetailSection, NoneRow, RelatedRow } from "./record-layout.tsx";
@@ -58,6 +59,7 @@ export function RowWithMenu(props: { label: string; actions: RowAction[]; childr
 }
 
 const TRASH = <IconTrash data-slot="icon" />;
+const MAIL = <IconMail data-slot="icon" />;
 
 export function DomainsSection(props: { companyId: string; domains: string[]; onAdd: () => void }) {
   const remove = useRemoveDomain();
@@ -166,21 +168,28 @@ export function PeopleSection(props: {
               hint={person.jobTitle}
             />
           );
-          if (!onRemove) return row;
+          const address = primaryAddress(person);
+          const actions: RowAction[] = [];
+          if (address) {
+            actions.push({
+              id: "email",
+              label: "Email",
+              icon: MAIL,
+              onAction: () => openComposeTo([address]),
+            });
+          }
+          if (onRemove) {
+            actions.push({
+              id: "remove",
+              label: "Remove from deal",
+              icon: TRASH,
+              danger: true,
+              onAction: () => onRemove(person.id),
+            });
+          }
+          if (!actions.length) return row;
           return (
-            <RowWithMenu
-              key={person.id}
-              label={person.name}
-              actions={[
-                {
-                  id: "remove",
-                  label: "Remove from deal",
-                  icon: TRASH,
-                  danger: true,
-                  onAction: () => onRemove(person.id),
-                },
-              ]}
-            >
+            <RowWithMenu key={person.id} label={person.name} actions={actions}>
               {row}
             </RowWithMenu>
           );
@@ -214,4 +223,8 @@ export function DealsSection(props: { deals: CrmDeal[]; onAdd?: () => void }) {
       )}
     </DetailSection>
   );
+}
+
+function primaryAddress(person: CrmPerson) {
+  return (person.addresses.find((a) => a.isPrimary) ?? person.addresses[0])?.address;
 }

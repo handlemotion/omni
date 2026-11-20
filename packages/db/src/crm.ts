@@ -117,6 +117,7 @@ import {
   type ReviewDecision,
 } from "./crm/portal.ts";
 import { lookupCrm, searchCrm } from "./crm/search.ts";
+import { setDealIcon } from "./crm/deal-icon.ts";
 import { getSettings, putSettings } from "./crm/settings.ts";
 import { replaceStages, stagesOf, type StageInput } from "./crm/stages.ts";
 import {
@@ -339,6 +340,8 @@ export function memberCrm(db: Db, memberId: string) {
     createDeal: (input: DealInput) => writeAsMember(door, (m, tx) => createDeal(tx, m, input)),
     updateDeal: (id: string, patch: DealPatch) =>
       writeAsMember(door, (m, tx) => updateDeal(tx, m, id, patch)),
+    setDealIcon: (id: string, iconId: string | null) =>
+      writeAsMember(door, (m, tx) => setDealIcon(tx, m, id, iconId)),
     moveDeals: (input: { dealIds: string[]; stageId: string }) =>
       writeAsMember(door, (m, tx) => moveDeals(tx, m, input)),
     archiveDeal: (id: string) => writeAsMember(door, (m, tx) => archiveDeal(tx, m, id)),

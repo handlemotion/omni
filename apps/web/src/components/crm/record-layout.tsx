@@ -39,6 +39,8 @@ export function RecordLayout(props: {
   square?: boolean;
   /** Whose logo or picture the mark shows. */
   who?: SenderLogoFor | null;
+  /** In place of the mark: a project's own, which can be changed. */
+  mark?: ReactNode;
   /** A line under the name: a person's title, a deal's client. */
   subtitle?: ReactNode;
   /** After the name: a deal's stage, Archived. */
@@ -61,7 +63,9 @@ export function RecordLayout(props: {
             className="flex shrink-0 flex-col gap-6 px-5 py-5 lg:w-(--details-width) lg:overflow-y-auto lg:border-e"
           >
             <div className="flex min-w-0 items-center gap-3">
-              <RecordMark name={props.name} square={props.square} who={props.who} size={40} />
+              {props.mark ?? (
+                <RecordMark name={props.name} square={props.square} who={props.who} size={40} />
+              )}
               <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-2">
                   <h2 className="truncate text-md text-foreground">{props.name}</h2>
@@ -76,7 +80,7 @@ export function RecordLayout(props: {
             </div>
             {props.details}
           </aside>
-          <main className="relative min-w-0 flex-1 pb-4 lg:overflow-y-auto">
+          <div className="relative flex min-w-0 flex-1 flex-col lg:min-h-0">
             <ResizeGrip
               label="Resize details"
               className="max-lg:hidden"
@@ -85,21 +89,23 @@ export function RecordLayout(props: {
               onReset={details.reset}
               onResizingChange={setResizing}
             />
-            <Tabs className="w-full">
-              <TabList aria-label="Record" className="px-5 pt-1.5 [--tab-list-pb:--spacing(1.5)]">
+            <main className="min-h-0 min-w-0 flex-1 pb-4 lg:overflow-y-auto">
+              <Tabs className="w-full">
+                <TabList aria-label="Record" className="px-5 pt-1.5 [--tab-list-pb:--spacing(1.5)]">
+                  {props.tabs.map((tab) => (
+                    <Tab key={tab.id} id={tab.id}>
+                      {tab.label}
+                    </Tab>
+                  ))}
+                </TabList>
                 {props.tabs.map((tab) => (
-                  <Tab key={tab.id} id={tab.id}>
-                    {tab.label}
-                  </Tab>
+                  <TabPanel key={tab.id} id={tab.id} className="px-5 pt-2">
+                    {tab.panel}
+                  </TabPanel>
                 ))}
-              </TabList>
-              {props.tabs.map((tab) => (
-                <TabPanel key={tab.id} id={tab.id} className="px-5 pt-2">
-                  {tab.panel}
-                </TabPanel>
-              ))}
-            </Tabs>
-          </main>
+              </Tabs>
+            </main>
+          </div>
         </div>
       </RecordFrame>
     </TrailProvider>

@@ -1,7 +1,12 @@
 import { useAllMailboxes } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { Dialog, DialogTitle } from "@/components/ui/dialog";
-import { reopenCompose, takeComposeDraft, useComposePane } from "@/hooks/use-compose-pane.ts";
+import {
+  reopenCompose,
+  takeComposeDraft,
+  takeComposeTo,
+  useComposePane,
+} from "@/hooks/use-compose-pane.ts";
 import { useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { NewMessageComposer } from "./composer.tsx";
@@ -44,6 +49,7 @@ function ComposeDialogBody({ onSent }: { onSent: () => void }) {
   const mailboxes = useComposeMailboxes();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   const [restored] = useState(takeComposeDraft);
+  const [to] = useState(takeComposeTo);
   return (
     <>
       <div className="flex h-12 shrink-0 items-center border-b px-3 pe-12">
@@ -52,7 +58,7 @@ function ComposeDialogBody({ onSent }: { onSent: () => void }) {
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">
         <NewMessageComposer
           mailboxes={mailboxes}
-          initial={{ mailboxId: mailbox }}
+          initial={{ mailboxId: mailbox, to: to?.join(", ") }}
           restored={restored}
           onSent={onSent}
           onUndone={reopenCompose}

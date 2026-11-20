@@ -76,6 +76,23 @@ export const updateDealMutation = (client: QueryClient) =>
     ...settle(client),
   });
 
+/** `mutate({ id, file })` sets a deal's picture; a PUT keyed by content, so a retry is safe. */
+export const setDealIconMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: ({ id, file }: { id: string; file: File }) =>
+      call(api.crm.deals[":id"].icon.$put({ param: { id }, form: { file } })),
+    ...settle(client),
+  });
+
+/** `mutate(id)`: the deal shows its client's logo again. */
+export const removeDealIconMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: (id: string) => call(api.crm.deals[":id"].icon.$delete({ param: { id } })),
+    ...settle(client),
+  });
+
 /** `mutate({ id, domain })` adds a domain to a company. */
 export const addDomainMutation = (client: QueryClient) =>
   mutationOptions({

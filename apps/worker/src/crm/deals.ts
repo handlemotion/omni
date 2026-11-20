@@ -7,8 +7,12 @@ import {
   type CrmDealListResponse,
   type CrmDealResponse,
 } from "@omni/contracts";
-import { Hono } from "hono";
+import type { CrmDeal } from "@omni/db";
+import { Hono, type Context } from "hono";
+import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../context.ts";
+import { imageHeaders } from "../image-proxy.ts";
+import { MAX_PICTURE_BYTES, pictureUpload, sniffImageType } from "../routes/pictures.ts";
 import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
@@ -21,6 +25,39 @@ import {
   wireDeal,
   wirePerson,
 } from "./http.ts";
+
+const iconKey = (orgId: string, dealId: string, iconId: string) =>
+  `crm/deal-icons/${orgId}/${dealId}/${iconId}`;
+
+async function iconChanged(
+  c: Context<AppEnv>,
+  changed: { deal: CrmDeal; replaced: string | null },
+) {
+  const { deal, replaced } = changed;
+  if (replaced && replaced !== deal.iconId) {
+    await c.env.MAIL_BUCKET.delete(iconKey(c.var.member.orgId, deal.id, replaced)).catch(
+      (error: unknown) => console.error("deal icon cleanup failed", deal.id, error),
+    );
+  }
+  await announce(c, "deal", [deal.id]);
+  return c.json({ deal: wireDeal(deal) } satisfies CrmDealResponse);
+}
+
+async function storeIcon(c: Context<AppEnv>, dealId: string, file: File) {
+  if (file.size > MAX_PICTURE_BYTES) {
+    throw new HTTPException(413, { message: "the picture is larger than 2 MB" });
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const contentType = sniffImageType(bytes);
+  if (!contentType) {
+    throw new HTTPException(415, { message: "the picture must be a PNG, JPEG, WebP or GIF" });
+  }
+  const iconId = crypto.randomUUID();
+  await c.env.MAIL_BUCKET.put(iconKey(c.var.member.orgId, dealId, iconId), bytes, {
+    httpMetadata: { contentType },
+  });
+  return iconId;
+}
 
 export const deals = new Hono<AppEnv>()
   .get("/deals", zValidator("query", crmDealsQuerySchema), async (c) => {
@@ -67,6 +104,50 @@ export const deals = new Hono<AppEnv>()
     if (changed.status !== "ok") return refused(c, changed);
     await announce(c, "deal", [changed.deal.id]);
     return c.json({ deal: wireDeal(changed.deal) } satisfies CrmDealResponse);
+  })
+
+  .put("/deals/:id/icon", ...pictureUpload, async (c) => {
+    const id = c.req.param("id");
+    const found = await memberCrm(c).deal(id);
+    if (found.status !== "ok") return refused(c, found);
+    const iconId = await storeIcon(c, id, c.req.valid("form").file);
+    const drop = () => c.env.MAIL_BUCKET.delete(iconKey(c.var.member.orgId, id, iconId));
+    const changed = await memberCrm(c)
+      .setDealIcon(id, iconId)
+      .catch(async (error: unknown) => {
+        await drop();
+        throw error;
+      });
+    if (changed.status !== "ok") {
+      await drop();
+      return refused(c, changed);
+    }
+    return iconChanged(c, changed);
+  })
+
+  .delete("/deals/:id/icon", async (c) => {
+    const changed = await memberCrm(c).setDealIcon(c.req.param("id"), null);
+    if (changed.status !== "ok") return refused(c, changed);
+    return iconChanged(c, changed);
+  })
+
+  .get("/deals/:id/icon/:iconId{[0-9a-f-]{36}}", async (c) => {
+    const { id, iconId } = c.req.param();
+    const found = await memberCrm(c).deal(id);
+    if (found.status !== "ok") return refused(c, found);
+    if (found.deal.iconId !== iconId) {
+      throw new HTTPException(404, { message: "not found" });
+    }
+    const object = await c.env.MAIL_BUCKET.get(iconKey(c.var.member.orgId, id, iconId));
+    if (!object) throw new HTTPException(404, { message: "not found" });
+    return new Response(object.body, {
+      headers: {
+        ...imageHeaders(object.httpMetadata?.contentType ?? "application/octet-stream"),
+        "content-length": String(object.size),
+        etag: object.httpEtag,
+        "cache-control": "private, max-age=31536000, immutable",
+      },
+    });
   })
 
   .post("/deals/:id/restore", async (c) => {

@@ -39,6 +39,8 @@ import {
   updateCompanyMutation,
   updateContractMutation,
   updateDealMutation,
+  setDealIconMutation,
+  removeDealIconMutation,
   updatePersonMutation,
 } from "../lib/crm-mutations.ts";
 import { useMembers } from "./use-organization.ts";
@@ -178,6 +180,14 @@ export function useUpdatePerson() {
 
 export function useUpdateDeal() {
   return useMutation(updateDealMutation(useQueryClient()));
+}
+
+export function useSetDealIcon() {
+  return useMutation(setDealIconMutation(useQueryClient()));
+}
+
+export function useRemoveDealIcon() {
+  return useMutation(removeDealIconMutation(useQueryClient()));
 }
 
 export function useRemoveDomain() {

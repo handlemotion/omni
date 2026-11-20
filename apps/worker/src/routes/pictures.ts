@@ -14,7 +14,7 @@ export const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
 
 type Owner = "users" | "orgs";
 
-function sniffImageType(bytes: Uint8Array) {
+export function sniffImageType(bytes: Uint8Array) {
   const starts = (sig: number[], at = 0) => sig.every((b, i) => bytes[at + i] === b);
   if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
   if (starts([0xff, 0xd8, 0xff])) return "image/jpeg";
@@ -47,7 +47,8 @@ export function pictureKeyOf(url: string | null | undefined, owner: Owner, owner
   return pictureKey(owner, ownerId, sha256);
 }
 
-const upload = [
+/** The multipart body of a picture upload: one `file`, at most `MAX_PICTURE_BYTES`. */
+export const pictureUpload = [
   bodyLimit({
     maxSize: MAX_PICTURE_BYTES + 64 * 1024,
     onError: (c) => apiError(c, "payload_too_large", "the picture is larger than 2 MB"),
@@ -100,7 +101,7 @@ function canManage(role: string) {
 /** `/api/account`: the signed-in user's own picture. Works before they join an organization. */
 export const account = new Hono<AppEnv>()
   .use(requireUser)
-  .put("/picture", ...upload, async (c) => {
+  .put("/picture", ...pictureUpload, async (c) => {
     const { id } = c.var.user;
     const image = await storePicture(c, c.req.valid("form").file, "users", id);
     const previous = await setUserImage(c.var.db, id, image);
@@ -125,7 +126,7 @@ export const workspaceLogo = new Hono<AppEnv>()
     }
     await next();
   })
-  .put("/logo", ...upload, async (c) => {
+  .put("/logo", ...pictureUpload, async (c) => {
     const { orgId } = c.var.member;
     const logo = await storePicture(c, c.req.valid("form").file, "orgs", orgId);
     const previous = await setOrganizationLogo(c.var.db, orgId, logo);

@@ -24,6 +24,7 @@ import { ChoiceValue, DayValue, MoneyValue, PlainValue, TextValue } from "./reco
 import { RecordFiles } from "./record-files.tsx";
 import { byAddress } from "@/components/avatar/sender-avatar";
 import { MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
+import { DealMark } from "./deal-mark.tsx";
 import { DetailSection, RecordLayout, RecordState } from "./record-layout.tsx";
 import { DAY } from "./record-list.tsx";
 import {
@@ -243,8 +244,7 @@ export function DealPage({ id }: { id: string }) {
         list={deal.stageKind === "won" ? "projects" : "deals"}
         here={{ kind: "deals", id }}
         name={deal.name}
-        square
-        who={company?.domain ? { domain: company.domain } : null}
+        mark={<DealMark deal={deal} client={company} size={40} />}
         subtitle={company?.name}
         badge={
           <>
