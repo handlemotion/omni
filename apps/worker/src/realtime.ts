@@ -18,7 +18,14 @@ import { z } from "zod";
 import { openDb } from "./db.ts";
 import type { Config } from "./env.ts";
 import { createLogger } from "./log.ts";
-import { docAppendMessage, MAX_DOC_MESSAGE, onDocAppend } from "./realtime-docs.ts";
+import {
+  docAppendMessage,
+  docPresenceMessage,
+  MAX_DOC_MESSAGE,
+  MAX_PRESENCE_MESSAGE,
+  onDocAppend,
+  onDocPresence,
+} from "./realtime-docs.ts";
 import {
   filePresenceMessage,
   leaveFile,
@@ -60,10 +67,21 @@ const presenceMessage = z.object({
   threadId: z.string().min(1).max(64),
   state: z.enum(["viewing", "replying", "left"]),
 });
-const clientMessage = z.union([presenceMessage, filePresenceMessage, docAppendMessage]);
+const clientMessage = z.union([
+  presenceMessage,
+  filePresenceMessage,
+  docAppendMessage,
+  docPresenceMessage,
+]);
 const MAX_CLIENT_MESSAGE = 1024;
 
 type Presence = { threadId: string; mailboxId: string; state: "viewing" | "replying" };
+
+const messageLimit = (raw: string) => {
+  if (raw.startsWith('{"type":"doc.append"')) return MAX_DOC_MESSAGE;
+  if (raw.startsWith('{"type":"doc.presence"')) return MAX_PRESENCE_MESSAGE;
+  return MAX_CLIENT_MESSAGE;
+};
 
 /**
  * One instance per org. Each open app holds a hibernatable websocket tagged with its member id;
@@ -148,8 +166,7 @@ export class Realtime extends DurableObject<Env> {
    */
   override async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer) {
     if (typeof raw !== "string") return;
-    const doc = raw.startsWith('{"type":"doc.append"');
-    if (raw.length > (doc ? MAX_DOC_MESSAGE : MAX_CLIENT_MESSAGE)) return;
+    if (raw.length > messageLimit(raw)) return;
     let message;
     try {
       message = clientMessage.parse(JSON.parse(raw));
@@ -164,6 +181,10 @@ export class Realtime extends DurableObject<Env> {
     }
     if (message.type === "doc.append") {
       await onDocAppend(this.ctx, this.env, socket, memberId, message);
+      return;
+    }
+    if (message.type === "doc.presence") {
+      onDocPresence(this.ctx, socket, message);
       return;
     }
     const current = presenceOf(socket);

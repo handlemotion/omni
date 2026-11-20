@@ -1,4 +1,8 @@
-import { storageLiveRecordSchema, type StorageDocEvent } from "@omni/contracts";
+import {
+  STORAGE_DOC_PRESENCE_MAX,
+  storageLiveRecordSchema,
+  type StorageDocEvent,
+} from "@omni/contracts";
 
 type StorageDocRefusal = Extract<StorageDocEvent, { type: "doc.refused" }>["reason"];
 import { z } from "zod";
@@ -16,6 +20,41 @@ export const docAppendMessage = z.object({
   matchSeqNum: z.number().int().nonnegative().optional(),
 });
 export type DocAppendMessage = z.infer<typeof docAppendMessage>;
+
+/** Where someone's cursor is in the file they edit (`@omni/contracts`, `storageDocEventSchema`). */
+export const docPresenceMessage = z.object({
+  type: z.literal("doc.presence"),
+  nodeId: z.string().min(1).max(64),
+  u: z.base64().max(STORAGE_DOC_PRESENCE_MAX),
+});
+export type DocPresenceMessage = z.infer<typeof docPresenceMessage>;
+
+/** The longest `doc.presence` message, envelope and all. */
+export const MAX_PRESENCE_MESSAGE = STORAGE_DOC_PRESENCE_MAX + 256;
+
+/**
+ * Passes a cursor on to the others editing the same file, as it is, and keeps nothing. Only from a
+ * socket that is editing that file, whose access `doc.append` and `file.presence` keep checked.
+ */
+export function onDocPresence(
+  ctx: DurableObjectState,
+  socket: WebSocket,
+  message: DocPresenceMessage,
+) {
+  const at = editingOf(socket);
+  if (at?.nodeId !== message.nodeId || at.locked) return;
+  const event = JSON.stringify({
+    type: "doc.presence",
+    nodeId: message.nodeId,
+    u: message.u,
+  } satisfies StorageDocEvent);
+  for (const other of audience(ctx, at)) {
+    if (other === socket || editingOf(other)?.nodeId !== message.nodeId) continue;
+    try {
+      other.send(event);
+    } catch {}
+  }
+}
 
 /** The stream of a file's live document. */
 export const docStream = (nodeId: string) => `docs/${nodeId}`;

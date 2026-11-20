@@ -54,7 +54,8 @@ export type RealtimeClientMessage =
       ref: number;
       record: StorageLiveRecord;
       matchSeqNum?: number;
-    };
+    }
+  | { type: "doc.presence"; nodeId: string; u: string };
 
 export interface RealtimeOptions {
   /** The Worker's origin; the socket is `/api/realtime` on it. */
@@ -214,6 +215,9 @@ export function connectRealtime(options: RealtimeOptions) {
   } satisfies Realtime;
 }
 
+/** `STORAGE_DOC_PRESENCE_MAX` in `@omni/contracts`, without pulling its schemas in. */
+export const DOC_PRESENCE_MAX = 4096;
+
 const parseEvent: (data: string) => RealtimeEvent | undefined = (data) => {
   let value: unknown;
   try {
@@ -370,6 +374,11 @@ const parseStorageEvent: (
       const record = parseLiveRecord(event.record);
       if (!isSeqNum(seqNum) || !record) return;
       return { type: "doc.record", nodeId, seqNum, record };
+    }
+    case "doc.presence": {
+      const { u } = event;
+      if (typeof u !== "string" || u.length > DOC_PRESENCE_MAX) return;
+      return { type: "doc.presence", nodeId, u };
     }
   }
   return undefined;

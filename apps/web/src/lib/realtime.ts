@@ -30,7 +30,10 @@ let sockets = new Map<string, Realtime>();
 const openListeners = new Set<(orgId: string) => void>();
 type MergedEvent = Extract<RealtimeEvent, { type: "merged" }>;
 const mergeListeners = new Set<(event: MergedEvent) => void>();
-type DocEvent = Extract<RealtimeEvent, { type: "doc.record" | "doc.appended" | "doc.refused" }>;
+type DocEvent = Extract<
+  RealtimeEvent,
+  { type: "doc.record" | "doc.appended" | "doc.refused" | "doc.presence" }
+>;
 const docListeners = new Set<(event: DocEvent) => void>();
 const listeners = new Set<() => void>();
 

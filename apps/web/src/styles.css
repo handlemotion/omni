@@ -89,6 +89,16 @@
   --chart-3: color-mix(in oklab, var(--primary) 60%, white);
   --chart-4: color-mix(in oklab, var(--primary) 40%, white);
   --chart-5: color-mix(in oklab, var(--primary) 20%, white);
+  /* Someone else's cursor in a doc, and the tag with their name: one hue per person, each deep
+     enough for white text on it (about 4.5:1) and clear apart from the others. Hex: the editor's
+     cursors take no other colour format. */
+  --collaborator-1: #cc272e;
+  --collaborator-2: #0a7e3a;
+  --collaborator-3: #634ecf;
+  --collaborator-4: #b15300;
+  --collaborator-5: #007a8f;
+  --collaborator-6: #b0288f;
+  --collaborator-foreground: #ffffff;
 
   /* Status colors: not designed yet, Intent UI defaults until they are. */
   --danger: #ef2a51; /* The onboarding reference's red, more saturated. */
@@ -184,6 +194,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-collaborator-foreground: var(--collaborator-foreground);
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-foreground);
   --color-danger-subtle: var(--danger-subtle);

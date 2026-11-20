@@ -87,6 +87,9 @@ test("two editors on one Markdown file see each other's typing, and the page is 
   for (const page of [ana, bo]) {
     expect((await pageText(page)).match(/Start/g)).toHaveLength(1);
   }
+  for (const page of [ana, bo]) {
+    await page.locator(".collaboration-carets__caret").first().waitFor({ timeout: 15_000 });
+  }
 
   const id = new URL(ana.url()).searchParams.get("file") ?? "";
   await expect
@@ -96,6 +99,11 @@ test("two editors on one Markdown file see each other's typing, and the page is 
       { timeout: 20_000 },
     )
     .toMatch(/^# Notes\n\nStart\n\nFrom Ana\n\nFrom Bo\n*$/);
+
+  await bo.getByRole("button", { name: "Close", exact: true }).click();
+  await expect
+    .poll(() => ana.locator(".collaboration-carets__caret").count(), { timeout: 15_000 })
+    .toBe(0);
 });
 
 const pageText = (page: Page) => page.locator("[contenteditable=true]").innerText();
@@ -140,6 +148,19 @@ test("New doc opens an empty page, and blocks picked from / are saved as Markdow
       { timeout: 20_000 },
     )
     .toMatch(/^# Plan\n\n- \[ \] Ship it\n+\| Who\s*\|/);
+
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("Last words");
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect.poll(() => body.count()).toBe(0);
+  expect(await page.getByRole("alertdialog").count()).toBe(0);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async (at) => (await fetch(at)).text(), `/api/storage/files/${id}/content`),
+      { timeout: 20_000 },
+    )
+    .toContain("Last words");
   await own.close();
 });
 

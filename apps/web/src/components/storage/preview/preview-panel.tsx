@@ -13,7 +13,7 @@ import {
   SettingsRowMenu,
   type SettingsRowMenuItem,
 } from "@/components/settings/kit/settings-row-menu";
-import { PageNav } from "@/components/shell/page-nav";
+import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import { Button } from "@/components/ui/button";
 import {
   DescriptionDetails,
@@ -74,12 +74,11 @@ export function PreviewPanel(props: {
   const session = useEditSession(node, props.url, props.shareId);
   const canEdit = props.canWrite && canEditFile(node) && !shown;
   const doc = canEdit && isDoc(node);
+  const inset = useHeaderInset(props.fullScreen, props.shell);
   useAlwaysEditing(session, doc);
   return (
     <section aria-label={node.name} className="flex min-w-0 flex-1 flex-col bg-background">
-      <div
-        className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${props.fullScreen ? "ps-2.5" : "border-s ps-5"}`}
-      >
+      <div className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${inset}`}>
         {props.fullScreen && props.shell && <PageNav />}
         <Title node={node} rename={props.rename} />
         <div className="flex shrink-0 items-center gap-1">
@@ -195,6 +194,7 @@ function EditActions(props: { session: EditSession; canEdit: boolean; doc: boole
       )
     );
   }
+  if (props.doc && session.live) return null;
   return (
     <>
       <Button
@@ -213,6 +213,12 @@ function EditActions(props: { session: EditSession; canEdit: boolean; doc: boole
       )}
     </>
   );
+}
+
+function useHeaderInset(fullScreen: boolean, shell: boolean) {
+  const nav = usePageNavShown() && shell;
+  if (!fullScreen) return "border-s ps-5";
+  return nav ? "ps-2.5" : "ps-5";
 }
 
 function useAlwaysEditing(session: EditSession, doc: boolean) {

@@ -1,4 +1,10 @@
-import type { RealtimeClientMessage, RealtimeEvent } from "@omni/client";
+import { DOC_PRESENCE_MAX, type RealtimeClientMessage, type RealtimeEvent } from "@omni/client";
+import {
+  applyAwarenessUpdate,
+  Awareness,
+  encodeAwarenessUpdate,
+  removeAwarenessStates,
+} from "y-protocols/awareness";
 import * as Y from "yjs";
 import { api, call } from "./api.ts";
 import { onDocEvent, onRealtimeOpen, sendRealtime } from "./realtime.ts";
@@ -7,6 +13,7 @@ type StorageDocEvent = Extract<
   RealtimeEvent,
   { type: "doc.record" | "doc.appended" | "doc.refused" }
 >;
+type AwarenessChange = { added: number[]; updated: number[]; removed: number[] };
 type StorageLiveRecord = Extract<RealtimeClientMessage, { type: "doc.append" }>["record"];
 interface StorageLiveEntry {
   seqNum: number;
@@ -90,6 +97,8 @@ export async function openLiveDoc(options: LiveDocOptions) {
 
 export class LiveDoc {
   readonly doc = new Y.Doc();
+  /** Who else is in the document and where their cursor is; this tab's own state goes out too. */
+  readonly awareness = new Awareness(this.doc);
   private epoch = -1;
   private known = new Set<number>();
   private next = 0;
@@ -111,6 +120,7 @@ export class LiveDoc {
     this.stops.push(
       onDocEvent((event) => {
         if (event.nodeId !== this.options.nodeId) return;
+        if (event.type === "doc.presence") return this.onPresence(event.u);
         if (event.type !== "doc.record") return this.answers.get(event.ref)?.(event);
         if (this.started) this.onRecord(event.seqNum, event.record);
       }),
@@ -118,6 +128,7 @@ export class LiveDoc {
         if (orgId !== this.options.orgId) return;
         for (const [ref, item] of this.pending) this.transmit(ref, item);
         if (this.started) void this.catchUp();
+        if (this.started) this.announce();
       }),
     );
   }
@@ -167,8 +178,28 @@ export class LiveDoc {
       this.batch.push(update);
       this.timer ??= setTimeout(() => this.flush(), BATCH_MS);
     });
+    this.awareness.on("update", (change: AwarenessChange, origin: unknown) => {
+      if (this.closed) return;
+      if (origin !== REMOTE) return this.sendPresence([this.doc.clientID]);
+      if (change.added.length > 0) this.announce();
+    });
+    let away: Record<string, unknown> | null = null;
+    const leave = () => {
+      away = this.awareness.getLocalState();
+      removeAwarenessStates(this.awareness, [this.doc.clientID], "close");
+    };
+    const back = (event: PageTransitionEvent) => {
+      if (event.persisted && away && !this.closed) this.awareness.setLocalState(away);
+    };
+    window.addEventListener("pagehide", leave);
+    window.addEventListener("pageshow", back);
+    this.stops.push(() => {
+      window.removeEventListener("pagehide", leave);
+      window.removeEventListener("pageshow", back);
+    });
     this.started = true;
     void this.catchUp();
+    this.announce();
     return this;
   }
 
@@ -206,6 +237,8 @@ export class LiveDoc {
   }
 
   close() {
+    if (this.started) removeAwarenessStates(this.awareness, [this.doc.clientID], "close");
+    this.awareness.destroy();
     this.closed = true;
     clearTimeout(this.timer);
     for (const stop of this.stops) stop();
@@ -213,6 +246,23 @@ export class LiveDoc {
       resolve({ type: "doc.refused", nodeId: this.options.nodeId, ref: 0, reason: "unavailable" });
     }
     this.doc.destroy();
+  }
+
+  private onPresence(update: string) {
+    if (!this.started || this.closed) return;
+    try {
+      applyAwarenessUpdate(this.awareness, fromBase64(update), REMOTE);
+    } catch {}
+  }
+
+  private announce() {
+    if (this.awareness.getLocalState()) this.sendPresence([this.doc.clientID]);
+  }
+
+  private sendPresence(clients: number[]) {
+    const u = toBase64(encodeAwarenessUpdate(this.awareness, clients));
+    if (u.length > DOC_PRESENCE_MAX) return;
+    sendRealtime(this.options.orgId, { type: "doc.presence", nodeId: this.options.nodeId, u });
   }
 
   private flush() {
