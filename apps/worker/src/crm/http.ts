@@ -40,6 +40,7 @@ import {
   type NoCrm,
   type NotFound,
   type ReplaceStagesResult,
+  type SignatureOpen,
 } from "@omni/db";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -69,6 +70,7 @@ export type CrmRefusal =
 /** What contracts and record folders add: Storage's refusals to make a folder among them. */
 type FilesRefusal =
   | ContractSigned
+  | SignatureOpen
   | InvalidContract
   | InvalidTransition
   | Exclude<FolderResult, { status: "ok" | "not_found" | "forbidden" | "invalid_name" }>;
@@ -88,6 +90,11 @@ const filesAnswerFor: (refusal: FilesRefusal) => Answer = (refusal) => {
   switch (refusal.status) {
     case "contract_signed":
       return { code: "contract_signed", message: "a signed contract cannot change that" };
+    case "signature_open":
+      return {
+        code: "signature_open",
+        message: "this contract is out for signature: void it first",
+      };
     case "invalid_transition":
       return {
         code: "conflict",
@@ -110,6 +117,7 @@ const filesAnswerFor: (refusal: FilesRefusal) => Answer = (refusal) => {
 
 const FILES_STATUSES = new Set([
   "contract_signed",
+  "signature_open",
   "invalid_transition",
   "invalid_contract",
   "too_deep",
@@ -245,9 +253,23 @@ export const wireDeal = (deal: CrmDeal) =>
     updatedAt: iso(deal.updatedAt),
   }) satisfies WireDeal;
 
-export const wireContract = (contract: CrmContract) =>
+const wireSigning = (signing: CrmContract["signing"]) =>
+  signing && {
+    ...signing,
+    sentAt: iso(signing.sentAt),
+    completedAt: isoOrNull(signing.completedAt),
+    voidedAt: isoOrNull(signing.voidedAt),
+    signers: signing.signers.map((signer) => ({
+      ...signer,
+      viewedAt: isoOrNull(signer.viewedAt),
+      signedAt: isoOrNull(signer.signedAt),
+    })),
+  };
+
+export const wireContract = ({ signatureRequestId: _request, ...contract }: CrmContract) =>
   ({
     ...contract,
+    signing: wireSigning(contract.signing),
     signedAt: isoOrNull(contract.signedAt),
     createdAt: iso(contract.createdAt),
     updatedAt: iso(contract.updatedAt),

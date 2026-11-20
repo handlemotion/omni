@@ -15,6 +15,7 @@ export default function CrmLayout() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="form" options={sheet} />
       <Stack.Screen name="note" options={sheet} />
+      <Stack.Screen name="send-contract" options={sheet} />
     </Stack>
   );
 }

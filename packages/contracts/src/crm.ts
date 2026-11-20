@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { storageNodeSchema } from "./storage.ts";
+import {
+  storageNodeSchema,
+  storageSendForSignatureBodySchema,
+  storageSignatureStatusSchema,
+} from "./storage.ts";
 
 const isoDate = z.iso.datetime();
 const id = z.string().min(1).max(64);
@@ -107,6 +111,26 @@ export const crmContractStatusSchema = z.enum(["draft", "sent", "signed", "ended
 
 const day = z.iso.date();
 
+/** One signer of a contract sent from Omni. `viewedAt` is when they first opened it. */
+export const crmContractSignerSchema = z.object({
+  email: z.string(),
+  name: z.string(),
+  viewedAt: isoDate.nullable(),
+  signedAt: isoDate.nullable(),
+});
+
+/** A contract's Storage signature request, as the CRM shows it (ADR 0037). */
+export const crmContractSigningSchema = z.object({
+  requestId: id,
+  status: storageSignatureStatusSchema,
+  sentAt: isoDate,
+  completedAt: isoDate.nullable(),
+  voidedAt: isoDate.nullable(),
+  /** The sealed copy, as soon as Storage wrote it (before the contract records it). */
+  sealedNodeId: id.nullable(),
+  signers: z.array(crmContractSignerSchema),
+});
+
 export const crmContractSchema = z.object({
   id,
   /** At least one of company and deal; a contract on a deal is also on its company. */
@@ -123,6 +147,10 @@ export const crmContractSchema = z.object({
   createdByMemberId: id.nullable(),
   createdAt: isoDate,
   updatedAt: isoDate,
+  /** The sealed copy with its signature certificate, beside the document, once all signed. */
+  signedNodeId: id.nullable().optional(),
+  /** Where it is with its signers when it went out from Omni; null when sent by hand. */
+  signing: crmContractSigningSchema.nullable().optional(),
 });
 
 /** A thread the viewer can open, from any of their mailboxes in the session's scope. */
@@ -335,6 +363,13 @@ export const crmUpdateContractBodySchema = z.object({
   expiresOn: day.nullable().optional(),
 });
 
+/**
+ * `POST /contracts/:id/send`: a draft whose document is a PDF goes out for signature. Each signer
+ * gets a link, signs with a code mailed to them, and once all signed the contract is `signed`
+ * with a sealed copy beside the document. `POST /contracts/:id/void` takes it back to `draft`.
+ */
+export const crmSendContractBodySchema = storageSendForSignatureBodySchema;
+
 /** `GET /:records/:id/timeline`. */
 export const crmTimelineQuerySchema = z.object({
   cursor: z.string().min(1).max(2048).optional(),
@@ -518,6 +553,9 @@ export type CrmContractStatus = z.infer<typeof crmContractStatusSchema>;
 export type CrmContract = z.infer<typeof crmContractSchema>;
 export type CrmCreateContractBody = z.infer<typeof crmCreateContractBodySchema>;
 export type CrmUpdateContractBody = z.infer<typeof crmUpdateContractBodySchema>;
+export type CrmSendContractBody = z.infer<typeof crmSendContractBodySchema>;
+export type CrmContractSigner = z.infer<typeof crmContractSignerSchema>;
+export type CrmContractSigning = z.infer<typeof crmContractSigningSchema>;
 export type CrmContractResponse = z.infer<typeof crmContractResponseSchema>;
 export type CrmContractListResponse = z.infer<typeof crmContractListResponseSchema>;
 export type CrmFolderResponse = z.infer<typeof crmFolderResponseSchema>;

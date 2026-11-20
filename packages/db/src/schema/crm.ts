@@ -19,7 +19,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import { members, organizations } from "./auth.ts";
-import { storageNodes } from "./storage.ts";
+import { storageNodes, storageSignatureRequests } from "./storage.ts";
 
 const id = () =>
   text("id")
@@ -311,6 +311,10 @@ export const crmContracts = pgTable(
       onDelete: "set null",
     }),
     signedAt: timestamptz("signed_at"),
+    /** The Storage signature request it was sent with from Omni (ADR 0037); null when sent by hand. */
+    signatureRequestId: text("signature_request_id"),
+    /** The sealed copy Storage wrote beside the document once everyone signed. */
+    signedNodeId: folderRef("signed_node_id"),
     effectiveOn: date("effective_on", { mode: "string" }),
     expiresOn: date("expires_on", { mode: "string" }),
     createdByMemberId: memberRef("created_by_member_id"),
@@ -331,6 +335,13 @@ export const crmContracts = pgTable(
     check("crm_contracts_record", sql`num_nonnulls(${t.companyId}, ${t.dealId}) >= 1`),
     index("crm_contracts_company_id_idx").on(t.companyId),
     index("crm_contracts_deal_id_idx").on(t.dealId),
+    foreignKey({
+      name: "crm_contracts_signature_request_fk",
+      columns: [t.signatureRequestId],
+      foreignColumns: [storageSignatureRequests.id],
+    }).onDelete("set null"),
+    index("crm_contracts_signature_request_id_idx").on(t.signatureRequestId),
+    index("crm_contracts_signed_node_id_idx").on(t.signedNodeId),
   ],
 );
 

@@ -47,7 +47,7 @@ mail and the files the workspace already has in Omni.
 | Files on records                    | The record's folder in Shared, plus Drive files linked in place | Previews                                 |
 | An API first, and agents            | Every route typed; MCP tools                                  | Webhooks                                 |
 | A flexible data model               | Fixed columns                                                 | Custom fields as definitions plus JSON   |
-| Contracts and a client's own view   | Stored and tracked                                            | Signed in Omni; the dashboard |
+| Contracts and a client's own view   | Stored, tracked, sent and signed in Omni                      | The client dashboard |
 
 ## Objects
 
@@ -94,6 +94,18 @@ record's folder, as the first upload does.
 then attaches the executed copy and marks it signed. From then the file is locked: it cannot be
 renamed, moved or deleted by anyone but an owner or admin unlocking it first.
 
+**Sign the contract in Omni.** A draft whose file is a PDF is sent for signature from the deal:
+the member names the signers (the deal's people are suggested), and the contract goes out
+through Storage's signing. Each signer gets their own link to `/sign/:id`, which opens that
+one request as them for 30 days with no account (a signed-in person with that address opens it
+too). They read the PDF, accept the consent and sign with a code mailed to them, so a forwarded
+link alone cannot sign. The
+contract shows each signer as waiting, viewed or signed. When the last one signs, Storage seals a
+copy with its signature certificate beside the document, which is in the deal's folder, and the
+CRM's minute job records the contract `signed` with that copy (`signedNodeId`). Voiding takes it
+back to `draft`. A signed contract with an end date shows when it ends within 30 days, and the
+daily job ends it after that date.
+
 ## API
 
 All under `/api/crm` on the Worker, for the active workspace. Shapes live in
@@ -114,6 +126,7 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `POST /companies/:id/folder` · `POST /deals/:id/folder`             | Finds or makes the record's folder and returns its node id. The apps then use `/api/storage` on it.          |
 | `GET /companies/:id/links` · `POST` · `DELETE …/links/:nodeId` (and deals) | Drive files linked where they live. `POST` takes `nodeIds` the member can open now; linking twice is a no-op. |
 | `GET /contracts` · `POST /contracts` · `PATCH /contracts/:id` · `DELETE` | List by `?company=` or `?deal=`. Create. Change status, dates or file. Delete (never a signed one).     |
+| `POST /contracts/:id/send` · `POST /contracts/:id/void`             | Send a draft's PDF to its signers; void the open request (back to draft). `SIGNATURE_OPEN` while it is out.  |
 | `POST /companies/:id/restore` · same for people and deals          | Brings an archived record back.                                                                   |
 | `POST /companies/bulk` · same for people and deals                 | One action (`archive`, `restore`, `delete`, `owner`; deals `stage`) on up to 200 ids, each by its own rules. |
 | `GET /lookup?address=`                                              | Up to 50 addresses. The people, companies and open deals that match, for the conversation sidebar.           |
@@ -141,11 +154,11 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 
 One list, newest first, of four kinds of item:
 
-| Item       | From                                    | Shows                                                    |
-| ---------- | --------------------------------------- | -------------------------------------------------------- |
-| `event`    | `crm_events`                            | Created, stage moved, owner or value changed, people set |
-| `note`     | `crm_notes`                             | The text and its author                                  |
-| `contract` | `crm_events` of a contract              | Created, sent, signed, ended                             |
+| Item       | From                                     | Shows                                                    |
+| ---------- | ---------------------------------------- | -------------------------------------------------------- |
+| `event`    | `crm_events`                             | Created, stage moved, owner or value changed, people set |
+| `note`     | `crm_notes`                              | The text and its author                                  |
+| `contract` | `crm_events` of a contract               | Created, sent, signed, ended                             |
 | `thread`   | Mail, through `forUser(...).threadsWith` | Subject, snippet, mailbox, last message time, its `url`  |
 
 - The addresses asked of Mail are a person's own; for a deal, its people's; for a company, its
@@ -205,11 +218,11 @@ Still out: custom fields, saved views, several pipelines, merging duplicates, im
 
 Three tools on the MCP server, through the same member door:
 
-| Tool         | Scope       | Does                                                                                           |
-| ------------ | ----------- | ---------------------------------------------------------------------------------------------- |
-| `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, stage kind or owner. Compact rows.            |
-| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, recent notes and thread ids.        |
-| `crm_write`  | `crm:write` | Adds or changes a person, company or deal, moves a stage, adds a note. Never deletes.           |
+| Tool         | Scope       | Does                                                                                     |
+| ------------ | ----------- | ---------------------------------------------------------------------------------------- |
+| `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, stage kind or owner. Compact rows.     |
+| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, recent notes and thread ids. |
+| `crm_write`  | `crm:write` | Adds or changes a person, company or deal, moves a stage, adds a note. Never deletes.    |
 
 Thread ids from `crm_fetch` go to the mail `fetch` tool, which applies mail's own access. Note
 text is written by teammates, and names and titles can come from mail: the server's

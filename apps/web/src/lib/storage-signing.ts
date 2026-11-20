@@ -62,6 +62,13 @@ export const signingQuery = (requestId: string) =>
     },
   });
 
+/**
+ * Trades the token from a signing mail's link for a cookie on that one request, so the page
+ * opens without signing in. Throws `ApiError` 404 for a wrong or expired link.
+ */
+export const openSigningLink = (requestId: string, token: string) =>
+  call(signerDoor().link.$post({ param: { id: requestId }, json: { token } }));
+
 /** The document as it was sent, for the preview and the download. */
 export const signingDocumentUrl = (requestId: string) =>
   signerDoor()
@@ -74,24 +81,26 @@ export const signingSealedUrl = (requestId: string) =>
     .sealed.$url({ param: { id: requestId } })
     .toString();
 
-/** `mutate({ requestId })` mails a one-time code to the address the person signs as. */
+/** `mutate({ requestId, signer })` mails a one-time code to `signer`, the address on the page. */
 export const signingCodeMutation = () =>
   mutationOptions({
-    mutationFn: ({ requestId }: { requestId: string }) =>
-      call(signerDoor().code.$post({ param: { id: requestId } })),
+    mutationFn: ({ requestId, signer }: { requestId: string; signer: string }) =>
+      call(signerDoor().code.$post({ param: { id: requestId }, query: { signer } })),
   });
 
-/** `mutate({ requestId, code, typedName, consentVersion })` signs. */
+/** `mutate({ requestId, signer, code, typedName, consentVersion })` signs as `signer`. */
 export const signMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: ({
       requestId,
+      signer,
       ...json
     }: {
       requestId: string;
+      signer: string;
       code: string;
       typedName: string;
       consentVersion: string;
-    }) => call(signerDoor().sign.$post({ param: { id: requestId }, json })),
+    }) => call(signerDoor().sign.$post({ param: { id: requestId }, query: { signer }, json })),
     onSuccess: (answer, { requestId }) => client.setQueryData(keys.signing(requestId), answer),
   });

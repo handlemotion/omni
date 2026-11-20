@@ -143,6 +143,8 @@ export {
 export {
   STORAGE_MAX_SIGNERS,
   STORAGE_PDF_MIME,
+  closedSignatureRequestIds,
+  storageSignatureRequestsById,
   type SendForSignatureResult,
   type SignatureRequestResult,
   type StorageSignatureEvent,
@@ -158,6 +160,11 @@ export {
   type SigningCodeResult,
   type StorageSigningItem,
 } from "./storage/signer.ts";
+export {
+  issueSigningLinks,
+  linkSigner,
+  STORAGE_SIGNING_LINK_TTL_MS,
+} from "./storage/signing-link.ts";
 export {
   recordStorageSeal,
   sealedObject,

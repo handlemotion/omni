@@ -14,6 +14,12 @@ import {
 } from "./crm/companies.ts";
 import { bulkCrm, type CrmBulkAction, type CrmBulkRecords } from "./crm/bulk.ts";
 import {
+  contractToSend,
+  markContractSent,
+  openRequestOf,
+  withdrawContract,
+} from "./crm/contract-signing.ts";
+import {
   createContract,
   deleteContract,
   listContracts,
@@ -107,6 +113,15 @@ export {
   endExpiredContracts,
   type EndedContract,
 } from "./crm/contract-expiry.ts";
+export type { CrmContractSigner, CrmContractSigning } from "./crm/contract-progress.ts";
+export {
+  CONTRACT_SETTLE_BATCH,
+  settleSentContracts,
+  type ContractToSend,
+  type SendRefusal,
+  type SentResult,
+  type SettledContract,
+} from "./crm/contract-signing.ts";
 export {
   changeContract,
   type ContractChange,
@@ -123,7 +138,9 @@ export type {
   ContractPatch,
   ContractResult,
   CrmContract,
+  CrmContractRow,
   ListContractsInput,
+  SignatureOpen,
 } from "./crm/contracts.ts";
 export type { CrmNameCursor, CrmRecordRef, Forbidden, NoCrm, NotFound } from "./crm/core.ts";
 export type {
@@ -254,6 +271,12 @@ export function memberCrm(db: Db, memberId: string) {
     updateContract: (id: string, patch: ContractPatch) =>
       writeAsMember(door, (m, tx) => updateContract(tx, m, id, patch)),
     deleteContract: (id: string) => writeAsMember(door, (m, tx) => deleteContract(tx, m, id)),
+    contractToSend: (id: string) => asMember(door, (m, ex) => contractToSend(ex, m, id)),
+    markContractSent: (id: string, request: Parameters<typeof markContractSent>[3]) =>
+      writeAsMember(door, (m, tx) => markContractSent(tx, m, id, request)),
+    contractOpenRequest: (id: string) => asMember(door, (m, ex) => openRequestOf(ex, m, id)),
+    withdrawContract: (id: string, requestId: string) =>
+      writeAsMember(door, (m, tx) => withdrawContract(tx, m, id, requestId)),
 
     stages: () =>
       asMember(door, async (m, ex) => ({

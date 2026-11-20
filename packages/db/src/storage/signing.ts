@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { organizations } from "../schema/auth.ts";
 import {
@@ -185,6 +185,40 @@ export async function appendSigningEvent(
     ip: origin.ip,
     userAgent: origin.userAgent,
   });
+}
+
+/**
+ * The ids of requests that will not change any more: voided, or completed and sealed. A subquery,
+ * for a caller that only wants rows waiting on one of these.
+ */
+export function closedSignatureRequestIds(ex: Db) {
+  return ex
+    .select({ id: storageSignatureRequests.id })
+    .from(storageSignatureRequests)
+    .where(
+      or(
+        eq(storageSignatureRequests.status, "voided"),
+        and(
+          eq(storageSignatureRequests.status, "completed"),
+          isNotNull(storageSignatureRequests.sealedNodeId),
+        ),
+      ),
+    );
+}
+
+/**
+ * The workspace's requests with these ids, with signers and audit trail, for a module that keeps
+ * its own pointer to a request (a CRM contract). Ids from another workspace are left out.
+ */
+export async function storageSignatureRequestsById(ex: Db, orgId: string, ids: string[]) {
+  if (ids.length === 0) return [] satisfies StorageSignatureRequest[];
+  const rows = await ex
+    .select(requestColumns)
+    .from(storageSignatureRequests)
+    .where(
+      and(eq(storageSignatureRequests.orgId, orgId), inArray(storageSignatureRequests.id, ids)),
+    );
+  return withSigners(ex, rows);
 }
 
 export function signingOperations(db: Db, door: Door, memberId: string) {

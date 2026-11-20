@@ -1,7 +1,7 @@
 import type { BillingConfig, ModuleLifecycle } from "@omni/auth";
 import { deleteWorkspaceStorage, handOverMemberStorage, type Db } from "@omni/db";
 import type Stripe from "stripe";
-import { crmDaily } from "./crm/jobs.ts";
+import { crmDaily, crmMinute } from "./crm/jobs.ts";
 import { mailMinute } from "./mail/jobs.ts";
 import { notePaymentMethod } from "./storage/billing.ts";
 import { abortExpiredStorageUploads, storageDaily } from "./storage/jobs.ts";
@@ -35,6 +35,7 @@ const storage: Module = {
 
 const crm: Module = {
   name: "crm",
+  minute: crmMinute,
   daily: crmDaily,
 };
 

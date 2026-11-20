@@ -60,7 +60,7 @@ export type SignResult =
 
 const NOT_FOUND = { status: "not_found" } as const;
 
-async function sha256Hex(text: string) {
+export async function sha256Hex(text: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -148,8 +148,22 @@ async function itemOf(ex: Db, requestId: string, addresses: string[]) {
   return (await items(ex, rows, addresses))[0] ?? null;
 }
 
+/** Finds the person's place in one request: the request, their signer row, their addresses. */
+export type FindSigner = (
+  ex: Db,
+  requestId: string,
+  forUpdate?: boolean,
+) => Promise<{
+  request: StorageSignatureRequestRow;
+  signer: StorageSignerRow;
+  addresses: string[];
+} | null>;
+
+type StorageSignatureRequestRow = NonNullable<Awaited<ReturnType<typeof loadRequest>>>;
+type StorageSignerRow = typeof storageSigners.$inferSelect;
+
 export function signerOperations(db: Db, userId: string, scopeOrgId?: string | null) {
-  async function mySigner(ex: Db, requestId: string, forUpdate = false) {
+  const mySigner: FindSigner = async (ex, requestId, forUpdate = false) => {
     const addresses = await grantAddresses(ex, userId, scopeOrgId);
     if (addresses.length === 0) return null;
     const request = await loadRequest(ex, requestId, forUpdate);
@@ -161,7 +175,7 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
       .orderBy(sql`${storageSigners.signedAt} is not null`, storageSigners.id)
       .limit(1);
     return signer ? { request, signer, addresses } : null;
-  }
+  };
 
   return {
     async toSign() {
@@ -178,6 +192,16 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
       return items(db, rows, addresses) satisfies Promise<StorageSigningItem[]>;
     },
 
+    ...signerActions(db, mySigner, userId),
+  };
+}
+
+/**
+ * What a signer does on one request, whoever found them: a signed-in user by their addresses, or
+ * a signing link by its signer. `userId` is recorded on the signature when there is one.
+ */
+export function signerActions(db: Db, mySigner: FindSigner, userId: string | null) {
+  return {
     async signingRequest(requestId: string) {
       const found = await mySigner(db, requestId);
       if (!found) return null;

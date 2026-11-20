@@ -132,6 +132,12 @@ export const crmContractsQuery = (where: { company: string } | { deal: string })
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.nextCursor,
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((page) =>
+        page.contracts.some((contract) => contract.signing?.status === "sent"),
+      )
+        ? 15_000
+        : false,
   });
 
 /** People, companies and deals whose name, address or domain starts with `q` (pickers). */

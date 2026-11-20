@@ -2,6 +2,8 @@ import {
   STORAGE_SIGNING_CONSENT,
   storageSendForSignatureBodySchema,
   storageSignBodySchema,
+  storageSigningLinkBodySchema,
+  storageSignerQuerySchema,
   type StorageSignatureRequest as WireRequest,
   type StorageSignatureRequestResponse,
   type StorageSignatureRequestsResponse,
@@ -12,12 +14,16 @@ import {
 } from "@omni/contracts";
 import {
   forUser,
+  issueSigningLinks,
+  linkSigner,
   STORAGE_PDF_MIME,
+  STORAGE_SIGNING_LINK_TTL_MS,
   type StorageSignatureRequest,
   type StorageSigningItem,
   type StorageSigningOrigin,
 } from "@omni/db";
 import { Hono, type Context } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { resolveSession, systemMailSender, type AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
@@ -90,72 +96,93 @@ function refusedSigning(
   return apiError(c, code, message);
 }
 
-const signingUrl = (c: Context<AppEnv>, requestId: string) =>
-  new URL(`/sign/${requestId}`, c.var.config.auth.webAppURL).toString();
+const signingUrl = (c: Context<AppEnv>, requestId: string, token: string) =>
+  new URL(`/sign/${requestId}#t=${token}`, c.var.config.auth.webAppURL).toString();
 
 function sendMail(c: Context<AppEnv>, message: { to: string; subject: string; text: string }) {
   const { config, log } = c.var;
   return systemMailSender({ email: c.env.EMAIL, config, log })(message);
 }
 
+type SendOutcome =
+  | { ok: true; request: StorageSignatureRequest }
+  | { ok: false; response: Response };
+
+/**
+ * Sends one Shared PDF for signature as the member: hashes it, locks it, records the request and
+ * mails each signer their link. A failed mail voids the request again. CRM contracts go out
+ * through this too, so a contract's signers get the same mail and the same signing page.
+ */
+export async function sendFileForSignature(
+  c: Context<AppEnv>,
+  fileId: string,
+  signers: { email: string; name: string }[],
+) {
+  const { config, member, user } = c.var;
+  const files = memberStorage(c);
+  const fail = (response: Response) => ({ ok: false, response }) satisfies SendOutcome;
+  const found = await files.file(fileId);
+  if (found.status !== "ok") return fail(refused(c, found.status));
+  if (found.file.mimeType !== STORAGE_PDF_MIME) return fail(refusedSigning(c, "not_a_pdf"));
+  const wait = await checkRateLimit(c.env, config, "storageShare", member.id, signers.length);
+  if (wait) return fail(tooManyRequests(c, wait, "storageShare"));
+
+  const hashed = await hashObject(c.env.STORAGE_BUCKET, found.r2Key);
+  if (!hashed) return fail(refused(c, "not_found"));
+  if (!hashed.isPdf) return fail(refusedSigning(c, "not_a_pdf"));
+  const origin = originOf(c, user.email);
+  const sent = await files.sendForSignature(found.file.id, {
+    contentVersion: found.file.contentVersion,
+    sha256: hashed.sha256,
+    signers,
+    origin,
+  });
+  if (sent.status !== "ok") return fail(refusedSigning(c, sent.status));
+  announceDrives(c, [sent.node]);
+
+  const { request, node, workspaceName } = sent;
+  const appName = config.auth.appName;
+  if (!config.SYSTEM_MAIL_FROM) {
+    c.var.log.warn("storage.signing_mail_skipped", { reason: "SYSTEM_MAIL_FROM is not set" });
+    return { ok: true, request } satisfies SendOutcome;
+  }
+  try {
+    const links = await issueSigningLinks(c.var.db, request.id);
+    for (const signer of links) {
+      await sendMail(c, {
+        to: signer.email,
+        subject: `${workspaceName} asks you to sign "${node.name}"`,
+        text: [
+          `${user.email}, of ${workspaceName}, sent you "${node.name}" to sign on ${appName}.`,
+          "",
+          "Open this link to read and sign it:",
+          "",
+          signingUrl(c, request.id, signer.token),
+          "",
+          "The link is yours alone: it opens this document as you. If you did not expect it, ignore this email.",
+        ].join("\n"),
+      });
+    }
+  } catch (error) {
+    await files.voidSignature(request.id, origin);
+    throw error;
+  }
+  return { ok: true, request } satisfies SendOutcome;
+}
+
+/** Voids an open request as the member, for the audit trail. */
+export const voidSignatureRequest = (c: Context<AppEnv>, requestId: string) =>
+  memberStorage(c).voidSignature(requestId, originOf(c, c.var.user.email));
+
 export const storageSigningMember = new Hono<AppEnv>()
   .post(
     "/files/:id/signatures",
     zValidator("json", storageSendForSignatureBodySchema),
     async (c) => {
-      const { signers } = c.req.valid("json");
-      const { config, member, user } = c.var;
-      const files = memberStorage(c);
-      const found = await files.file(c.req.param("id"));
-      if (found.status !== "ok") return refused(c, found.status);
-      if (found.file.mimeType !== STORAGE_PDF_MIME) return refusedSigning(c, "not_a_pdf");
-      const wait = await checkRateLimit(c.env, config, "storageShare", member.id, signers.length);
-      if (wait) return tooManyRequests(c, wait, "storageShare");
-
-      const hashed = await hashObject(c.env.STORAGE_BUCKET, found.r2Key);
-      if (!hashed) return refused(c, "not_found");
-      if (!hashed.isPdf) return refusedSigning(c, "not_a_pdf");
-      const origin = originOf(c, user.email);
-      const sent = await files.sendForSignature(found.file.id, {
-        contentVersion: found.file.contentVersion,
-        sha256: hashed.sha256,
-        signers,
-        origin,
-      });
-      if (sent.status !== "ok") return refusedSigning(c, sent.status);
-      announceDrives(c, [sent.node]);
-
-      const { request, node, workspaceName } = sent;
-      const appName = config.auth.appName;
-      if (!config.SYSTEM_MAIL_FROM) {
-        c.var.log.warn("storage.signing_mail_skipped", { reason: "SYSTEM_MAIL_FROM is not set" });
-        return c.json(
-          { request: wireRequest(request) } satisfies StorageSignatureRequestResponse,
-          201,
-        );
-      }
-      try {
-        for (const signer of request.signers) {
-          await sendMail(c, {
-            to: signer.email,
-            subject: `${workspaceName} asks you to sign "${node.name}"`,
-            text: [
-              `${user.email}, of ${workspaceName}, sent you "${node.name}" to sign on ${appName}.`,
-              "",
-              "Open this link to read and sign it:",
-              "",
-              signingUrl(c, request.id),
-              "",
-              `Sign in with ${signer.email} to open it. If you did not expect it, ignore this email.`,
-            ].join("\n"),
-          });
-        }
-      } catch (error) {
-        await files.voidSignature(request.id, origin);
-        throw error;
-      }
+      const sent = await sendFileForSignature(c, c.req.param("id"), c.req.valid("json").signers);
+      if (!sent.ok) return sent.response;
       return c.json(
-        { request: wireRequest(request) } satisfies StorageSignatureRequestResponse,
+        { request: wireRequest(sent.request) } satisfies StorageSignatureRequestResponse,
         201,
       );
     },
@@ -187,19 +214,54 @@ const signedIn = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
-const signerDoor = (c: Context<AppEnv>) =>
-  forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).storage;
+const SIGNING_COOKIE = "omni_signing";
+const signingCookiePath = (requestId: string) =>
+  `/api/storage/signing/${encodeURIComponent(requestId)}`;
+
+type SignerDoor = NonNullable<Awaited<ReturnType<typeof linkSigner>>>;
+type Signer = NonNullable<Awaited<ReturnType<typeof signerOf>>>;
+
+async function signerOf(c: Context<AppEnv>, requestId: string) {
+  const token = getCookie(c, SIGNING_COOKIE);
+  const linked = token ? await linkSigner(c.var.db, requestId, token) : null;
+  if (linked) return { door: linked satisfies SignerDoor, actor: `link:${requestId}`, email: "" };
+  const session = await resolveSession(c);
+  if (!session) return null;
+  const { user } = session;
+  const door: SignerDoor = forUser(c.var.db, user.id, user.scopeOrgId).storage;
+  return { door, actor: user.id, email: user.email };
+}
+
+async function showsOtherSigner(signer: Signer, requestId: string, shown: string | undefined) {
+  if (!shown) return false;
+  const item = await signer.door.signingRequest(requestId);
+  return !!item && item.me.email.toLowerCase() !== shown.trim().toLowerCase();
+}
 
 export const storageSigning = new Hono<AppEnv>()
-  .use(signedIn)
-
-  .get("/", async (c) => {
-    const items = await signerDoor(c).toSign();
+  .get("/", signedIn, async (c) => {
+    const items = await forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).storage.toSign();
     return c.json({ items: items.map(wireItem) } satisfies StorageSigningListResponse);
   })
 
+  .post("/:id/link", zValidator("json", storageSigningLinkBodySchema), async (c) => {
+    const requestId = c.req.param("id");
+    const { token } = c.req.valid("json");
+    if (!(await linkSigner(c.var.db, requestId, token))) return refused(c, "not_found");
+    setCookie(c, SIGNING_COOKIE, token, {
+      path: signingCookiePath(requestId),
+      httpOnly: true,
+      secure: new URL(c.req.url).protocol === "https:",
+      sameSite: "Lax",
+      expires: new Date(Date.now() + STORAGE_SIGNING_LINK_TTL_MS),
+    });
+    return c.body(null, 204);
+  })
+
   .get("/:id", async (c) => {
-    const item = await signerDoor(c).signingRequest(c.req.param("id"));
+    const signer = await signerOf(c, c.req.param("id"));
+    if (!signer) return apiError(c, "unauthorized", "sign in first");
+    const item = await signer.door.signingRequest(c.req.param("id"));
     if (!item) return refused(c, "not_found");
     return c.json({
       item: wireItem(item),
@@ -207,23 +269,34 @@ export const storageSigning = new Hono<AppEnv>()
     } satisfies StorageSigningItemResponse);
   })
 
-  .get("/:id/sealed", async (c) => download(c, await signerDoor(c).sealedFile(c.req.param("id"))))
-
-  .get("/:id/content", async (c) => {
-    const origin = originOf(c, c.var.user.email);
-    return download(c, await signerDoor(c).signingFile(c.req.param("id"), origin));
+  .get("/:id/sealed", async (c) => {
+    const signer = await signerOf(c, c.req.param("id"));
+    if (!signer) return apiError(c, "unauthorized", "sign in first");
+    return download(c, await signer.door.sealedFile(c.req.param("id")));
   })
 
-  .post("/:id/code", async (c) => {
-    const { config, user } = c.var;
+  .get("/:id/content", async (c) => {
+    const signer = await signerOf(c, c.req.param("id"));
+    if (!signer) return apiError(c, "unauthorized", "sign in first");
+    const origin = originOf(c, signer.email);
+    return download(c, await signer.door.signingFile(c.req.param("id"), origin));
+  })
+
+  .post("/:id/code", zValidator("query", storageSignerQuerySchema), async (c) => {
+    const { config } = c.var;
+    const signer = await signerOf(c, c.req.param("id"));
+    if (!signer) return apiError(c, "unauthorized", "sign in first");
+    if (await showsOtherSigner(signer, c.req.param("id"), c.req.valid("query").signer)) {
+      return apiError(c, "signer_changed", "this page is open as another signer: reload it");
+    }
     if (!config.SYSTEM_MAIL_FROM) {
       return apiError(c, "unprocessable_entity", "this install sends no mail to send a code with");
     }
-    const wait = await checkRateLimit(c.env, config, "storageShare", `signing:${user.id}`);
+    const wait = await checkRateLimit(c.env, config, "storageShare", `signing:${signer.actor}`);
     if (wait) return tooManyRequests(c, wait, "storageShare");
-    const started = await signerDoor(c).startSigningCode(
+    const started = await signer.door.startSigningCode(
       c.req.param("id"),
-      originOf(c, user.email),
+      originOf(c, signer.email),
     );
     if (started.status !== "ok") return refusedSigning(c, started.status);
     await sendMail(c, {
@@ -242,23 +315,33 @@ export const storageSigning = new Hono<AppEnv>()
     } satisfies StorageSigningCodeResponse);
   })
 
-  .post("/:id/sign", zValidator("json", storageSignBodySchema), async (c) => {
-    const { code, typedName, consentVersion } = c.req.valid("json");
-    if (consentVersion !== STORAGE_SIGNING_CONSENT.version) {
-      return apiError(c, "consent_changed", "the consent sentence changed: read it again");
-    }
-    const signed = await signerDoor(c).sign(c.req.param("id"), {
-      code,
-      typedName,
-      consentVersion,
-      origin: originOf(c, c.var.user.email),
-    });
-    if (signed.status !== "ok") return refusedSigning(c, signed.status);
-    if (signed.completed) {
-      sealAfterResponse(c, signed.item.id, (node) => announceDrives(c, [node]));
-    }
-    return c.json({
-      item: wireItem(signed.item),
-      consent: STORAGE_SIGNING_CONSENT,
-    } satisfies StorageSigningItemResponse);
-  });
+  .post(
+    "/:id/sign",
+    zValidator("query", storageSignerQuerySchema),
+    zValidator("json", storageSignBodySchema),
+    async (c) => {
+      const signer = await signerOf(c, c.req.param("id"));
+      if (!signer) return apiError(c, "unauthorized", "sign in first");
+      if (await showsOtherSigner(signer, c.req.param("id"), c.req.valid("query").signer)) {
+        return apiError(c, "signer_changed", "this page is open as another signer: reload it");
+      }
+      const { code, typedName, consentVersion } = c.req.valid("json");
+      if (consentVersion !== STORAGE_SIGNING_CONSENT.version) {
+        return apiError(c, "consent_changed", "the consent sentence changed: read it again");
+      }
+      const signed = await signer.door.sign(c.req.param("id"), {
+        code,
+        typedName,
+        consentVersion,
+        origin: originOf(c, signer.email),
+      });
+      if (signed.status !== "ok") return refusedSigning(c, signed.status);
+      if (signed.completed) {
+        sealAfterResponse(c, signed.item.id, (node) => announceDrives(c, [node]));
+      }
+      return c.json({
+        item: wireItem(signed.item),
+        consent: STORAGE_SIGNING_CONSENT,
+      } satisfies StorageSigningItemResponse);
+    },
+  );

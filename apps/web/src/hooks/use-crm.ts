@@ -29,6 +29,8 @@ import {
   createNoteMutation,
   createPersonMutation,
   deleteContractMutation,
+  sendContractMutation,
+  voidContractMutation,
   deleteNoteMutation,
   moveDealMutation,
   putStagesMutation,
@@ -219,6 +221,14 @@ export function useCreateContract() {
 
 export function useUpdateContract() {
   return useMutation(updateContractMutation(useQueryClient()));
+}
+
+export function useSendContract() {
+  return useMutation(sendContractMutation(useQueryClient()));
+}
+
+export function useVoidContract() {
+  return useMutation(voidContractMutation(useQueryClient()));
 }
 
 export function useDeleteContract() {

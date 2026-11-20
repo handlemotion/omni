@@ -23,6 +23,9 @@ export type PersonChange = Json<InferRequestType<Crm["people"][":id"]["$patch"]>
 export type DealChange = Json<InferRequestType<Crm["deals"][":id"]["$patch"]>>;
 export type NewContract = Json<InferRequestType<Crm["contracts"]["$post"]>>;
 export type ContractChange = Json<InferRequestType<Crm["contracts"][":id"]["$patch"]>>;
+export type ContractSigners = Json<
+  InferRequestType<Crm["contracts"][":id"]["send"]["$post"]>
+>["signers"];
 export type StageInput = Json<InferRequestType<Crm["stages"]["$put"]>>["stages"][number];
 
 const settle = (client: QueryClient) => ({ onSettled: () => crmChanged(client) });
@@ -243,6 +246,23 @@ export const updateContractMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, ...json }: ContractChange & { id: string }) =>
       call(api.crm.contracts[":id"].$patch({ param: { id }, json })),
+    onSettled: () => Promise.all([crmChanged(client), storageChanged(client)]),
+  });
+
+/** Sends a draft's PDF to its signers; the file locks, so Storage refetches too. */
+export const sendContractMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: ({ id, signers }: { id: string; signers: ContractSigners }) =>
+      call(api.crm.contracts[":id"].send.$post({ param: { id }, json: { signers } })),
+    onSettled: () => Promise.all([crmChanged(client), storageChanged(client)]),
+  });
+
+/** Voids the open signature request; the contract is a draft again. */
+export const voidContractMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: (id: string) => call(api.crm.contracts[":id"].void.$post({ param: { id } })),
     onSettled: () => Promise.all([crmChanged(client), storageChanged(client)]),
   });
 

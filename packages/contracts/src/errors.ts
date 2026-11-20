@@ -112,6 +112,8 @@ export const ERROR_CODES = {
   invalid_code: spec(400, "validation"),
   /** The consent sentence changed since the signer read it: show it again. */
   consent_changed: spec(409, "conflict"),
+  /** This browser now opens the request as another signer (a second link was opened): reload. */
+  signer_changed: spec(409, "conflict"),
   /** A sync cursor older than tombstone retention: enumerate the drive again from the start. */
   cursor_expired: spec(410, "not_found"),
   /** A Personal space has no CRM. */

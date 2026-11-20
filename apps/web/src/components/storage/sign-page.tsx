@@ -90,6 +90,7 @@ function SignForm(props: {
   requestId: string;
 }) {
   const { requestId, consent } = props;
+  const signer = props.item.me.email;
   const [name, setName] = useState(props.item.me.name);
   const [agreed, setAgreed] = useState(false);
   const [code, setCode] = useState("");
@@ -104,7 +105,7 @@ function SignForm(props: {
         event.preventDefault();
         if (!typedName || !agreed || code.trim().length !== 6) return;
         sign.mutate(
-          { requestId, code: code.trim(), typedName, consentVersion: consent.version },
+          { requestId, signer, code: code.trim(), typedName, consentVersion: consent.version },
           { onError: (error) => storageErrorToast(error, "It was not signed") },
         );
       }}
@@ -137,7 +138,7 @@ function SignForm(props: {
         isPending={mailCode.isPending}
         onPress={() =>
           mailCode.mutate(
-            { requestId },
+            { requestId, signer },
             {
               onSuccess: () => setCode(""),
               onError: (error) => storageErrorToast(error, "The code was not sent"),

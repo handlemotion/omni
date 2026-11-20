@@ -79,7 +79,7 @@ test("a sent PDF is locked and hashed, each signer signs by mailed code, and the
 
   const [invite, ...more] = await sentMail(stack.worker, bob);
   expect(more).toEqual([]);
-  expect(invite!.text).toContain(`${WEB_ORIGIN}/sign/${requestId}\n`);
+  expect(invite!.text).toMatch(new RegExp(`${WEB_ORIGIN}/sign/${requestId}#t=[\\w-]{43}\\n`));
 
   const eve = await signedIn(address("eve"));
   expect((await stack.api(eve, "GET", `/signing/${requestId}`)).status).toBe(404);

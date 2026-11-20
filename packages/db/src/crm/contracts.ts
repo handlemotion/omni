@@ -11,6 +11,7 @@ import {
   type InvalidContract,
   type InvalidTransition,
 } from "./contract-status.ts";
+import { withSigning, type CrmContractSigning } from "./contract-progress.ts";
 import {
   appendEvent,
   NOT_FOUND,
@@ -34,13 +35,24 @@ export interface CrmContract {
   /** A file in Shared; null when none was attached, or its draft file was purged from Trash. */
   documentNodeId: string | null;
   signedAt: Date | null;
+  /** The Storage signature request it went out with from Omni; null when sent by hand. */
+  signatureRequestId: string | null;
+  /** The sealed copy, with its signature certificate, beside the document. */
+  signedNodeId: string | null;
   /** `YYYY-MM-DD`. */
   effectiveOn: string | null;
   expiresOn: string | null;
   createdByMemberId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  signing: CrmContractSigning | null;
 }
+
+/** A contract row, before its signing progress is read from Storage. */
+export type CrmContractRow = Omit<CrmContract, "signing">;
+
+/** Out for signature from Omni: void the request instead of changing it by hand. */
+export type SignatureOpen = { status: "signature_open" };
 
 export interface ContractInput {
   title: string;
@@ -66,7 +78,8 @@ export type ContractResult =
   | NotFound
   | ContractSigned
   | InvalidTransition
-  | InvalidContract;
+  | InvalidContract
+  | SignatureOpen;
 
 export type ListContractsInput = ({ companyId: string } | { dealId: string }) & {
   cursor?: CrmTimelineCursor | null;
@@ -77,7 +90,7 @@ export type ContractListResult =
   | { status: "ok"; contracts: CrmContract[]; nextCursor: CrmTimelineCursor | null }
   | NotFound;
 
-const contractColumns = {
+export const contractColumns = {
   id: crmContracts.id,
   companyId: crmContracts.companyId,
   dealId: crmContracts.dealId,
@@ -85,6 +98,8 @@ const contractColumns = {
   status: crmContracts.status,
   documentNodeId: crmContracts.documentNodeId,
   signedAt: crmContracts.signedAt,
+  signatureRequestId: crmContracts.signatureRequestId,
+  signedNodeId: crmContracts.signedNodeId,
   effectiveOn: crmContracts.effectiveOn,
   expiresOn: crmContracts.expiresOn,
   createdByMemberId: crmContracts.createdByMemberId,
@@ -119,10 +134,16 @@ const eventRecord = (contract: { dealId: string | null; companyId: string | null
   return result;
 };
 
-async function contractEvent(
+/** The contract as callers see it, with its signing progress. */
+export async function withProgress(ex: Ex, orgId: string, row: CrmContractRow) {
+  const [contract] = await withSigning(ex, orgId, [row]);
+  return contract! satisfies CrmContract;
+}
+
+export async function contractEvent(
   tx: Ex,
   member: CrmMember,
-  contract: CrmContract,
+  contract: CrmContractRow,
   kind: CrmEventKind,
   data: Record<string, unknown> = {},
 ) {
@@ -134,7 +155,7 @@ async function contractEvent(
   });
 }
 
-async function loadContract(ex: Ex, orgId: string, id: string, lock = false) {
+export async function loadContract(ex: Ex, orgId: string, id: string, lock = false) {
   const query = ex
     .select(contractColumns)
     .from(crmContracts)
@@ -183,7 +204,7 @@ export const listContracts: (
     .where(and(eq(crmContracts.orgId, member.orgId), column, older))
     .orderBy(desc(crmContracts.createdAt), desc(crmContracts.id))
     .limit(limit + 1);
-  const contracts = rows.slice(0, limit);
+  const contracts = await withSigning(ex, member.orgId, rows.slice(0, limit));
   const last = contracts.at(-1);
   return {
     status: "ok",
@@ -237,10 +258,10 @@ export const createContract: (
     })
     .returning(contractColumns);
   await contractEvent(tx, member, contract!, "contract_created", { documentNodeId });
-  return { status: "ok", contract: contract! };
+  return { status: "ok", contract: await withProgress(tx, member.orgId, contract!) };
 };
 
-function fieldsOf(current: CrmContract, patch: ContractPatch) {
+function fieldsOf(current: CrmContractRow, patch: ContractPatch) {
   const title = patch.title === undefined ? current.title : cleanName(patch.title);
   if (!title) return invalid("title");
   const effectiveOn = patch.effectiveOn === undefined ? current.effectiveOn : patch.effectiveOn;
@@ -266,6 +287,10 @@ export const updateContract: (
   if (!current) return NOT_FOUND;
   const fields = fieldsOf(current, patch);
   if (fields.status !== "ok") return fields;
+  const outForSignature = current.status === "sent" && current.signatureRequestId;
+  if (outForSignature && patch.status !== undefined && patch.status !== "sent") {
+    return { status: "signature_open" };
+  }
   const move = changeContract(current, patch, new Date());
   if (move.status !== "ok") return move;
   const { state } = move;
@@ -300,7 +325,7 @@ export const updateContract: (
       to: state.status,
     });
   }
-  return { status: "ok", contract: contract! };
+  return { status: "ok", contract: await withProgress(tx, member.orgId, contract!) };
 };
 
 /** Deletes a contract that was never signed. */
@@ -308,18 +333,23 @@ export const deleteContract: (
   tx: Ex,
   member: CrmMember,
   id: string,
-) => Promise<{ status: "ok" } | NotFound | ContractSigned> = async (tx, member, id) => {
+) => Promise<{ status: "ok" } | NotFound | ContractSigned | SignatureOpen> = async (
+  tx,
+  member,
+  id,
+) => {
   const current = await loadContract(tx, member.orgId, id, true);
   if (!current) return NOT_FOUND;
   if (wasSigned(current.status)) return CONTRACT_SIGNED;
+  if (current.status === "sent" && current.signatureRequestId) return { status: "signature_open" };
   await tx.delete(crmContracts).where(eq(crmContracts.id, id));
   await contractEvent(tx, member, current, "contract_deleted");
   return { status: "ok" };
 };
 
 /**
- * Whether the record holds a signed (or ended) contract, which outlives it: deleting the record
- * for good would cascade to it. The record's row is locked first, as signing and creating a
+ * Whether the record holds a signed (or ended) contract, or one out for signature, which outlives
+ * it: deleting the record for good would cascade to it. The record's row is locked first, as signing and creating a
  * contract lock it (`lockRecords`), so a contract made or signed meanwhile is seen here or waits
  * for the delete; its contracts stay locked until the transaction ends.
  */
@@ -340,9 +370,9 @@ export async function holdsSignedContract(
       ? eq(crmContracts.dealId, record.dealId)
       : eq(crmContracts.companyId, record.companyId);
   const rows = await tx
-    .select({ status: crmContracts.status })
+    .select({ status: crmContracts.status, requestId: crmContracts.signatureRequestId })
     .from(crmContracts)
     .where(and(eq(crmContracts.orgId, orgId), column))
     .for("update");
-  return rows.some((row) => wasSigned(row.status));
+  return rows.some((row) => wasSigned(row.status) || (row.status === "sent" && row.requestId));
 }
