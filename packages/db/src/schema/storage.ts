@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   foreignKey,
   index,
@@ -33,7 +34,15 @@ const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode
 export const storageSpace = pgEnum("storage_space", ["personal", "shared"]);
 /** In this order: a folder lists before a file. */
 export const storageNodeKind = pgEnum("storage_node_kind", ["folder", "file"]);
-export const storageLinkAccess = pgEnum("storage_link_access", ["restricted", "anyone"]);
+/**
+ * Who a node's link opens for: nobody beyond its grants (`restricted`), any signed-in member of
+ * its workspace (`workspace`), or anyone holding it.
+ */
+export const storageLinkAccess = pgEnum("storage_link_access", [
+  "restricted",
+  "anyone",
+  "workspace",
+]);
 /**
  * In this order: `max()` over a person's grants is the strongest one. A `commenter` reads and
  * writes comments (ADR 0043 decision 5).
@@ -74,6 +83,12 @@ export const storageNodes = pgTable(
     /** 22 base64url characters from a CSPRNG, made the first time the node is shared. */
     shareId: text("share_id"),
     linkAccess: storageLinkAccess("link_access").notNull().default("restricted"),
+    /** After this the link opens for nobody; grants and members are not affected. */
+    linkExpiresAt: timestamptz("link_expires_at"),
+    /** `@omni/crypto` password hash; a visitor through the link must unlock it first. */
+    linkPasswordHash: text("link_password_hash"),
+    /** False: a visitor through the link sees the item and cannot download it (view only). */
+    linkDownloads: boolean("link_downloads").notNull().default(true),
     /** The uploader. May be a member of another workspace when an editor grant made the node. */
     createdByMemberId: text("created_by_member_id").references(() => members.id, {
       onDelete: "set null",
@@ -329,6 +344,56 @@ export const storageGrants = pgTable(
     unique("storage_grants_node_id_email_unique").on(t.nodeId, t.email),
     index("storage_grants_email_idx").on(t.email),
   ],
+);
+
+/**
+ * A workspace's sharing policy, set by its owners and admins. No row: everything is allowed.
+ * `public_links` false closes every link open to anyone and refuses new ones; `outside_sharing`
+ * false refuses new grants to an address outside the company.
+ */
+export const storagePolicies = pgTable("storage_policies", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  publicLinks: boolean("public_links").notNull().default(true),
+  outsideSharing: boolean("outside_sharing").notNull().default(true),
+  updatedByMemberId: text("updated_by_member_id").references(() => members.id, {
+    onDelete: "set null",
+  }),
+  updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+});
+
+export const storageShareEventKind = pgEnum("storage_share_event_kind", [
+  "link_changed",
+  "grant_added",
+  "grant_changed",
+  "grant_removed",
+  "viewed",
+  "downloaded",
+]);
+
+/**
+ * The sharing audit trail: who changed a node's sharing, and every view and download through
+ * `/shared/:shareId`. Append only: nothing updates or deletes a row but the workspace's own
+ * deletion. `node_id` has no foreign key so a node deleted for good keeps its history.
+ */
+export const storageShareEvents = pgTable(
+  "storage_share_events",
+  {
+    id: id(),
+    orgId: orgId(),
+    nodeId: text("node_id").notNull(),
+    kind: storageShareEventKind("kind").notNull(),
+    /** The door that opened it: `member`, `grant` or `link`. */
+    via: text("via").notNull(),
+    /** Null for an anonymous visitor, and for a member of another workspace. */
+    actorMemberId: text("actor_member_id").references(() => members.id, { onDelete: "set null" }),
+    /** The signed-in user; null for an anonymous visitor. */
+    actorUserId: text("actor_user_id"),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("storage_share_events_node_idx").on(t.orgId, t.nodeId, t.createdAt)],
 );
 
 /**

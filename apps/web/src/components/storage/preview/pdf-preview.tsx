@@ -19,7 +19,7 @@ const OPTIONS = {
 const STEP = 16;
 const AHEAD = "1200px 0px";
 
-export default function PdfPreview(props: { url: string; onDownload: () => void }) {
+export default function PdfPreview(props: { url: string; onDownload?: (() => void) | undefined }) {
   const scroller = useRef<HTMLDivElement>(null);
   const width = useStageWidth(scroller);
   const [pages, setPages] = useState(0);

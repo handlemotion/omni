@@ -38,6 +38,8 @@ export interface AppEnv {
     log: Logger;
     /** Set under `/api/storage/shared/:shareId` only: Storage reached by a grant or a link. */
     shared?: SharedAccess;
+    /** Set beside `shared`: the signed-in person who opened it, or null for a visitor. */
+    linkUser?: SessionUser | null;
     /** Set under `/api/storage/sync` only: who a desktop sync token acts for (ADR 0043). */
     syncCaller?: SyncCaller;
   };

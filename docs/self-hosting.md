@@ -439,19 +439,21 @@ instance per key, so counts are exact). Each is a var of the form `<count>/<seco
 limit the Worker answers `429` with `Retry-After`. Per-IP limits key on `CF-Connecting-IP`,
 which Cloudflare sets and clients cannot.
 
-| Variable                   | Default    | Counts                                                                                                                                                                        |
-| -------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RATE_LIMIT_AUTH`          | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free.                                                             |
-| `RATE_LIMIT_MAGIC_LINK`    | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                                                                              |
-| `RATE_LIMIT_INVITE`        | `30/3600`  | Per inviting user: invitations sent or resent.                                                                                                                                |
-| `RATE_LIMIT_SEARCH`        | `60/60`    | Per member: searches.                                                                                                                                                         |
-| `RATE_LIMIT_SEND`          | `100/3600` | Per member: new mail and replies.                                                                                                                                             |
-| `RATE_LIMIT_ACTIONS`       | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                                                                                         |
-| `RATE_LIMIT_PROVISION`     | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
-| `RATE_LIMIT_IMAGE_PROXY`   | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
-| `RATE_LIMIT_STORAGE_SHARE` | `60/3600`  | Per member: people added to a file or folder in Storage, each of whom is sent one mail. Changing a role sends none and is free.                                               |
-| `RATE_LIMIT_STORAGE_LINK`  | `300/60`   | Per IP: requests to Storage's link door (`/api/storage/shared/*`), which answers anyone holding a link, signed in or not.                                                     |
-| `RATE_LIMIT_STORAGE_SYNC`  | `600/60`   | Per person and desktop app: requests to the desktop sync API (`/api/storage/sync/*`).                                                                                         |
+| Variable                           | Default    | Counts                                                                                                                                                                        |
+| ---------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_AUTH`                  | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free.                                                             |
+| `RATE_LIMIT_MAGIC_LINK`            | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                                                                              |
+| `RATE_LIMIT_INVITE`                | `30/3600`  | Per inviting user: invitations sent or resent.                                                                                                                                |
+| `RATE_LIMIT_SEARCH`                | `60/60`    | Per member: searches.                                                                                                                                                         |
+| `RATE_LIMIT_SEND`                  | `100/3600` | Per member: new mail and replies.                                                                                                                                             |
+| `RATE_LIMIT_ACTIONS`               | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                                                                                         |
+| `RATE_LIMIT_PROVISION`             | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
+| `RATE_LIMIT_IMAGE_PROXY`           | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
+| `RATE_LIMIT_STORAGE_SHARE`         | `60/3600`  | Per member: people added to a file or folder in Storage, each of whom is sent one mail. Changing a role sends none and is free.                                               |
+| `RATE_LIMIT_STORAGE_SHARE_NEW`     | `10/86400` | Per person, on top of the above, while their account is under 7 days old or the workspace is free (a Personal space, or no paid plan).                                        |
+| `RATE_LIMIT_STORAGE_LINK`          | `300/60`   | Per signed-in person, or per IP for a visitor who is not: requests to Storage's link door (`/api/storage/shared/*`).                                                          |
+| `RATE_LIMIT_STORAGE_LINK_PASSWORD` | `10/900`   | Per link and visitor: tries at a link password (`POST /api/storage/shared/:shareId/unlock`).                                                                                  |
+| `RATE_LIMIT_STORAGE_SYNC`          | `600/60`   | Per person and desktop app: requests to the desktop sync API (`/api/storage/sync/*`).                                                                                         |
 
 #### Billing (optional)
 

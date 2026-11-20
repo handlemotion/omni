@@ -24,8 +24,15 @@ export const ROLES: { id: DriveGrantRole; label: string }[] = [
 ];
 export const ACCESS: { id: DriveLinkAccess; label: string }[] = [
   { id: "restricted", label: "Restricted" },
+  { id: "workspace", label: "People in this workspace" },
   { id: "anyone", label: "Anyone with the link" },
 ];
+/** A change to a link's settings: expiry (null: never), password (null removes it), downloads. */
+export type DriveLinkChange = {
+  expiresAt?: string | null;
+  password?: string | null;
+  downloads?: boolean;
+};
 export const roleLabel = (role: DriveGrantRole) => ROLES.find((r) => r.id === role)?.label ?? role;
 export const accessLabel = (access: DriveLinkAccess) =>
   ACCESS.find((a) => a.id === access)?.label ?? access;
@@ -46,14 +53,17 @@ const sharingChanged =
   ({ sharing }: { sharing: DriveSharing }) =>
     client.setQueryData(keys.driveSharing(sharing.nodeId), { sharing });
 
-/** `mutate({ id, linkAccess })` sets general access; `mutate({ id, reset: true })` a new link. */
+/**
+ * `mutate({ id, linkAccess })` sets general access, `mutate({ id, reset: true })` makes a new
+ * link, and `mutate({ id, ...change })` changes its settings.
+ */
 export function useSetLink() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: ({
       id,
       ...json
-    }: { id: string } & ({ linkAccess: DriveLinkAccess } | { reset: true })) =>
+    }: { id: string } & ({ linkAccess: DriveLinkAccess } | { reset: true } | DriveLinkChange)) =>
       call(api.storage.nodes[":id"].sharing.link.$put({ param: { id }, json })),
     onSuccess: sharingChanged(client),
   });

@@ -91,6 +91,8 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "storage_nodes",
       "storage_overage",
       "storage_peaks",
+      "storage_policies",
+      "storage_share_events",
       "storage_signature_events",
       "storage_signature_requests",
       "storage_signers",

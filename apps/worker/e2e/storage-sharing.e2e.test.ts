@@ -399,7 +399,7 @@ test("a session scoped to a company does not see or open a grant addressed to th
   expect(await opens(full, workLink, toWork.id)).toBe(200);
 });
 
-test("a shared item in Trash answers 404 through its grant and its link, and comes back when restored", async () => {
+test("a shared item in Trash answers 404 through its grant and its link; restored, its grant comes back and its link stays closed", async () => {
   const { ana: owner } = await ana();
   const kit = await folder(owner, { space: "personal" }, "Kit");
   const file = await stack.upload(owner.jar, { parentId: kit.id }, "plan.pdf", randomBytes(50));
@@ -429,5 +429,5 @@ test("a shared item in Trash answers 404 through its grant and its link, and com
   ).toBe(404);
 
   expect((await stack.api(owner.jar, "POST", `/nodes/${kit.id}/restore`)).status).toBe(200);
-  expect(await statuses()).toEqual([200, 200, 200, 200]);
+  expect(await statuses()).toEqual([200, 200, 404, 404]);
 });

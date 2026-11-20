@@ -269,7 +269,7 @@ test("a Restricted link opens nothing without a grant, Anyone opens it, and a re
   expect(await publicStorageNode(db, reset.sharing.shareId!)).toBeNull();
 });
 
-test("a trashed node, or one inside a trashed folder, is invisible through a grant and a link", async () => {
+test("a trashed node, or one inside a trashed folder, is invisible through a grant and a link; restored, only the grant opens it", async () => {
   const org = await createOrg(db, "trash-doors");
   const ana = await createMember(db, org.id, "ana");
   const storage = forMember(db, ana.id).storage;
@@ -295,7 +295,7 @@ test("a trashed node, or one inside a trashed folder, is invisible through a gra
 
   expect((await storage.restore(folder.id)).status).toBe("ok");
   expect((await reading.file(file.id)).status).toBe("ok");
-  expect((await publicStorage(db, granted.shareId).file(file.id)).status).toBe("ok");
+  expect((await publicStorage(db, granted.shareId).file(file.id)).status).toBe("not_found");
 });
 
 test("a taken name gets a number, also when many inserts race for it", async () => {

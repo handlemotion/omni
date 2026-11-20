@@ -10,9 +10,12 @@ import {
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { TextField } from "@/components/ui/text-field";
 import { useStorageLink, useTrashNode } from "@/hooks/use-storage.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
+import { unlockLink } from "@/lib/storage-sharing.ts";
 import { sharedFileUrl } from "@/lib/urls.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { CommentsPanel } from "./comments-panel.tsx";
@@ -27,10 +30,59 @@ export function LinkPage({ shareId, nodeId }: { shareId: string; nodeId?: string
   const link = useStorageLink(shareId, nodeId);
   const item = link.item;
   if (!item) return null;
+  const downloads = link.data?.pages[0]?.downloads !== false;
   if (item.node.kind === "file") {
-    return <FileCard shareId={shareId} node={item.node} canComment={item.role !== "viewer"} />;
+    return (
+      <FileCard
+        shareId={shareId}
+        node={item.node}
+        canComment={item.role !== "viewer"}
+        downloads={downloads}
+      />
+    );
   }
-  return <SharedFolder shareId={shareId} nodeId={nodeId} link={link} item={item} />;
+  return (
+    <SharedFolder shareId={shareId} nodeId={nodeId} link={link} item={item} downloads={downloads} />
+  );
+}
+
+/** A link with a password: ask for it, then open the link in this browser. */
+export function UnlockLink(props: { shareId: string; onUnlocked: () => void }) {
+  const [password, setPassword] = useState("");
+  const [pending, setPending] = useState(false);
+  return (
+    <LinkFrame>
+      <div className="flex min-h-0 flex-1 items-center justify-center p-4 pb-[12vh]">
+        <Card className="w-full max-w-90 gap-0 px-6">
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!password) return;
+              setPending(true);
+              unlockLink(props.shareId, password)
+                .then(props.onUnlocked)
+                .catch((error: unknown) => storageErrorToast(error, "The link did not open"))
+                .finally(() => setPending(false));
+            }}
+          >
+            <TextField
+              aria-label="Password"
+              type="password"
+              autoFocus
+              value={password}
+              onChange={setPassword}
+            >
+              <Input placeholder="Password" autoComplete="off" />
+            </TextField>
+            <Button type="submit" isDisabled={!password} isPending={pending}>
+              Open
+            </Button>
+          </form>
+        </Card>
+      </div>
+    </LinkFrame>
+  );
 }
 
 type Link = ReturnType<typeof useStorageLink>;
@@ -44,8 +96,9 @@ function SharedFolder(props: {
   nodeId: string | undefined;
   link: Link;
   item: Item;
+  downloads: boolean;
 }) {
-  const { shareId, item } = props;
+  const { shareId, item, downloads: canDownload } = props;
   const canWrite = item.role === "member" || item.role === "editor";
   const canComment = item.role !== "viewer";
   const trash = useTrashNode();
@@ -57,11 +110,16 @@ function SharedFolder(props: {
   const menu = useMemo(
     () => (node: StorageNode, open: (dialog: FolderDialog) => void) => {
       const result: SettingsRowMenuItem[] = [
-        {
-          icon: IconDownload,
-          label: "Download",
-          onAction: () => (node.kind === "file" ? download(node) : downloadZip([node.id], shareId)),
-        },
+        ...(canDownload
+          ? [
+              {
+                icon: IconDownload,
+                label: "Download",
+                onAction: () =>
+                  node.kind === "file" ? download(node) : downloadZip([node.id], shareId),
+              },
+            ]
+          : []),
         ...(node.kind === "file" && canComment
           ? [
               {
@@ -107,7 +165,7 @@ function SharedFolder(props: {
       ];
       return result;
     },
-    [canComment, canWrite, download, shareId, trashNode],
+    [canComment, canDownload, canWrite, download, shareId, trashNode],
   );
   return (
     <LinkFrame>
@@ -128,7 +186,7 @@ function SharedFolder(props: {
           list: props.link,
           folderHref,
           fileUrl,
-          download,
+          download: canDownload ? download : undefined,
           menu,
           canTrash: () => canWrite,
           move: { kind: "link", shareId, top, path: below },
@@ -141,7 +199,12 @@ function SharedFolder(props: {
   );
 }
 
-function FileCard(props: { shareId: string; node: StorageNode; canComment: boolean }) {
+function FileCard(props: {
+  shareId: string;
+  node: StorageNode;
+  canComment: boolean;
+  downloads: boolean;
+}) {
   const [comments, setComments] = useState(false);
   const phone = useIsMobile();
   return (
@@ -163,15 +226,21 @@ function FileCard(props: { shareId: string; node: StorageNode; canComment: boole
             <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
               {formatBytes(props.node.size)}
             </p>
-            <Button
-              className="mt-5 w-full"
-              onPress={() => downloadFile(sharedFileUrl(props.shareId, props.node.id))}
-            >
-              <IconDownload />
-              Download
-            </Button>
+            {props.downloads && (
+              <Button
+                className="mt-5 w-full"
+                onPress={() => downloadFile(sharedFileUrl(props.shareId, props.node.id))}
+              >
+                <IconDownload />
+                Download
+              </Button>
+            )}
             {props.canComment && (
-              <Button className="mt-2 w-full" intent="outline" onPress={() => setComments(true)}>
+              <Button
+                className={`${props.downloads ? "mt-2" : "mt-5"} w-full`}
+                intent="outline"
+                onPress={() => setComments(true)}
+              >
                 <IconComment />
                 Comments
               </Button>

@@ -7,7 +7,10 @@ import { NoPreview, StageLoading } from "./shared.tsx";
 
 const ROWS = 500;
 
-export default function CsvPreview(props: { source: PreviewSource; onDownload: () => void }) {
+export default function CsvPreview(props: {
+  source: PreviewSource;
+  onDownload?: (() => void) | undefined;
+}) {
   const text = useFileText(props.source);
   if (text.isError || text.data?.binary) {
     return <NoPreview kind="csv" onDownload={props.onDownload} />;

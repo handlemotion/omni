@@ -35,15 +35,28 @@ const sharingChanged =
   ({ sharing }: { sharing: StorageSharing }) =>
     client.setQueryData(keys.storageSharing(sharing.nodeId), { sharing });
 
-/** `mutate({ id, linkAccess })` sets general access; `mutate({ id, reset: true })` a new link. */
+/** A change to a link's settings: expiry (null: never), password (null removes it), downloads. */
+export type StorageLinkChange = {
+  expiresAt?: string | null;
+  password?: string | null;
+  downloads?: boolean;
+};
+
+/**
+ * `mutate({ id, linkAccess })` sets general access, `mutate({ id, reset: true })` makes a new
+ * link, and `mutate({ id, ...change })` changes its settings.
+ */
 export const setLinkMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: ({
       id,
       ...json
-    }: { id: string } & ({ linkAccess: StorageLinkAccess } | { reset: true })) =>
-      call(api.storage.nodes[":id"].sharing.link.$put({ param: { id }, json })),
+    }: { id: string } & (
+      | { linkAccess: StorageLinkAccess }
+      | { reset: true }
+      | StorageLinkChange
+    )) => call(api.storage.nodes[":id"].sharing.link.$put({ param: { id }, json })),
     onSuccess: sharingChanged(client),
   });
 
@@ -106,6 +119,10 @@ export const storageLinkQuery = (shareId: string, nodeId?: string) =>
     getNextPageParam: (page) => page.nextCursor,
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
   });
+
+/** Unlocks a password link for this browser: the Worker sets a cookie scoped to the link. */
+export const unlockLink = (shareId: string, password: string) =>
+  call(api.storage.shared[":shareId"].unlock.$post({ param: { shareId }, json: { password } }));
 
 /** The link to a shared item, as people open it. */
 export const shareUrl = (shareId: string) => `${window.location.origin}/s/${shareId}`;

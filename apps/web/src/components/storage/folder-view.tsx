@@ -59,7 +59,8 @@ export interface FolderSource {
   folderHref: (node: StorageNode) => string;
   /** Where a file's bytes are read through this door: Download and the preview. */
   fileUrl: (node: StorageNode) => string;
-  download: (node: StorageNode) => void;
+  /** Absent on a view-only link: no Download, alone or as a zip. */
+  download?: ((node: StorageNode) => void) | undefined;
   /** The rows' actions, given the way to open this page's dialogs. */
   menu: (node: StorageNode, open: (dialog: FolderDialog) => void) => SettingsRowMenuItem[];
   /** Whether Move to trash is offered for it, alone or in a selection. */
@@ -69,6 +70,11 @@ export interface FolderSource {
 }
 
 const PREVIEW_WIDTH = 560;
+
+const downloadOf = (source: FolderSource, node: StorageNode) => {
+  const { download } = source;
+  return download && (() => download(node));
+};
 const PREVIEW_MIN = 360;
 const PREVIEW_MAX = 4096;
 const FOLDER_MIN = 320;
@@ -203,7 +209,7 @@ export function FolderView(props: {
             next={open.next}
             onOpen={(other) => open.select(other.id, true)}
             onClose={() => open.select(null)}
-            onDownload={() => source.download(node)}
+            onDownload={downloadOf(source, node)}
             menu={menuAt("preview")(node)}
             rename={rename}
             fullScreen={hideFolder}
@@ -387,7 +393,7 @@ function FolderActions(props: {
   selection: NodeSelection;
   source: FolderSource;
   onNewFolder: () => void;
-  onFiles: (files: File[]) => void;
+  onFiles: (files: File[] | Picked) => void;
   onMove: () => void;
 }) {
   const { selection, source } = props;
@@ -405,6 +411,7 @@ function FolderActions(props: {
       selection={selection}
       shareId={source.shareId}
       canMove={source.canWrite}
+      canDownload={!!source.download}
       canTrash={source.canTrash}
       onMove={props.onMove}
     />

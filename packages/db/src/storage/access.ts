@@ -2,7 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
 import { personalSpaces } from "../schema/identity.ts";
-import { storageGrants } from "../schema/storage.ts";
+import { storageGrants, storagePolicies } from "../schema/storage.ts";
 import { companyForAddress } from "../session-scopes.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
 import { holdsOthersWork, inTrash, type Drive, type NodeRow, type StorageSpace } from "./core.ts";
@@ -243,17 +243,83 @@ export const grantDoor: (
   };
 };
 
+/** A workspace's sharing policy; a workspace that never set one allows everything. */
+export interface StoragePolicy {
+  /** Links open to anyone may be made and opened. */
+  publicLinks: boolean;
+  /** People outside the company may be invited by address. */
+  outsideSharing: boolean;
+}
+
+export async function storagePolicyOf(ex: Db, orgId: string) {
+  const [row] = await ex
+    .select({
+      publicLinks: storagePolicies.publicLinks,
+      outsideSharing: storagePolicies.outsideSharing,
+    })
+    .from(storagePolicies)
+    .where(eq(storagePolicies.orgId, orgId));
+  return (row ?? { publicLinks: true, outsideSharing: true }) satisfies StoragePolicy;
+}
+
+/** Who is opening a link: what the link door needs beyond the link itself. */
+export interface LinkVisitor {
+  /** The signed-in user, for a link open to the workspace's members. */
+  userId?: string | null;
+  /** The session's scope (ADR 0024): with one, only that workspace's links open to members. */
+  scopeOrgId?: string | null;
+  /** Whether the visitor unlocked this password-protected link (see `@omni/crypto` link keys). */
+  unlocked?: (link: { shareId: string; passwordHash: string }) => Promise<boolean>;
+  now?: Date;
+}
+
 /**
- * Anyone holding the link: the node or a folder above it has this `share_id` and is open to
- * anyone. Read only, always: an anonymous editor would be an open upload endpoint.
+ * What a link does for `visitor`: `open`, `locked` until they give its password, or `closed`.
+ * `node` is the node carrying the link. A link opens nothing once it expires, while the
+ * workspace's policy forbids links open to anyone, or, when it is open to the workspace's
+ * members, for anyone else.
  */
-export const linkDoor: (shareId: string) => Door = (shareId) => {
+export async function linkState(ex: Db, node: NodeRow, visitor: LinkVisitor = {}) {
+  const now = visitor.now ?? new Date();
+  if (!node.shareId || node.linkAccess === "restricted") return "closed";
+  if (node.linkExpiresAt && node.linkExpiresAt <= now) return "closed";
+  if (node.linkAccess === "anyone" && !(await storagePolicyOf(ex, node.orgId)).publicLinks) {
+    return "closed";
+  }
+  if (node.linkAccess === "workspace") {
+    if (!visitor.userId || (visitor.scopeOrgId && visitor.scopeOrgId !== node.orgId)) {
+      return "closed";
+    }
+    const [member] = await ex
+      .select({ id: members.id })
+      .from(members)
+      .where(and(eq(members.userId, visitor.userId), eq(members.organizationId, node.orgId)));
+    if (!member) return "closed";
+  }
+  if (node.linkPasswordHash) {
+    const link = { shareId: node.shareId, passwordHash: node.linkPasswordHash };
+    if (!(await visitor.unlocked?.(link))) return "locked";
+  }
+  return "open";
+}
+
+export type LinkState = Awaited<ReturnType<typeof linkState>>;
+
+/**
+ * Anyone holding the link, while `linkState` says it is open for them: the node or a folder
+ * above it has this `share_id`. Read only, always: an anonymous editor would be an open upload
+ * endpoint.
+ */
+export const linkDoor: (shareId: string, visitor?: LinkVisitor) => Door = (
+  shareId,
+  visitor = {},
+) => {
   return {
     kind: "link",
-    async access(_ex, chain) {
+    async access(ex, chain) {
       if (chain.length === 0 || inTrash(chain)) return null;
-      const top = chain.findIndex((row) => row.shareId === shareId && row.linkAccess === "anyone");
-      if (top < 0) return null;
+      const top = chain.findIndex((row) => row.shareId === shareId);
+      if (top < 0 || (await linkState(ex, chain[top]!, visitor)) !== "open") return null;
       return { role: "viewer", top, inside: false, change: false, remove: false, share: false };
     },
     removesWhole: async () => false,

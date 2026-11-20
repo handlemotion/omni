@@ -1,9 +1,17 @@
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { organizations } from "../schema/auth.ts";
-import { storageGrants, storageLocks, storageNodes } from "../schema/storage.ts";
-import type { Door } from "./access.ts";
+import { members, organizations } from "../schema/auth.ts";
+import {
+  storageGrants,
+  storageLocks,
+  storageNodes,
+  storagePolicies,
+  storageShareEvents,
+} from "../schema/storage.ts";
+import { companyForAddress } from "../session-scopes.ts";
+import { findEmailOwner } from "../sign-in-emails.ts";
+import { loadMember, storagePolicyOf, type Door, type StoragePolicy } from "./access.ts";
 import { inTrash, MAX_WALK, pageSize, toNode, type NodeRow, type StorageNode } from "./core.ts";
 import { reach, type Forbidden, type NotFound } from "./tree.ts";
 
@@ -16,26 +24,52 @@ export interface StoragePerson {
   createdAt: Date;
 }
 
+/** What a link does beyond who it opens for. None of it applies to members or grants. */
+export interface StorageLink {
+  /** After this the link opens for nobody. */
+  expiresAt: Date | null;
+  /** A visitor gives a password before the link opens. */
+  hasPassword: boolean;
+  /** False: view only, nothing downloads through the link. */
+  downloads: boolean;
+}
+
 export interface StorageSharing {
   nodeId: string;
-  /** Null until the node is first shared. The link is `/s/<shareId>` in both modes. */
+  /** Null until the node is first shared. The link is `/s/<shareId>` in every mode. */
   shareId: string | null;
   linkAccess: StorageLinkAccess;
+  link: StorageLink;
+  /** The workspace's policy, so a client offers only what it allows. */
+  policy: StoragePolicy;
   people: StoragePerson[];
   /** People who reach the node through a folder above it. */
   inherited: (StoragePerson & { nodeId: string; nodeName: string })[];
 }
 
+/** A change to a link's settings; a field left out keeps its value. */
+export interface StorageLinkSettings {
+  expiresAt?: Date | null;
+  /** An `@omni/crypto` link password hash, or null to remove the password. */
+  passwordHash?: string | null;
+  downloads?: boolean;
+}
+
+type Refused = { status: "policy" };
 export type SharingResult = { status: "ok"; sharing: StorageSharing } | NotFound | Forbidden;
+export type ChangeLinkResult = SharingResult | Refused;
 export type PutGrantResult =
   | { status: "ok"; created: boolean; shareId: string; person: StoragePerson; node: StorageNode }
   | NotFound
   | Forbidden
+  | Refused
   | { status: "invalid_email" };
 export type RemoveGrantResult = { status: "ok" } | NotFound | Forbidden;
+export type PolicyResult = { status: "ok"; policy: StoragePolicy } | Forbidden | NotFound;
 
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
+const POLICY = { status: "policy" } as const;
 
 /** 22 base64url characters: 128 bits from the CSPRNG, derived from nothing. */
 export function newShareId() {
@@ -44,6 +78,38 @@ export function newShareId() {
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replace(/=+$/, "");
+}
+
+export interface ShareEventInput {
+  orgId: string;
+  nodeId: string;
+  kind: (typeof storageShareEvents.kind.enumValues)[number];
+  via: "member" | "grant" | "link";
+  actorMemberId?: string | null;
+  actorUserId?: string | null;
+  detail?: Record<string, unknown>;
+}
+
+/** Appends one row to the sharing audit trail. */
+export async function recordShareEvent(ex: Db, event: ShareEventInput) {
+  await ex.insert(storageShareEvents).values({ ...event, detail: event.detail ?? {} });
+}
+
+/** The node carrying `shareId` and its link's settings, live or not; null when no node has it. */
+export async function linkOf(ex: Db, shareId: string) {
+  const [row] = await ex.select().from(storageNodes).where(eq(storageNodes.shareId, shareId));
+  return row ?? null;
+}
+
+async function insideCompany(ex: Db, orgId: string, address: string) {
+  if ((await companyForAddress(ex, address)) === orgId) return true;
+  const owner = await findEmailOwner(ex, address);
+  if (!owner) return false;
+  const [member] = await ex
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.userId, owner.userId), eq(members.organizationId, orgId)));
+  return member !== undefined;
 }
 
 async function readSharing(ex: Db, chain: NodeRow[]) {
@@ -64,6 +130,12 @@ async function readSharing(ex: Db, chain: NodeRow[]) {
     nodeId: node.id,
     shareId: node.shareId,
     linkAccess: node.linkAccess,
+    link: {
+      expiresAt: node.linkExpiresAt,
+      hasPassword: node.linkPasswordHash !== null,
+      downloads: node.linkDownloads,
+    },
+    policy: await storagePolicyOf(ex, node.orgId),
     people: grants.filter((grant) => grant.nodeId === node.id).map(person),
     inherited: grants
       .filter((grant) => grant.nodeId !== node.id)
@@ -73,6 +145,20 @@ async function readSharing(ex: Db, chain: NodeRow[]) {
         nodeName: names.get(grant.nodeId) ?? "",
       })),
   } satisfies StorageSharing;
+}
+
+function linkDetail(change: Partial<NodeRow>, reset: boolean) {
+  return {
+    ...(change.linkAccess ? { linkAccess: change.linkAccess } : {}),
+    ...(change.linkExpiresAt !== undefined
+      ? { expiresAt: change.linkExpiresAt?.toISOString() ?? null }
+      : {}),
+    ...(change.linkPasswordHash !== undefined
+      ? { password: change.linkPasswordHash !== null }
+      : {}),
+    ...(change.linkDownloads !== undefined ? { downloads: change.linkDownloads } : {}),
+    ...(reset ? { reset: true } : {}),
+  };
 }
 
 export function sharingOperations(db: Db, door: Door) {
@@ -85,26 +171,39 @@ export function sharingOperations(db: Db, door: Door) {
 
   function changeLink(
     nodeId: string,
-    change: (node: NodeRow) => { shareId: string; linkAccess?: StorageLinkAccess },
+    change: (node: NodeRow) => Partial<NodeRow> & { shareId: string },
+    reset = false,
   ) {
-    return db.transaction<SharingResult>(async (tx) => {
+    return db.transaction<ChangeLinkResult>(async (tx) => {
       const found = await shareable(tx, nodeId);
-      if (found.status !== "ok") return found satisfies SharingResult;
+      if (found.status !== "ok") return found satisfies ChangeLinkResult;
       const [node] = await tx
         .select()
         .from(storageNodes)
         .where(eq(storageNodes.id, nodeId))
         .for("update");
-      if (!node) return NOT_FOUND satisfies SharingResult;
+      if (!node) return NOT_FOUND satisfies ChangeLinkResult;
+      const set = change(node);
+      if (set.linkAccess === "anyone" && !(await storagePolicyOf(tx, node.orgId)).publicLinks) {
+        return POLICY satisfies ChangeLinkResult;
+      }
       const [row] = await tx
         .update(storageNodes)
-        .set(change(node))
+        .set(set)
         .where(eq(storageNodes.id, nodeId))
         .returning();
+      await recordShareEvent(tx, {
+        orgId: node.orgId,
+        nodeId,
+        kind: "link_changed",
+        via: door.kind,
+        actorMemberId: await door.actor(tx, node.orgId),
+        detail: linkDetail(set, reset),
+      });
       return {
         status: "ok",
         sharing: await readSharing(tx, [row!, ...found.chain.slice(1)]),
-      } satisfies SharingResult;
+      } satisfies ChangeLinkResult;
     });
   }
 
@@ -119,11 +218,24 @@ export function sharingOperations(db: Db, door: Door) {
       return changeLink(nodeId, (node) => ({
         shareId: node.shareId ?? newShareId(),
         linkAccess,
-      })) satisfies Promise<SharingResult>;
+      })) satisfies Promise<ChangeLinkResult>;
+    },
+
+    setLinkSettings(nodeId: string, settings: StorageLinkSettings) {
+      return changeLink(nodeId, (node) => ({
+        shareId: node.shareId ?? newShareId(),
+        ...(settings.expiresAt !== undefined ? { linkExpiresAt: settings.expiresAt } : {}),
+        ...(settings.passwordHash !== undefined ? { linkPasswordHash: settings.passwordHash } : {}),
+        ...(settings.downloads !== undefined ? { linkDownloads: settings.downloads } : {}),
+      })) satisfies Promise<ChangeLinkResult>;
     },
 
     resetLink(nodeId: string) {
-      return changeLink(nodeId, () => ({ shareId: newShareId() })) satisfies Promise<SharingResult>;
+      return changeLink(
+        nodeId,
+        () => ({ shareId: newShareId() }),
+        true,
+      ) satisfies Promise<ChangeLinkResult>;
     },
 
     putGrant(nodeId: string, email: string, role: StorageGrantRole) {
@@ -136,6 +248,14 @@ export function sharingOperations(db: Db, door: Door) {
           const result: PutGrantResult = found;
           return result;
         }
+        const { orgId } = found.node;
+        if (
+          !(await storagePolicyOf(tx, orgId)).outsideSharing &&
+          !(await insideCompany(tx, orgId, address))
+        ) {
+          const result: PutGrantResult = POLICY;
+          return result;
+        }
         const [node] = await tx
           .update(storageNodes)
           .set({ shareId: sql`coalesce(${storageNodes.shareId}, ${newShareId()})` })
@@ -145,6 +265,7 @@ export function sharingOperations(db: Db, door: Door) {
           const result: PutGrantResult = NOT_FOUND;
           return result;
         }
+        const actorMemberId = await door.actor(tx, node.orgId);
         const [grant] = await tx
           .insert(storageGrants)
           .values({
@@ -152,7 +273,7 @@ export function sharingOperations(db: Db, door: Door) {
             nodeId,
             email: address,
             role,
-            createdByMemberId: await door.actor(tx, node.orgId),
+            createdByMemberId: actorMemberId,
             createdAt: new Date(),
           })
           .onConflictDoUpdate({
@@ -166,6 +287,14 @@ export function sharingOperations(db: Db, door: Door) {
             created: sql<boolean>`(xmax = 0)`,
           });
         const { created, ...person } = grant!;
+        await recordShareEvent(tx, {
+          orgId: node.orgId,
+          nodeId,
+          kind: created ? "grant_added" : "grant_changed",
+          via: door.kind,
+          actorMemberId,
+          detail: { email: address, role },
+        });
         const result: PutGrantResult = {
           status: "ok",
           created,
@@ -177,16 +306,58 @@ export function sharingOperations(db: Db, door: Door) {
       });
     },
 
-    async removeGrant(nodeId: string, email: string) {
-      const found = await shareable(db, nodeId);
-      if (found.status !== "ok") return found satisfies RemoveGrantResult;
-      const removed = await db
-        .delete(storageGrants)
-        .where(
-          and(eq(storageGrants.nodeId, nodeId), eq(storageGrants.email, normalizeAddress(email))),
-        )
-        .returning({ id: storageGrants.id });
-      return (removed.length > 0 ? { status: "ok" } : NOT_FOUND) satisfies RemoveGrantResult;
+    removeGrant(nodeId: string, email: string) {
+      return db.transaction<RemoveGrantResult>(async (tx) => {
+        const found = await shareable(tx, nodeId);
+        if (found.status !== "ok") return found satisfies RemoveGrantResult;
+        const address = normalizeAddress(email);
+        const removed = await tx
+          .delete(storageGrants)
+          .where(and(eq(storageGrants.nodeId, nodeId), eq(storageGrants.email, address)))
+          .returning({ id: storageGrants.id });
+        if (removed.length === 0) return NOT_FOUND satisfies RemoveGrantResult;
+        await recordShareEvent(tx, {
+          orgId: found.node.orgId,
+          nodeId,
+          kind: "grant_removed",
+          via: door.kind,
+          actorMemberId: await door.actor(tx, found.node.orgId),
+          detail: { email: address },
+        });
+        return { status: "ok" } satisfies RemoveGrantResult;
+      });
+    },
+  };
+}
+
+/** The member's workspace sharing policy: everyone reads it, owners and admins change it. */
+export function policyOperations(db: Db, memberId: string) {
+  return {
+    async policy() {
+      const member = await loadMember(db, memberId);
+      if (!member) return NOT_FOUND satisfies PolicyResult;
+      return {
+        status: "ok",
+        policy: await storagePolicyOf(db, member.orgId),
+      } satisfies PolicyResult;
+    },
+
+    async setPolicy(change: Partial<StoragePolicy>) {
+      const member = await loadMember(db, memberId);
+      if (!member) return NOT_FOUND satisfies PolicyResult;
+      if (!member.admin) return FORBIDDEN satisfies PolicyResult;
+      const [row] = await db
+        .insert(storagePolicies)
+        .values({ orgId: member.orgId, ...change, updatedByMemberId: member.id })
+        .onConflictDoUpdate({
+          target: storagePolicies.orgId,
+          set: { ...change, updatedByMemberId: member.id, updatedAt: new Date() },
+        })
+        .returning({
+          publicLinks: storagePolicies.publicLinks,
+          outsideSharing: storagePolicies.outsideSharing,
+        });
+      return { status: "ok", policy: row! } satisfies PolicyResult;
     },
   };
 }

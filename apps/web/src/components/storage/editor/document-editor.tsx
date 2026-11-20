@@ -240,7 +240,10 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
 export type EditSession = ReturnType<typeof useEditSession>;
 
 /** The editor for the file, on the file's whole text. ⌘S saves. */
-export function DocumentEditor(props: { session: EditSession; onDownload: () => void }) {
+export function DocumentEditor(props: {
+  session: EditSession;
+  onDownload?: (() => void) | undefined;
+}) {
   const { session } = props;
   const { node, url, opened, onReady, onChange, live } = session.editor;
   const kind = fileType(node.name, node.mimeType).kind;

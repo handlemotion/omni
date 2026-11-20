@@ -3,7 +3,11 @@ import type { FileKind } from "@/lib/file-kind.ts";
 import { FileTile } from "../file-glyph.tsx";
 import { NoPreview } from "./shared.tsx";
 
-export function VideoPreview(props: { url: string; name: string; onDownload: () => void }) {
+export function VideoPreview(props: {
+  url: string;
+  name: string;
+  onDownload?: (() => void) | undefined;
+}) {
   const [broken, setBroken] = useState(false);
   if (broken) return <NoPreview kind="video" onDownload={props.onDownload} />;
   return (
@@ -26,7 +30,7 @@ export function AudioPreview(props: {
   url: string;
   name: string;
   kind: FileKind;
-  onDownload: () => void;
+  onDownload?: (() => void) | undefined;
 }) {
   const [broken, setBroken] = useState(false);
   if (broken) return <NoPreview kind={props.kind} onDownload={props.onDownload} />;

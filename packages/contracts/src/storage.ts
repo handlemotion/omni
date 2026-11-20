@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  storageLinkPasswordSchema,
+  storageLinkSchema,
+  storagePolicySchema,
+} from "./storage-links.ts";
 
 /** Bytes in every part of an upload but the last (R2 wants them uniform). */
 export const STORAGE_PART_BYTES = 16 * 1024 * 1024;
@@ -14,7 +19,12 @@ export const storageNodeKindSchema = z.enum(["folder", "file"]);
  */
 export const storageRoleSchema = z.enum(["member", "editor", "commenter", "viewer"]);
 export const storageGrantRoleSchema = z.enum(["viewer", "commenter", "editor"]);
-export const storageLinkAccessSchema = z.enum(["restricted", "anyone"]);
+/**
+ * Who a link opens for besides the people it is shared with: nobody (`restricted`), any
+ * signed-in member of the node's workspace (`workspace`), or anyone holding it. `workspace` is
+ * absent from a Worker older than link settings.
+ */
+export const storageLinkAccessSchema = z.enum(["restricted", "anyone", "workspace"]);
 
 const isoDate = z.iso.datetime();
 const id = z.string().min(1);
@@ -280,19 +290,34 @@ export const storagePersonSchema = z.object({
 /** `GET /nodes/:id/sharing`, and the answer to every change to it. */
 export const storageSharingSchema = z.object({
   nodeId: id,
-  /** Null until the node is first shared. The link is `/s/<shareId>` in both modes. */
+  /** Null until the node is first shared. The link is `/s/<shareId>` in every mode. */
   shareId: z.string().nullable(),
   linkAccess: storageLinkAccessSchema,
+  /** Absent from a Worker older than link settings. */
+  link: storageLinkSchema.optional(),
+  /** The workspace's policy, so a client offers only what it allows. Absent as above. */
+  policy: storagePolicySchema.optional(),
   people: z.array(storagePersonSchema),
   /** People who reach the node through a folder above it. */
   inherited: z.array(storagePersonSchema.extend({ nodeId: id, nodeName: z.string() })),
 });
 export const storageSharingResponseSchema = z.object({ sharing: storageSharingSchema });
 
-/** `PUT /nodes/:id/sharing/link`: set general access, or `reset` for a new link. */
+/**
+ * `PUT /nodes/:id/sharing/link`: set who it opens for, `reset` for a new link (the old one stops
+ * working, settings stay), or change its settings: `expiresAt` (null: never), `password` (null
+ * removes it) and `downloads`. `403 sharing_policy` when the workspace's policy refuses it.
+ */
 export const storageSetLinkBodySchema = z.union([
   z.strictObject({ linkAccess: storageLinkAccessSchema }),
   z.strictObject({ reset: z.literal(true) }),
+  z
+    .strictObject({
+      expiresAt: isoDate.nullable().optional(),
+      password: storageLinkPasswordSchema.nullable().optional(),
+      downloads: z.boolean().optional(),
+    })
+    .refine((body) => Object.keys(body).length > 0, { message: "change at least one setting" }),
 ]);
 
 /** A person's address as a grant stores it: trimmed and lowercase. `:email` in the routes below. */
@@ -322,8 +347,11 @@ export const storageSharedWithMeResponseSchema = z.object({
 
 /**
  * `GET /shared/:shareId?node=`: the shared node, or a folder inside it. This is what `/s/<shareId>`
- * opens. Without a session it answers only while the link is open to anyone; with one, also for a
- * person the node was shared with. Anything else is `404`. `item.role` says what the reader may do.
+ * opens: for a member of its space, a person it was shared with, and through the link itself while
+ * the link is open for the visitor (anyone, or the workspace's members), has not expired and the
+ * workspace's policy allows it. A link with a password answers `401 link_locked` until unlocked.
+ * Anything else is `404`. `item.role` says what the reader may do. Through the link alone the
+ * node carries no workspace or member ids and no hash: `orgId` is empty, the others null.
  *
  * The rest of what was shared is reached under the same prefix, by the same shapes as a member's
  * own routes: `GET /shared/:shareId/files/:id/content` downloads, and for an Editor
@@ -339,6 +367,11 @@ export const storageSharedResponseSchema = z.object({
   /** Its contents when it is a folder; empty for a file. */
   nodes: z.array(storageNodeSchema),
   nextCursor: z.string().nullable(),
+  /**
+   * False when the link alone opened it and it is view only: `/content` answers `403`. Absent
+   * from a Worker older than link settings.
+   */
+  downloads: z.boolean().optional(),
 });
 
 /**
@@ -786,3 +819,4 @@ export type DesktopWorkspaceSync = z.infer<typeof desktopWorkspaceSyncSchema>;
 export type DesktopSyncStatus = z.infer<typeof desktopSyncStatusSchema>;
 
 export * from "./storage-comments.ts";
+export * from "./storage-links.ts";

@@ -14,7 +14,7 @@ beforeAll(async () => {
       BILLING_TRIAGE_ALLOWANCE: "500",
       SIGN_UP: "invitation",
       RATE_LIMIT_STORAGE_SHARE: "2/60",
-      RATE_LIMIT_STORAGE_LINK: "3/60",
+      RATE_LIMIT_STORAGE_LINK: "4/60",
     },
     secrets: BILLING_SECRETS,
   });
@@ -95,23 +95,26 @@ test("adding people past RATE_LIMIT_STORAGE_SHARE answers 429 and adds nobody; a
   ]);
 });
 
-test("the link door answers 429 past RATE_LIMIT_STORAGE_LINK for that IP only", async () => {
+test("the link door answers 429 past RATE_LIMIT_STORAGE_LINK for that visitor's IP only, and counts a signed-in person apart", async () => {
   const { owner } = await company();
   const { shareId } = await sharedFolder(owner);
   const visitor = new CookieJar();
   const statuses = [];
   let retryAfter: string | null = null;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     const response = await door("203.0.113.7", visitor, "GET", shareId);
     statuses.push(response.status);
     retryAfter = response.headers.get("retry-after");
     await response.body?.cancel();
   }
-  expect(statuses).toEqual([200, 200, 200, 429]);
+  expect(statuses).toEqual([200, 200, 200, 200, 429]);
   expect(Number(retryAfter)).toBeGreaterThan(0);
   const guess = await door("203.0.113.7", visitor, "GET", "no-such-link-0123456789ab");
   expect(guess.status).toBe(429);
   expect((await door("203.0.113.8", visitor, "GET", shareId)).status).toBe(200);
+  const colleague = await door("203.0.113.7", owner.jar, "GET", shareId);
+  expect(colleague.status).toBe(200);
+  await colleague.body?.cancel();
 });
 
 test("a read-only workspace still serves its link; changes and sharing answer 402, by the item's workspace", async () => {

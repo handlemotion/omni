@@ -23,3 +23,9 @@ export {
 } from "./credentials.ts";
 export { signDomainConnectQuery } from "./domain-connect.ts";
 export { sha256Hex } from "./encoding.ts";
+export {
+  hashLinkPassword,
+  linkKeyMatches,
+  linkPasswordMatches,
+  signLinkKey,
+} from "./link-password.ts";

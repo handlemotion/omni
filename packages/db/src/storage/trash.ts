@@ -8,6 +8,7 @@ import {
   freeName,
   holdsLocked,
   isInside,
+  isSubtree,
   lockTree,
   orgOfNode,
   pageSize,
@@ -108,6 +109,10 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
             .update(storageNodes)
             .set({ revision, updatedAt: keepUpdatedAt })
             .where(isInside(nodeId));
+          await tx
+            .update(storageNodes)
+            .set({ linkAccess: "restricted", updatedAt: keepUpdatedAt })
+            .where(and(isSubtree(nodeId), sql`${storageNodes.linkAccess} <> 'restricted'`));
           const [row] = await tx
             .update(storageNodes)
             .set({

@@ -20,6 +20,7 @@ export function SelectionBar(props: {
   selection: NodeSelection;
   shareId: string | undefined;
   canMove: boolean;
+  canDownload: boolean;
   canTrash: (node: StorageNode) => boolean;
   onMove: () => void;
 }) {
@@ -39,18 +40,20 @@ export function SelectionBar(props: {
       <span className="px-1 text-sm text-muted-foreground tabular-nums">
         {selection.nodes.length} selected
       </span>
-      <Button
-        intent="outline"
-        size="sm"
-        onPress={() =>
-          downloadZip(
-            selection.nodes.map((n) => n.id),
-            props.shareId,
-          )
-        }
-      >
-        Download
-      </Button>
+      {props.canDownload && (
+        <Button
+          intent="outline"
+          size="sm"
+          onPress={() =>
+            downloadZip(
+              selection.nodes.map((n) => n.id),
+              props.shareId,
+            )
+          }
+        >
+          Download
+        </Button>
+      )}
       {props.canMove && (
         <Button intent="outline" size="sm" onPress={props.onMove}>
           Move

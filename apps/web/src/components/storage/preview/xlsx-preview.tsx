@@ -4,7 +4,10 @@ import type { PreviewSource } from "@/lib/storage-preview.ts";
 import { SheetGrid } from "./sheet-grid.tsx";
 import { NoPreview, StageLoading } from "./shared.tsx";
 
-export default function XlsxPreview(props: { source: PreviewSource; onDownload: () => void }) {
+export default function XlsxPreview(props: {
+  source: PreviewSource;
+  onDownload?: (() => void) | undefined;
+}) {
   const sheets = useFileSheets(props.source);
   if (sheets.isError || sheets.data?.length === 0) {
     return <NoPreview kind="spreadsheet" onDownload={props.onDownload} />;

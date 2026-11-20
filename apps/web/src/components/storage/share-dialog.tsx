@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input, InputGroup } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Switch, SwitchField } from "@/components/ui/switch";
 import { TextField } from "@/components/ui/text-field";
 import { useClipboard } from "@/hooks/use-clipboard.ts";
 import {
@@ -25,6 +26,7 @@ import type { StorageNode } from "@/lib/storage.ts";
 import {
   shareUrl,
   type StorageGrantRole,
+  type StorageLinkChange,
   type StorageLinkAccess,
   type StorageSharing,
 } from "@/lib/storage-sharing.ts";
@@ -37,8 +39,17 @@ const ROLES: { id: StorageGrantRole; label: string }[] = [
 ];
 const ACCESS: { id: StorageLinkAccess; label: string }[] = [
   { id: "restricted", label: "Restricted" },
+  { id: "workspace", label: "People in this workspace" },
   { id: "anyone", label: "Anyone with the link" },
 ];
+const DAY_MS = 86_400_000;
+const EXPIRY: { id: string; label: string; days: number | null }[] = [
+  { id: "never", label: "Never", days: null },
+  { id: "1", label: "In 1 day", days: 1 },
+  { id: "7", label: "In 7 days", days: 7 },
+  { id: "30", label: "In 30 days", days: 30 },
+];
+const DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 const roleLabel = (role: StorageGrantRole) => ROLES.find((r) => r.id === role)?.label ?? role;
 
 export function ShareDialog(props: { node: StorageNode; onClose: () => void }) {
@@ -72,6 +83,8 @@ const SAMPLE: StorageSharing = {
   nodeId: "sample",
   shareId: "sample",
   linkAccess: "restricted",
+  link: { expiresAt: null, hasPassword: false, downloads: true },
+  policy: { publicLinks: true, outsideSharing: true },
   people: [{ email: "someone@example.com", role: "viewer", createdAt: new Date(0).toISOString() }],
   inherited: [],
 };
@@ -214,15 +227,19 @@ function PersonRow(props: { email: string; from?: string; children: React.ReactN
 
 function GeneralAccess({ sharing }: { sharing: StorageSharing }) {
   const setLink = useSetStorageLink();
-  const anyone = sharing.linkAccess === "anyone";
-  const Icon = anyone ? IconGlobe : IconLock;
+  const open = sharing.linkAccess !== "restricted";
+  const Icon = sharing.linkAccess === "anyone" ? IconGlobe : IconLock;
+  const choices = ACCESS.filter(
+    (a) =>
+      a.id !== "anyone" || sharing.policy?.publicLinks !== false || sharing.linkAccess === a.id,
+  );
   return (
     <Group label="General access">
       <li className="flex min-h-10 items-center gap-2.5">
         <span className="grid size-6 shrink-0 place-items-center">
           <Icon className="size-icon text-muted-foreground" />
         </span>
-        <div className="w-52 min-w-0">
+        <div className="w-60 min-w-0">
           <Select
             aria-label="General access"
             value={sharing.linkAccess}
@@ -237,7 +254,7 @@ function GeneralAccess({ sharing }: { sharing: StorageSharing }) {
             }}
           >
             <SelectTrigger />
-            <SelectContent items={ACCESS}>
+            <SelectContent items={choices}>
               {(access) => (
                 <SelectItem id={access.id} textValue={access.label}>
                   {access.label}
@@ -264,7 +281,119 @@ function GeneralAccess({ sharing }: { sharing: StorageSharing }) {
           </Button>
         </li>
       )}
+      {open && sharing.link && <LinkSettings nodeId={sharing.nodeId} link={sharing.link} />}
     </Group>
+  );
+}
+
+type Link = NonNullable<StorageSharing["link"]>;
+
+function LinkSettings({ nodeId, link }: { nodeId: string; link: Link }) {
+  const setLink = useSetStorageLink();
+  const change = (json: StorageLinkChange, failed: string) =>
+    setLink.mutate(
+      { id: nodeId, ...json },
+      { onError: (error) => storageErrorToast(error, failed) },
+    );
+  const expiry = link.expiresAt
+    ? [
+        { id: "set", label: `Until ${DATE.format(new Date(link.expiresAt))}`, days: null },
+        ...EXPIRY,
+      ]
+    : EXPIRY;
+  return (
+    <>
+      <SettingRow label="Expires">
+        <div className="w-40 shrink-0">
+          <Select
+            aria-label="Expires"
+            value={link.expiresAt ? "set" : "never"}
+            onChange={(next) => {
+              const option = EXPIRY.find((e) => e.id === next);
+              if (!option) return;
+              const expiresAt = option.days
+                ? new Date(Date.now() + option.days * DAY_MS).toISOString()
+                : null;
+              change({ expiresAt }, "The expiry was not changed");
+            }}
+          >
+            <SelectTrigger />
+            <SelectContent items={expiry}>
+              {(option) => (
+                <SelectItem id={option.id} textValue={option.label}>
+                  {option.label}
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      </SettingRow>
+      <PasswordRow hasPassword={link.hasPassword} onChange={change} />
+      <SettingRow label="Allow downloads">
+        <SwitchField
+          aria-label="Allow downloads"
+          isSelected={link.downloads}
+          onChange={(downloads) => change({ downloads }, "Downloads were not changed")}
+        >
+          <Switch />
+        </SwitchField>
+      </SettingRow>
+    </>
+  );
+}
+
+function PasswordRow(props: {
+  hasPassword: boolean;
+  onChange: (json: StorageLinkChange, failed: string) => void;
+}) {
+  const [password, setPassword] = useState("");
+  if (props.hasPassword) {
+    return (
+      <SettingRow label="Password">
+        <Button
+          intent="outline"
+          onPress={() => props.onChange({ password: null }, "The password was not removed")}
+        >
+          Remove password
+        </Button>
+      </SettingRow>
+    );
+  }
+  return (
+    <SettingRow label="Password">
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (password.length < 4) return;
+          props.onChange({ password }, "The password was not set");
+          setPassword("");
+        }}
+      >
+        <TextField
+          aria-label="Link password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          className="w-40"
+        >
+          <Input autoComplete="new-password" />
+        </TextField>
+        <Button type="submit" intent="outline" isDisabled={password.length < 4}>
+          Set
+        </Button>
+      </form>
+    </SettingRow>
+  );
+}
+
+function SettingRow(props: { label: string; children: React.ReactNode }) {
+  return (
+    <li className="flex min-h-10 items-center gap-2.5">
+      <span aria-hidden className="size-6 shrink-0" />
+      <span className="min-w-0 flex-1 text-sm">{props.label}</span>
+      {props.children}
+    </li>
   );
 }
 

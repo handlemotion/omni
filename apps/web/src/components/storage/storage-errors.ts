@@ -16,6 +16,8 @@ const BY_CODE: Partial<Record<ErrorCode, string>> = {
   invalid_email: "That isn't an email address",
   locked: "That file is locked",
   rate_limited: "Too many at once. Try again in a minute",
+  sharing_policy: "Your workspace's sharing policy doesn't allow that",
+  wrong_password: "That password isn't right",
 };
 
 const FINAL = new Set<string>([

@@ -15,7 +15,7 @@ export default function CodePreview(props: {
   source: PreviewSource;
   kind: FileKind;
   language?: string | undefined;
-  onDownload: () => void;
+  onDownload?: (() => void) | undefined;
 }) {
   const text = useFileText(props.source);
   if (text.isError || text.data?.binary) {

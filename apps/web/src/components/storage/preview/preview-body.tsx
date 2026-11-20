@@ -11,7 +11,11 @@ const CodePreview = lazy(() => import("./code-preview.tsx"));
 const CsvPreview = lazy(() => import("./csv-preview.tsx"));
 const XlsxPreview = lazy(() => import("./xlsx-preview.tsx"));
 
-export function PreviewBody(props: { node: StorageNode; url: string; onDownload: () => void }) {
+export function PreviewBody(props: {
+  node: StorageNode;
+  url: string;
+  onDownload?: (() => void) | undefined;
+}) {
   const { node, url, onDownload } = props;
   const type = fileType(node.name, node.mimeType);
   const source = { url, version: node.updatedAt, size: node.size };

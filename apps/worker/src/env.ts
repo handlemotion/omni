@@ -116,7 +116,9 @@ const configSchema = z
     RATE_LIMIT_PROVISION: rateLimit("30/3600"),
     RATE_LIMIT_IMAGE_PROXY: rateLimit("300/60"),
     RATE_LIMIT_STORAGE_SHARE: rateLimit("60/3600"),
+    RATE_LIMIT_STORAGE_SHARE_NEW: rateLimit("10/86400"),
     RATE_LIMIT_STORAGE_LINK: rateLimit("300/60"),
+    RATE_LIMIT_STORAGE_LINK_PASSWORD: rateLimit("10/900"),
     RATE_LIMIT_STORAGE_SYNC: rateLimit("600/60"),
   })
   .refine((env) => !env.S2_BASIN_URL || !!env.S2_BASIN, {

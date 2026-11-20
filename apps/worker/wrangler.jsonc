@@ -85,7 +85,9 @@
     "RATE_LIMIT_PROVISION": "30/3600",
     "RATE_LIMIT_IMAGE_PROXY": "300/60",
     "RATE_LIMIT_STORAGE_SHARE": "60/3600",
+    "RATE_LIMIT_STORAGE_SHARE_NEW": "10/86400",
     "RATE_LIMIT_STORAGE_LINK": "300/60",
+    "RATE_LIMIT_STORAGE_LINK_PASSWORD": "10/900",
     "RATE_LIMIT_STORAGE_SYNC": "600/60",
   },
   // Auth and notice mail (magic links, invitations, domain notices) goes out through Cloudflare

@@ -133,6 +133,12 @@ export const ERROR_CODES = {
    * holds one is not deleted for good.
    */
   contract_signed: spec(409, "conflict"),
+  /** The workspace's sharing policy refuses it: a link open to anyone, or an outside address. */
+  sharing_policy: spec(403, "permission"),
+  /** The link has a password: `POST /shared/:shareId/unlock` with it first. */
+  link_locked: spec(401, "unauthenticated"),
+  /** That is not the link's password. */
+  wrong_password: spec(403, "permission"),
 } as const satisfies Record<string, ErrorSpec>;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

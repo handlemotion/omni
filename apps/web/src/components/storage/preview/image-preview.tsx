@@ -8,7 +8,7 @@ export function ImagePreview(props: {
   source: PreviewSource;
   raster: string;
   name: string;
-  onDownload: () => void;
+  onDownload?: (() => void) | undefined;
 }) {
   const image = useFileImage(props.source, props.raster);
   const [broken, setBroken] = useState(false);

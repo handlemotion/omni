@@ -16,7 +16,9 @@ const RULES = {
   provision: "RATE_LIMIT_PROVISION",
   imageProxy: "RATE_LIMIT_IMAGE_PROXY",
   storageShare: "RATE_LIMIT_STORAGE_SHARE",
+  storageShareNew: "RATE_LIMIT_STORAGE_SHARE_NEW",
   storageLink: "RATE_LIMIT_STORAGE_LINK",
+  storageLinkPassword: "RATE_LIMIT_STORAGE_LINK_PASSWORD",
   storageSync: "RATE_LIMIT_STORAGE_SYNC",
 } as const satisfies Record<string, keyof Config>;
 

@@ -48,7 +48,7 @@ export function PreviewPanel(props: {
   next: StorageNode | undefined;
   onOpen: (node: StorageNode) => void;
   onClose: () => void;
-  onDownload: () => void;
+  onDownload?: (() => void) | undefined;
   menu: SettingsRowMenuItem[];
   fullScreen: boolean;
   onFullScreen: () => void;
@@ -64,7 +64,7 @@ export function PreviewPanel(props: {
   const { node } = props;
   const tools = usePreviewTools(node, props.shareId);
   const shown = tools.shown;
-  const download = shown ? () => downloadFile(shown.url) : props.onDownload;
+  const download = shown && props.onDownload ? () => downloadFile(shown.url) : props.onDownload;
   const session = useEditSession(node, props.url, props.shareId);
   const canEdit = props.canWrite && canEditFile(node) && !shown;
   return (
@@ -112,9 +112,11 @@ export function PreviewPanel(props: {
           >
             <IconChevronRight />
           </Action>
-          <Action label="Download" onPress={download}>
-            <IconDownload />
-          </Action>
+          {download && (
+            <Action label="Download" onPress={download}>
+              <IconDownload />
+            </Action>
+          )}
           {!session.dirty && (
             <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} />
           )}
@@ -221,7 +223,7 @@ function Stage(props: {
   node: StorageNode;
   url: string;
   tools: ReturnType<typeof usePreviewTools>;
-  onDownload: () => void;
+  onDownload?: (() => void) | undefined;
 }) {
   const { shown, marks, rail, contentVersion } = props.tools;
   return (
