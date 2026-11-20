@@ -21,6 +21,8 @@ import { Route as AuthedWorkspaceSplatRouteImport } from "./routes/_authed/$work
 import { Route as AuthedWorkspaceCrmRouteImport } from "./routes/_authed/$workspace/crm";
 import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/invite.$invitationId";
 import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/consent";
+import { Route as AuthedPortalIndexRouteImport } from "./routes/_authed/portal.index";
+import { Route as AuthedPortalIdRouteImport } from "./routes/_authed/portal.$id";
 import { Route as AuthedWorkspaceCrmIndexRouteImport } from "./routes/_authed/$workspace/crm/index";
 import { Route as AuthedWorkspaceFilesIndexRouteImport } from "./routes/_authed/$workspace/files/index";
 import { Route as AuthedWorkspaceFilesSharedWithMeRouteImport } from "./routes/_authed/$workspace/files/shared-with-me";
@@ -121,6 +123,16 @@ const AuthedInviteInvitationIdRoute =
 const AuthedOauthConsentRoute = AuthedOauthConsentRouteImport.update({
   id: "/oauth/consent",
   path: "/oauth/consent",
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedPortalIndexRoute = AuthedPortalIndexRouteImport.update({
+  id: "/portal/",
+  path: "/portal/",
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedPortalIdRoute = AuthedPortalIdRouteImport.update({
+  id: "/portal/$id",
+  path: "/portal/$id",
   getParentRoute: () => AuthedRoute,
 } as any);
 const AuthedWorkspaceCrmIndexRoute = AuthedWorkspaceCrmIndexRouteImport.update({
@@ -377,6 +389,8 @@ export interface FileRoutesByFullPath {
   "/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
+  "/portal/$id": typeof AuthedPortalIdRoute;
+  "/portal/": typeof AuthedPortalIndexRoute;
   "/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -430,6 +444,8 @@ export interface FileRoutesByTo {
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
+  "/portal/$id": typeof AuthedPortalIdRoute;
+  "/portal": typeof AuthedPortalIndexRoute;
   "/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -486,6 +502,8 @@ export interface FileRoutesById {
   "/_authed/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/_authed/oauth/consent": typeof AuthedOauthConsentRoute;
+  "/_authed/portal/$id": typeof AuthedPortalIdRoute;
+  "/_authed/portal/": typeof AuthedPortalIndexRoute;
   "/_authed/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/_authed/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/_authed/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -542,6 +560,8 @@ export interface FileRouteTypes {
     | "/$workspace/crm"
     | "/invite/$invitationId"
     | "/oauth/consent"
+    | "/portal/$id"
+    | "/portal/"
     | "/$workspace/files/shared-with-me"
     | "/$workspace/files/trash"
     | "/$workspace/mail/all"
@@ -595,6 +615,8 @@ export interface FileRouteTypes {
     | "/$workspace/$"
     | "/invite/$invitationId"
     | "/oauth/consent"
+    | "/portal/$id"
+    | "/portal"
     | "/$workspace/files/shared-with-me"
     | "/$workspace/files/trash"
     | "/$workspace/mail/all"
@@ -650,6 +672,8 @@ export interface FileRouteTypes {
     | "/_authed/$workspace/crm"
     | "/_authed/invite/$invitationId"
     | "/_authed/oauth/consent"
+    | "/_authed/portal/$id"
+    | "/_authed/portal/"
     | "/_authed/$workspace/files/shared-with-me"
     | "/_authed/$workspace/files/trash"
     | "/_authed/$workspace/mail/all"
@@ -785,6 +809,20 @@ declare module "@tanstack/react-router" {
       path: "/oauth/consent";
       fullPath: "/oauth/consent";
       preLoaderRoute: typeof AuthedOauthConsentRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    "/_authed/portal/": {
+      id: "/_authed/portal/";
+      path: "/portal";
+      fullPath: "/portal/";
+      preLoaderRoute: typeof AuthedPortalIndexRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    "/_authed/portal/$id": {
+      id: "/_authed/portal/$id";
+      path: "/portal/$id";
+      fullPath: "/portal/$id";
+      preLoaderRoute: typeof AuthedPortalIdRouteImport;
       parentRoute: typeof AuthedRoute;
     };
     "/_authed/$workspace/crm/": {
@@ -1313,6 +1351,8 @@ interface AuthedRouteChildren {
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute;
   AuthedInviteInvitationIdRoute: typeof AuthedInviteInvitationIdRoute;
   AuthedOauthConsentRoute: typeof AuthedOauthConsentRoute;
+  AuthedPortalIdRoute: typeof AuthedPortalIdRoute;
+  AuthedPortalIndexRoute: typeof AuthedPortalIndexRoute;
   AuthedSettingsEmailsVerifyRoute: typeof AuthedSettingsEmailsVerifyRoute;
 }
 
@@ -1322,6 +1362,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedInviteInvitationIdRoute: AuthedInviteInvitationIdRoute,
   AuthedOauthConsentRoute: AuthedOauthConsentRoute,
+  AuthedPortalIdRoute: AuthedPortalIdRoute,
+  AuthedPortalIndexRoute: AuthedPortalIndexRoute,
   AuthedSettingsEmailsVerifyRoute: AuthedSettingsEmailsVerifyRoute,
 };
 

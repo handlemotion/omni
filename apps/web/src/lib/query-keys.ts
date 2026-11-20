@@ -145,6 +145,9 @@ export const keys = {
   storageLinkUploading: (shareId: string, nodeId: string | undefined) =>
     [...storage(), "link-uploading", shareId, nodeId ?? null] as const,
 
+  /** The client portal: projects the person is a client on, across workspaces. */
+  portalProjects: () => ["portal", "projects"] as const,
+  portalProject: (id: string) => ["portal", "project", id] as const,
   /** The CRM: every list, record, timeline and the stages. */
   crm: () => crm(),
   /** A list by every filter, sort and search it is asked with, so each view caches apart. */
