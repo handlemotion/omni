@@ -153,13 +153,13 @@ function crmHits(
 function taskHits(
   client: QueryClient,
   needle: string,
-  found: CrmTask[] | undefined,
-  fresh: boolean,
+  answer: { found?: CrmTask[] | undefined; stale?: CrmTask[] | undefined },
 ) {
-  const open = cached<CrmTask>(client, [...keys.crm(), "tasks", "list"], "tasks").filter(
-    (task) => !task.completedAt,
-  );
-  return pick(open, fresh ? found : undefined, needle, (task) => task.title);
+  const open = [
+    ...cached<CrmTask>(client, [...keys.crm(), "tasks", "list"], "tasks"),
+    ...(answer.stale ?? []),
+  ].filter((task) => !task.completedAt);
+  return pick(open, answer.found, needle, (task) => task.title);
 }
 
 /** Records named like `text`: local ones at once, the server's merged in as they arrive. */
@@ -211,7 +211,16 @@ export function useCommandSearch(text: string, company: boolean) {
       ...(company
         ? crmHits(client, needle, split(crm, fresh))
         : { companies: [], people: [], deals: [] }),
-      tasks: company ? taskHits(client, needle, tasks.data?.pages[0]?.tasks, fresh) : [],
+      tasks: company
+        ? taskHits(
+            client,
+            needle,
+            split(
+              { data: tasks.data?.pages[0]?.tasks, isPlaceholderData: tasks.isPlaceholderData },
+              fresh,
+            ),
+          )
+        : [],
       threads: pick(
         cached<ThreadSummary>(client, keys.threadLists(), "threads"),
         undefined,

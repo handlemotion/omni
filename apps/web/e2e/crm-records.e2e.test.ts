@@ -235,6 +235,25 @@ test("the deal board shows only the owner's deals when filtered by owner", async
   await card(page, "Ana's deal").waitFor();
 });
 
+test("a value range is cleared on its own by applying it empty, and the owner filter stays", async () => {
+  const team = await workspace("range");
+  await team.api("POST", "/deals", { name: "Small deal", valueMinor: 10_000, currency: "USD" });
+  await team.api("POST", "/deals", { name: "Big deal", valueMinor: 900_000, currency: "USD" });
+  const page = await team.page(`/crm/deals?minValue=1000&owner=${team.memberId}`);
+  await card(page, "Big deal").waitFor();
+  expect(await card(page, "Small deal").count()).toBe(0);
+
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Value/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Value" });
+  await dialog.getByRole("textbox", { name: "At least" }).fill("");
+  await dialog.getByRole("button", { name: "Apply" }).click();
+
+  await expect.poll(() => new URL(page.url()).searchParams.get("minValue")).toBeNull();
+  expect(new URL(page.url()).searchParams.get("owner")).toBe(team.memberId);
+  await card(page, "Small deal").waitFor();
+});
+
 test("a deal moves to the next stage from the keyboard: Space, Right arrow, Space", async () => {
   const team = await workspace("board-keys");
   const { stages } = await team.api("GET", "/stages");

@@ -272,6 +272,77 @@ test("New › Task starts on the record whose page it is, and from the task list
   await context.close();
 });
 
+test("an old ?view=done link becomes filters that Status › Open can change", async () => {
+  const { page, org, context } = await signedIn("legacy-view");
+  await page.goto(new URL(`/${org.slug}/crm/tasks?view=done`, origin()).toString());
+  await expect.poll(() => new URL(page.url()).searchParams.get("status")).toBe("done");
+  expect(new URL(page.url()).searchParams.get("view")).toBeNull();
+  expect(new URL(page.url()).searchParams.get("assignee")).toBe("anyone");
+
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Status/ }).click();
+  await page.getByRole("menuitemradio", { name: "Open" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("status")).toBeNull();
+  expect(new URL(page.url()).searchParams.get("assignee")).toBe("anyone");
+  await context.close();
+});
+
+test("opening a task far down the list keeps the list where it was scrolled", async () => {
+  const { page, org, context, headers } = await signedIn("scroll");
+  for (let i = 1; i <= 40; i++) {
+    await fetch(new URL("/api/crm/tasks", origin()), {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ title: `Shot ${String(i).padStart(2, "0")}` }),
+    });
+  }
+  await page.goto(new URL(`/${org.slug}/crm/tasks`, origin()).toString());
+  const last = page.getByRole("link", { name: "Shot 40" });
+  await last.scrollIntoViewIfNeeded();
+  const scrolled = () =>
+    last.evaluate((el) => {
+      let node: Element | null = el;
+      while (node && node.scrollHeight <= node.clientHeight) node = node.parentElement;
+      return node?.scrollTop ?? 0;
+    });
+  const before = await scrolled();
+  expect(before).toBeGreaterThan(0);
+  await last.click();
+  await page
+    .getByRole("region", { name: "Task" })
+    .getByRole("textbox", { name: "Title" })
+    .waitFor();
+  expect(await scrolled()).toBe(before);
+  await context.close();
+});
+
+async function signedIn(slug: string) {
+  const org = await createOrg(db, slug);
+  await db.insert(schema.orgSetup).values({ orgId: org.id, step: "complete" });
+  const email = `${slug}-${Date.now()}@studio.test`;
+  const member = await createMember(db, org.id, email);
+  await db.update(schema.members).set({ role: "owner" }).where(eq(schema.members.id, member.id));
+  const cookie = await signIn({ url: new URL(origin()) }, db, email);
+  const headers = {
+    cookie,
+    origin: origin(),
+    "content-type": "application/json",
+    "omni-workspace": org.id,
+  };
+  const context = await browser.newContext();
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin() };
+    }),
+  );
+  return { org, headers, context, page: await context.newPage() };
+}
+
+function origin() {
+  return String(worker.url);
+}
+
 async function taskTitled(title: string) {
   const [found] = await db.select().from(schema.crmTasks).where(eq(schema.crmTasks.title, title));
   return found;

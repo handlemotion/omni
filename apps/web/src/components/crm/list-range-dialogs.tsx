@@ -9,7 +9,7 @@ import { parseMoney } from "@/lib/crm.ts";
 
 const day = (iso: string | undefined) => (iso ? parseDate(iso) : null);
 
-/** The close date window: either end may stay open. */
+/** The close date window: either end may stay open, and both left empty clears it. */
 export function CloseDateDialog(props: {
   after: string | undefined;
   before: string | undefined;
@@ -25,7 +25,7 @@ export function CloseDateDialog(props: {
       onOpenChange={(open) => !open && props.onClose()}
       title="Close date"
       action="Apply"
-      disabled={(!after && !before) || backwards}
+      disabled={(!after && !before && !props.after && !props.before) || backwards}
       onSubmit={() => {
         props.onSave(after?.toString(), before?.toString());
         props.onClose();
@@ -45,7 +45,7 @@ export function CloseDateDialog(props: {
 
 const whole = (minor: number | null) => (minor === null ? undefined : minor / 100);
 
-/** The value range, in whole units: either end may stay open. */
+/** The value range, in whole units: either end may stay open, and both left empty clears it. */
 export function ValueRangeDialog(props: {
   min: number | undefined;
   max: number | undefined;
@@ -66,7 +66,13 @@ export function ValueRangeDialog(props: {
       onOpenChange={(open) => !open && props.onClose()}
       title="Value"
       action="Apply"
-      disabled={invalid || (low === undefined && high === undefined)}
+      disabled={
+        invalid ||
+        (low === undefined &&
+          high === undefined &&
+          props.min === undefined &&
+          props.max === undefined)
+      }
       onSubmit={() => {
         props.onSave(low, high);
         props.onClose();

@@ -110,33 +110,37 @@ export function TasksPage(props: {
       {adding && <NewTaskDialog onClose={() => setAdding(false)} />}
     </StorageFrame>
   );
-  if (!props.task) return <OpenTaskContext value={opened}>{list}</OpenTaskContext>;
   return (
     <OpenTaskContext value={opened}>
       <div
         ref={rowRef}
         className={`flex h-svh min-h-0 min-w-0 flex-1 ${resizing ? "cursor-ew-resize select-none" : ""}`}
       >
-        <div ref={listRef} className={`flex min-w-80 flex-1 flex-col ${phone ? "hidden" : ""}`}>
+        <div
+          ref={listRef}
+          className={`flex min-w-80 flex-1 flex-col ${phone && props.task ? "hidden" : ""}`}
+        >
           {list}
         </div>
-        <div
-          style={phone ? undefined : { width: panel.width }}
-          className={`relative flex min-w-0 ${phone ? "flex-1" : "shrink"}`}
-        >
-          {!phone && (
-            <ResizeGrip
-              label="Resize tasks"
-              width={() => listRef.current?.offsetWidth ?? 0}
-              onResize={(width) =>
-                panel.set((rowRef.current?.offsetWidth ?? 0) - Math.max(LIST_MIN, width))
-              }
-              onReset={panel.reset}
-              onResizingChange={setResizing}
-            />
-          )}
-          <TaskPanel key={props.task} id={props.task} onClose={open.close} />
-        </div>
+        {props.task && (
+          <div
+            style={phone ? undefined : { width: panel.width }}
+            className={`relative flex min-w-0 ${phone ? "flex-1" : "shrink"}`}
+          >
+            {!phone && (
+              <ResizeGrip
+                label="Resize tasks"
+                width={() => listRef.current?.offsetWidth ?? 0}
+                onResize={(width) =>
+                  panel.set((rowRef.current?.offsetWidth ?? 0) - Math.max(LIST_MIN, width))
+                }
+                onReset={panel.reset}
+                onResizingChange={setResizing}
+              />
+            )}
+            <TaskPanel key={props.task} id={props.task} onClose={open.close} />
+          </div>
+        )}
       </div>
     </OpenTaskContext>
   );

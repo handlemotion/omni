@@ -4,10 +4,14 @@ import {
   IconBoard,
   IconBuildings,
   IconCalendar,
+  IconCircle,
   IconCircleCheck,
   IconFilter,
+  IconInbox,
+  IconLayoutGrid,
   IconMoney,
   IconUserRound,
+  IconX,
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
@@ -255,6 +259,8 @@ function useValueText(kind: FilterKind, values: FilterValues) {
 
 type Choice = { id: string; label: string; mark?: ReactNode; patch: Patch };
 
+const icon = (Glyph: typeof IconCircle) => <Glyph data-slot="icon" />;
+
 function useChoices(kind: FilterKind) {
   const owners = useOwners();
   const selfId = useSelfMemberId();
@@ -294,24 +300,29 @@ function choicesFor(
       ];
     case "status":
       return [
-        { id: "open", label: "Open", patch: { status: undefined } },
-        { id: "done", label: "Done", patch: { status: "done" } },
+        { id: "open", label: "Open", mark: icon(IconCircle), patch: { status: undefined } },
+        { id: "done", label: "Done", mark: icon(IconCircleCheck), patch: { status: "done" } },
       ];
     case "company":
       return [
-        { id: "all", label: "All", patch: { company: undefined } },
-        { id: "with", label: "Any", patch: { company: "with" } },
-        { id: "without", label: "None", patch: { company: "without" } },
+        { id: "all", label: "All", mark: icon(IconLayoutGrid), patch: { company: undefined } },
+        { id: "with", label: "Any", mark: icon(IconBuildings), patch: { company: "with" } },
+        { id: "without", label: "None", mark: icon(IconX), patch: { company: "without" } },
       ];
     case "stage":
       return [
-        { id: "all", label: "All", patch: { stage: undefined } },
-        ...stages.map((stage) => ({ id: stage.id, label: stage.name, patch: { stage: stage.id } })),
+        { id: "all", label: "All", mark: icon(IconLayoutGrid), patch: { stage: undefined } },
+        ...stages.map((stage) => ({
+          id: stage.id,
+          label: stage.name,
+          mark: icon(IconBoard),
+          patch: { stage: stage.id },
+        })),
       ];
     case "archived":
       return [
-        { id: "hidden", label: "Hidden", patch: { archived: undefined } },
-        { id: "only", label: "Only", patch: { archived: "only" } },
+        { id: "hidden", label: "Hidden", mark: icon(IconInbox), patch: { archived: undefined } },
+        { id: "only", label: "Only", mark: icon(IconArchive), patch: { archived: "only" } },
       ];
     default:
       return [];
