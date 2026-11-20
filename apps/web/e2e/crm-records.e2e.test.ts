@@ -221,7 +221,7 @@ test("a won deal is listed under Projects, and its page sits under Projects", as
   expect(new URL(page.url()).pathname).toContain(`/crm/deals/${deal.id}`);
 });
 
-test("the sidebar lists the active projects only, each marked with its client", async () => {
+test("the sidebar lists the projects and leads, not closed deals, each marked with its client", async () => {
   const team = await workspace("active");
   const { stages } = await team.api("GET", "/stages");
   const stage = (kind: string) => stages.find((one: { kind: string }) => one.kind === kind).id;
@@ -234,12 +234,14 @@ test("the sidebar lists the active projects only, each marked with its client", 
   const launch = await project("Globex", "Launch site", "won");
   await project("Initech", "Still talking", "open");
   await project("Umbrella", "Old rebrand", "done");
+  await project("Hooli", "Never signed", "lost");
 
   const page = await team.page("/crm/tasks");
   const row = page.getByRole("link", { name: "Launch site" });
   await row.getByTitle("Globex").waitFor();
-  expect(await page.getByRole("link", { name: "Still talking" }).count()).toBe(0);
+  await page.getByRole("link", { name: "Still talking" }).getByTitle("Initech").waitFor();
   expect(await page.getByRole("link", { name: "Old rebrand" }).count()).toBe(0);
+  expect(await page.getByRole("link", { name: "Never signed" }).count()).toBe(0);
   expect(await page.getByRole("link", { name: "Lead" }).count()).toBe(0);
 
   await row.click();
@@ -273,7 +275,11 @@ test("a person's page lists their deals and makes another address primary", asyn
   await team.api("POST", "/deals", { name: "Rita's retainer", personIds: [person.id] });
 
   const page = await team.page(`/crm/people/${person.id}`);
-  await page.getByRole("link", { name: /Rita's retainer/ }).waitFor();
+  await page
+    .getByRole("main")
+    .first()
+    .getByRole("link", { name: /Rita's retainer/ })
+    .waitFor();
   await page.getByRole("button", { name: "rita@work.test actions" }).click();
   await page.getByRole("menuitem", { name: "Make primary" }).click();
 

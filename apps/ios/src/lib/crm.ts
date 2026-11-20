@@ -70,14 +70,15 @@ export function usePeople(view: ListView = DEFAULT_VIEW) {
 }
 
 /**
- * Deals in the view's order and filters; `projects` lists the won ones only. `whole` asks in the
+ * Deals in the view's order and filters; `projects` lists the won ones only,
+ * `leads` the open ones. `whole` asks in the
  * largest pages, for a board that loads every deal to count each stage.
  */
 export function useDeals(
   view: ListView = DEFAULT_VIEW,
-  options: { projects?: boolean; whole?: boolean } = {},
+  options: { projects?: boolean; leads?: boolean; whole?: boolean } = {},
 ) {
-  const query = dealsQuery(view, !!options.projects);
+  const query = dealsQuery(view, options.projects ? "won" : options.leads ? "open" : undefined);
   const size = options.whole ? BOARD_PAGE_SIZE : PAGE_SIZE;
   return useInfiniteQuery(
     infiniteQueryOptions({
@@ -114,14 +115,16 @@ function useDrained<
 }
 
 /**
- * The active projects (deals in a `won` stage), by name, each with its client from the company
+ * The active projects (deals in a `won` stage) and leads (in an `open` one), by name, each with
+ * its client from the company
  * list (its name and a domain for the logo).
  */
 export function useActiveProjects() {
-  const projects = useDrained(useDeals(DEFAULT_VIEW, { projects: true, whole: true })).data ?? [];
+  const won = useDrained(useDeals(DEFAULT_VIEW, { projects: true, whole: true })).data ?? [];
+  const leads = useDrained(useDeals(DEFAULT_VIEW, { leads: true, whole: true })).data ?? [];
   const companies = useDrained(useCompanies()).data ?? [];
   const clients = new Map(companies.map((company) => [company.id, company]));
-  return projects
+  return [...won, ...leads]
     .map((deal) => ({ deal, client: deal.companyId ? clients.get(deal.companyId) : undefined }))
     .toSorted((a, b) => a.deal.name.localeCompare(b.deal.name, undefined, { sensitivity: "base" }));
 }

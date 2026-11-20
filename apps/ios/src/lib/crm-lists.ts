@@ -84,10 +84,10 @@ export const peopleQuery = (view: ListView) => ({
   ...(view.noCompany ? { hasCompany: "0" as const } : {}),
 });
 
-/** A deals list's query string; Projects add `kind=won`, the board drops the stage filter. */
-export const dealsQuery = (view: ListView, projects: boolean) => ({
+/** A deals list's query string, of one stage kind (Projects are `won`); the board drops the stage filter. */
+export const dealsQuery = (view: ListView, kind?: "open" | "won") => ({
   ...shared(view),
   sort: view.sort,
   ...(view.stage ? { stage: view.stage } : {}),
-  ...(projects ? { kind: "won" as const } : {}),
+  ...(kind ? { kind } : {}),
 });

@@ -273,8 +273,8 @@ board by stage; a won deal is the project.
   workspace default, else the device's. The API still refuses a value with no currency at all.
 - **Projects** are deals in a `won` stage (`kind=won`); the apps list them on their own.
 - **Navigation.** The sidebar (the iOS menu) lists the CRM's pages (Companies, People, Deals, …),
-  then **Active projects**: each deal in a `won` stage, by name, with its client's logo at the
-  end. There are no stage shortcuts: the board and filters do that.
+  then **Active projects**: each deal in a `won` or `open` stage (projects and leads), by name,
+  with its client's logo at the end. There are no stage shortcuts: the board and filters do that.
 
 Still out: custom fields, saved views, several pipelines, merging duplicates, imports.
 

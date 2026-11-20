@@ -29,7 +29,8 @@ const ROWS: { list: keyof typeof CRM_LISTS; icon: ReactNode }[] = [
   { list: "tasks", icon: <IconChecklist className="size-icon" /> },
 ];
 
-const ACTIVE_PROJECTS = { kind: "won" } as const;
+const WON = { kind: "won" } as const;
+const LEADS = { kind: "open" } as const;
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
@@ -65,12 +66,16 @@ export function CrmLists({ mailbox }: { mailbox: string | undefined }) {
 }
 
 function ActiveProjects({ search }: { search: string }) {
-  const { deals, isPending } = useCrmDeals(ACTIVE_PROJECTS, { all: true });
+  const won = useCrmDeals(WON, { all: true });
+  const leads = useCrmDeals(LEADS, { all: true });
+  const isPending = won.isPending || leads.isPending;
   const companies = useCrmCompanyIndex();
   const projects = useMemo(
     () =>
-      deals.toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
-    [deals],
+      [...won.deals, ...leads.deals].toSorted((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+      ),
+    [won.deals, leads.deals],
   );
   if (!isPending && projects.length === 0) return null;
   return (
@@ -100,7 +105,13 @@ function ProjectRow(props: { deal: CrmDeal; client: CrmCompany | undefined; sear
       href={inWorkspace(href + props.search)}
       isCurrent={pathname === href}
       depth={0}
-      icon={<IconProjects className="size-icon" />}
+      icon={
+        props.deal.stageKind === "won" ? (
+          <IconProjects className="size-icon" />
+        ) : (
+          <IconHandshake className="size-icon" />
+        )
+      }
       label={props.deal.name}
       detail={
         client ? (
