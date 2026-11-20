@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type StorageStack } from "./storage-support.ts";
 import type { CookieJar } from "./support.ts";
@@ -76,4 +78,66 @@ test("a deal's folder takes an upload, and signing its contract locks the file a
       item.event?.kind.startsWith("contract_"),
     ),
   ).toEqual([]);
+});
+
+test("a deal links Drive files where they live, and each member sees only the ones they can open", async () => {
+  const org = await stack.company(`crm-links-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id, "owner");
+  const ben = await stack.member(org.id, "member");
+  const dealId = (await crm(ana.jar, "POST", "/deals", { name: "Rebrand" })).body.deal.id;
+
+  const briefs = await stack.api(ana.jar, "POST", "/folders", {
+    space: "shared",
+    name: "Briefs",
+  });
+  const brief = await stack.upload(
+    ana.jar,
+    { parentId: briefs.body.node.id },
+    "brief.pdf",
+    Buffer.from("%PDF"),
+  );
+  const notes = await stack.upload(
+    ana.jar,
+    { space: "personal" },
+    "notes.txt",
+    Buffer.from("mine"),
+  );
+  const linked = await Promise.all([
+    crm(ana.jar, "POST", `/deals/${dealId}/links`, { nodeIds: [brief.id, notes.id] }),
+    crm(ana.jar, "POST", `/deals/${dealId}/links`, { nodeIds: [brief.id] }),
+  ]);
+  expect(linked.map((answer) => answer.status)).toEqual([200, 200]);
+  expect(
+    linked[0].body.links.map((link: { node: { id: string } }) => link.node.id).toSorted(),
+  ).toEqual([brief.id, notes.id].toSorted());
+
+  const where = await stack.api(ana.jar, "GET", `/nodes/${brief.id}`);
+  expect(where.body.node.parentId).toBe(briefs.body.node.id);
+  const seen = async (jar: typeof ana.jar) =>
+    (await crm(jar, "GET", `/deals/${dealId}/links`)).body.links.map(
+      (link: { node: { name: string } }) => link.node.name,
+    );
+  expect((await seen(ana.jar)).toSorted()).toEqual(["brief.pdf", "notes.txt"]);
+  expect(await seen(ben.jar)).toEqual(["brief.pdf"]);
+
+  const benLinksAna = await crm(ben.jar, "POST", `/deals/${dealId}/links`, { nodeIds: [notes.id] });
+  expect([benLinksAna.status, benLinksAna.body.code]).toEqual([404, "NOT_FOUND"]);
+
+  await stack.api(ana.jar, "DELETE", `/nodes/${briefs.body.node.id}`);
+  expect(await seen(ben.jar)).toEqual([]);
+  await stack.api(ana.jar, "POST", `/nodes/${briefs.body.node.id}/restore`);
+  expect(await seen(ben.jar)).toEqual(["brief.pdf"]);
+
+  const unlinked = await crm(ben.jar, "DELETE", `/deals/${dealId}/links/${brief.id}`);
+  expect(unlinked.status).toBe(204);
+  expect(await seen(ben.jar)).toEqual([]);
+  expect((await stack.api(ben.jar, "GET", `/nodes/${brief.id}`)).status).toBe(200);
+
+  await stack.api(ana.jar, "DELETE", `/nodes/${notes.id}`);
+  await stack.api(ana.jar, "DELETE", `/nodes/${notes.id}?forever=1`);
+  const rows = await stack.db
+    .select()
+    .from(schema.crmFileLinks)
+    .where(eq(schema.crmFileLinks.dealId, dealId));
+  expect(rows).toEqual([]);
 });

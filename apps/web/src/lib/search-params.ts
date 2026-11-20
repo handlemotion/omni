@@ -53,6 +53,17 @@ export const filesSearch = z.object({
   comments: optionalId,
 });
 
+/**
+ * A company's or a deal's page: the folder open in its Files tab (inside the record's folder), and
+ * the file open in the preview or whose comments are open, as a Drive folder's page has.
+ */
+export const crmRecordSearch = z.object({
+  mailbox: optionalId,
+  folder: optionalId,
+  file: optionalId,
+  comments: optionalId,
+});
+
 export const draftsSearch = z.object({
   mailbox: optionalId,
   /** A new message's draft to open in the compose dialog; dropped once it has. */

@@ -44,7 +44,7 @@ mail and the files the workspace already has in Omni.
 | One timeline per record             | Events, notes, contracts, emails, merged newest first         | Meetings, files, tasks                   |
 | A pipeline you drag                 | Stages with a fixed kind and a free name; a board by stage    | Several pipelines, saved views           |
 | Notes on records                    | Plain notes on one record                                     | Mentions, notes on several records       |
-| Files on records                    | The record's folder in Shared                                 | Previews                                 |
+| Files on records                    | The record's folder in Shared, plus Drive files linked in place | Previews                                 |
 | An API first, and agents            | Every route typed; MCP tools                                  | Webhooks                                 |
 | A flexible data model               | Fixed columns                                                 | Custom fields as definitions plus JSON   |
 | Contracts and a client's own view   | Stored and tracked                                            | Signed in Omni; the dashboard |
@@ -81,7 +81,12 @@ when it was won. That is the only ceremony: the deal carries on as the project.
 
 **Keep the files.** A deal's Files are a folder in Shared, under `Clients`. Dropping a file on
 the deal uploads it there, and the same folder is in Storage, where it can be shared like any
-other.
+other. A file that already lives elsewhere in Drive is linked, not moved or copied (founder's
+call, Nov 20, 2026): "Add from Drive" adds a reference, like a symlink, in `crm_file_links`, and
+the record shows it beside its folder's files. Removing it from the record drops only the link.
+Each member sees the links whose file they can open in Drive (not in Trash, not a teammate's My
+files); deleting the file for good, or the record, removes the link. The first link makes the
+record's folder, as the first upload does.
 
 **Store the contract.** A contract starts as a draft with its file. A member marks it sent,
 then attaches the executed copy and marks it signed. From then the file is locked: it cannot be
@@ -105,6 +110,7 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `POST /notes` · `PATCH /notes/:id` · `DELETE /notes/:id`            | Write a note on one record. Its author edits or deletes it.                                                  |
 | `GET /companies/:id/timeline` · same for people and deals           | The merged timeline, newest first.                                                                           |
 | `POST /companies/:id/folder` · `POST /deals/:id/folder`             | Finds or makes the record's folder and returns its node id. The apps then use `/api/storage` on it.          |
+| `GET /companies/:id/links` · `POST` · `DELETE …/links/:nodeId` (and deals) | Drive files linked where they live. `POST` takes `nodeIds` the member can open now; linking twice is a no-op. |
 | `GET /contracts` · `POST /contracts` · `PATCH /contracts/:id` · `DELETE` | List by `?company=` or `?deal=`. Create. Change status, dates or file. Delete (never a signed one).     |
 | `POST /companies/:id/restore` · same for people and deals          | Brings an archived record back.                                                                   |
 | `POST /companies/bulk` · same for people and deals                 | One action (`archive`, `restore`, `delete`, `owner`; deals `stage`) on up to 200 ids, each by its own rules. |

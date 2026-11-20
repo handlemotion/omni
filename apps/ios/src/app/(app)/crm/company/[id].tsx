@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams } from "expo-router";
 import { DealRow, PersonRow } from "@/components/crm/record-rows.tsx";
 import { Fields, RecordView, Section } from "@/components/crm/record-view.tsx";
 import { RecordActions } from "@/components/crm/record-actions.tsx";
+import { RecordFilesSection } from "@/components/crm/record-files.tsx";
 import { TimelineSection } from "@/components/crm/timeline-section.tsx";
 import { useCompany, useStageNames } from "@/lib/crm.ts";
 
@@ -33,6 +34,12 @@ export default function Company() {
               title="Deals"
               items={data.deals}
               render={(d) => <DealRow deal={d} stage={stages?.get(d.stageId)} />}
+            />
+            <RecordFilesSection
+              kind="companies"
+              id={id}
+              name={data.company.name}
+              folderId={data.company.folderNodeId}
             />
             <TimelineSection kind="companies" id={id} />
           </>

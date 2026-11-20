@@ -85,6 +85,8 @@ export function FolderView(props: {
   /** False outside the app shell. */
   sidebar?: boolean;
   source: FolderSource;
+  /** More of the header's actions, before New folder and Upload (a CRM record's Add from Drive). */
+  actions?: ReactNode;
 }) {
   const { source } = props;
   const shell = props.sidebar !== false;
@@ -156,6 +158,7 @@ export function FolderView(props: {
           sidebar={props.sidebar}
           actions={
             <FolderActions
+              extra={props.actions}
               selection={selection}
               source={source}
               onNewFolder={folders.start}
@@ -390,6 +393,7 @@ function useSelectionKeys(selection: NodeSelection, source: FolderSource) {
 }
 
 function FolderActions(props: {
+  extra: ReactNode;
   selection: NodeSelection;
   source: FolderSource;
   onNewFolder: () => void;
@@ -399,11 +403,14 @@ function FolderActions(props: {
   const { selection, source } = props;
   if (!selection.active) {
     return (
-      <HeaderActions
-        canWrite={source.canWrite}
-        onNewFolder={props.onNewFolder}
-        onFiles={props.onFiles}
-      />
+      <>
+        {props.extra}
+        <HeaderActions
+          canWrite={source.canWrite}
+          onNewFolder={props.onNewFolder}
+          onFiles={props.onFiles}
+        />
+      </>
     );
   }
   return (

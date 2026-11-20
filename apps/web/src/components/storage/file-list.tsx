@@ -79,7 +79,7 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
 const fileUrl = (node: StorageNode) => storageFileUrl(node.id);
 const download = (node: StorageNode) => downloadFile(fileUrl(node));
 
-function useCanTrash() {
+export function useCanTrash() {
   const { member } = useMember();
   const manager = /\b(owner|admin)\b/.test(member.role);
   return useCallback(
@@ -89,7 +89,7 @@ function useCanTrash() {
   );
 }
 
-function useRowMenu(canTrash: (node: StorageNode) => boolean) {
+export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
   const trash = useTrashNode();
   const trashNode = trash.mutate;
   return useCallback(

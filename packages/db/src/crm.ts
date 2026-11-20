@@ -42,6 +42,7 @@ import {
   type DealPatch,
   type ListDealsInput,
 } from "./crm/deals.ts";
+import { fileLinksOf, linkFiles, unlinkFile, type FileLinkRecord } from "./crm/files.ts";
 import { companyFolder, dealFolder } from "./crm/folders.ts";
 import {
   createNote,
@@ -124,6 +125,7 @@ export type {
   ListDealsInput,
   WriteDealResult,
 } from "./crm/deals.ts";
+export { FILE_LINKS_MAX, type CrmFileLink, type FileLinkRecord } from "./crm/files.ts";
 export { CRM_ROOT_FOLDER_NAME, type DealFolderResult, type FolderResult } from "./crm/folders.ts";
 export {
   CRM_NOTE_MAX_LENGTH,
@@ -218,6 +220,11 @@ export function memberCrm(db: Db, memberId: string) {
 
     companyFolder: (id: string) => writeAsMember(door, (m, tx) => companyFolder(tx, m, id)),
     dealFolder: (id: string) => writeAsMember(door, (m, tx) => dealFolder(tx, m, id)),
+    fileLinks: (record: FileLinkRecord) => asMember(door, (m, ex) => fileLinksOf(ex, m, record)),
+    linkFiles: (record: FileLinkRecord, nodeIds: string[]) =>
+      writeAsMember(door, (m, tx) => linkFiles(tx, m, record, nodeIds)),
+    unlinkFile: (record: FileLinkRecord, nodeId: string) =>
+      writeAsMember(door, (m, tx) => unlinkFile(tx, m, record, nodeId)),
 
     listContracts: (input: ListContractsInput) =>
       asMember(door, (m, ex) => listContracts(ex, m, input)),

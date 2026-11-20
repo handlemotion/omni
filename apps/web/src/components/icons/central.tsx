@@ -88,6 +88,7 @@ export { IconArrowInbox as IconDownload } from "central-icons-outlined/IconArrow
 export { IconArrowRotateCounterClockwise as IconRestore } from "central-icons-outlined/IconArrowRotateCounterClockwise";
 export { IconUserAdd } from "central-icons-outlined/IconUserAdd";
 export { IconChainLink1 as IconLink } from "central-icons-outlined/IconChainLink1";
+export { IconBrokenChainLink1 as IconUnlink } from "central-icons-outlined/IconBrokenChainLink1";
 export { IconBuildings } from "central-icons-outlined/IconBuildings";
 export { IconDotGrid2x3 as IconGrip } from "central-icons-outlined/IconDotGrid2x3";
 export { IconFileLock } from "central-icons-outlined/IconFileLock";
