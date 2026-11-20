@@ -20,11 +20,24 @@ public final class SyncClient: Sendable {
     private let tokens: any AccessTokenSource
     private let session: URLSession
 
-    public init(api: URL, tokens: any AccessTokenSource, session: URLSession = .shared) {
+    public init(api: URL, tokens: any AccessTokenSource, session: URLSession = SyncClient.session) {
         self.api = api
         self.tokens = tokens
         self.session = session
     }
+
+    /// The session every sync call shares. No response cache: change pages and listings are
+    /// read once, and caching them only wrote each one to disk again. No cookies: the bearer
+    /// token is the only credential.
+    public static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.httpMaximumConnectionsPerHost = 8
+        return URLSession(configuration: configuration)
+    }()
 
     // MARK: Reads
 
@@ -33,8 +46,9 @@ public final class SyncClient: Sendable {
     }
 
     /// One page of a drive's change feed after `cursor`; no cursor lists the whole drive.
-    public func changes(_ drive: Drive, cursor: String?) async throws -> StorageSyncChangesResponse {
-        try await json(get("\(drive.orgId)/changes", ["space": drive.space.rawValue, "cursor": cursor]))
+    /// `limit` is capped by the server (200).
+    public func changes(_ drive: Drive, cursor: String?, limit: Int? = nil) async throws -> StorageSyncChangesResponse {
+        try await json(get("\(drive.orgId)/changes", ["space": drive.space.rawValue, "cursor": cursor, "limit": limit.map(String.init)]))
     }
 
     /// One node; `404` when it is gone or in Trash.
@@ -44,9 +58,9 @@ public final class SyncClient: Sendable {
     }
 
     /// One page of a folder, or of a space's top level when `parentId` is nil.
-    public func list(orgId: String, space: Space, parentId: String?, cursor: String?) async throws -> StorageListResponse {
+    public func list(orgId: String, space: Space, parentId: String?, cursor: String?, limit: Int? = nil) async throws -> StorageListResponse {
         let place: [String: String?] = parentId.map { ["parent": $0] } ?? ["space": space.rawValue]
-        return try await json(get("\(orgId)/nodes", place.merging(["cursor": cursor]) { a, _ in a }))
+        return try await json(get("\(orgId)/nodes", place.merging(["cursor": cursor, "limit": limit.map(String.init)]) { a, _ in a }))
     }
 
     // MARK: Changes
@@ -91,11 +105,22 @@ public final class SyncClient: Sendable {
         return answer.upload
     }
 
-    public func putPart(orgId: String, uploadId: String, number: Int, bytes: Data) async throws {
+    /// Part `number`: `length` bytes of `file` from `offset`, read from disk as they are sent, so
+    /// a part costs a small buffer, never its 16 MiB (`FileRange`).
+    public func putPart(orgId: String, uploadId: String, number: Int, file: URL, offset: Int, length: Int) async throws {
         var request = try get("\(orgId)/uploads/\(uploadId)/parts/\(number)")
         request.httpMethod = "PUT"
         request.setValue("application/octet-stream", forHTTPHeaderField: "content-type")
-        _ = try await perform(request, upload: bytes)
+        // A streamed body is sent chunked unless its length is given, and the part's store
+        // takes only a body of known length.
+        request.setValue(String(length), forHTTPHeaderField: "content-length")
+        _ = try await authorized(request) { request in
+            let body = try FileRange(file: file, offset: offset, length: length)
+            defer { body.finish() }
+            var request = request
+            request.httpBodyStream = body.stream
+            return try await self.session.data(for: request)
+        }
     }
 
     /// Makes the upload a file. For a new version, `ifContentVersion` checks the base once more:
@@ -108,7 +133,7 @@ public final class SyncClient: Sendable {
 
     /// Gives up an open upload and the space it held.
     public func abortUpload(orgId: String, uploadId: String) async throws {
-        _ = try await perform(send("DELETE", "\(orgId)/uploads/\(uploadId)"), upload: nil)
+        _ = try await perform(send("DELETE", "\(orgId)/uploads/\(uploadId)"))
     }
 
     // MARK: Download
@@ -151,14 +176,13 @@ public final class SyncClient: Sendable {
     }
 
     private func json<T: Decodable>(_ request: URLRequest) async throws -> T {
-        let data = try await perform(request, upload: nil)
+        let data = try await perform(request)
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private func perform(_ request: URLRequest, upload: Data?) async throws -> Data {
+    private func perform(_ request: URLRequest) async throws -> Data {
         let (data, _) = try await authorized(request) { request in
-            if let upload { return try await self.session.upload(for: request, from: upload) }
-            return try await self.session.data(for: request)
+            try await self.session.data(for: request)
         }
         return data
     }
@@ -218,4 +242,67 @@ private final class ProgressDelegate: NSObject, URLSessionDownloadDelegate, @unc
 
     // The async `download(for:delegate:)` hands the file back itself.
     func urlSession(_: URLSession, downloadTask _: URLSessionDownloadTask, didFinishDownloadingTo _: URL) {}
+}
+
+/// A byte range of a file as a request body. A thread of its own reads it with `pread`, 256 KiB at
+/// a time, into one end of a bound stream pair; URLSession reads the other end as it sends. The
+/// write blocks while the buffer is full, so memory stays at the buffer whatever the part size.
+/// `finish` closes the reading end once the request is over, which ends a writer still waiting.
+final class FileRange: @unchecked Sendable {
+    static let bufferSize = 256 * 1024
+
+    let stream: InputStream
+    private let output: OutputStream
+    private let descriptor: Int32
+    private let offset: Int
+    private let length: Int
+
+    init(file: URL, offset: Int, length: Int) throws {
+        let descriptor = open(file.path, O_RDONLY)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        var input: InputStream?
+        var output: OutputStream?
+        Stream.getBoundStreams(withBufferSize: Self.bufferSize, inputStream: &input, outputStream: &output)
+        guard let input, let output else {
+            close(descriptor)
+            throw POSIXError(.ENOMEM)
+        }
+        self.stream = input
+        self.output = output
+        self.descriptor = descriptor
+        self.offset = offset
+        self.length = length
+        let writer = Thread { [self] in pump() }
+        writer.name = "omni.sync.part"
+        writer.start()
+    }
+
+    func finish() {
+        stream.close()
+    }
+
+    private func pump() {
+        output.open()
+        defer {
+            output.close()
+            close(descriptor)
+        }
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.bufferSize)
+        defer { buffer.deallocate() }
+        var sent = 0
+        while sent < length {
+            let read = pread(descriptor, buffer, min(Self.bufferSize, length - sent), off_t(offset + sent))
+            if read < 0, errno == EINTR { continue }
+            // A file cut short sends less than the length promised, and the request fails.
+            guard read > 0 else { return }
+            var written = 0
+            while written < read {
+                let count = output.write(buffer + written, maxLength: read - written)
+                // The request is over: nobody reads any more.
+                guard count > 0 else { return }
+                written += count
+            }
+            sent += read
+        }
+    }
 }

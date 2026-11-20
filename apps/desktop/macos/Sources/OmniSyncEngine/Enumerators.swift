@@ -5,19 +5,24 @@ import OmniSyncCore
 
 /// Lists one container: the root (a folder per synced workspace), a workspace (its spaces), a
 /// space or a folder (`GET /nodes`, paged to the end). Changes are the working set's job.
-final class FolderEnumerator: NSObject, NSFileProviderEnumerator {
+public final class FolderEnumerator: NSObject, NSFileProviderEnumerator {
     private let container: ItemID
+    private let load: () throws -> Sync
 
-    init(container: ItemID) { self.container = container }
+    public init(container: ItemID, load: @escaping () throws -> Sync = Sync.load) {
+        self.container = container
+        self.load = load
+    }
 
-    func invalidate() {}
+    public func invalidate() {}
 
-    func enumerateItems(for observer: NSFileProviderEnumerationObserver, startingAt page: NSFileProviderPage) {
+    public func enumerateItems(for observer: NSFileProviderEnumerationObserver, startingAt page: NSFileProviderPage) {
         let container = container
         let cursor = Self.cursor(page)
+        let load = load
         Task {
             do {
-                let sync = try Sync.load()
+                let sync = try load()
                 let (items, next) = try await Self.list(container, cursor: cursor, sync: sync)
                 observer.didEnumerate(items)
                 observer.finishEnumerating(upTo: next.map { NSFileProviderPage(Data($0.utf8)) })
@@ -28,11 +33,11 @@ final class FolderEnumerator: NSObject, NSFileProviderEnumerator {
     }
 
     // A folder reports no changes of its own: the working set reports every one.
-    func enumerateChanges(for observer: NSFileProviderChangeObserver, from anchor: NSFileProviderSyncAnchor) {
+    public func enumerateChanges(for observer: NSFileProviderChangeObserver, from anchor: NSFileProviderSyncAnchor) {
         observer.finishEnumeratingChanges(upTo: anchor, moreComing: false)
     }
 
-    func currentSyncAnchor(completionHandler: @escaping (NSFileProviderSyncAnchor?) -> Void) {
+    public func currentSyncAnchor(completionHandler: @escaping (NSFileProviderSyncAnchor?) -> Void) {
         completionHandler(NSFileProviderSyncAnchor(Data()))
     }
 
@@ -55,10 +60,10 @@ final class FolderEnumerator: NSObject, NSFileProviderEnumerator {
             }
             return (workspace.drives.map { Item(orgId: orgId, space: $0.space) }, nil)
         case let .space(orgId, space):
-            let page = try await sync.client.list(orgId: orgId, space: space, parentId: nil, cursor: cursor)
+            let page = try await sync.client.list(orgId: orgId, space: space, parentId: nil, cursor: cursor, limit: pageSize)
             return (page.nodes.map(Item.init(node:)), page.nextCursor)
         case let .node(orgId, nodeId):
-            let page = try await sync.client.list(orgId: orgId, space: .personal, parentId: nodeId, cursor: cursor)
+            let page = try await sync.client.list(orgId: orgId, space: .personal, parentId: nodeId, cursor: cursor, limit: pageSize)
             return (page.nodes.map(Item.init(node:)), page.nextCursor)
         case .workingSet, .trash:
             throw NSFileProviderError(.noSuchItem)
@@ -69,17 +74,22 @@ final class FolderEnumerator: NSObject, NSFileProviderEnumerator {
 /// The working set: every synced item, and the only enumerator that reports changes. Its anchor
 /// is each drive's `/changes` cursor (`SyncAnchor`); a drive with none is read from the start,
 /// so the first sync and a workspace switched on are the same path.
-final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
-    /// Pages read per call before handing back with `moreComing`, so one call stays short.
-    private static let pagesPerCall = 8
+public final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
+    /// Pages read per call before handing back with `moreComing`, so one call stays short
+    /// (2,000 changes at most).
+    private static let pagesPerCall = 10
+    private let load: () throws -> Sync
 
-    func invalidate() {}
+    public init(load: @escaping () throws -> Sync = Sync.load) { self.load = load }
+
+    public func invalidate() {}
 
     /// The made-up levels; the nodes arrive as changes from an empty anchor.
-    func enumerateItems(for observer: NSFileProviderEnumerationObserver, startingAt _: NSFileProviderPage) {
+    public func enumerateItems(for observer: NSFileProviderEnumerationObserver, startingAt _: NSFileProviderPage) {
+        let load = load
         Task {
             do {
-                observer.didEnumerate(Self.levels(try await Sync.load().workspaces()))
+                observer.didEnumerate(Self.levels(try await load().workspaces()))
                 observer.finishEnumerating(upTo: nil)
             } catch {
                 observer.finishEnumeratingWithError(systemError(error))
@@ -87,15 +97,16 @@ final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
         }
     }
 
-    func currentSyncAnchor(completionHandler: @escaping (NSFileProviderSyncAnchor?) -> Void) {
+    public func currentSyncAnchor(completionHandler: @escaping (NSFileProviderSyncAnchor?) -> Void) {
         // Nothing read yet: the first `enumerateChanges` walks every drive from its start.
         completionHandler(SyncAnchor().anchor)
     }
 
-    func enumerateChanges(for observer: NSFileProviderChangeObserver, from syncAnchor: NSFileProviderSyncAnchor) {
+    public func enumerateChanges(for observer: NSFileProviderChangeObserver, from syncAnchor: NSFileProviderSyncAnchor) {
+        let load = load
         Task {
             do {
-                let sync = try Sync.load()
+                let sync = try load()
                 let (anchor, more) = try await Self.changes(from: SyncAnchor(syncAnchor), sync: sync, observer: observer)
                 observer.finishEnumeratingChanges(upTo: anchor.anchor, moreComing: more)
             } catch let error as SyncHTTPError where error.status == 410 {
@@ -117,7 +128,7 @@ final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
         sync: Sync,
         observer: NSFileProviderChangeObserver
     ) async throws -> (SyncAnchor, Bool) {
-        let workspaces = try await sync.workspaces()
+        let workspaces = try await sync.workspaces(fresh: true)
         let drives = workspaces.flatMap { ws in ws.drives.map { Drive(orgId: ws.orgId, space: $0.space) } }
         var anchor = old.keeping(Set(drives))
 
@@ -129,16 +140,25 @@ final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
         // The made-up levels, in case a workspace was renamed or switched on.
         observer.didUpdate(levels(workspaces))
 
+        // The next page is asked for while this one is reported, so the round trip overlaps
+        // the work instead of following it.
+        let client = sync.client
         var pages = 0
         for drive in drives.sorted() {
-            var more = true
-            while more {
-                if pages == pagesPerCall { return (anchor, true) }
-                let page = try await sync.client.changes(drive, cursor: anchor.cursor(for: drive))
+            if pages == pagesPerCall { return (anchor, true) }
+            var next: Task<StorageSyncChangesResponse, Error>? = Task { [cursor = anchor.cursor(for: drive)] in
+                try await client.changes(drive, cursor: cursor, limit: pageSize)
+            }
+            defer { next?.cancel() }
+            while let fetching = next {
+                let page = try await fetching.value
+                pages += 1
+                next = page.more && pages < pagesPerCall
+                    ? Task { [cursor = page.nextCursor] in try await client.changes(drive, cursor: cursor, limit: pageSize) }
+                    : nil
                 try await report(ChangeBatch(orgId: drive.orgId, changes: page.changes), sync: sync, observer: observer)
                 anchor.set(page.nextCursor, for: drive)
-                more = page.more
-                pages += 1
+                if page.more, next == nil { return (anchor, true) }
             }
         }
         return (anchor, false)
@@ -146,15 +166,30 @@ final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
 
     /// Updates and deletions; a lone tombstone is looked up first, since a node moved between
     /// spaces is a tombstone in one feed and still exists (`ChangeBatch`).
+    /// The lookups run eight at a time: a folder moved between spaces is one tombstone per node
+    /// inside it.
     private static func report(_ batch: ChangeBatch, sync: Sync, observer: NSFileProviderChangeObserver) async throws {
         var updated = batch.updated.map(Item.init(node:))
         var deleted = batch.deleted
-        for item in batch.unresolved {
-            guard case let .node(orgId, nodeId) = item else { continue }
-            do {
-                updated.append(Item(node: try await sync.client.node(orgId: orgId, id: nodeId)))
-            } catch let error as SyncHTTPError where error.status == 404 {
-                deleted.append(item)
+        let client = sync.client
+        try await withThrowingTaskGroup(of: (ItemID, StorageNode?).self) { group in
+            var pending = batch.unresolved.makeIterator()
+            func add() {
+                guard let item = pending.next() else { return }
+                guard case let .node(orgId, nodeId) = item else { return add() }
+                group.addTask {
+                    do {
+                        return (item, try await client.node(orgId: orgId, id: nodeId))
+                    } catch let error as SyncHTTPError where error.status == 404 {
+                        return (item, nil)
+                    }
+                }
+            }
+            for _ in 0..<8 { add() }
+            while let result = try await group.next() {
+                let (item, node) = result
+                if let node { updated.append(Item(node: node)) } else { deleted.append(item) }
+                add()
             }
         }
         if !updated.isEmpty { observer.didUpdate(updated) }

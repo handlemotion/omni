@@ -196,3 +196,22 @@ private func node(
     #expect(TokenRefusal(status: 400, body: body(#"{"error":"invalid_request"}"#)) == .tryLater)
     #expect(TokenRefusal(status: 400, body: body("<html>Bad Gateway</html>")) == .tryLater)
 }
+
+// Finder shows these as the files' dates: a slip in the fast path (a leap day, a fraction, the
+// turn of a century) would put every synced file at the wrong time.
+@Test(arguments: [
+    "2026-11-16T10:20:30.123Z", "2024-02-29T23:59:59Z", "2000-03-01T00:00:00.5Z",
+    "1999-12-31T23:59:59.999Z", "2100-02-28T12:00:00.000Z", "1970-01-01T00:00:00Z",
+    "2026-11-16T10:20:30+01:00",
+])
+func serverDatesReadWithoutAFormatterMatchFoundation(_ text: String) throws {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let expected = try #require(formatter.date(from: text) ?? ISO8601DateFormatter().date(from: text))
+    let read = try #require(WireDate.parse(text))
+    #expect(abs(read.timeIntervalSince(expected)) < 0.001)
+}
+
+@Test func impossibleDatesAreNotReadAsAnotherDay() {
+    #expect(Array("2026-02-30T00:00:00Z".utf8).withUnsafeBufferPointer { WireDate.fast($0) } == nil)
+}

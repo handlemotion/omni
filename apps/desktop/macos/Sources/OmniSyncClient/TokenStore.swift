@@ -39,6 +39,9 @@ public final class TokenStore: AccessTokenSource {
     private let identity: SharedIdentity
     private let settings: @Sendable () -> SyncSettings?
     private let session: URLSession
+    /// The pair last read or written, so a call whose token is still good asks the keychain
+    /// nothing. A refresh always reads the keychain again, under the lock.
+    private let remembered = Remembered<SyncTokens>()
 
     public init(identity: SharedIdentity, settings: @escaping @Sendable () -> SyncSettings?, session: URLSession = .shared) {
         self.identity = identity
@@ -48,6 +51,7 @@ public final class TokenStore: AccessTokenSource {
 
     /// An access token to send, refreshed first when it is about to expire.
     public func accessToken() async throws -> String {
+        if let tokens = remembered.value, !tokens.expiresSoon { return tokens.accessToken }
         guard let tokens = try read() else { throw TokenError.signedOut }
         if !tokens.expiresSoon { return tokens.accessToken }
         return try await refresh(rejected: tokens.accessToken)
@@ -139,25 +143,36 @@ public final class TokenStore: AccessTokenSource {
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound { return nil }
+        if status == errSecItemNotFound {
+            remembered.value = nil
+            return nil
+        }
         guard status == errSecSuccess, let data = result as? Data else { throw TokenError.keychain(status) }
-        return try? JSONDecoder().decode(SyncTokens.self, from: data)
+        let tokens = try? JSONDecoder().decode(SyncTokens.self, from: data)
+        remembered.value = tokens
+        return tokens
     }
 
     public func write(_ tokens: SyncTokens) throws {
         let data = try JSONEncoder().encode(tokens)
+        remembered.value = nil
         let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if status == errSecSuccess { return }
+        if status == errSecSuccess {
+            remembered.value = tokens
+            return
+        }
         guard status == errSecItemNotFound else { throw TokenError.keychain(status) }
         var add = query
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         let added = SecItemAdd(add as CFDictionary, nil)
         guard added == errSecSuccess else { throw TokenError.keychain(added) }
+        remembered.value = tokens
     }
 
     /// Signing out: the grant leaves this computer.
     public func delete() throws {
+        remembered.value = nil
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw TokenError.keychain(status) }
     }
@@ -216,5 +231,16 @@ struct FileLock: Sendable {
     func unlock() {
         flock(descriptor, LOCK_UN)
         close(descriptor)
+    }
+}
+
+/// One value behind a lock.
+final class Remembered<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value?
+
+    var value: Value? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }

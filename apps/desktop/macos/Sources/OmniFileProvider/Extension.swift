@@ -1,6 +1,7 @@
 import FileProvider
 import OmniSyncClient
 import OmniSyncCore
+import OmniSyncEngine
 @preconcurrency import StorageSync
 import SystemConfiguration
 import UniformTypeIdentifiers
@@ -175,7 +176,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         if isIgnored(name) || template.contentType == .symbolicLink { throw NSFileProviderError(.excludedFromSync) }
         let sync = try Sync.load()
         let place = try Sync.place(of: parent)
-        if mayExist, let existing = try await existing(name, in: place, sync: sync, isFolder: template.contentType == .folder) {
+        if mayExist, let existing = try await FolderIndex.shared.node(named: name, in: place, sync: sync),
+           (existing.kind == .folder) == (template.contentType == .folder) {
             return existing
         }
         if template.contentType == .folder {
@@ -185,24 +187,10 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         guard let contents else { throw NSFileProviderError(.cannotSynchronize) }
         let mime = UTType(filenameExtension: (name as NSString).pathExtension)?.preferredMIMEType
         let uploader = Uploader(sync: sync, orgId: place.orgId, key: template.itemIdentifier.rawValue)
-        return try await uploader.send(try Uploader.measure(contents), open: { size, sha256 in
+        return try await uploader.send(try await Uploader.measure(contents), open: { size, sha256 in
             let body = StorageOpenUploadBody(mimeType: mime, name: name, parentId: place.parentId, sha256: sha256, size: size, space: place.space)
             return try await sync.client.openUpload(orgId: place.orgId, body)
         }, progress: progress)
-    }
-
-    /// After a re-import (`mayAlreadyExist`), an item the server already has under this name is
-    /// adopted rather than created again, which would number it `name (1)`.
-    private static func existing(_ name: String, in place: (orgId: String, parentId: String?, space: Space?), sync: Sync, isFolder: Bool) async throws -> StorageNode? {
-        var cursor: String?
-        repeat {
-            let page = try await sync.client.list(orgId: place.orgId, space: place.space ?? .personal, parentId: place.parentId, cursor: cursor)
-            if let node = page.nodes.first(where: { $0.name.lowercased() == name.lowercased() }) {
-                return (node.kind == .folder) == isFolder ? node : nil
-            }
-            cursor = page.nextCursor
-        } while cursor != nil
-        return nil
     }
 
     /// Applies a change from Finder: a move, a rename, new bytes. Answers the node as the server
@@ -232,7 +220,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         // The system reports new contents for a move or a download too; only bytes that differ
         // from the server's are an edit.
         if fields.contains(.contents), let contents, node.kind == .file {
-            let bytes = try Uploader.measure(contents)
+            let bytes = try await Uploader.measure(contents)
             if bytes.sha256 != node.contentSha256 {
                 return try await save(bytes, over: node, base: base, key: item.itemIdentifier.rawValue, sync: sync, progress: progress)
             }

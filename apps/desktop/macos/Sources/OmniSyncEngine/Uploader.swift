@@ -8,27 +8,49 @@ import OmniSyncCore
 /// parts four at a time, completes. What it opened is kept in the App Group container under the
 /// item's identifier (`UploadRecord`), so an extension stopped halfway resumes from the parts the
 /// server already has (`GET /uploads/:id`) instead of starting over, but only for the same bytes.
-struct Uploader {
+///
+/// Memory stays flat whatever the file's size: the hash reads through one reused buffer, and each
+/// part streams from disk as it is sent (`SyncClient.putPart`). `Transfers` bounds how many files
+/// and parts move at once across the whole extension.
+public struct Uploader {
     let sync: Sync
     let orgId: String
     /// Where the open upload's record is kept while it runs.
     let key: String
 
+    public init(sync: Sync, orgId: String, key: String) {
+        self.sync = sync
+        self.orgId = orgId
+        self.key = key
+    }
+
     private static let parallelParts = 4
 
     /// The bytes to send, measured once by the caller (`measure`).
-    struct Bytes {
-        let file: URL
-        let size: Int
-        let sha256: String
+    public struct Bytes {
+        public let file: URL
+        public let size: Int
+        public let sha256: String
     }
 
     /// Uploads `bytes`. With `replaces`, as a new version of that file based on content version
     /// `ifContentVersion`, checked again on complete; `open` opens the matching upload.
-    func send(
+    public func send(
         _ bytes: Bytes,
         replaces: String? = nil,
         ifContentVersion: Int? = nil,
+        open: (_ size: Int, _ sha256: String) async throws -> Upload,
+        progress: Progress
+    ) async throws -> StorageNode {
+        try await Transfers.files.run {
+            try await sendNow(bytes, replaces: replaces, ifContentVersion: ifContentVersion, open: open, progress: progress)
+        }
+    }
+
+    private func sendNow(
+        _ bytes: Bytes,
+        replaces: String?,
+        ifContentVersion: Int?,
         open: (_ size: Int, _ sha256: String) async throws -> Upload,
         progress: Progress
     ) async throws -> StorageNode {
@@ -66,43 +88,66 @@ struct Uploader {
         let orgId = orgId
         try await withThrowingTaskGroup(of: Int.self) { group in
             var next = missing.makeIterator()
-            func add() throws {
+            func add() {
                 guard let number = next.next() else { return }
-                let bytes = try Self.part(number, of: file, partSize: upload.partSize, size: upload.size)
+                let offset = (number - 1) * upload.partSize
+                let length = min(upload.partSize, upload.size - offset)
                 group.addTask {
-                    try await client.putPart(orgId: orgId, uploadId: upload.id, number: number, bytes: bytes)
-                    return bytes.count
+                    try await Transfers.parts.run {
+                        try await client.putPart(orgId: orgId, uploadId: upload.id, number: number, file: file, offset: offset, length: length)
+                    }
+                    return length
                 }
             }
-            for _ in 0..<Self.parallelParts { try add() }
+            for _ in 0..<Self.parallelParts { add() }
             while let sent = try await group.next() {
                 try Task.checkCancellation()
                 progress.completedUnitCount += Int64(sent)
-                try add()
+                add()
             }
         }
         return upload
     }
 
-    /// The file's size and sha256, read once in 1 MiB chunks.
-    static func measure(_ file: URL) throws -> Bytes {
-        let handle = try FileHandle(forReadingFrom: file)
-        defer { try? handle.close() }
-        var hash = SHA256()
-        var size = 0
-        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
-            hash.update(data: chunk)
-            size += chunk.count
+    /// The file's size and sha256. Read off Swift concurrency's few threads, so hashing a large
+    /// file never holds up a listing, through one reused buffer, so memory does not grow with the
+    /// file. Stops early when the calling task is cancelled.
+    public static func measure(_ file: URL) async throws -> Bytes {
+        try await Transfers.hashing.run { () async throws -> Bytes in
+            let stop = StopFlag()
+            return try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { (done: CheckedContinuation<Bytes, Error>) in
+                    hashQueue.async { done.resume(with: Result { try hash(file, stop: stop) }) }
+                }
+            } onCancel: {
+                stop.raise()
+            }
         }
-        return Bytes(file: file, size: size, sha256: hash.finalize().map { String(format: "%02x", $0) }.joined())
     }
 
-    private static func part(_ number: Int, of file: URL, partSize: Int, size: Int) throws -> Data {
-        let handle = try FileHandle(forReadingFrom: file)
-        defer { try? handle.close() }
-        let offset = (number - 1) * partSize
-        try handle.seek(toOffset: UInt64(offset))
-        return try handle.read(upToCount: min(partSize, size - offset)) ?? Data()
+    private static let hashQueue = DispatchQueue(label: "omni.sync.hash", qos: .userInitiated, attributes: .concurrent)
+
+    private static func hash(_ file: URL, stop: StopFlag) throws -> Bytes {
+        let descriptor = Darwin.open(file.path, O_RDONLY)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        defer { close(descriptor) }
+        let chunk = 4 << 20
+        let buffer = UnsafeMutableRawBufferPointer.allocate(byteCount: chunk, alignment: 16)
+        defer { buffer.deallocate() }
+        var hash = SHA256()
+        var size = 0
+        while true {
+            if stop.raised { throw CancellationError() }
+            let count = read(descriptor, buffer.baseAddress, chunk)
+            if count < 0 {
+                if errno == EINTR { continue }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+            if count == 0 { break }
+            hash.update(bufferPointer: UnsafeRawBufferPointer(rebasing: buffer[0..<count]))
+            size += count
+        }
+        return Bytes(file: file, size: size, sha256: hash.finalize().map { String(format: "%02x", $0) }.joined())
     }
 
     // MARK: Resume
@@ -142,4 +187,13 @@ struct Uploader {
     private func forget() {
         if let recordURL { try? FileManager.default.removeItem(at: recordURL) }
     }
+}
+
+/// Set once when the system cancels a hash; read by the thread doing it.
+private final class StopFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stopped = false
+
+    var raised: Bool { lock.withLock { stopped } }
+    func raise() { lock.withLock { stopped = true } }
 }

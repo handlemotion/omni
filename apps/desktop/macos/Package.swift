@@ -18,10 +18,18 @@ let package = Package(
         .target(name: "OmniSyncCore", dependencies: ["StorageSync"]),
         // The sync API over URLSession, the token in the keychain, the settings the app shares.
         .target(name: "OmniSyncClient", dependencies: ["OmniSyncCore", "StorageSync"]),
+        // What the extension does for each call, without the extension: items, enumeration,
+        // uploads. A library so `omni-sync-bench` runs the very same code.
+        .target(
+            name: "OmniSyncEngine",
+            dependencies: ["OmniSyncClient", "OmniSyncCore", "StorageSync"],
+            // FileProvider's observers and completion handlers carry no Sendable annotations.
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         // OmniFileProvider.appex's executable; `scripts/build-extension.sh` wraps it in the bundle.
         .executableTarget(
             name: "OmniFileProvider",
-            dependencies: ["OmniSyncClient", "OmniSyncCore", "StorageSync"],
+            dependencies: ["OmniSyncClient", "OmniSyncCore", "OmniSyncEngine", "StorageSync"],
             // FileProvider's observers and completion handlers carry no Sendable annotations.
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain"])]
@@ -30,6 +38,13 @@ let package = Package(
         .executableTarget(
             name: "OmniSyncHelper",
             dependencies: ["OmniSyncClient", "StorageSync"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // `omni-sync-bench`: memory and time of the engine against a running server
+        // (`bench/README.md`). Never shipped.
+        .executableTarget(
+            name: "OmniSyncBench",
+            dependencies: ["OmniSyncClient", "OmniSyncCore", "OmniSyncEngine", "StorageSync"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(name: "OmniSyncCoreTests", dependencies: ["OmniSyncCore", "StorageSync"]),
