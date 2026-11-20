@@ -41,7 +41,7 @@ export async function docImageBytes(fileId: string, shareId: string | undefined)
 export const docImageQuery = (fileId: string, shareId: string | undefined) =>
   queryOptions({
     queryKey: keys.storagePreview("image", `doc:${fileId}`, shareId ?? ""),
-    queryFn: async () => URL.createObjectURL(await docImageBytes(fileId, shareId)),
+    queryFn: async () => ({ url: URL.createObjectURL(await docImageBytes(fileId, shareId)) }),
     staleTime: Infinity,
     gcTime: 10 * 60_000,
     retry: 1,

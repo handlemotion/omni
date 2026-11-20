@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { docImageFile, docImagePath, docImageQuery } from "@/lib/doc-files.ts";
 import { storageChanged, type StorageNode } from "@/lib/storage.ts";
 import { storageSearchQuery } from "@/lib/storage-find.ts";
+import { revokePreviewUrls } from "@/lib/storage-preview.ts";
 import { uploadFile } from "@/lib/storage-upload.ts";
 import { identityChecks, identityOf } from "@/lib/storage-uploads.ts";
 
@@ -19,6 +20,7 @@ export interface DocFiles {
 /** The Drive side of a doc's images and links, for the doc `file`. */
 export function useDocFiles(file: StorageNode, shareId: string | undefined) {
   const client = useQueryClient();
+  revokePreviewUrls(client);
   return useMemo(() => {
     const place = file.parentId ? { parentId: file.parentId } : { space: file.space };
     const files: DocFiles = {
@@ -38,7 +40,7 @@ export function useDocFiles(file: StorageNode, shareId: string | undefined) {
       },
       image: async (src) => {
         const id = docImageFile(src);
-        return id ? client.fetchQuery(docImageQuery(id, shareId)) : null;
+        return id ? (await client.fetchQuery(docImageQuery(id, shareId))).url : null;
       },
       find: async (q) =>
         shareId || !q.trim()
