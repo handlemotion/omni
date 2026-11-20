@@ -204,7 +204,7 @@ export function DayValue(props: {
             </span>
             <IconCalendar
               aria-hidden
-              className="ms-auto -me-1 size-4 shrink-0 text-muted-foreground"
+              className="ms-auto -me-0.75 size-4 shrink-0 text-muted-foreground"
             />
           </AriaButton>
         </Group>

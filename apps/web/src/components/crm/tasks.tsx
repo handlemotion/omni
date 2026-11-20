@@ -21,9 +21,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { Heading } from "@/components/ui/heading";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
+import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { Link } from "@/components/ui/link";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
-import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import type { CrmRecordKind } from "@/lib/crm.ts";
 import {
@@ -33,6 +33,7 @@ import {
   dueOnDrop,
   recordFilter,
   taskRecord,
+  taskPath,
   type CrmTask,
   type DueGroup,
   type TaskFilter,
@@ -55,10 +56,12 @@ export function TasksPage(props: {
   /** The task open in the panel beside the list. */
   task?: string;
 }) {
-  const phone = useIsMobile();
   const open = useOpenTask();
   const panel = useStoredWidth("omni:task-panel-width", PANEL_WIDTH, PANEL_MIN, PANEL_MAX);
   const rowRef = useRef<HTMLDivElement>(null);
+  const room = useRoom(rowRef);
+  const phone = useIsMobile() || room < LIST_BESIDE + PANEL_MIN;
+  const width = Math.min(panel.width, room - LIST_MIN);
   const listRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
   const { close } = open;
@@ -124,8 +127,8 @@ export function TasksPage(props: {
         </div>
         {props.task && (
           <div
-            style={phone ? undefined : { width: panel.width }}
-            className={`relative flex min-w-0 ${phone ? "flex-1" : "shrink"}`}
+            style={phone ? undefined : { width }}
+            className={`relative flex min-w-0 ${phone ? "flex-1 *:border-s-0" : "shrink"}`}
           >
             {!phone && (
               <ResizeGrip
@@ -152,6 +155,22 @@ const PANEL_WIDTH = 480;
 const PANEL_MIN = 360;
 const PANEL_MAX = 4096;
 const LIST_MIN = 320;
+const LIST_BESIDE = 480;
+
+function useRoom(ref: React.RefObject<HTMLElement | null>) {
+  const [room, setRoom] = useState(Infinity);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const measure = () =>
+      setRoom(document.documentElement.clientWidth - element.getBoundingClientRect().left);
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    observer.observe(document.documentElement);
+    return () => observer.disconnect();
+  }, [ref]);
+  return room;
+}
 
 const isControl = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -389,9 +408,7 @@ export function TaskRow(props: {
         <Checkbox />
       </CheckboxField>
       <Link
-        href={
-          opened ? opened.href(task.id) : inWorkspace(`/crm/tasks/${encodeURIComponent(task.id)}`)
-        }
+        href={opened ? opened.href(task.id) : inWorkspace(taskPath(task.id))}
         className={`min-w-0 flex-1 truncate text-sm ${done ? "text-muted-foreground" : "text-foreground"}`}
       >
         {task.title}

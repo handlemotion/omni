@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
-import { dueLabel, type CrmTask, type TaskFilter } from "@/lib/crm-tasks.ts";
+import { dueLabel, taskPath, type CrmTask, type TaskFilter } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { RailRow, railPlace, type RailPlace } from "./rail-row.tsx";
@@ -77,7 +77,7 @@ function TaskRailRow(props: { task: CrmTask; place: RailPlace }) {
   return (
     <RailRow
       place={props.place}
-      href={href(`/crm/tasks/${encodeURIComponent(task.id)}`)}
+      href={href(taskPath(task.id))}
       label={task.title}
       date={
         <span className={overdue ? "text-danger" : "text-muted-foreground"}>

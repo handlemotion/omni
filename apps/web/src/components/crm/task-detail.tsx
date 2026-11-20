@@ -1,45 +1,55 @@
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { IconTrash, IconX } from "@/components/icons/central";
+import { IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
-import { useCrmTask, useDeleteTask, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
-import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDeleteTask } from "@/hooks/use-crm-tasks.ts";
 import {
   dayOf,
   dueAtOf,
   onRecord,
+  taskKeys,
   taskRecord,
+  updateTaskMutation,
   type CrmTask,
   type TaskChange,
 } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
-import { FieldRow, LinkValue, PlainValue } from "./record-fields.tsx";
-import { RecordFrame, RecordState } from "./record-layout.tsx";
+import { DayValue, FieldRow, LinkValue, PlainValue } from "./record-fields.tsx";
 import { DAY } from "./record-list.tsx";
 import { AssigneePicker, RecordPicker, useMemberNames } from "./task-dialog.tsx";
+import { CHECK_CELL, Subtasks } from "./task-subtasks.tsx";
 
 const TITLE_MAX = 500;
 const BODY_MAX = 20_000;
 
-/** One task: its title and notes, and beside them who, when and on what. */
-export function TaskPage({ id }: { id: string }) {
-  const query = useCrmTask(id);
-  if (!query.data) return <RecordState list="tasks" query={query} />;
-  return <TaskView task={query.data.task} />;
-}
-
-/** Saves a change to the task, with a toast when it fails. */
+/**
+ * Saves a change to the task, with a toast when it fails, then `settled`. Saves run one at a time
+ * per task, so a checklist sent whole never lands over a newer one sent after it, and the task is
+ * fetched again only after the last queued save.
+ */
 export function useSaveTask(id: string) {
-  const update = useUpdateTask();
-  return (change: TaskChange) =>
-    update.mutate(
-      { id, ...change },
-      { onError: (error) => crmErrorToast(error, "The task was not changed") },
-    );
+  const client = useQueryClient();
+  const base = updateTaskMutation(client);
+  const mutationKey = ["crm-task-save", id];
+  const update = useMutation({
+    ...base,
+    mutationKey,
+    scope: { id: `crm-task:${id}` },
+    onSettled: (...args) => {
+      if (client.isMutating({ mutationKey }) > 1) return;
+      if (args[0]) client.setQueryData(taskKeys.one(id), args[0]);
+      return base.onSettled?.(...args);
+    },
+  });
+  return (change: TaskChange, settled?: () => void) =>
+    void update
+      .mutateAsync({ id, ...change })
+      .catch((error: unknown) => crmErrorToast(error, "The task was not changed"))
+      .finally(settled);
 }
 
 /** Deletes the task, then `onDeleted` (back to the list). */
@@ -55,46 +65,12 @@ export function useDeleteThisTask(id: string, onDeleted: () => void) {
   };
 }
 
-function TaskView({ task }: { task: CrmTask }) {
-  const navigate = useNavigate();
-  const workspace = useWorkspaceSlug();
-  const save = useSaveTask(task.id);
-  const remove = useDeleteThisTask(
-    task.id,
-    () => void navigate({ to: "/$workspace/crm/tasks", params: { workspace } }),
-  );
-  return (
-    <RecordFrame
-      list="tasks"
-      name={task.title}
-      actions={
-        <Button size="sm" intent="outline" isPending={remove.isPending} onPress={remove.run}>
-          <IconTrash />
-          Delete task
-        </Button>
-      }
-    >
-      <div className="flex min-h-0 flex-1 overflow-y-auto max-lg:flex-col lg:overflow-hidden">
-        <main className="flex min-w-0 flex-1 flex-col gap-3 px-5 py-5 lg:overflow-y-auto">
-          <TaskContent task={task} onSave={save} />
-        </main>
-        <aside
-          aria-label="Details"
-          className="flex shrink-0 flex-col gap-0.5 px-5 py-5 lg:w-80 lg:overflow-y-auto lg:border-s"
-        >
-          <TaskDetails task={task} onSave={save} />
-        </aside>
-      </div>
-    </RecordFrame>
-  );
-}
-
-/** The task's check, title and notes. */
-export function TaskContent(props: { task: CrmTask; onSave: (change: TaskChange) => void }) {
+/** The task's check, then its title, which saves when it loses focus. */
+export function TaskHeading(props: { task: CrmTask; onSave: (change: TaskChange) => void }) {
   const { task, onSave } = props;
   return (
-    <div className="flex gap-3">
-      <div className="flex h-9 items-center">
+    <div className="flex min-w-0 flex-1 items-center">
+      <div className={CHECK_CELL}>
         <CheckboxField
           aria-label={task.completedAt ? "Reopen" : "Complete"}
           isSelected={!!task.completedAt}
@@ -103,10 +79,21 @@ export function TaskContent(props: { task: CrmTask; onSave: (change: TaskChange)
           <Checkbox />
         </CheckboxField>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <TitleField key={task.id} task={task} onSave={(title) => onSave({ title })} />
-        <BodyField key={task.id} task={task} onSave={(body) => onSave({ body })} />
-      </div>
+      <TitleField key={task.id} task={task} onSave={(title) => onSave({ title })} />
+    </div>
+  );
+}
+
+/** Under the heading, as an issue reads: the description, then the subtasks. */
+export function TaskContent(props: {
+  task: CrmTask;
+  onSave: (change: TaskChange, settled?: () => void) => void;
+}) {
+  const { task, onSave } = props;
+  return (
+    <div className="flex flex-col gap-5">
+      <BodyField key={task.id} task={task} onSave={(body) => onSave({ body })} />
+      <Subtasks task={task} onSave={onSave} />
     </div>
   );
 }
@@ -144,15 +131,17 @@ function TitleField(props: { task: CrmTask; onSave: (title: string) => void }) {
       maxLength={TITLE_MAX}
       value={draft}
       onChange={setDraft}
-      className="flex-1"
+      className="min-w-0 flex-1"
     >
       <Input
         plain
         autoComplete="off"
-        className="h-9 w-full rounded-md px-2 text-md hover:bg-hover focus:bg-hover"
+        className="h-9 w-full rounded-md px-1.5 text-md hover:bg-hover focus:bg-hover"
         onFocus={onFocus}
         onBlur={commit}
-        onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
+        onKeyDown={(event) =>
+          event.key === "Enter" && !event.nativeEvent.isComposing && event.currentTarget.blur()
+        }
       />
     </TextField>
   );
@@ -163,12 +152,12 @@ function BodyField(props: { task: CrmTask; onSave: (body: string | null) => void
   return (
     <Textarea
       plain
-      aria-label="Notes"
+      aria-label="Description"
       maxLength={BODY_MAX}
-      placeholder="Notes"
+      placeholder="Add description"
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
-      className="field-sizing-content min-h-16 w-full resize-none rounded-md px-2 py-1.5 text-sm hover:bg-hover focus:bg-hover sm:px-2"
+      className="-mx-1.5 field-sizing-content min-h-8 w-[calc(100%+--spacing(3))] resize-none rounded-md px-1.5 py-1.5 text-sm placeholder:text-muted-foreground hover:bg-hover focus:bg-hover sm:px-1.5"
       onFocus={onFocus}
       onBlur={() => {
         done();
@@ -201,20 +190,11 @@ export function TaskDetails(props: { task: CrmTask; onSave: (change: TaskChange)
           />
         </div>
       </FieldRow>
-      <FieldRow label="Due">
-        <TextField
-          aria-label="Due"
-          type="date"
-          value={dayOf(task.dueAt)}
-          onChange={(day) => onSave({ dueAt: dueAtOf(day) })}
-          className="w-full"
-        >
-          <Input
-            plain
-            className="h-8 w-full rounded-md px-2 text-sm hover:bg-hover focus:bg-hover"
-          />
-        </TextField>
-      </FieldRow>
+      <DayValue
+        label="Due"
+        value={dayOf(task.dueAt) || null}
+        onSave={(day) => onSave({ dueAt: dueAtOf(day ?? "") })}
+      />
       {record ? (
         <LinkValue
           label="Record"

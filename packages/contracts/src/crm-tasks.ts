@@ -6,10 +6,21 @@ const isoDate = z.iso.datetime();
 export const CRM_TASK_TITLE_MAX = 500;
 export const CRM_TASK_BODY_MAX = 20_000;
 
+export const CRM_SUBTASKS_MAX = 100;
+
+/** A step of a task's checklist, with an id the client makes. */
+export const crmSubtaskSchema = z.object({
+  id,
+  title: z.string().max(CRM_TASK_TITLE_MAX),
+  done: z.boolean(),
+});
+
 export const crmTaskSchema = z.object({
   id,
   title: z.string(),
   body: z.string().nullable(),
+  /** Its checklist, in order. Absent from a Worker older than this field. */
+  subtasks: z.array(crmSubtaskSchema).optional(),
   /** At most one of the three: the record it is on. */
   companyId: id.nullable(),
   personId: id.nullable(),
@@ -77,6 +88,8 @@ export const crmUpdateTaskBodySchema = z
   .object({
     title: z.string().max(CRM_TASK_TITLE_MAX).optional(),
     body: z.string().max(CRM_TASK_BODY_MAX).nullable().optional(),
+    /** The whole checklist, replacing the one it has. Steps left blank are dropped. */
+    subtasks: z.array(crmSubtaskSchema).max(CRM_SUBTASKS_MAX).optional(),
     assigneeMemberId: id.nullable().optional(),
     dueAt: isoDate.nullable().optional(),
     done: z.boolean().optional(),
@@ -101,6 +114,7 @@ export const crmTaskCountsResponseSchema = z.object({
 });
 
 export type CrmTask = z.infer<typeof crmTaskSchema>;
+export type CrmSubtask = z.infer<typeof crmSubtaskSchema>;
 export type CrmTasksQuery = z.infer<typeof crmTasksQuerySchema>;
 export type CrmCreateTaskBody = z.infer<typeof crmCreateTaskBodySchema>;
 export type CrmUpdateTaskBody = z.infer<typeof crmUpdateTaskBodySchema>;

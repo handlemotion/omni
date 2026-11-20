@@ -1,0 +1,1 @@
+ALTER TABLE "crm_tasks" ADD COLUMN "subtasks" jsonb DEFAULT '[]'::jsonb NOT NULL;

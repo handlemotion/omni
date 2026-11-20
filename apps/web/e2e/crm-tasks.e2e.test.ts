@@ -45,7 +45,7 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-test("checking a task off in the list completes it, and notes typed on its page are saved", async () => {
+test("checking a task off in the list completes it, and an old link to its page opens it beside the list", async () => {
   const origin = String(worker.url);
   const org = await createOrg(db, "studio");
   await db.insert(schema.orgSetup).values({ orgId: org.id, step: "complete" });
@@ -77,7 +77,9 @@ test("checking a task off in the list completes it, and notes typed on its page 
     .not.toBeNull();
 
   await page.goto(new URL(`/${org.slug}/crm/tasks/${task.id}`, origin).toString());
-  await page.getByRole("textbox", { name: "Notes" }).fill("Ask for the Q1 budget.");
+  await expect.poll(() => new URL(page.url()).searchParams.get("task")).toBe(task.id);
+  expect(new URL(page.url()).pathname).toBe(`/${org.slug}/crm/tasks`);
+  await page.getByRole("textbox", { name: "Description" }).fill("Ask for the Q1 budget.");
   await page.getByRole("textbox", { name: "Title" }).click();
   await expect
     .poll(async () => (await row(task.id))?.body ?? null, { timeout: 10_000 })
@@ -118,7 +120,7 @@ test("a task opens beside the list, edits save to that task, and Escape closes i
   await expect.poll(() => new URL(page.url()).searchParams.get("task")).toBe(first);
   expect(new URL(page.url()).pathname).toBe(`/${org.slug}/crm/tasks`);
   const panel = page.getByRole("region", { name: "Task" });
-  await panel.getByRole("textbox", { name: "Notes" }).fill("Ask about parking.");
+  await panel.getByRole("textbox", { name: "Description" }).fill("Ask about parking.");
   await page.getByRole("link", { name: "Book the crew" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("task")).toBe(second);
   await expect
@@ -127,10 +129,93 @@ test("a task opens beside the list, edits save to that task, and Escape closes i
   await expect.poll(async () => (await row(first))?.body ?? null).toBe("Ask about parking.");
   expect((await row(second))?.body ?? null).toBeNull();
 
-  await page.getByRole("heading", { name: "Tasks" }).click();
+  await page.getByRole("heading", { name: "Tasks", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect.poll(() => new URL(page.url()).searchParams.get("task")).toBeNull();
   await expect.poll(() => panel.count()).toBe(0);
+  await context.close();
+});
+
+test("subtasks added quickly in the panel all save in order, check off, and a cleared one is removed", async () => {
+  const { page, org, context, headers } = await signedIn("subtasks");
+  const made = await fetch(new URL("/api/crm/tasks", origin()), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ title: "Plan the shoot" }),
+  });
+  const { task } = (await made.json()) as { task: { id: string } };
+  await page.goto(new URL(`/${org.slug}/crm/tasks?task=${task.id}`, origin()).toString());
+  const panel = page.getByRole("region", { name: "Task" });
+  const add = panel.getByRole("textbox", { name: "New subtask" });
+  for (const title of ["Scout", "Permits", "Crew", "Drone"]) {
+    await add.fill(title);
+    await add.press("Enter");
+  }
+  await expect
+    .poll(async () => (await row(task.id))?.subtasks.map((s) => s.title))
+    .toEqual(["Scout", "Permits", "Crew", "Drone"]);
+  const fromElsewhere = (await row(task.id))!.subtasks.map((s) =>
+    s.title === "Drone" ? { ...s, title: "Drone shots" } : s,
+  );
+  await fetch(new URL(`/api/crm/tasks/${task.id}`, origin()), {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ subtasks: fromElsewhere }),
+  });
+  await panel.getByRole("checkbox", { name: "Complete Drone shots" }).waitFor();
+
+  await panel.getByRole("checkbox", { name: "Complete Scout" }).click({ force: true });
+  await expect
+    .poll(async () => (await row(task.id))?.subtasks.map((s) => s.done))
+    .toEqual([true, false, false, false]);
+  expect((await row(task.id))?.completedAt).toBeNull();
+
+  await panel.getByRole("textbox", { name: "Subtask" }).nth(1).fill("");
+  await panel.getByRole("checkbox", { name: "Complete" }).first().focus();
+  await expect
+    .poll(async () => (await row(task.id))?.subtasks.map((s) => s.title))
+    .toEqual(["Scout", "Crew", "Drone shots"]);
+
+  await page.reload();
+  await panel.getByRole("checkbox", { name: "Complete Scout" }).waitFor();
+  expect(await panel.getByRole("checkbox", { name: "Complete Scout" }).isChecked()).toBe(true);
+  await context.close();
+});
+
+test("a subtask added just before switching tasks is kept when the next one is added", async () => {
+  const { page, org, context, headers } = await signedIn("subtask-switch");
+  const make = async (title: string) => {
+    const made = await fetch(new URL("/api/crm/tasks", origin()), {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ title }),
+    });
+    return ((await made.json()) as { task: { id: string } }).task.id;
+  };
+  const first = await make("Light the set");
+  await make("Book the van");
+  await page.route(`**/api/crm/tasks/${first}`, async (route) => {
+    if (route.request().method() === "PATCH") await new Promise((done) => setTimeout(done, 1500));
+    await route.continue();
+  });
+  await page.goto(new URL(`/${org.slug}/crm/tasks?task=${first}`, origin()).toString());
+  const panel = page.getByRole("region", { name: "Task" });
+  const add = panel.getByRole("textbox", { name: "New subtask" });
+  await add.fill("Key light");
+  await add.press("Enter");
+  await page.getByRole("link", { name: "Book the van" }).click();
+  await expect
+    .poll(() => panel.getByRole("textbox", { name: "Title" }).inputValue())
+    .toBe("Book the van");
+  await page.getByRole("link", { name: "Light the set" }).click();
+  await expect
+    .poll(() => panel.getByRole("textbox", { name: "Title" }).inputValue())
+    .toBe("Light the set");
+  await add.fill("Fill light");
+  await add.press("Enter");
+  await expect
+    .poll(async () => (await row(first))?.subtasks.map((s) => s.title), { timeout: 10_000 })
+    .toEqual(["Key light", "Fill light"]);
   await context.close();
 });
 
@@ -313,6 +398,30 @@ test("opening a task far down the list keeps the list where it was scrolled", as
     .getByRole("textbox", { name: "Title" })
     .waitFor();
   expect(await scrolled()).toBe(before);
+  await context.close();
+});
+
+test("in a window too narrow for both, the task takes the whole screen, and sits beside the list when wide", async () => {
+  const { page, org, context, headers } = await signedIn("narrow");
+  const made = await fetch(new URL("/api/crm/tasks", origin()), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ title: "Pack the lenses" }),
+  });
+  const { task } = (await made.json()) as { task: { id: string } };
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.goto(
+    new URL(`/${org.slug}/crm/tasks?assignee=anyone&task=${task.id}`, origin()).toString(),
+  );
+  const panel = page.getByRole("region", { name: "Task", exact: true });
+  const list = page.getByRole("heading", { name: "Tasks", exact: true });
+  await expect
+    .poll(() => panel.getByRole("textbox", { name: "Title" }).inputValue(), { timeout: 10_000 })
+    .toBe("Pack the lenses");
+  await expect.poll(() => list.isVisible()).toBe(false);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect.poll(() => list.isVisible()).toBe(true);
+  expect(await panel.isVisible()).toBe(true);
   await context.close();
 });
 

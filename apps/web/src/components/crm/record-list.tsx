@@ -76,7 +76,7 @@ export function RecordMark(props: {
         src={withWorkspace(props.src)}
         initials={props.name.trim().slice(0, 1).toUpperCase() || "?"}
         isSquare={props.square}
-        className="bg-secondary text-muted-foreground outline-0"
+        className="bg-secondary text-muted-foreground outline-0 mix-blend-multiply"
         style={{ "--avatar-size": `${size}px` } as React.CSSProperties}
       />
     );
@@ -86,7 +86,7 @@ export function RecordMark(props: {
       who={props.who ?? null}
       name={props.name}
       isSquare={props.square}
-      className="bg-secondary text-muted-foreground outline-0"
+      className="bg-secondary text-muted-foreground outline-0 mix-blend-multiply"
       style={{ "--avatar-size": `${size}px` } as React.CSSProperties}
     />
   );

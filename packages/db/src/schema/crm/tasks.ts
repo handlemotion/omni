@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, foreignKey, index, pgTable, text } from "drizzle-orm/pg-core";
+import { check, foreignKey, index, jsonb, pgTable, text } from "drizzle-orm/pg-core";
 import { members } from "../auth.ts";
 import { createdAt, id, orgId, timestamptz, updatedAt } from "../columns.ts";
 import { crmCompanies, crmDeals, crmPeople } from "../crm.ts";
@@ -18,6 +18,11 @@ export const crmTasks = pgTable(
     orgId: orgId(),
     title: text("title").notNull(),
     body: text("body"),
+    /** Its checklist, in order: each step's own id, its text, and whether it is done. */
+    subtasks: jsonb("subtasks")
+      .$type<{ id: string; title: string; done: boolean }[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     companyId: text("company_id"),
     personId: text("person_id"),
     dealId: text("deal_id"),

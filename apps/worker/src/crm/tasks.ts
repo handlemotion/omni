@@ -111,6 +111,7 @@ export const tasks = new Hono<AppEnv>()
     const patch: TaskPatch = {
       title: body.title,
       body: body.body,
+      subtasks: body.subtasks,
       assigneeMemberId: body.assigneeMemberId,
       dueAt: dateOrNull(body.dueAt),
       done: body.done,

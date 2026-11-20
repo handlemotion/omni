@@ -5,11 +5,19 @@ import { crmTasks } from "../schema/crm/tasks.ts";
 import { NOT_FOUND, pageSize, type CrmMember, type CrmRecordRef, type Ex } from "./core.ts";
 import { recordExists } from "./notes.ts";
 
+/** A step of a task's checklist. */
+export interface CrmSubtask {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
 /** A task, with the name of the record it is on. */
 export interface CrmTask {
   id: string;
   title: string;
   body: string | null;
+  subtasks: CrmSubtask[];
   companyId: string | null;
   personId: string | null;
   dealId: string | null;
@@ -58,6 +66,8 @@ export interface TaskInput {
 export interface TaskPatch {
   title?: string;
   body?: string | null;
+  /** The whole checklist, replacing the one it has. */
+  subtasks?: CrmSubtask[];
   assigneeMemberId?: string | null;
   dueAt?: Date | null;
   done?: boolean;
@@ -75,11 +85,13 @@ export type TaskResult =
 
 export const CRM_TASK_TITLE_MAX = 500;
 export const CRM_TASK_BODY_MAX = 20_000;
+export const CRM_SUBTASKS_MAX = 100;
 
 const taskColumns = {
   id: crmTasks.id,
   title: crmTasks.title,
   body: crmTasks.body,
+  subtasks: crmTasks.subtasks,
   companyId: crmTasks.companyId,
   personId: crmTasks.personId,
   dealId: crmTasks.dealId,
@@ -116,6 +128,12 @@ const cleanBody = (body: string | null | undefined) => {
   const text = body?.trim() ?? "";
   return text.length > 0 ? text.slice(0, CRM_TASK_BODY_MAX) : null;
 };
+
+const cleanSubtasks = (subtasks: CrmSubtask[]) =>
+  subtasks.slice(0, CRM_SUBTASKS_MAX).flatMap((step) => {
+    const title = step.title.trim().replaceAll(/\s+/g, " ").slice(0, CRM_TASK_TITLE_MAX);
+    return title ? [{ id: step.id, title, done: step.done }] : [];
+  });
 
 const target = (record: CrmRecordRef | null | undefined) => ({
   companyId: record && "companyId" in record ? record.companyId : null,
@@ -277,6 +295,7 @@ function setFor(
   const set: TaskSet = {};
   if (title !== undefined) set.title = title;
   if (patch.body !== undefined) set.body = cleanBody(patch.body);
+  if (patch.subtasks !== undefined) set.subtasks = cleanSubtasks(patch.subtasks);
   if (patch.assigneeMemberId !== undefined) set.assigneeMemberId = patch.assigneeMemberId;
   if (patch.dueAt !== undefined) set.dueAt = patch.dueAt;
   if (patch.record !== undefined) Object.assign(set, target(patch.record));
