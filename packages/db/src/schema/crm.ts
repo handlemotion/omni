@@ -67,6 +67,8 @@ export const crmCompanies = pgTable(
     orgId: orgId(),
     name: text("name").notNull(),
     description: text("description"),
+    /** Who on the team looks after it (ADR 0054). */
+    ownerMemberId: memberRef("owner_member_id"),
     folderNodeId: folderRef("folder_node_id"),
     createdByMemberId: memberRef("created_by_member_id"),
     archivedAt: timestamptz("archived_at"),
@@ -76,6 +78,8 @@ export const crmCompanies = pgTable(
   (t) => [
     unique("crm_companies_id_org_id_unique").on(t.id, t.orgId),
     index("crm_companies_name_idx").on(t.orgId, sql`lower(${t.name})`, t.id),
+    index("crm_companies_updated_at_idx").on(t.orgId, t.updatedAt, t.id),
+    index("crm_companies_owner_member_id_idx").on(t.ownerMemberId),
   ],
 );
 
@@ -109,6 +113,8 @@ export const crmPeople = pgTable(
     companyId: text("company_id").references(() => crmCompanies.id, { onDelete: "set null" }),
     jobTitle: text("job_title"),
     phone: text("phone"),
+    /** Who on the team looks after them (ADR 0054). */
+    ownerMemberId: memberRef("owner_member_id"),
     createdByMemberId: memberRef("created_by_member_id"),
     archivedAt: timestamptz("archived_at"),
     createdAt: createdAt(),
@@ -118,6 +124,8 @@ export const crmPeople = pgTable(
     unique("crm_people_id_org_id_unique").on(t.id, t.orgId),
     index("crm_people_name_idx").on(t.orgId, sql`lower(${t.name})`, t.id),
     index("crm_people_company_id_idx").on(t.companyId),
+    index("crm_people_updated_at_idx").on(t.orgId, t.updatedAt, t.id),
+    index("crm_people_owner_member_id_idx").on(t.ownerMemberId),
   ],
 );
 
@@ -179,6 +187,8 @@ export const crmDeals = pgTable(
     wonAt: timestamptz("won_at"),
     /** Set while the deal sits in a `done` or `lost` stage. */
     closedAt: timestamptz("closed_at"),
+    /** When the team expects it to close (ADR 0054). */
+    expectedCloseOn: date("expected_close_on", { mode: "string" }),
     folderNodeId: folderRef("folder_node_id"),
     createdByMemberId: memberRef("created_by_member_id"),
     archivedAt: timestamptz("archived_at"),
@@ -201,6 +211,9 @@ export const crmDeals = pgTable(
     index("crm_deals_stage_id_idx").on(t.stageId),
     index("crm_deals_company_id_idx").on(t.companyId),
     index("crm_deals_owner_member_id_idx").on(t.ownerMemberId),
+    index("crm_deals_updated_at_idx").on(t.orgId, t.updatedAt, t.id),
+    index("crm_deals_value_idx").on(t.orgId, t.valueMinor, t.id),
+    index("crm_deals_expected_close_on_idx").on(t.orgId, t.expectedCloseOn, t.id),
   ],
 );
 

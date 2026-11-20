@@ -372,6 +372,13 @@
       "when": 1795180594329,
       "tag": "0052_flippant_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795182188701,
+      "tag": "0053_legal_exiles",
+      "breakpoints": true
     }
   ]
 }
