@@ -117,7 +117,9 @@ export const onRecord = (kind: CrmRecordKind, id: string) =>
 /** The record a task is on, as a link names it. */
 export function taskRecord(task: CrmTask) {
   const name = task.recordName ?? "";
-  if (task.companyId) return { kind: "companies" as const, id: task.companyId, name };
+  if (task.companyId) {
+    return { kind: "companies" as const, id: task.companyId, name, domain: task.recordDomain };
+  }
   if (task.personId) return { kind: "people" as const, id: task.personId, name };
   if (task.dealId) return { kind: "deals" as const, id: task.dealId, name };
   return null;

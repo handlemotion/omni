@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ilike, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { members } from "../schema/auth.ts";
-import { crmCompanies, crmDeals, crmPeople } from "../schema/crm.ts";
+import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople } from "../schema/crm.ts";
 import { crmTasks } from "../schema/crm/tasks.ts";
 import { NOT_FOUND, pageSize, type CrmMember, type CrmRecordRef, type Ex } from "./core.ts";
 import { recordExists } from "./notes.ts";
@@ -15,6 +15,8 @@ export interface CrmTask {
   dealId: string | null;
   /** The company's, person's or deal's name; null on a task on no record. */
   recordName: string | null;
+  /** A company's first domain, for its icon; null on any other task. */
+  recordDomain: string | null;
   assigneeMemberId: string | null;
   dueAt: Date | null;
   completedAt: Date | null;
@@ -84,6 +86,10 @@ const taskColumns = {
   recordName: sql<
     string | null
   >`coalesce(${crmCompanies.name}, ${crmPeople.name}, ${crmDeals.name})`.as("record_name"),
+  recordDomain: sql<string | null>`(select ${crmCompanyDomains.domain} from ${crmCompanyDomains}
+    where ${crmCompanyDomains.orgId} = ${crmTasks.orgId}
+      and ${crmCompanyDomains.companyId} = ${crmTasks.companyId}
+    order by ${crmCompanyDomains.domain} limit 1)`.as("record_domain"),
   assigneeMemberId: crmTasks.assigneeMemberId,
   dueAt: crmTasks.dueAt,
   completedAt: crmTasks.completedAt,

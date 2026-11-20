@@ -16,6 +16,8 @@ export const crmTaskSchema = z.object({
   dealId: id.nullable(),
   /** That record's name. */
   recordName: z.string().nullable(),
+  /** A company's first domain, for its icon. Absent from a Worker older than this field. */
+  recordDomain: z.string().nullable().optional(),
   assigneeMemberId: id.nullable(),
   /** A moment: a client picking a day sends the end of that day in its time zone. */
   dueAt: isoDate.nullable(),

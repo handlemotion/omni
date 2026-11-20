@@ -101,7 +101,7 @@ test("a record lists its own tasks; deleting the record or the assignee is handl
     dealId,
     assigneeMemberId: bea.id,
   });
-  expect(onDeal.body.task).toMatchObject({ dealId, recordName: "Website" });
+  expect(onDeal.body.task).toMatchObject({ dealId, recordName: "Website", recordDomain: null });
   await stack.api(owner.jar, "POST", "/tasks", { title: "Other", dealId: other.body.deal.id });
   await stack.api(owner.jar, "POST", "/tasks", { title: "Loose" });
   expect(titles((await stack.api(owner.jar, "GET", `/tasks?deal=${dealId}`)).body)).toEqual([
@@ -111,7 +111,7 @@ test("a record lists its own tasks; deleting the record or the assignee is handl
   const moved = await stack.api(owner.jar, "PATCH", `/tasks/${onDeal.body.task.id}`, {
     dealId: null,
   });
-  expect(moved.body.task).toMatchObject({ dealId: null, recordName: null });
+  expect(moved.body.task).toMatchObject({ dealId: null, recordName: null, recordDomain: null });
   await stack.api(owner.jar, "PATCH", `/tasks/${onDeal.body.task.id}`, { dealId });
 
   await stack.db.delete(schema.members).where(eq(schema.members.id, bea.id));
@@ -167,4 +167,22 @@ test("a task write reaches a teammate's socket with its record", async () => {
   );
   expect(recordEvent.ids).toEqual([company.body.company.id]);
   socket.close();
+});
+
+test("a task on a company carries the company's domain, for its icon", async () => {
+  const acme = await stack.company("acme");
+  const ana = await stack.member(acme.id);
+  const made = await stack.api(ana.jar, "POST", "/companies", {
+    name: "Initech",
+    domains: ["zeta.test", "initech.test"],
+  });
+  expect(made.status).toBe(201);
+  const companyId = made.body.company.id;
+
+  const task = await stack.api(ana.jar, "POST", "/tasks", { title: "Call them", companyId });
+  expect(task.body.task).toMatchObject({ recordName: "Initech", recordDomain: "initech.test" });
+  const listed = await stack.api(ana.jar, "GET", "/tasks");
+  expect(listed.body.tasks).toEqual([
+    expect.objectContaining({ title: "Call them", recordDomain: "initech.test" }),
+  ]);
 });

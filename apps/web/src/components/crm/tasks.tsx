@@ -303,7 +303,12 @@ export function TaskRow(props: { task: CrmTask; showRecord: boolean }) {
           href={inWorkspace(`/crm/${record.kind}/${encodeURIComponent(record.id)}`)}
           className="flex max-w-48 min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground max-sm:hidden"
         >
-          <RecordMark name={record.name} square={record.kind === "companies"} size={16} />
+          <RecordMark
+            name={record.name}
+            square={record.kind === "companies"}
+            who={"domain" in record && record.domain ? { domain: record.domain } : null}
+            size={16}
+          />
           <span className="truncate">{record.name}</span>
         </Link>
       )}
