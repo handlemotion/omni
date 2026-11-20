@@ -3,6 +3,7 @@ import { createContext, use, type ReactNode } from "react";
 import { BreadcrumbsItem } from "@/components/ui/breadcrumbs";
 import { useCrmCompany, useCrmDeal, useCrmPerson } from "@/hooks/use-crm.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
+import { isProject } from "@/lib/crm-lists.ts";
 import { CRM_LISTS } from "./crm-nav.tsx";
 
 /**
@@ -94,8 +95,8 @@ function StepList({ step }: { step: TrailStep }) {
 }
 
 function DealList({ id }: { id: string }) {
-  const won = useCrmDeal(id).data?.deal.stageKind === "won";
-  return <ListCrumb list={won ? "projects" : "deals"} />;
+  const project = isProject(useCrmDeal(id).data?.deal.stageKind);
+  return <ListCrumb list={project ? "projects" : "deals"} />;
 }
 
 function StepCrumb(props: { step: TrailStep; href: string }) {

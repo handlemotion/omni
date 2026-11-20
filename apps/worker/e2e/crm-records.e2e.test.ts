@@ -186,6 +186,33 @@ test("bulk stage moves deals by the stage rules, and companies refuse a stage", 
   expect(companies.status).toBe(400);
 });
 
+test("deals list by several stage kinds at once, and an unknown kind is refused", async () => {
+  const acme = await stack.company("acme-deal-kinds");
+  const ana = await stack.member(acme.id);
+  const stages = (await stack.api(ana.jar, "GET", "/stages")).body.stages as {
+    id: string;
+    kind: string;
+  }[];
+  const at = async (name: string, kind: string) => {
+    const id = (await stack.api(ana.jar, "POST", "/deals", { name })).body.deal.id;
+    const stageId = stages.find((stage) => stage.kind === kind)!.id;
+    if (kind !== "open") await stack.api(ana.jar, "PATCH", `/deals/${id}`, { stageId });
+  };
+  await at("Lead", "open");
+  await at("Running", "won");
+  await at("Delivered", "done");
+  await at("Gone", "lost");
+  const named = async (query: string) =>
+    (await stack.api(ana.jar, "GET", `/deals?${query}`)).body.deals.map(
+      (deal: { name: string }) => deal.name,
+    );
+
+  expect(await named("kind=open,won")).toEqual(["Lead", "Running"]);
+  expect(await named("kind=won")).toEqual(["Running"]);
+  expect(await named("kind=done&kind=lost")).toEqual(["Delivered", "Gone"]);
+  expect((await stack.api(ana.jar, "GET", "/deals?kind=open,nope")).status).toBe(400);
+});
+
 test("a person's page lists their live deals, and an owner from another workspace is refused", async () => {
   const acme = await stack.company("acme-person-deals");
   const ana = await stack.member(acme.id);

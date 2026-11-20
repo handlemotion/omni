@@ -231,12 +231,22 @@ export const crmPeopleQuerySchema = z.object({
   hasCompany: z.enum(["0", "1"]).optional(),
   ...page,
 });
-/** `GET /deals`: `stage`, `kind`, `company`, and ranges on the close date and value. */
+const stageKinds = z
+  .union([z.string(), z.array(z.string())])
+  .transform((value) =>
+    (Array.isArray(value) ? value : [value])
+      .flatMap((part) => part.split(","))
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0),
+  )
+  .pipe(z.array(crmStageKindSchema).min(1).max(crmStageKindSchema.options.length));
+
+/** `GET /deals`: `stage`, `kind` (`won`, or several: `open,won`), `company`, and ranges on the close date and value. */
 export const crmDealsQuerySchema = z.object({
   q,
   sort: crmDealSortSchema.optional(),
   stage: id.optional(),
-  kind: crmStageKindSchema.optional(),
+  kind: stageKinds.optional(),
   company: id.optional(),
   /** `YYYY-MM-DD`, inclusive. */
   closeAfter: z.iso.date().optional(),

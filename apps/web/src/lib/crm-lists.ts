@@ -2,6 +2,7 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferRequestType } from "hono/client";
 import { api, call } from "./api.ts";
+import type { CrmStageKind } from "./crm.ts";
 import { keys } from "./query-keys.ts";
 
 type Crm = Api["crm"];
@@ -29,7 +30,8 @@ export interface CrmPeopleFilter extends CrmListFilter {
 export interface CrmDealFilter extends CrmListFilter {
   sort?: NonNullable<DealsQuery["sort"]>;
   stage?: string;
-  kind?: NonNullable<DealsQuery["kind"]>;
+  /** One stage kind, or any of several. */
+  kind?: CrmStageKind | readonly CrmStageKind[];
   /** `YYYY-MM-DD`, inclusive. */
   closeAfter?: string;
   closeBefore?: string;
@@ -92,7 +94,11 @@ export const dealsFilter = (search: DealParams) =>
     maxValue: search.maxValue,
   }) satisfies CrmDealFilter;
 
-/** Projects are the deals in a won stage. */
+/** What counts as a project: a lead (`open`) or a won deal, by stage kind, never by stage name. */
+export const PROJECT_KINDS: readonly CrmStageKind[] = ["open", "won"];
+export const isProject = (kind: CrmStageKind | undefined) => !!kind && PROJECT_KINDS.includes(kind);
+
+/** The Projects page's filter: deals of a project kind. */
 export const projectsFilter = (search: DealParams) =>
   ({
     ...listParams(search),
@@ -102,7 +108,7 @@ export const projectsFilter = (search: DealParams) =>
     closeBefore: search.closeBefore,
     minValue: search.minValue,
     maxValue: search.maxValue,
-    kind: "won",
+    kind: PROJECT_KINDS,
   }) satisfies CrmDealFilter;
 
 const PAGE_SIZE = 50;
@@ -136,7 +142,7 @@ function dealsQuery(filter: CrmDealFilter, cursor: string | null, limit: number)
     ...shared(filter, cursor, limit),
     ...(filter.sort ? { sort: filter.sort } : {}),
     ...(filter.stage ? { stage: filter.stage } : {}),
-    ...(filter.kind ? { kind: filter.kind } : {}),
+    ...(filter.kind ? { kind: [filter.kind].flat().join(",") } : {}),
     ...(filter.closeAfter ? { closeAfter: filter.closeAfter } : {}),
     ...(filter.closeBefore ? { closeBefore: filter.closeBefore } : {}),
     ...(min ? { minValue: min } : {}),

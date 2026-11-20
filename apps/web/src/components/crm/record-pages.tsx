@@ -14,6 +14,7 @@ import {
   useUpdatePerson,
 } from "@/hooks/use-crm.ts";
 import { formatMoney, lastContactedAt, valueCurrency } from "@/lib/crm.ts";
+import { isProject } from "@/lib/crm-lists.ts";
 import { Contracts } from "./contracts.tsx";
 import { AccessSection } from "./project-access.tsx";
 import { ProjectPlan } from "./project-plan.tsx";
@@ -253,7 +254,7 @@ export function DealPage({ id }: { id: string }) {
   return (
     <>
       <RecordLayout
-        list={deal.stageKind === "won" ? "projects" : "deals"}
+        list={isProject(deal.stageKind) ? "projects" : "deals"}
         here={{ kind: "deals", id }}
         name={deal.name}
         mark={<DealMark deal={deal} client={company} size={company ? 40 : 28} />}

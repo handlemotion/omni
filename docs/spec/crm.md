@@ -12,8 +12,8 @@ mail and the files the workspace already has in Omni.
   Nobody files anything.
 - A deal's files are a folder in the shared drive. Its contract is a file there that cannot be
   lost once it is signed.
-- A won deal is the project. The same record goes from lead to delivered, and later it is what
-  the client sees when they sign in.
+- A deal is the project, from lead on. The same record goes from lead to delivered, and later it
+  is what the client sees when they sign in.
 
 ## Goals and non-goals
 
@@ -196,7 +196,7 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `PUT /companies/:id/domains/:domain` · `DELETE` the same            | Add or remove a domain. A webmail or taken domain is refused.                                                |
 | `GET /people` · `POST /people`                                      | List, `?q=`, `?company=`. `POST` is "add once": an address that has a person returns that person.            |
 | `GET /people/:id` · `PATCH` · `DELETE`                              | Read. Change, addresses included. Archive or delete.                                                         |
-| `GET /deals` · `POST /deals`                                        | List, `?stage=`, `?kind=`, `?owner=`, `?company=`. Create.                                                   |
+| `GET /deals` · `POST /deals`                                        | List, `?stage=`, `?kind=` (one or several, `open,won`), `?owner=`, `?company=`. Create.                     |
 | `GET /deals/:id` · `PATCH` · `DELETE`                               | Read with its people and contracts. Change, move stage, set people. Archive or delete.                       |
 | `GET /stages` · `PUT /stages`                                       | The ordered list. Replace it (owners and admins): rename, add, reorder. A stage holding deals stays.         |
 | `POST /notes` · `PATCH /notes/:id` · `DELETE /notes/:id`            | Write a note on one record. Its author edits or deletes it.                                                  |
@@ -309,10 +309,10 @@ board by stage; a won deal is the project.
 - **A person's deals** come with `GET /people/:id`.
 - **Currency.** The apps always send a currency with a value: the deal's own, else the
   workspace default, else the device's. The API still refuses a value with no currency at all.
-- **Projects** are deals in a `won` stage (`kind=won`); the apps list them on their own.
+- **Projects** are deals in an `open` or `won` stage (`kind=open,won`): leads and running
+  projects, chosen by stage kind, never by stage name. The apps list them on their own.
 - **Navigation.** The sidebar (the iOS menu) lists the CRM's pages (Companies, People, Deals, …),
-  then **Projects**: each deal in a `won` or `open` stage (projects and leads), by name, led by
-  its client's logo. There are no stage shortcuts: the board and filters do that.
+  then **Projects**: the same deals as the Projects page, by name, led by its client's logo. There are no stage shortcuts: the board and filters do that.
 - **Crumbs** follow the path taken: a record opened from another record's page carries
   `?via=deals:<id>,people:<id>` (up to four steps), and its header reads
   `Projects › the project › the person`. A record opened from a list or the sidebar starts afresh.

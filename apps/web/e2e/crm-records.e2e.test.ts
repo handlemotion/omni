@@ -352,20 +352,26 @@ test("a deal dragged onto another stage moves there, and a stage's Add deal star
   expect(added?.stageId).toBe(next!.id);
 });
 
-test("a won deal is listed under Projects, and its page sits under Projects", async () => {
+test("Projects lists the leads and won deals the sidebar does, and a lead's page sits under Projects", async () => {
   const team = await workspace("projects");
   const { stages } = await team.api("GET", "/stages");
-  const won = stages.find((stage: { kind: string }) => stage.kind === "won");
-  const { deal } = await team.api("POST", "/deals", { name: "Launch site" });
-  await team.api("POST", "/deals", { name: "Still talking" });
-  await team.api("PATCH", `/deals/${deal.id}`, { stageId: won.id });
+  const stage = (kind: string) => stages.find((one: { kind: string }) => one.kind === kind).id;
+  const deal = async (name: string, kind: string) => {
+    const { deal: made } = await team.api("POST", "/deals", { name });
+    if (kind !== "open") await team.api("PATCH", `/deals/${made.id}`, { stageId: stage(kind) });
+    return made.id as string;
+  };
+  await deal("Launch site", "won");
+  const lead = await deal("Still talking", "open");
+  await deal("Old rebrand", "done");
+  await deal("Never signed", "lost");
 
   const page = await team.page("/crm/projects");
-  await page.getByRole("row", { name: /Launch site/ }).waitFor();
-  expect(await names(page)).toEqual(["Launch site"]);
-  await page.getByRole("row", { name: /Launch site/ }).click();
+  await page.getByRole("row", { name: /Still talking/ }).waitFor();
+  expect(await names(page)).toEqual(["Launch site", "Still talking"]);
+  await page.getByRole("row", { name: /Still talking/ }).click();
   await page.getByRole("link", { name: "Projects" }).first().waitFor();
-  expect(new URL(page.url()).pathname).toContain(`/crm/deals/${deal.id}`);
+  expect(new URL(page.url()).pathname).toContain(`/crm/deals/${lead}`);
 });
 
 test("the sidebar lists the projects and leads, not closed deals, each marked with its client", async () => {

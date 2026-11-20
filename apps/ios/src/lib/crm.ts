@@ -12,6 +12,7 @@ import {
   DEFAULT_VIEW,
   companiesQuery,
   dealsQuery,
+  PROJECT_KINDS,
   peopleQuery,
   type ListView,
 } from "./crm-lists.ts";
@@ -70,15 +71,14 @@ export function usePeople(view: ListView = DEFAULT_VIEW) {
 }
 
 /**
- * Deals in the view's order and filters; `projects` lists the won ones only,
- * `leads` the open ones. `whole` asks in the
- * largest pages, for a board that loads every deal to count each stage.
+ * Deals in the view's order and filters; `projects` lists the leads and won ones only.
+ * `whole` asks in the largest pages, for a board that loads every deal to count each stage.
  */
 export function useDeals(
   view: ListView = DEFAULT_VIEW,
-  options: { projects?: boolean; leads?: boolean; whole?: boolean } = {},
+  options: { projects?: boolean; whole?: boolean } = {},
 ) {
-  const query = dealsQuery(view, options.projects ? "won" : options.leads ? "open" : undefined);
+  const query = dealsQuery(view, options.projects ? PROJECT_KINDS : undefined);
   const size = options.whole ? BOARD_PAGE_SIZE : PAGE_SIZE;
   return useInfiniteQuery(
     infiniteQueryOptions({
@@ -115,16 +115,14 @@ function useDrained<
 }
 
 /**
- * The active projects (deals in a `won` stage) and leads (in an `open` one), by name, each with
- * its client from the company
+ * The projects (deals in a `won` or `open` stage), by name, each with its client from the company
  * list (its name and a domain for the logo).
  */
 export function useActiveProjects() {
-  const won = useDrained(useDeals(DEFAULT_VIEW, { projects: true, whole: true })).data ?? [];
-  const leads = useDrained(useDeals(DEFAULT_VIEW, { leads: true, whole: true })).data ?? [];
+  const projects = useDrained(useDeals(DEFAULT_VIEW, { projects: true, whole: true })).data ?? [];
   const companies = useDrained(useCompanies()).data ?? [];
   const clients = new Map(companies.map((company) => [company.id, company]));
-  return [...won, ...leads]
+  return projects
     .map((deal) => ({ deal, client: deal.companyId ? clients.get(deal.companyId) : undefined }))
     .toSorted((a, b) => a.deal.name.localeCompare(b.deal.name, undefined, { sensitivity: "base" }));
 }

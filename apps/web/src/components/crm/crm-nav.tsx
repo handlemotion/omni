@@ -11,6 +11,7 @@ import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tre
 import { SidebarItem, SidebarLabel, SidebarSection } from "@/components/ui/sidebar";
 import { useCrmCompanyIndex, useCrmDeals } from "@/hooks/use-crm.ts";
 import type { CrmCompany, CrmDeal } from "@/lib/crm.ts";
+import { PROJECT_KINDS } from "@/lib/crm-lists.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export const CRM_LISTS = {
@@ -29,8 +30,7 @@ const ROWS: { list: keyof typeof CRM_LISTS; icon: ReactNode }[] = [
   { list: "tasks", icon: <IconChecklist className="size-icon" /> },
 ];
 
-const WON = { kind: "won" } as const;
-const LEADS = { kind: "open" } as const;
+const PROJECTS = { kind: PROJECT_KINDS };
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
@@ -66,16 +66,12 @@ export function CrmLists({ mailbox }: { mailbox: string | undefined }) {
 }
 
 function ActiveProjects({ search }: { search: string }) {
-  const won = useCrmDeals(WON, { all: true });
-  const leads = useCrmDeals(LEADS, { all: true });
-  const isPending = won.isPending || leads.isPending;
+  const { deals, isPending } = useCrmDeals(PROJECTS, { all: true });
   const companies = useCrmCompanyIndex();
   const projects = useMemo(
     () =>
-      [...won.deals, ...leads.deals].toSorted((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-      ),
-    [won.deals, leads.deals],
+      deals.toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    [deals],
   );
   if (!isPending && projects.length === 0) return null;
   return (

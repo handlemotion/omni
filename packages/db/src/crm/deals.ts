@@ -52,7 +52,8 @@ export type InvalidValue = { status: "invalid_value" };
 
 export interface ListDealsInput extends ListRecordsInput {
   stageId?: string;
-  kind?: StageKind;
+  /** One stage kind, or any of several. */
+  kind?: StageKind | readonly StageKind[];
   companyId?: string;
   /** `YYYY-MM-DD`, inclusive. */
   closeAfter?: string;
@@ -139,6 +140,12 @@ const dealSortValue = (key: CrmSortKey) => (row: CrmDeal) => {
   }
 };
 
+function kindIn(kind: ListDealsInput["kind"]) {
+  if (kind === undefined) return undefined;
+  const kinds: readonly StageKind[] = typeof kind === "string" ? [kind] : kind;
+  return kinds.length === 0 ? undefined : inArray(crmStages.kind, [...kinds]);
+}
+
 function dealRanges(input: ListDealsInput) {
   return and(
     input.closeAfter ? gte(crmDeals.expectedCloseOn, input.closeAfter) : undefined,
@@ -163,7 +170,7 @@ export async function listDeals(ex: Ex, member: CrmMember, input: ListDealsInput
         live(crmDeals.archivedAt, input.includeArchived || input.archivedOnly),
         input.archivedOnly ? isNotNull(crmDeals.archivedAt) : undefined,
         input.stageId ? eq(crmDeals.stageId, input.stageId) : undefined,
-        input.kind ? eq(crmStages.kind, input.kind) : undefined,
+        kindIn(input.kind),
         ownedBy(crmDeals.ownerMemberId, input.ownerMemberId),
         input.companyId ? eq(crmDeals.companyId, input.companyId) : undefined,
         createdBetween(crmDeals.createdAt, input),
