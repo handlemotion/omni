@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from "react-native";
+import { FlatList, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { IconArrowRotateClockwise, IconX } from "@/components/icons.ts";
 import { IconButton } from "@/components/ui/icon-button.tsx";
@@ -9,24 +9,30 @@ import { colors, radius, shadowRaised, space } from "@/theme/tokens.ts";
 
 /**
  * Uploads on their way, over the bottom of Drive's screens: a name, how far it is, Cancel; a
- * failed one says why, with Retry when another try may work. The web's uploads panel.
+ * failed one says why, with Retry when another try may work. The web's uploads panel. A list,
+ * so 200 queued photos draw only the rows on screen.
  */
 export function UploadsPanel() {
   const uploads = useUploads();
   if (!uploads.length) return null;
   return (
     <SafeAreaView edges={["bottom"]} style={styles.dock} pointerEvents="box-none">
-      <ScrollView style={styles.panel} contentContainerStyle={styles.rows}>
-        {uploads.map((item) => (
-          <Row key={item.id} item={item} />
-        ))}
-      </ScrollView>
+      <FlatList
+        style={styles.panel}
+        contentContainerStyle={styles.rows}
+        data={uploads}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={({ item }) => <Row item={item} />}
+        initialNumToRender={8}
+        windowSize={3}
+      />
     </SafeAreaView>
   );
 }
 
 function Row({ item }: { item: UploadItem }) {
   const failed = item.status === "failed";
+  const preparing = item.status === "preparing";
   const percent = item.size ? Math.floor((item.sent / item.size) * 100) : 0;
   return (
     <View style={styles.row}>
@@ -34,7 +40,7 @@ function Row({ item }: { item: UploadItem }) {
         <Text size="sm" numberOfLines={1} style={styles.name}>
           {item.name}
         </Text>
-        {failed ? null : (
+        {failed || preparing ? null : (
           <Text size="sm" tone="mutedForeground" tabular>
             {percent}%
           </Text>
@@ -60,7 +66,7 @@ function Row({ item }: { item: UploadItem }) {
         <View
           style={styles.track}
           accessibilityRole="progressbar"
-          accessibilityLabel={`Uploading ${item.name}`}
+          accessibilityLabel={`${preparing ? "Preparing" : "Uploading"} ${item.name}`}
           accessibilityValue={{ min: 0, max: 100, now: percent }}
         >
           <View style={[styles.fill, { width: `${percent}%` }]} />

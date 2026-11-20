@@ -53,13 +53,13 @@ export function useAddActions(place: DrivePlace) {
       ],
       "plain-text",
     );
-  const upload = async (pick: typeof pickDocuments) => {
+  const upload = async (pick: () => ReturnType<typeof pickDocuments>) => {
     const files = await pick().catch(() => []);
     if (workspace && files.length) addUploads(files, { workspace, place });
   };
   return {
     newFolder,
     uploadFiles: () => void upload(pickDocuments),
-    uploadMedia: () => void upload(pickMedia),
+    uploadMedia: () => void upload(() => pickMedia({ original: true })),
   };
 }

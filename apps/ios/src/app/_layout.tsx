@@ -15,7 +15,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { persistOptions, queryClient } from "@/lib/query-client.ts";
 import { holdSplash } from "@/lib/splash.ts";
-import { acceptSignInLink, useClearCacheOnUserChange } from "@/lib/session.ts";
+import { useDriveUploads } from "@/lib/drive-uploads.ts";
+import { acceptSignInLink, useClearCacheOnUserChange, useSession } from "@/lib/session.ts";
 import { colors } from "@/theme/tokens.ts";
 
 holdSplash();
@@ -24,6 +25,7 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold });
   useSignInLinks();
   useClearCacheOnUserChange();
+  useDriveUploads(useSession().data?.user.id ?? null);
   if (!fontsLoaded) return null;
   return (
     <GestureHandlerRootView style={styles.root}>

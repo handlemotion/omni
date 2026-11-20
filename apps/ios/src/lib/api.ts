@@ -55,6 +55,8 @@ export class ApiError extends Error {
   readonly requestId?: string;
   readonly param?: string;
   readonly details?: Record<string, unknown>;
+  /** When a 429's window resets (ms since the epoch), from the Worker's `limit`. */
+  readonly retryAt?: number;
   constructor(status: number, message: string, info: Omit<ApiErrorInfo, "message"> = {}) {
     super(message);
     this.name = "ApiError";
@@ -65,6 +67,7 @@ export class ApiError extends Error {
     this.requestId = info.requestId;
     this.param = info.param;
     this.details = info.details;
+    this.retryAt = info.limit?.resetMs;
   }
 }
 
