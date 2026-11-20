@@ -206,7 +206,12 @@ function DeliverableDetails(props: {
             </span>
           </FieldRow>
           {deliverable.reviewNote && (
-            <PlainValue label="Client note">{deliverable.reviewNote}</PlainValue>
+            <div className="flex min-h-8 gap-3 py-1.5">
+              <span className="w-28 shrink-0 text-sm text-muted-foreground">Client note</span>
+              <p className="min-w-0 flex-1 px-2 text-sm break-words whitespace-pre-wrap text-foreground">
+                {deliverable.reviewNote}
+              </p>
+            </div>
           )}
           {deliverable.reviewedByEmail && (
             <PlainValue label="Reviewed by">{deliverable.reviewedByEmail}</PlainValue>

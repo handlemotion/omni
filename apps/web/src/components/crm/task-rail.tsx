@@ -44,7 +44,7 @@ export function TaskRail({ filter }: { filter: TaskFilter }) {
     );
   return (
     <div className="flex flex-col gap-1">
-      <ol aria-label="Tasks" className="group/rail flex flex-col">
+      <ol aria-label="Tasks" className="group/rail -mt-2 flex flex-col">
         {items.map((item, i) => {
           const place = railPlace(i, items.length);
           return item.kind === "done" ? (

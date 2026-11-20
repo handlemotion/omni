@@ -163,14 +163,14 @@ export function RecordTasks(props: { kind: CrmRecordKind; id: string }) {
   const [adding, setAdding] = useState(false);
   const filter = recordFilter(props.kind, props.id);
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
+    <div className="flex flex-col gap-6 lg:min-h-[calc(100dvh-8rem)]">
+      <TaskRail filter={filter} />
+      <div className="sticky bottom-0 mt-auto flex min-h-8 justify-end bg-background pt-3">
         <Button size="sm" onPress={() => setAdding(true)}>
           <IconPlus />
           New task
         </Button>
       </div>
-      <TaskRail filter={filter} />
       {adding && (
         <NewTaskDialog
           record={{ kind: props.kind, id: props.id }}

@@ -139,10 +139,10 @@ export function ProjectPlan(props: { dealId: string }) {
   const rows = planRows(milestones, deliverables);
   const item = openItem(opened.id, milestones, deliverables);
   const controls = (
-    <div className="flex min-h-8 flex-wrap items-center justify-end gap-x-4 gap-y-2">
+    <div className="sticky bottom-0 mt-auto flex min-h-8 flex-wrap items-center justify-end gap-x-4 gap-y-2 bg-background pt-3">
       <PlanProgress milestones={milestones} />
       <div className="flex gap-2">
-        <Button size="sm" intent="secondary" onPress={() => setAdding("deliverable")}>
+        <Button size="sm" intent="outline" onPress={() => setAdding("deliverable")}>
           <IconPlus />
           New deliverable
         </Button>
@@ -156,11 +156,13 @@ export function ProjectPlan(props: { dealId: string }) {
   const href = (id: string) => opened.href(id);
   return (
     <div className="flex min-w-0 gap-6 max-lg:flex-col">
-      <div className={`flex min-w-0 flex-1 flex-col gap-6 ${item ? "max-lg:hidden" : ""}`}>
+      <div
+        className={`flex min-w-0 flex-1 flex-col gap-6 lg:min-h-[calc(100dvh-8rem)] ${item ? "max-lg:hidden" : ""}`}
+      >
         {rows.length === 0 ? (
           <EmptyState figure="cabinet" title="No milestones" />
         ) : (
-          <ol aria-label="Plan" className="group/rail flex flex-col">
+          <ol aria-label="Plan" className="group/rail -mt-2 flex flex-col">
             {rows.map((row, i) => {
               const place = railPlace(i, rows.length);
               switch (row.kind) {
