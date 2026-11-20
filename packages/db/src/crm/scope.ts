@@ -90,7 +90,6 @@ export async function freelancerDeals(ex: Ex, member: Freelancer, input: ListDea
   const listed = await listDeals(ex, member, {
     ...rest,
     sort: byValue ? undefined : input.sort,
-    cursor: byValue ? undefined : input.cursor,
   });
   return { ...listed, deals: listed.deals.map(withoutValue) };
 }

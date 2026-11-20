@@ -7,7 +7,7 @@ import {
   type StorageSignatureRequest,
 } from "../storage.ts";
 import { shareContract } from "./contract-people.ts";
-import { loadCrmMember, NOT_FOUND, type CrmMember, type Ex, type NotFound } from "./core.ts";
+import { NOT_FOUND, teammateFor, type CrmMember, type Ex, type NotFound } from "./core.ts";
 import {
   contractColumns,
   contractEvent,
@@ -187,8 +187,7 @@ async function settleOne(db: Db, candidate: { id: string; orgId: string }) {
         dedupeKey: `contract_settled:${current.id}:${requestId}`,
       })
       .onConflictDoNothing();
-    const sender =
-      current.createdByMemberId && (await loadCrmMember(tx, current.createdByMemberId));
+    const sender = await teammateFor(tx, candidate.orgId, current.createdByMemberId);
     if (outcome.status === "signed" && sender) {
       await shareContract(tx, sender, { ...current, signedNodeId: outcome.signedNodeId });
     }

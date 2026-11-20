@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql, type AnyColumn } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
 import { crmEvents, crmProjectMembers } from "../schema/crm.ts";
@@ -83,6 +83,22 @@ export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | nu
       : null;
   return { id: row.id, orgId: row.orgId, admin, projects };
 };
+
+/**
+ * A teammate to act for the workspace when no person is: `preferred` while they are still a
+ * teammate, else its longest-standing owner or admin.
+ */
+export async function teammateFor(ex: Ex, orgId: string, preferred: string | null) {
+  const first = preferred ? await loadCrmMember(ex, preferred) : null;
+  if (first && first.orgId === orgId && first.projects === null) return first;
+  const rows = await ex
+    .select({ id: members.id, role: members.role })
+    .from(members)
+    .where(eq(members.organizationId, orgId))
+    .orderBy(asc(members.createdAt), asc(members.id));
+  const admin = rows.find((row) => row.role.split(",").some((r) => ADMIN_ROLES.has(r.trim())));
+  return admin ? loadCrmMember(ex, admin.id) : null;
+}
 
 /**
  * Who hears a CRM change: the workspace's teammates now. A member removed since they connected

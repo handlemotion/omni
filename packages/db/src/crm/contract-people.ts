@@ -1,7 +1,9 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
-import { crmContractPeople } from "../schema/crm.ts";
+import { crmContractPeople, crmContracts } from "../schema/crm.ts";
+import { crmProjectMembers } from "../schema/crm/projects.ts";
+import { userEmails } from "../schema/identity.ts";
 import { memberStorage } from "../storage.ts";
 import { FREELANCER_ROLE, refuse, type CrmMember, type Ex } from "./core.ts";
 import { dealFolder } from "./folders.ts";
@@ -47,15 +49,48 @@ export async function withPeople<T extends { id: string }>(ex: Ex, contracts: T[
 export const involves = (contractId: Parameters<typeof eq>[0], memberId: string) =>
   sql`exists (select 1 from ${crmContractPeople} where ${crmContractPeople.contractId} = ${contractId} and ${crmContractPeople.memberId} = ${memberId})`;
 
-async function freelancersOf(ex: Ex, orgId: string, memberIds: string[]) {
+async function addressesOf(ex: Ex, orgId: string, memberIds: string[]) {
   if (memberIds.length === 0) return [];
-  return ex
-    .select({ id: members.id, email: sql<string>`lower(${users.email})` })
+  const freelancers = and(
+    eq(members.organizationId, orgId),
+    inArray(members.id, memberIds),
+    isFreelancerRole,
+  );
+  const primary = await ex
+    .select({
+      id: members.id,
+      email: sql<string>`lower(${users.email})`,
+      verified: users.emailVerified,
+    })
     .from(members)
     .innerJoin(users, eq(users.id, members.userId))
+    .where(freelancers);
+  const extra = await ex
+    .select({ id: members.id, email: sql<string>`lower(${userEmails.email})` })
+    .from(members)
+    .innerJoin(userEmails, eq(userEmails.userId, members.userId))
+    .where(freelancers);
+  return [...primary, ...extra.map((row) => ({ ...row, verified: true }))];
+}
+
+async function freelancersOf(ex: Ex, orgId: string, memberIds: string[], dealId?: string | null) {
+  const addresses = await addressesOf(ex, orgId, memberIds);
+  if (!dealId || addresses.length === 0) return addresses;
+  const shared = await ex
+    .select({ email: crmProjectMembers.email })
+    .from(crmProjectMembers)
     .where(
-      and(eq(members.organizationId, orgId), inArray(members.id, memberIds), isFreelancerRole),
+      and(
+        eq(crmProjectMembers.dealId, dealId),
+        eq(crmProjectMembers.scope, "freelancer"),
+        inArray(
+          crmProjectMembers.email,
+          addresses.map((address) => address.email),
+        ),
+      ),
     );
+  const on = new Set(shared.map((row) => row.email));
+  return addresses.filter((address) => address.verified && on.has(address.email));
 }
 
 /**
@@ -153,9 +188,60 @@ export async function fileContract(tx: Ex, member: CrmMember, contract: Contract
   }
 }
 
+async function entitledTo(tx: Ex, orgId: string, nodeId: string) {
+  const contracts = await tx
+    .select({ id: crmContracts.id, dealId: crmContracts.dealId })
+    .from(crmContracts)
+    .where(
+      and(
+        eq(crmContracts.orgId, orgId),
+        or(eq(crmContracts.documentNodeId, nodeId), eq(crmContracts.signedNodeId, nodeId)),
+      ),
+    );
+  const people = await peopleOf(
+    tx,
+    contracts.map((contract) => contract.id),
+  );
+  const emails = new Set<string>();
+  for (const contract of contracts) {
+    const ids = people.get(contract.id) ?? [];
+    for (const person of await freelancersOf(tx, orgId, ids, contract.dealId)) {
+      emails.add(person.email);
+    }
+  }
+  return emails;
+}
+
+async function release(tx: Ex, member: CrmMember, nodeId: string, emails: string[]) {
+  if (emails.length === 0) return;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`contract-file:${nodeId}`}))`);
+  const keep = await entitledTo(tx, member.orgId, nodeId);
+  const storage = memberStorage(tx as Db, member.id);
+  for (const email of new Set(emails)) {
+    if (!keep.has(email)) await storage.removeGrant(nodeId, email);
+  }
+}
+
+/**
+ * Takes `email` off every contract file of a project, as they leave it, unless another contract
+ * still gives them the file.
+ */
+export async function unshareContracts(
+  tx: Ex,
+  member: CrmMember,
+  contracts: ContractFiles[],
+  email: string,
+) {
+  for (const nodeId of new Set(contracts.flatMap(filesOf))) {
+    await release(tx, member, nodeId, [email]);
+  }
+}
+
 /**
  * Gives the freelancers a contract involves viewer on its files, which sit where their project
- * grant does not reach, and takes it from those in `gone` and off files in `oldFiles`.
+ * grant does not reach, and takes it from those in `gone` and off files in `oldFiles`, unless
+ * another contract still gives them the file. On a project's contract, only freelancers still on
+ * that project get it.
  */
 export async function shareContract(
   tx: Ex,
@@ -166,13 +252,24 @@ export async function shareContract(
   const storage = memberStorage(tx as Db, member.id);
   const files = filesOf(contract);
   const people = (await peopleOf(tx, [contract.id])).get(contract.id) ?? [];
-  const now = await freelancersOf(tx, member.orgId, people);
+  const now = await freelancersOf(tx, member.orgId, people, contract.dealId);
   const gone = await freelancersOf(tx, member.orgId, change.gone ?? []);
   for (const nodeId of files) {
     for (const person of now) await storage.putGrant(nodeId, person.email, "viewer");
-    for (const person of gone) await storage.removeGrant(nodeId, person.email);
+    await release(
+      tx,
+      member,
+      nodeId,
+      gone.map((person) => person.email),
+    );
   }
+  const everyAddress = await addressesOf(tx, member.orgId, [...people, ...(change.gone ?? [])]);
   for (const nodeId of (change.oldFiles ?? []).filter((id) => !files.includes(id))) {
-    for (const person of now) await storage.removeGrant(nodeId, person.email);
+    await release(
+      tx,
+      member,
+      nodeId,
+      everyAddress.map((person) => person.email),
+    );
   }
 }
