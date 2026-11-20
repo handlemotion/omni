@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import type { ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import { StyleSheet, View } from "react-native";
 import type { SvgProps } from "react-native-svg";
 import { BRAND_MARKS, isBranded, type BrandedKind } from "@/components/brand/file-marks/index.ts";
@@ -14,7 +14,7 @@ import {
   IconTable,
   IconVideo,
 } from "@/components/icons.ts";
-import { contentUrl, useStorageHeaders, versionOf } from "@/lib/drive-preview.ts";
+import { thumbnailUrl, useStorageHeaders, versionOf } from "@/lib/drive-preview.ts";
 import type { DriveNode } from "@/lib/drive.ts";
 import { fileKindOf, previewKindOf, type FileKind } from "@/lib/file-kind.ts";
 import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
@@ -33,8 +33,8 @@ const GLYPH: Record<Exclude<FileKind, BrandedKind> | "folder", Glyph> = {
   other: IconFile,
 };
 
-/** Images over this draw their glyph, as the web's grid does: a thumbnail reads the original. */
-export const THUMBNAIL_MAX_BYTES = 20 * 1024 * 1024;
+/** Images over this draw their glyph: the Worker draws thumbnails from originals up to 20 MB. */
+export const THUMBNAIL_MAX_BYTES = 20_000_000;
 
 /**
  * A file's or folder's glyph, muted as every icon is at rest; a PDF or an Office file shows its
@@ -56,17 +56,27 @@ export const kindOf = (node: DriveNode) => (node.kind === "folder" ? "folder" : 
 export const hasThumbnail = (node: DriveNode) =>
   node.kind === "file" && previewKindOf(node) === "image" && node.size <= THUMBNAIL_MAX_BYTES;
 
-/** An image's own picture, filling the box it sits in, over the glyph until it loads. */
+/**
+ * An image's own picture, filling the box it sits in, over the glyph until it loads: the Worker's
+ * 256 px thumbnail, never the original. One it can't draw (`415`) leaves the glyph.
+ */
 export function Thumbnail({ node }: { node: DriveNode }) {
   const headers = useStorageHeaders().data;
-  if (!headers) return null;
+  const cacheKey = `${node.id}:${versionOf(node)}:256`;
+  const [failed, setFailed] = useState<string | null>(null);
+  if (!headers || failed === cacheKey) return null;
   return (
     <Image
-      source={{ uri: contentUrl(node.id), headers, cacheKey: `${node.id}:${versionOf(node)}` }}
+      source={{
+        uri: thumbnailUrl(node, 256),
+        headers,
+        cacheKey,
+      }}
       style={StyleSheet.absoluteFill}
       contentFit="cover"
       transition={200}
       recyclingKey={node.id}
+      onError={() => setFailed(cacheKey)}
     />
   );
 }

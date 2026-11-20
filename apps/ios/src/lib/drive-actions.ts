@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ErrorCode, Member } from "@omni/client";
-import { Directory, File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Alert } from "react-native";
 import { ApiError, api, call } from "./api.ts";
-import { config } from "./config.ts";
 import { driveNodeChanged, driveNodeRemoved } from "./drive-cache.ts";
-import { storageHeaders, type DriveNode } from "./drive.ts";
+import { localFile, type FileSource } from "./drive-files.ts";
+import { sourceOf } from "./drive-preview.ts";
+import type { DriveNode } from "./drive.ts";
 import { keys } from "./query-keys.ts";
 import { cacheEpoch } from "./workspace-id.ts";
 
@@ -181,31 +181,26 @@ export function confirmDeleteForever(
   ]);
 }
 
-async function shareDownload(path: string, name: string, mimeType: string | null) {
-  const headers = await storageHeaders();
-  const folder = new Directory(Paths.cache, "drive", String(Date.now()));
-  folder.create({ intermediates: true, idempotent: true });
-  const file = await File.downloadFileAsync(
-    `${config.apiUrl}/api/storage/${path}`,
-    new File(folder, name),
-    { headers, idempotent: true },
-  );
+async function shareDownload(source: FileSource & { size?: number }, mimeType: string | null) {
+  const file = await localFile(source, true);
   await Sharing.shareAsync(file.uri, mimeType ? { mimeType } : {});
 }
 
-/** A file's bytes in the share sheet. Fails with an alert, in the web's words. */
-export const shareFile = (node: Pick<DriveNode, "id" | "name" | "mimeType">) =>
-  shareDownload(`files/${encodeURIComponent(node.id)}/content`, node.name, node.mimeType).catch(
-    () => Alert.alert("It was not downloaded"),
-  );
+const notDownloaded = (error: unknown) => {
+  if (error instanceof Error && /cancel|abort/i.test(`${error.name} ${error.message}`)) return;
+  Alert.alert("It was not downloaded");
+};
+
+/**
+ * A file's bytes in the share sheet (Save to Files, AirDrop, another app), from the phone's copy
+ * when it has one, else after a download the downloads panel shows with its progress and Cancel.
+ * Fails with an alert, in the web's words; a cancelled download says nothing.
+ */
+export const shareFile = (node: DriveNode) =>
+  shareDownload(sourceOf(node), node.mimeType).catch(notDownloaded);
 
 /** A kept version's bytes in the share sheet. */
-export const shareVersion = (
-  node: Pick<DriveNode, "id" | "name" | "mimeType">,
-  versionId: string,
-) =>
-  shareDownload(
-    `files/${encodeURIComponent(node.id)}/versions/${encodeURIComponent(versionId)}/content`,
-    node.name,
-    node.mimeType,
-  ).catch(() => Alert.alert("It was not downloaded"));
+export const shareVersion = (node: DriveNode, versionId: string) =>
+  shareDownload({ ...sourceOf(node), versionId, size: undefined }, node.mimeType).catch(
+    notDownloaded,
+  );

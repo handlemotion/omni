@@ -1,14 +1,16 @@
+import { createContext, use, useState, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import {
   IconDownload,
   IconFolder,
   IconHistory,
+  IconOffline,
   IconRename,
   IconTrash,
   IconUserAdd,
 } from "@/components/icons.ts";
 import { MenuRow, SheetDivider } from "@/components/shell/menu-row.tsx";
-import { BottomSheet, type useSheet } from "@/components/ui/bottom-sheet.tsx";
+import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import {
   canTrash,
@@ -19,6 +21,8 @@ import {
   useMe,
   useTrashNode,
 } from "@/lib/drive-actions.ts";
+import { pinFile, unpinFile, usePinned } from "@/lib/drive-files.ts";
+import { sourceOf } from "@/lib/drive-preview.ts";
 import { openDriveSheet } from "@/lib/drive-sheets.ts";
 import { fileDay, fileSize, type DriveNode } from "@/lib/drive.ts";
 import { space } from "@/theme/tokens.ts";
@@ -26,7 +30,8 @@ import { FileTile } from "./file-glyph.tsx";
 
 /**
  * A file's or folder's actions in a sheet, under its tile, name, day and size: Share and Save to
- * Files; Rename, Move and (a file's) Versions; Move to Trash. `pick` closes the sheet and runs
+ * Files, and (a file's) Make available offline or Remove download; Rename, Move and (a file's)
+ * Versions; Move to Trash. `pick` closes the sheet and runs
  * the action once it has gone (`useSheet().pick`), so a prompt or a sheet it opens is not under it.
  */
 export function NodeSheet(props: {
@@ -40,6 +45,7 @@ export function NodeSheet(props: {
   const me = useMe().data;
   const rename = useChangeNode().mutate;
   const trash = useTrashNode().mutate;
+  const pinned = usePinned(node.id);
   const file = node.kind === "file";
   const meta = [fileDay(node.updatedAt), file ? fileSize(node.size) : null]
     .filter(Boolean)
@@ -84,6 +90,20 @@ export function NodeSheet(props: {
           onPress={() => pick(() => void shareFile(node))}
         />
       ) : null}
+      {file ? (
+        <MenuRow
+          icon={IconOffline}
+          muted
+          label={pinned ? "Remove download" : "Make available offline"}
+          onPress={() =>
+            pick(() =>
+              pinned
+                ? unpinFile(node.id)
+                : void pinFile(sourceOf(node)).catch(driveErrorAlert("It was not downloaded")),
+            )
+          }
+        />
+      ) : null}
       <SheetDivider />
       <MenuRow
         icon={IconRename}
@@ -126,6 +146,30 @@ export function NodeSheet(props: {
     </BottomSheet>
   );
 }
+
+const OpenNodeSheet = createContext<((node: DriveNode) => void) | null>(null);
+
+/**
+ * One `NodeSheet` for every row under it, opened on the row a long press picked, instead of a
+ * sheet (and its modal) mounted per row. Drive's stack holds one.
+ */
+export function NodeSheetHost({ children }: { children: ReactNode }) {
+  const sheet = useSheet();
+  const [node, setNode] = useState<DriveNode | null>(null);
+  const open = (one: DriveNode) => {
+    setNode(one);
+    sheet.open();
+  };
+  return (
+    <OpenNodeSheet value={open}>
+      {children}
+      {node ? <NodeSheet node={node} sheet={sheet} /> : null}
+    </OpenNodeSheet>
+  );
+}
+
+/** Opens the nearest `NodeSheetHost`'s sheet on a node; null outside one. */
+export const useOpenNodeSheet = () => use(OpenNodeSheet);
 
 const styles = StyleSheet.create({
   header: {

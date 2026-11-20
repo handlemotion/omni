@@ -18,7 +18,6 @@ const MAX_HOLD_MS = 3_000;
 
 const threadListMailbox = (query: Query) => query.queryKey[2];
 const isThreadNotItsHtml = (query: Query) => query.queryKey.length === 2;
-const isDriveListNotPreview = (query: Query) => query.queryKey[1] !== "file";
 
 function refetchAfterMissedEvents(client: QueryClient) {
   const quiet = { cancelRefetch: false };
@@ -31,10 +30,7 @@ function refetchAfterMissedEvents(client: QueryClient) {
   void client.invalidateQueries({ queryKey: ["search"] }, quiet);
   void client.invalidateQueries({ queryKey: keys.counts() }, quiet);
   void client.invalidateQueries({ queryKey: keys.mailboxes() }, quiet);
-  void client.invalidateQueries(
-    { queryKey: keys.driveAll(), predicate: isDriveListNotPreview },
-    quiet,
-  );
+  void client.invalidateQueries({ queryKey: keys.driveAll() }, quiet);
   void client.invalidateQueries({ queryKey: keys.crmAll() }, quiet);
 }
 
@@ -93,17 +89,11 @@ function invalidateOnEvents(client: QueryClient) {
         return;
       case "crm.changed":
         if (event.kind === "contract") {
-          void client.invalidateQueries({
-            queryKey: keys.driveAll(),
-            predicate: isDriveListNotPreview,
-          });
+          void client.invalidateQueries({ queryKey: keys.driveAll() });
         }
         return void client.invalidateQueries({ queryKey: keys.crmAll() });
       case "storage.changed":
-        return void client.invalidateQueries({
-          queryKey: keys.driveAll(),
-          predicate: isDriveListNotPreview,
-        });
+        return void client.invalidateQueries({ queryKey: keys.driveAll() });
     }
   };
 

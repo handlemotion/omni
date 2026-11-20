@@ -3,6 +3,7 @@ import { DriveList } from "@/components/drive/drive-list.tsx";
 import { DriveSearch } from "@/components/drive/drive-search.tsx";
 import { TrashItem } from "@/components/drive/node-item.tsx";
 import { NodeRow } from "@/components/drive/node-row.tsx";
+import { DownloadsPanel } from "@/components/drive/downloads-panel.tsx";
 import { UploadsPanel } from "@/components/drive/uploads-panel.tsx";
 import { IconFolderShared, IconTrash } from "@/components/icons.ts";
 import { useMenu } from "@/components/shell/menu-context.tsx";
@@ -35,6 +36,7 @@ export default function DriveHome() {
         <Space space={where} />
       )}
       <UploadsPanel />
+      <DownloadsPanel />
     </ModuleRoot>
   );
 }

@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useAddMenu } from "@/components/drive/add-menu.tsx";
 import { DriveList } from "@/components/drive/drive-list.tsx";
+import { DownloadsPanel } from "@/components/drive/downloads-panel.tsx";
 import { UploadsPanel } from "@/components/drive/uploads-panel.tsx";
 import { DRIVE_PAGES } from "@/lib/drive.ts";
 
@@ -14,6 +15,7 @@ export default function Folder() {
       <Stack.Toolbar placement="right">{add}</Stack.Toolbar>
       <DriveList place={{ parent: id }} empty={DRIVE_PAGES.my.empty} />
       <UploadsPanel />
+      <DownloadsPanel />
     </>
   );
 }

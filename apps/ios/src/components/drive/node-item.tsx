@@ -1,8 +1,7 @@
 import { Link } from "expo-router";
 import { FolderCard } from "@/components/drive/folder-card.tsx";
 import { NodeRow } from "@/components/drive/node-row.tsx";
-import { NodeSheet } from "@/components/drive/node-sheet.tsx";
-import { useSheet } from "@/components/ui/bottom-sheet.tsx";
+import { useOpenNodeSheet } from "@/components/drive/node-sheet.tsx";
 import { IconArrowRotateClockwise, IconShared, IconTrash } from "@/components/icons.ts";
 import { SwipeRow } from "@/components/ui/swipe-row.tsx";
 import {
@@ -18,26 +17,23 @@ import { openDriveSheet } from "@/lib/drive-sheets.ts";
 import type { DriveNode } from "@/lib/drive.ts";
 
 /**
- * A file or folder in a space or a folder; a long press opens its actions in a sheet
- * (`NodeSheet`). A folder in the grid draws as its card (`card`). A row swipes right to Share
+ * A file or folder in a space or a folder; a long press opens its actions in the screen's one
+ * sheet (`NodeSheetHost`). A folder in the grid draws as its card (`card`). A row swipes right to Share
  * and left to Move to trash.
  */
 export function NodeItem({ node, card = false }: { node: DriveNode; card?: boolean }) {
   const me = useMe().data;
   const trash = useTrashNode().mutate;
-  const sheet = useSheet();
+  const openSheet = useOpenNodeSheet();
+  const onLongPress = openSheet ? () => openSheet(node) : undefined;
   const file = node.kind === "file";
   const trashable = canTrash(node, me);
-  const item = (
-    <>
-      {card && !file ? (
-        <FolderCard node={node} onLongPress={sheet.open} />
-      ) : (
-        <NodeRow node={node} onLongPress={sheet.open} />
-      )}
-      <NodeSheet node={node} sheet={sheet} />
-    </>
-  );
+  const item =
+    card && !file ? (
+      <FolderCard node={node} onLongPress={onLongPress} />
+    ) : (
+      <NodeRow node={node} onLongPress={onLongPress} />
+    );
   if (card && !file) return item;
   return (
     <SwipeRow

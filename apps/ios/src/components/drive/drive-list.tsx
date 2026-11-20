@@ -1,8 +1,11 @@
+import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { IconFolder } from "@/components/icons.ts";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
+import { refreshPins } from "@/lib/drive-files.ts";
+import { sourceOf } from "@/lib/drive-preview.ts";
 import { useFolder, type DriveNode } from "@/lib/drive.ts";
 import { colors, gutter, radius, space } from "@/theme/tokens.ts";
 import { NodeItem } from "./node-item.tsx";
@@ -41,7 +44,8 @@ const recentRows = (nodes: DriveNode[]) => toRows(nodes, true);
  * A space's top or a folder's contents, as Drive's board lays them out: its folders in a grid of
  * three cards under "Folders", then its files as rows under "Files", in the API's name order. A
  * space's top (`recent`) heads them "Recent" instead and puts the latest updated first, among the
- * pages loaded so far.
+ * pages loaded so far. A file made available offline that has a new version here is downloaded
+ * again (`refreshPins`).
  */
 export function DriveList(props: {
   place: Parameters<typeof useFolder>[0];
@@ -50,6 +54,10 @@ export function DriveList(props: {
   recent?: boolean;
 }) {
   const query = useFolder(props.place);
+  useEffect(() => {
+    const files = query.data?.filter((node) => node.kind === "file");
+    if (files?.length) refreshPins(files.map(sourceOf));
+  }, [query.data]);
   return (
     <InfiniteList
       query={query}

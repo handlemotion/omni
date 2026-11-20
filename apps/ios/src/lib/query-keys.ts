@@ -11,9 +11,12 @@ export const keys = {
   assignees: (mailboxId: string) => ["assignees", mailboxId] as const,
   tags: (mailboxId: string) => ["tags", mailboxId] as const,
   drive: (page: string, folderId?: string) => ["drive", page, folderId ?? "root"] as const,
-  /** A Drive file's local copy, and its text, per version. */
-  fileCopy: (fileId: string, version: string) => ["drive", "file", fileId, version] as const,
-  fileText: (fileId: string, version: string) => ["drive", "text", fileId, version] as const,
+  /**
+   * A Drive file's local copy, and its text, per version: outside `["drive"]`, so a change in
+   * Drive (a rename, an upload) never cancels or repeats a download in flight.
+   */
+  fileCopy: (fileId: string, version: string) => ["drive-file", "copy", fileId, version] as const,
+  fileText: (fileId: string, version: string) => ["drive-file", "text", fileId, version] as const,
   storageHeaders: () => ["storage-headers"] as const,
   crmList: (page: string) => ["crm", page] as const,
   crmRecord: (kind: string, id: string) => ["crm", kind, id] as const,

@@ -6,8 +6,9 @@ import * as SecureStore from "./secure-store";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { STORAGE_PREFIX, auth } from "./api.ts";
 import { config } from "./config.ts";
+import { forgetDriveFiles } from "./drive-files.ts";
 import { cancelUploads } from "./drive-uploads.ts";
-import { queryClient } from "./query-client.ts";
+import { persistOptions, queryClient } from "./query-client.ts";
 import { resetCache } from "./workspace.ts";
 import { storeWorkspaceId } from "./workspace-id.ts";
 
@@ -87,6 +88,8 @@ export async function signOut() {
   await auth.signOut();
   await queryClient.cancelQueries();
   queryClient.clear();
+  forgetDriveFiles();
+  persistOptions.persister.removeClient();
   storeWorkspaceId(null);
 }
 
@@ -112,6 +115,8 @@ export function useClearCacheOnUserChange() {
     if (last.current !== null && last.current !== userId) {
       void cancelUploads();
       queryClient.getMutationCache().clear();
+      forgetDriveFiles();
+      persistOptions.persister.removeClient();
       resetCache(null);
     }
     last.current = userId;

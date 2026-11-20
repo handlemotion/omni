@@ -12,9 +12,10 @@ import {
 } from "react-native";
 import { IconFile } from "@/components/icons.ts";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
-import { contentUrl, useStorageHeaders, versionOf } from "@/lib/drive-preview.ts";
+import { contentUrl, thumbnailUrl, useStorageHeaders, versionOf } from "@/lib/drive-preview.ts";
 import type { DriveNode } from "@/lib/drive.ts";
 import { colors } from "@/theme/tokens.ts";
+import { hasThumbnail } from "./file-glyph.tsx";
 
 const MAX_ZOOM = 4;
 const DOUBLE_TAP_ZOOM = 2.5;
@@ -25,8 +26,9 @@ type Size = Pick<LayoutRectangle, "width" | "height">;
 /**
  * Images as Photos shows them: one a page, swiped sideways through the folder's images; pinch or
  * double tap to zoom, and pan a zoomed image up to its edge before the next one takes over. The
- * zoom is UIKit's own (a zooming `UIScrollView` per page), on images decoded at full size so a
- * zoomed photo stays sharp. The image on screen stays on screen when a rename re-sorts the folder.
+ * zoom is UIKit's own (a zooming `UIScrollView` per page). A page shows the Worker's 1280 px
+ * thumbnail, decoded no larger than the screen, and swaps in the original at full size only once
+ * it is zoomed, so swiping through a folder of large photos holds a few screen-sized bitmaps. The image on screen stays on screen when a rename re-sorts the folder.
  */
 export function ImageViewer(props: {
   images: DriveNode[];
@@ -93,6 +95,16 @@ function ZoomableImage({
   const zoomed = useRef(false);
   const lastTap = useRef(0);
   const [failed, setFailed] = useState(false);
+  const [zoomedIn, setZoomedIn] = useState(false);
+  const [noThumbnail, setNoThumbnail] = useState(!hasThumbnail(node));
+  const version = versionOf(node);
+  const original = { uri: contentUrl(node.id), headers, cacheKey: `${node.id}:${version}` };
+  const thumbnail = {
+    uri: thumbnailUrl(node, 1280),
+    headers,
+    cacheKey: `${node.id}:${version}:1280`,
+  };
+  const showOriginal = zoomedIn || noThumbnail;
 
   const onPress = (event: GestureResponderEvent) => {
     const now = Date.now();
@@ -138,17 +150,20 @@ function ZoomableImage({
       scrollEventThrottle={32}
       onScroll={(event) => {
         zoomed.current = (event.nativeEvent.zoomScale ?? 1) > 1.01;
+        if (zoomed.current && !zoomedIn) setZoomedIn(true);
       }}
     >
       <Pressable onPress={onPress} accessibilityRole="image" accessibilityLabel={node.name}>
         <Image
-          source={{ uri: contentUrl(node.id), headers, cacheKey: `${node.id}:${versionOf(node)}` }}
+          source={showOriginal ? original : thumbnail}
+          placeholder={zoomedIn && !noThumbnail ? thumbnail : undefined}
+          placeholderContentFit="contain"
           style={size}
           contentFit="contain"
-          allowDownscaling={false}
-          transition={150}
+          allowDownscaling={!zoomedIn}
+          transition={zoomedIn ? 0 : 150}
           recyclingKey={node.id}
-          onError={() => setFailed(true)}
+          onError={() => (showOriginal ? setFailed(true) : setNoThumbnail(true))}
         />
       </Pressable>
     </ScrollView>

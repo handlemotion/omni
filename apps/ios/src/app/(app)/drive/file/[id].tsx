@@ -1,6 +1,7 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
+  MediaPreview,
   NativePreview,
   NoPreview,
   PreviewLoading,
@@ -8,6 +9,7 @@ import {
 } from "@/components/drive/file-previews.tsx";
 import { ImageViewer } from "@/components/drive/image-viewer.tsx";
 import { NodeSheet } from "@/components/drive/node-sheet.tsx";
+import { DownloadsPanel } from "@/components/drive/downloads-panel.tsx";
 import { UploadsPanel } from "@/components/drive/uploads-panel.tsx";
 import { IconFile } from "@/components/icons.ts";
 import { useSheet } from "@/components/ui/bottom-sheet.tsx";
@@ -16,11 +18,12 @@ import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { useNode } from "@/lib/drive-actions.ts";
 import { useFolderImages, versionOf } from "@/lib/drive-preview.ts";
 import type { DriveNode } from "@/lib/drive.ts";
-import { previewKindOf } from "@/lib/file-kind.ts";
+import { fileKindOf, previewKindOf } from "@/lib/file-kind.ts";
 
 /**
- * A file: images in the photo viewer, swiping through the folder's images; text as text; what
- * iOS can draw (PDFs, video, Office documents) from a local copy; anything else, Download.
+ * A file: images in the photo viewer, swiping through the folder's images; text as text; video
+ * and audio streamed; what iOS can draw (PDFs, Office documents) from a local copy; anything
+ * else, Download.
  */
 export default function FilePreview() {
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
@@ -60,6 +63,7 @@ export default function FilePreview() {
         <PreviewLoading />
       )}
       <UploadsPanel />
+      <DownloadsPanel />
     </>
   );
 }
@@ -77,8 +81,11 @@ function Preview(props: {
       );
     case "text":
       return <TextPreview node={props.node} />;
-    case "native":
+    case "native": {
+      const kind = fileKindOf(props.node);
+      if (kind === "video" || kind === "audio") return <MediaPreview node={props.node} />;
       return <NativePreview node={props.node} />;
+    }
     case "none":
       return <NoPreview node={props.node} />;
   }

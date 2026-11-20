@@ -1,3 +1,5 @@
+import { useEvent } from "expo";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 import { IconFile } from "@/components/icons.ts";
@@ -6,7 +8,14 @@ import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { shareFile } from "@/lib/drive-actions.ts";
-import { useFileText, useLocalCopy } from "@/lib/drive-preview.ts";
+import { existingCopy } from "@/lib/drive-files.ts";
+import {
+  contentUrl,
+  sourceOf,
+  useFileText,
+  useLocalCopy,
+  useStorageHeaders,
+} from "@/lib/drive-preview.ts";
 import type { DriveNode } from "@/lib/drive.ts";
 import { colors, gutter, space } from "@/theme/tokens.ts";
 
@@ -36,7 +45,36 @@ export function NoPreview({ node }: { node: DriveNode }) {
   );
 }
 
-/** PDFs, video, audio, Office and iWork documents, drawn by iOS from a local copy. */
+/**
+ * Video and audio streamed by the system player as they play (the Worker answers its `Range`
+ * requests), so a 2 GB film starts in seconds instead of after a download. A copy already on the
+ * phone (made available offline) plays from there, with no network.
+ */
+export function MediaPreview({ node }: { node: DriveNode }) {
+  const headers = useStorageHeaders().data;
+  if (!headers) return <PreviewLoading />;
+  return <MediaPlayer node={node} headers={headers} />;
+}
+
+function MediaPlayer({ node, headers }: { node: DriveNode; headers: Record<string, string> }) {
+  const local = existingCopy(sourceOf(node));
+  const player = useVideoPlayer(local ? local.uri : { uri: contentUrl(node.id), headers }, (one) =>
+    one.play(),
+  );
+  const { status } = useEvent(player, "statusChange", { status: player.status });
+  if (status === "error") return <NoPreview node={node} />;
+  return (
+    <VideoView
+      player={player}
+      style={styles.fill}
+      contentFit="contain"
+      nativeControls
+      allowsPictureInPicture={false}
+    />
+  );
+}
+
+/** PDFs, Office and iWork documents, drawn by iOS from a local copy. */
 export function NativePreview({ node }: { node: DriveNode }) {
   const copy = useLocalCopy(node);
   if (copy.isError) return <DidNotLoad retry={() => void copy.refetch()} />;
