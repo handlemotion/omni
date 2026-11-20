@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import { reportDriveFailure } from "./telemetry.ts";
 import { File } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { AppState } from "react-native";
@@ -126,6 +127,7 @@ async function run(job: Job) {
     }
   } catch (error) {
     if (jobs.includes(job)) {
+      reportDriveFailure("upload", error);
       job.status = "failed";
       job.error = error;
       persist();

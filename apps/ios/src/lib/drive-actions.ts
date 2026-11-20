@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { reportDriveFailure } from "./telemetry.ts";
 import type { ErrorCode, Member } from "@omni/client";
 import * as Sharing from "expo-sharing";
 import { Alert } from "react-native";
@@ -188,6 +189,7 @@ async function shareDownload(source: FileSource & { size?: number }, mimeType: s
 
 const notDownloaded = (error: unknown) => {
   if (error instanceof Error && /cancel|abort/i.test(`${error.name} ${error.message}`)) return;
+  reportDriveFailure("download", error);
   Alert.alert("It was not downloaded");
 };
 

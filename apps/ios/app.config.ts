@@ -27,6 +27,15 @@ const config: ExpoConfig = {
       { backgroundColor: "#ffffff", image: "./assets/splash-icon.png", imageWidth: 88 },
     ],
     ["expo-image-picker", { cameraPermission: false, microphonePermission: false }],
+    [
+      "@sentry/react-native/expo",
+      {
+        url: process.env.SENTRY_URL || "https://sentry.io/",
+        organization: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_IOS_PROJECT,
+        disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN,
+      },
+    ],
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
 };

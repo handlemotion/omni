@@ -131,6 +131,7 @@ describe("sampleTrace with streamed spans' generic names", () => {
     [{ normalizedRequest: { method: "GET", url: "https://omni.test/api/threads" } }, 0.02],
     [{ location: { pathname: "/acme/files/fld_1" } }, 0.1],
     [{ location: { pathname: "/acme/mail/inbox" } }, 0.02],
+    [{ location: { pathname: "/drive/folder/fld_1" } }, 0.1],
   ])("%j → %s", (context, rate) => {
     expect(sampleTrace({ name: "GET", inheritOrSampleWith: fresh, ...context })).toBe(rate);
   });

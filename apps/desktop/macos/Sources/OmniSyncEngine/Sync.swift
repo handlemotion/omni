@@ -237,6 +237,9 @@ public func systemError(_ error: Error) -> Error {
     }
     switch error {
     case let error as SyncHTTPError:
+        if error.status >= 500 {
+            ErrorReporter.shared.report(stage: "sync", summary: "HTTP \(error.status) \(error.code ?? "")")
+        }
         switch error.failure {
         case let .error(code): return NSFileProviderError(code)
         case .refreshToken: return NSFileProviderError(.notAuthenticated)
@@ -247,7 +250,12 @@ public func systemError(_ error: Error) -> Error {
     // The grant is still good; the token endpoint could not answer now.
     case TokenError.unavailable: return NSFileProviderError(.serverUnreachable)
     case is TokenError: return NSFileProviderError(.notAuthenticated)
-    default: return error
+    default:
+        let nsError = error as NSError
+        // The extension's own answers (excluded file, paused, signed out) are expected, not failures.
+        if nsError.domain == NSFileProviderErrorDomain { return error }
+        ErrorReporter.shared.report(stage: "sync", summary: "\(type(of: error)) \(nsError.domain) \(nsError.code)")
+        return error
     }
 }
 

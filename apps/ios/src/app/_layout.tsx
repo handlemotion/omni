@@ -6,7 +6,7 @@ import {
 } from "@expo-google-fonts/inter";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import * as Linking from "expo-linking";
-import { Stack, router } from "expo-router";
+import { Stack, router, useNavigationContainerRef, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect } from "react";
@@ -17,13 +17,23 @@ import { persistOptions, queryClient } from "@/lib/query-client.ts";
 import { holdSplash } from "@/lib/splash.ts";
 import { useDriveUploads } from "@/lib/drive-uploads.ts";
 import { acceptSignInLink, useClearCacheOnUserChange, useSession } from "@/lib/session.ts";
+import {
+  initErrorReporting,
+  registerNavigation,
+  trackScreen,
+  withErrorReporting,
+} from "@/lib/telemetry.ts";
 import { colors } from "@/theme/tokens.ts";
 
+initErrorReporting();
 holdSplash();
 
-export default function RootLayout() {
+export default withErrorReporting(RootLayout);
+
+function RootLayout() {
   const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold });
   useSignInLinks();
+  useScreenTracking();
   useClearCacheOnUserChange();
   useDriveUploads(useSession().data?.user.id ?? null);
   if (!fontsLoaded) return null;
@@ -59,6 +69,15 @@ function useSignInLinks() {
     };
     void accept();
   }, [url]);
+}
+
+function useScreenTracking() {
+  const navigation = useNavigationContainerRef();
+  const pathname = usePathname();
+  useEffect(() => {
+    registerNavigation(navigation);
+  }, [navigation]);
+  useEffect(() => trackScreen(pathname), [pathname]);
 }
 
 const styles = StyleSheet.create({ root: { flex: 1 } });

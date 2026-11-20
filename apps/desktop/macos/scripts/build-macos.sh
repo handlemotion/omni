@@ -13,6 +13,7 @@
 #                            (omni-sync uses the app's, which Tauri embeds in the app)
 #   OMNI_FILEPROVIDER_TESTING=1  adds the File Provider testing-mode entitlement (never in a release)
 #   OMNI_EXTENSION_OUT       output folder (default apps/desktop/macos/build)
+#   OMNI_DESKTOP_SENTRY_DSN  Sentry DSN for the extension's sync failures; unset keeps it off
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"
@@ -58,6 +59,8 @@ pb "Add :NSExtension:NSExtensionFileProviderSupportsEnumeration bool true"
 pb "Add :OmniAppGroup string $app_group"
 pb "Add :OmniKeychainGroup string $keychain_group"
 pb "Add :OmniKeychainService string $bundle_id.sync"
+# Read by ErrorReporter; empty keeps error reporting off.
+[[ -n "${OMNI_DESKTOP_SENTRY_DSN:-}" ]] && pb "Add :OmniSentryDSN string $OMNI_DESKTOP_SENTRY_DSN"
 plutil -lint "$plist" >/dev/null
 
 entitlements="$out/OmniFileProvider.entitlements"

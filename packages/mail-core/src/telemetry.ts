@@ -95,14 +95,14 @@ export const scrubBreadcrumb: <B extends { category?: string }>(breadcrumb: B) =
 /**
  * Sentry's free plan is a small monthly quota shared by every project in the organization, so
  * traces are sampled and errors are capped. Errors are what we watch; a trace is context.
- * Drive (uploads, downloads, sharing, sync) is sampled five times as often as the rest while it
+ * Drive (uploads, downloads, sharing, sync; `/drive/*` screens on iOS) is sampled five times as often as the rest while it
  * is the area under work. Raise a rate only after Sentry's Stats page shows room.
  */
 export const TRACE_SAMPLE_RATES = { drive: 0.1, other: 0.02 } as const;
 
 const UNTRACED =
   /^(?:[A-Z]+ )?(?:\/health\b|\/assets\/|\/api\/realtime\b|\/api\/auth\/get-session\b|\/favicon)|^Scheduled Cron \* \* \* \* \*$/;
-const DRIVE_PATH = /(?:^|\s)(?:\/api\/storage|\/[^/\s]+\/files|\/s)(?:\/|$)/;
+const DRIVE_PATH = /(?:^|\s)(?:\/api\/storage|\/[^/\s]+\/files|\/s|\/drive)(?:\/|$)/;
 
 /** The area a request path or span name belongs to, as a Sentry tag (`area`). */
 export function areaOf(nameOrPath: string) {
