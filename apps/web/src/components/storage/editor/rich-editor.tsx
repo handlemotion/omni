@@ -2,13 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Collaboration, isChangeOrigin } from "@tiptap/extension-collaboration";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDocFiles } from "@/hooks/use-doc-files.ts";
+import { useFilePlace } from "@/hooks/use-storage.ts";
 import type * as Y from "yjs";
 import { openLiveDoc, type LiveDoc } from "@/lib/live-doc.ts";
 import { sessionQuery } from "@/lib/session.ts";
+import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
+import { useStorageHref } from "../file-list.tsx";
+import { storageErrorToast } from "../storage-errors.ts";
 import { docExtensions } from "./doc-schema.ts";
+import { DriveFiles } from "./drive-files.tsx";
 import { SlashMenu } from "./slash-menu.tsx";
 import SourceEditor from "./source-editor.tsx";
 import "./rich-editor.css";
@@ -146,14 +153,51 @@ function LivePage(props: EditorProps) {
   return <Page {...props} doc={phase.kind === "live" ? phase.doc : null} />;
 }
 
+function useDriveOptions(props: EditorProps) {
+  const drive = useDocFiles(props.file, props.shareId);
+  const storageHref = useStorageHref();
+  const filePlace = useFilePlace();
+  const router = useRouter();
+  const hrefOf = (node: { id: string; space: StorageNode["space"]; parentId: string | null }) => {
+    const folder = storageHref(node.space, node.parentId ?? undefined);
+    return `${folder}${folder.includes("?") ? "&" : "?"}file=${encodeURIComponent(node.id)}`;
+  };
+  const latest = useRef({ drive, hrefOf, filePlace, router });
+  useEffect(() => {
+    latest.current = { drive, hrefOf, filePlace, router };
+  });
+  return useMemo(
+    () => ({
+      files: {
+        upload: (file: File) => latest.current.drive.upload(file),
+        image: (src: string) => latest.current.drive.image(src),
+        find: (q: string) => latest.current.drive.find(q),
+      },
+      hrefOf: (node: StorageNode) => latest.current.hrefOf(node),
+      open: (fileId: string) =>
+        void latest.current.filePlace(fileId).then((place) => {
+          if (!place) return;
+          const href = latest.current.hrefOf({ id: fileId, ...place, parentId: place.folderId });
+          void latest.current.router.navigate({ href });
+        }),
+      failed: (error: unknown, name: string) => storageErrorToast(error, `“${name}” was not added`),
+    }),
+    [],
+  );
+}
+
 function Page(props: EditorProps & { doc: LiveDoc | null }) {
   const { onReady, onChange, name, doc } = props;
   const me = useCollaborator();
+  const drive = useDriveOptions(props);
   const editorProps = useMemo(
     () => ({ attributes: { class: "document-page", "aria-label": name } }),
     [name],
   );
-  const extensions = useMemo(() => (doc ? withCarets(doc, me) : EXTENSIONS), [doc, me]);
+  const extensions = useMemo(
+    () => [...(doc ? withCarets(doc, me) : EXTENSIONS), DriveFiles.configure(drive)],
+    [doc, me, drive],
+  );
   const editor = useEditor({
     extensions,
     ...(doc ? {} : { content: props.text, contentType: "markdown" as const }),

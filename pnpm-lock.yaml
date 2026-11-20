@@ -509,6 +509,12 @@ importers:
       '@tiptap/extension-drag-handle-react':
         specifier: 3.34.0
         version: 3.34.0(@tiptap/extension-drag-handle@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/extension-collaboration@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)(@tiptap/y-tiptap@3.3.0(prosemirror-model@1.25.13)(prosemirror-state@1.4.4)(prosemirror-view@1.42.9)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33))(yjs@13.6.33))(@tiptap/extension-node-range@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)(@tiptap/y-tiptap@3.3.0(prosemirror-model@1.25.13)(prosemirror-state@1.4.4)(prosemirror-view@1.42.9)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33)))(@tiptap/pm@3.34.0)(@tiptap/react@3.34.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@tiptap/extension-file-handler':
+        specifier: 3.34.0
+        version: 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/extension-text-style@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0)))(@tiptap/pm@3.34.0)
+      '@tiptap/extension-image':
+        specifier: 3.34.0
+        version: 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))
       '@tiptap/extension-list':
         specifier: 3.34.0
         version: 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)
@@ -4464,6 +4470,13 @@ packages:
     peerDependencies:
       '@tiptap/extensions': 3.34.0
 
+  '@tiptap/extension-file-handler@3.34.0':
+    resolution: {integrity: sha512-UnH4Ls3O3jrRQXDHJiV99kIDwcH5ci2YCKfYDatLLYv2MF2h+ZhQtI6yIUuqG/hheD6+WP+prqftpsQBdoGMIw==}
+    peerDependencies:
+      '@tiptap/core': 3.34.0
+      '@tiptap/extension-text-style': 3.34.0
+      '@tiptap/pm': 3.34.0
+
   '@tiptap/extension-floating-menu@3.34.0':
     resolution: {integrity: sha512-3D/cYVi4T5SzgMQR9A5cKSSDspVty92/o/+xnON5+buPSD/7+EVVa0XubCoRl/zNqo8jGapZX3JboslQO4Q7ng==}
     peerDependencies:
@@ -4491,6 +4504,11 @@ packages:
     peerDependencies:
       '@tiptap/core': 3.34.0
       '@tiptap/pm': 3.34.0
+
+  '@tiptap/extension-image@3.34.0':
+    resolution: {integrity: sha512-IC8PfiTKWnRE9USYM/gI9aZkrGsgJ3IhduQX1JceE5wMp3ce2QKzEkDkFZrjk2EYgCPNCuvIIg5L0nbmogcKsg==}
+    peerDependencies:
+      '@tiptap/core': 3.34.0
 
   '@tiptap/extension-italic@3.34.0':
     resolution: {integrity: sha512-X6jRBt0bCwx2TJpNuAxPyfPw3KFyfAKdeW51iwHd44NVmYa5kK7R/RC/l+SUKMhyW8NyNh4Ia9TqeZjhZcgx7Q==}
@@ -4545,6 +4563,11 @@ packages:
     peerDependencies:
       '@tiptap/core': 3.34.0
       '@tiptap/pm': 3.34.0
+
+  '@tiptap/extension-text-style@3.34.0':
+    resolution: {integrity: sha512-BVal16CwQwutQyRXqUyXP+BnFFRn3hGguWE+juBMdS9MJlzg/S9/aCBX7f/9ZEzfNvOSSPvekcKG6abJ15W4Zw==}
+    peerDependencies:
+      '@tiptap/core': 3.34.0
 
   '@tiptap/extension-text@3.34.0':
     resolution: {integrity: sha512-90gNJ24bsTrJVxfnnbXXFhsmPGUsk9ZGjwbbJ4OvqIoYX4BjmwuPBHL4NePL7kKwPtTKhcIHsm3C3ofZlVH/rg==}
@@ -12126,6 +12149,12 @@ snapshots:
     dependencies:
       '@tiptap/extensions': 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)
 
+  '@tiptap/extension-file-handler@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/extension-text-style@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0)))(@tiptap/pm@3.34.0)':
+    dependencies:
+      '@tiptap/core': 3.34.0(@tiptap/pm@3.34.0)
+      '@tiptap/extension-text-style': 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))
+      '@tiptap/pm': 3.34.0
+
   '@tiptap/extension-floating-menu@3.34.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)':
     dependencies:
       '@floating-ui/dom': 1.8.0
@@ -12149,6 +12178,10 @@ snapshots:
     dependencies:
       '@tiptap/core': 3.34.0(@tiptap/pm@3.34.0)
       '@tiptap/pm': 3.34.0
+
+  '@tiptap/extension-image@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))':
+    dependencies:
+      '@tiptap/core': 3.34.0(@tiptap/pm@3.34.0)
 
   '@tiptap/extension-italic@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))':
     dependencies:
@@ -12194,6 +12227,10 @@ snapshots:
     dependencies:
       '@tiptap/core': 3.34.0(@tiptap/pm@3.34.0)
       '@tiptap/pm': 3.34.0
+
+  '@tiptap/extension-text-style@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))':
+    dependencies:
+      '@tiptap/core': 3.34.0(@tiptap/pm@3.34.0)
 
   '@tiptap/extension-text@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))':
     dependencies:

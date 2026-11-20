@@ -3,23 +3,38 @@ import { PluginKey } from "@tiptap/pm/state";
 import { ReactRenderer } from "@tiptap/react";
 import { Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { cn } from "cn";
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
 import { dropdownItemStyles, ItemLabel } from "@/components/ui/dropdown";
 import { menuStyles } from "@/components/ui/menu";
 import { popupSurface } from "@/components/ui/popover";
 import { findBlocks, runBlock, type BlockKind } from "./blocks.ts";
 
+/** A row of a menu the editor opens as you type: blocks after `/`, files after `@`. */
+export interface MenuItem {
+  id: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}
+
 interface ListProps {
-  items: BlockKind[];
-  pick: (block: BlockKind) => void;
+  items: MenuItem[];
+  pick: (item: MenuItem) => void;
+  label: string;
 }
 
 interface ListHandle {
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
 
-const BlockList = forwardRef<ListHandle, ListProps>(function BlockList(props, ref) {
-  const { items, pick } = props;
+const ItemList = forwardRef<ListHandle, ListProps>(function ItemList(props, ref) {
+  const { items, pick, label } = props;
   const [at, setAt] = useState(0);
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => setAt(0), [items]);
@@ -35,8 +50,8 @@ const BlockList = forwardRef<ListHandle, ListProps>(function BlockList(props, re
         return true;
       }
       if (event.key === "Enter" || event.key === "Tab") {
-        const block = items[at];
-        if (block) pick(block);
+        const item = items[at];
+        if (item) pick(item);
         return true;
       }
       return false;
@@ -47,59 +62,64 @@ const BlockList = forwardRef<ListHandle, ListProps>(function BlockList(props, re
     <div
       ref={list}
       role="listbox"
-      aria-label="Blocks"
+      aria-label={label}
       className={cn(popupSurface, menuStyles(), "max-h-80 w-56 min-w-56")}
     >
-      {items.map((block, i) => (
+      {items.map((item, i) => (
         <div
-          key={block.id}
+          key={item.id}
           role="option"
           aria-selected={i === at}
           className={dropdownItemStyles({ isFocused: i === at })}
           onMouseEnter={() => setAt(i)}
           onMouseDown={(event) => {
             event.preventDefault();
-            pick(block);
+            pick(item);
           }}
         >
-          <block.icon />
-          <ItemLabel>{block.label}</ItemLabel>
+          <item.icon />
+          <ItemLabel>{item.label}</ItemLabel>
         </div>
       ))}
     </div>
   );
 });
 
-type Props = SuggestionProps<BlockKind, BlockKind>;
-
-const listProps = (props: Props) => ({ items: props.items, pick: props.command });
-
-const renderList = () => {
-  let renderer: ReactRenderer<ListHandle, ListProps> | null = null;
-  let unmount: (() => void) | null = null;
-  return {
-    onStart: (props: Props) => {
-      renderer = new ReactRenderer(BlockList, { props: listProps(props), editor: props.editor });
-      renderer.element.style.zIndex = "50";
-      unmount = props.mount(renderer.element);
-    },
-    onUpdate: (props: Props) => renderer?.updateProps(listProps(props)),
-    onKeyDown: (props: SuggestionKeyDownProps) => {
-      if (props.event.key === "Escape") {
+/** Shows a suggestion's items as a menu under the caret, named `label` for assistive tech. */
+export function menuRenderer<T extends MenuItem>(label: string) {
+  return () => {
+    let renderer: ReactRenderer<ListHandle, ListProps> | null = null;
+    let unmount: (() => void) | null = null;
+    const listProps = (props: SuggestionProps<T, T>) =>
+      ({
+        items: props.items,
+        pick: (item: MenuItem) => props.command(item as T),
+        label,
+      }) satisfies ListProps;
+    return {
+      onStart: (props: SuggestionProps<T, T>) => {
+        renderer = new ReactRenderer(ItemList, { props: listProps(props), editor: props.editor });
+        renderer.element.style.zIndex = "50";
+        unmount = props.mount(renderer.element);
+      },
+      onUpdate: (props: SuggestionProps<T, T>) => renderer?.updateProps(listProps(props)),
+      onKeyDown: (props: SuggestionKeyDownProps) => {
+        if (props.event.key === "Escape") {
+          unmount?.();
+          unmount = null;
+          return true;
+        }
+        return renderer?.ref?.onKeyDown(props.event) ?? false;
+      },
+      onExit: () => {
         unmount?.();
+        renderer?.destroy();
         unmount = null;
-        return true;
-      }
-      return renderer?.ref?.onKeyDown(props.event) ?? false;
-    },
-    onExit: () => {
-      unmount?.();
-      renderer?.destroy();
-      unmount = null;
-      renderer = null;
-    },
+        renderer = null;
+      },
+    };
   };
-};
+}
 
 /** Typing `/` at the start of a word opens the blocks to turn this one into. */
 export const SlashMenu = Extension.create({
@@ -115,7 +135,7 @@ export const SlashMenu = Extension.create({
         items: ({ query }) => findBlocks(query),
         allow: ({ editor }) => !editor.isActive("codeBlock"),
         command: ({ editor, range, props }) => runBlock(editor, range, props),
-        render: renderList,
+        render: menuRenderer<BlockKind>("Blocks"),
       }),
     ];
   },

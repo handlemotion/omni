@@ -12,7 +12,9 @@ import {
   IconParagraph,
   IconTable,
   IconChecklist,
+  IconImage,
 } from "@/components/icons/central";
+import { pickImages } from "./drive-files.tsx";
 
 /** A kind of block the `/` menu and the block handle's add can put in a doc. */
 export interface BlockKind {
@@ -83,6 +85,13 @@ export const BLOCKS: BlockKind[] = [
     icon: IconTable,
     words: ["grid", "rows", "columns"],
     run: (editor) => chain(editor).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+  },
+  {
+    id: "image",
+    label: "Image",
+    icon: IconImage,
+    words: ["picture", "photo", "img"],
+    run: (editor) => pickImages(editor),
   },
   {
     id: "quote",

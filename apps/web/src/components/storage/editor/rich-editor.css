@@ -58,6 +58,18 @@
 .document-page a {
   @apply text-primary underline underline-offset-2;
 }
+.document-page img {
+  @apply h-auto max-w-full rounded-md;
+}
+.document-page img.ProseMirror-selectednode {
+  @apply bg-transparent outline-2 outline-offset-2 outline-ring;
+}
+.document-page img.document-image-missing {
+  @apply min-h-24 w-full bg-secondary;
+}
+.document-page a[href*="file="] {
+  @apply cursor-pointer;
+}
 .document-page hr {
   @apply my-6 border-border;
 }

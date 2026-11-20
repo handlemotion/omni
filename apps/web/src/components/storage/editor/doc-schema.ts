@@ -1,3 +1,4 @@
+import { Image } from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
@@ -17,6 +18,7 @@ export function docExtensions(options: { history: boolean }) {
     TaskList,
     TaskItem.configure({ nested: true }),
     TableKit.configure({ table: { resizable: false } }),
+    Image,
     Markdown,
   ];
   return result;

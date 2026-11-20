@@ -84,7 +84,55 @@ const marks: MarkSerializer = {
   strike: () => ({ strike: true }),
 };
 
-const serializer = new DocxSerializer(nodes, marks);
+type Images = Map<string, { blob: Blob; data: Uint8Array; type: "png" | "jpg" | "gif" }>;
+
+/** Reads an image of the doc; null when it is not there to embed. */
+export type ImageLoader = (src: string) => Promise<Blob | null>;
+
+async function asPng(blob: Blob) {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+  return canvas.convertToBlob({ type: "image/png" });
+}
+
+async function embeddable(blob: Blob) {
+  const kind = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif" } as const;
+  const type = kind[blob.type as keyof typeof kind];
+  const usable = type ? blob : await asPng(blob);
+  return { blob: usable, data: new Uint8Array(await usable.arrayBuffer()), type: type ?? "png" };
+}
+
+async function loadImages(doc: PmNode, load: ImageLoader) {
+  const sources = new Set<string>();
+  doc.descendants((node) => {
+    if (node.type.name === "image" && node.attrs.src) sources.add(String(node.attrs.src));
+  });
+  const images: Images = new Map();
+  await Promise.all(
+    [...sources].map(async (src) => {
+      const blob = await load(src).catch(() => null);
+      const image = blob ? await embeddable(blob).catch(() => null) : null;
+      if (image) images.set(src, image);
+    }),
+  );
+  return images;
+}
+
+const serializerFor = (images: Images) =>
+  new DocxSerializer(
+    {
+      ...nodes,
+      image: (state, node) => {
+        const src = String(node.attrs.src);
+        const image = images.get(src);
+        if (!image) return;
+        state.image(src, 70, "center", undefined, image.type);
+        state.closeBlock(node);
+      },
+    },
+    marks,
+  );
 
 const baseName = (name: string) => name.replace(/\.(md|markdown)$/i, "") || "Untitled";
 
@@ -97,10 +145,11 @@ function save(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-async function toWord(markdown: string, name: string) {
+async function toWord(markdown: string, name: string, load: ImageLoader) {
   const editor = parse(markdown);
-  const doc = serializer.serialize(editor.state.doc, {
-    getImageBuffer: () => new Uint8Array(),
+  const images = await loadImages(editor.state.doc, load);
+  const doc = serializerFor(images).serialize(editor.state.doc, {
+    getImageBuffer: (src) => images.get(src)?.data ?? new Uint8Array(),
     sections: [{}],
   });
   editor.destroy();
@@ -119,8 +168,9 @@ function pageStyles() {
     .join("\n");
 }
 
-function toPdf(markdown: string, name: string) {
+async function toPdf(markdown: string, name: string, load: ImageLoader) {
   const editor = parse(markdown);
+  const images = await loadImages(editor.state.doc, load);
   const html = editor.getHTML();
   editor.destroy();
   const frame = document.createElement("iframe");
@@ -144,15 +194,39 @@ body { background: white; }
   page.title = baseName(name);
   const body = page.querySelector(".document-page");
   if (body) body.innerHTML = html;
-  view.addEventListener("afterprint", () => frame.remove(), { once: true });
-  void page.fonts.ready.then(() => view.print());
+  const shown: string[] = [];
+  for (const image of page.querySelectorAll("img")) {
+    const found = images.get(image.getAttribute("src") ?? "");
+    if (!found) {
+      image.remove();
+      continue;
+    }
+    image.src = URL.createObjectURL(found.blob);
+    shown.push(image.src);
+  }
+  view.addEventListener(
+    "afterprint",
+    () => {
+      for (const url of shown) URL.revokeObjectURL(url);
+      frame.remove();
+    },
+    { once: true },
+  );
+  await Promise.all([...page.images].map((image) => image.decode().catch(() => {})));
+  await page.fonts.ready;
+  view.print();
 }
 
 /**
  * Saves a doc's Markdown as a Word file, or opens the print dialog on it laid out as a page
  * (where Save as PDF makes the PDF). Both read the same blocks the editor shows.
  */
-export async function exportDoc(markdown: string, name: string, format: DocExport) {
-  if (format === "docx") await toWord(markdown, name);
-  else toPdf(markdown, name);
+export async function exportDoc(
+  markdown: string,
+  name: string,
+  format: DocExport,
+  load: ImageLoader,
+) {
+  if (format === "docx") await toWord(markdown, name, load);
+  else await toPdf(markdown, name, load);
 }

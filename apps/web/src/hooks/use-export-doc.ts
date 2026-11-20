@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import type { DocExport } from "@/components/storage/editor/export-doc.ts";
+import { docImageBytes, docImageFile } from "@/lib/doc-files.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { fileText } from "@/lib/storage-export.ts";
 
@@ -11,7 +12,10 @@ export function useExportDoc() {
         fileText(node),
         import("@/components/storage/editor/export-doc.ts"),
       ]);
-      await module.exportDoc(text, node.name, format);
+      await module.exportDoc(text, node.name, format, async (src) => {
+        const id = docImageFile(src);
+        return id ? docImageBytes(id, undefined) : null;
+      });
     },
   });
 }

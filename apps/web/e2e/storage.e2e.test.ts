@@ -19,6 +19,11 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 
+const DOT_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
@@ -82,14 +87,24 @@ test("a file larger than one part uploads from the page and downloads byte for b
   expect(sha256(saved)).toBe(sha256(bytes));
 });
 
-test("a doc exported as Word keeps its headings, to-dos, marks and table", async () => {
+test("a doc exported as Word keeps its headings, to-dos, marks, table and images", async () => {
   const page = await signedIn(`word-${Date.now()}@gmail.test`, "/files/my");
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({ name: "dot.png", mimeType: "image/png", buffer: DOT_PNG });
+  await page.getByRole("row", { name: /dot\.png/ }).waitFor({ timeout: 30_000 });
+  const [dot] = await db
+    .select({ id: schema.storageNodes.id })
+    .from(schema.storageNodes)
+    .where(eq(schema.storageNodes.name, "dot.png"));
   const text =
-    "# Plan\n\nShip **soon**.\n\n- [x] Draft\n- [ ] Review\n\n| Who | When |\n| --- | --- |\n| Ana | Monday |\n\n```\nfirst();\n\nthird();\n```\n\nUp\\\n\\\nDown\n\n1. Step\n   - Aside\n\nThen\n\n4. Fourth\n";
+    "# Plan\n\nShip **soon**.\n\n- [x] Draft\n- [ ] Review\n\n| Who | When |\n| --- | --- |\n| Ana | Monday |\n\n```\nfirst();\n\nthird();\n```\n\nUp\\\n\\\nDown\n\n1. Step\n   - Aside\n\nThen\n\n4. Fourth\n" +
+    `\n![dot](/api/storage/files/${dot?.id}/content)\n`;
   await page
     .locator("input[type=file]")
     .first()
@@ -121,6 +136,7 @@ test("a doc exported as Word keeps its headings, to-dos, marks and table", async
   expect(holding(">first();<")).toMatch(
     />first\(\);<[\s\S]*<w:br\/>[\s\S]*<w:br\/>[\s\S]*>third\(\);</,
   );
+  expect(Object.keys(files).some((name) => name.startsWith("word/media/"))).toBe(true);
 });
 
 test("a link open to anyone downloads its file, byte for byte, for someone signed out", async () => {
@@ -443,7 +459,8 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  const text = "# Prices\n\n| Plan | Price |\n| --- | --- |\n| Pro | 9 |\n\n![logo](logo.png)\n";
+  const text =
+    "# Prices\n\n| Plan | Price |\n| --- | --- |\n| Pro | 9 |\n\n<details><summary>Terms</summary>Billed yearly</details>\n";
   await page
     .locator("input[type=file]")
     .first()

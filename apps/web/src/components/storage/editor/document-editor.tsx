@@ -27,6 +27,9 @@ export interface EditorProps {
   loading: ReactNode;
   /** The live document to join (a member's Markdown page); absent, the text is edited alone. */
   live?: LiveSetup | undefined;
+  /** The file being edited, and the shared link it was opened through, if any. */
+  file: StorageNode;
+  shareId: string | undefined;
   /** Called once the editor is up, with how to read its text now. */
   onReady: (read: () => string) => void;
   onChange: () => void;
@@ -229,6 +232,7 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
     editor: {
       node,
       url,
+      shareId,
       opened,
       onReady: useCallback((reader: () => string) => {
         read.current = reader;
@@ -267,7 +271,7 @@ export function DocumentEditor(props: {
   onDownload?: (() => void) | undefined;
 }) {
   const { session } = props;
-  const { node, url, opened, onReady, onChange, live } = session.editor;
+  const { node, url, shareId, opened, onReady, onChange, live } = session.editor;
   const kind = fileType(node.name, node.mimeType).kind;
   const text = useQuery(previewTextQuery({ url, version: `edit:${opened}`, size: node.size }));
   if (
@@ -304,6 +308,8 @@ export function DocumentEditor(props: {
           text={text.data.text}
           name={node.name}
           nodeId={node.id}
+          file={node}
+          shareId={shareId}
           loading={loading}
           live={live}
           onReady={onReady}

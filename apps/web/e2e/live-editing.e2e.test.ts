@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
@@ -161,6 +163,92 @@ test("New doc opens an empty page, and blocks picked from / are saved as Markdow
       { timeout: 20_000 },
     )
     .toContain("Last words");
+  await own.close();
+});
+
+const DOT_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test("an image picked from / goes into Drive beside the doc, and @ links another file", async () => {
+  const origin = String(worker.url);
+  const cookie = await signIn({ url: new URL(origin) }, db, `pics-${Date.now()}@gmail.test`);
+  const own = await browser.newContext();
+  await own.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await own.newPage();
+  await page.goto(new URL("/files/my", origin).toString());
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles([
+      { name: "budget.md", mimeType: "text/markdown", buffer: Buffer.from("# Budget\n") },
+      { name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from("# Notes\n\nStart\n") },
+    ]);
+  await page.getByRole("row", { name: /budget\.md/ }).waitFor({ timeout: 30_000 });
+  await page.getByRole("row", { name: /notes\.md/ }).click();
+  const body = page.locator("[contenteditable=true]");
+  await body.getByText("Start").waitFor({ timeout: 15_000 });
+  const notesId = new URL(page.url()).searchParams.get("file") ?? "";
+
+  await body.getByText("Start").click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/image");
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("option", { name: "Image" }).click(),
+  ]);
+  await chooser.setFiles({ name: "dot.png", mimeType: "image/png", buffer: DOT_PNG });
+  const image = body.locator("img");
+  await expect
+    .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth), { timeout: 20_000 })
+    .toBe(1);
+
+  await body.getByText("Start").click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" see @budg");
+  await page.getByRole("option", { name: "budget.md" }).click();
+
+  const [budget] = await db
+    .select({ id: schema.storageNodes.id })
+    .from(schema.storageNodes)
+    .where(eq(schema.storageNodes.name, "budget.md"));
+  const [dot] = await db
+    .select({ id: schema.storageNodes.id, parentId: schema.storageNodes.parentId })
+    .from(schema.storageNodes)
+    .where(eq(schema.storageNodes.name, "dot.png"));
+  const [notes] = await db
+    .select({ parentId: schema.storageNodes.parentId })
+    .from(schema.storageNodes)
+    .where(eq(schema.storageNodes.id, notesId));
+  expect(dot?.parentId ?? null).toBe(notes?.parentId ?? null);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          async (at) => (await fetch(at)).text(),
+          `/api/storage/files/${notesId}/content`,
+        ),
+      { timeout: 20_000 },
+    )
+    .toMatch(
+      new RegExp(
+        `Start see \\[budget\\.md\\]\\([^)]*file=${budget?.id}\\)[\\s\\S]*!\\[dot\\.png\\]\\(/api/storage/files/${dot?.id}/content\\)`,
+      ),
+    );
+
+  await body.getByText("budget.md").click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("file")).toBe(budget?.id);
   await own.close();
 });
 
