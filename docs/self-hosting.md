@@ -563,9 +563,13 @@ pnpm --filter @omni/worker exec wrangler deploy
 
 To deploy from git with Cloudflare Workers Builds instead, use build command
 `pnpm --filter @omni/web build`, deploy command `pnpm --filter @omni/worker deploy:cloudflare`,
-root `/`, and build variables `HYPERDRIVE_ID`, `WORKER_DOMAIN` (optional, comma-separated) and
-`WORKER_VAR_<NAME>` for each var you change from `wrangler.jsonc`
-(`apps/worker/scripts/deploy-cloudflare.mjs`). For readable Worker stack traces in Sentry, also
+root `/`, and build variables `HYPERDRIVE_ID`, `WORKER_DOMAIN` (optional, comma-separated),
+`WORKER_PLACEMENT` (optional) and `WORKER_VAR_<NAME>` for each var you change from `wrangler.jsonc`
+(`apps/worker/scripts/deploy-cloudflare.mjs`). `WORKER_PLACEMENT` runs the Worker beside your
+database: its cloud region (`aws:us-east-1`, `gcp:us-east4`, `azure:eastus`) or `smart`. Every API
+request makes several database round trips, so a Worker at the user's edge pays the distance to the
+database on each one (a few hundred ms per request one region over); unset keeps Cloudflare's
+default, the data center nearest the request. For readable Worker stack traces in Sentry, also
 set `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_WORKER_PROJECT`: the script then uploads the
 bundle's source maps under the deployed version id, which the Worker reports as its release
 (a failed upload never fails the deploy). The web build in the same Workers Build reads

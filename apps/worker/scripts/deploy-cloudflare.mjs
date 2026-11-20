@@ -18,7 +18,10 @@ if (!config.includes(PLACEHOLDER)) {
   process.exit(1);
 }
 const deployConfig = join(dir, "wrangler.deploy.jsonc");
-writeFileSync(deployConfig, config.replace(PLACEHOLDER, `"id": "${hyperdrive}"`));
+writeFileSync(
+  deployConfig,
+  withPlacement(config.replace(PLACEHOLDER, `"id": "${hyperdrive}"`), process.env.WORKER_PLACEMENT),
+);
 
 const outdir = join(dir, "dist");
 const args = [
@@ -72,4 +75,24 @@ function uploadSourceMapsToSentry(deployOutput) {
     { cwd: dir, stdio: "inherit" },
   );
   if (upload.status !== 0) console.error("sentry: source map upload failed; the deploy stands");
+}
+
+function withPlacement(config, placement) {
+  const value = placement?.trim();
+  if (!value) return config;
+  let entry;
+  if (value === "smart") entry = { mode: "smart" };
+  else if (/^(aws|gcp|azure):[a-z0-9-]+$/.test(value)) entry = { region: value };
+  else {
+    console.error(
+      `WORKER_PLACEMENT must be "smart" or a cloud region like aws:us-east-1: ${value}`,
+    );
+    process.exit(1);
+  }
+  const anchor = '"keep_vars": true,';
+  if (!config.includes(anchor)) {
+    console.error(`wrangler.jsonc no longer has ${anchor}, which the placement goes after`);
+    process.exit(1);
+  }
+  return config.replace(anchor, `${anchor}\n  "placement": ${JSON.stringify(entry)},`);
 }

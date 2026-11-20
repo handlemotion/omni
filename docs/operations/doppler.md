@@ -9,7 +9,7 @@ Project `omni`. Branch configs inherit from their environment's root config.
 | `dev_worker` | `apps/worker` locally (`wrangler dev`) | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ANTHROPIC_API_KEY`, `ENVIRONMENT=development`, Stripe sandbox billing (`STRIPE_*`, `BILLING_*`; webhook secret from `stripe listen --print-secret`) |
 | `prd_mail`   | Fly.io mail service (`omni-mail`)      | `DATABASE_URL`, `MAIL_CREDENTIALS_KEY`, `MAIL_SERVICE_HMAC_SECRET`, `WORKER_URL`, `S3_*` (R2), optional `PURELYMAIL_API_TOKEN`                                                                |
 | `prd_worker` | Cloudflare Worker secrets              | `BETTER_AUTH_SECRET`, `MAIL_SERVICE_HMAC_SECRET`, `ANTHROPIC_API_KEY`, `TYPESAFE_API_KEY`, `GOOGLE_CLIENT_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`                               |
-| `prd_github` | `production.yml`, records              | `MIGRATE_DATABASE_URL`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `WORKER_DOMAIN`; kept as records: `HYPERDRIVE_ID`, `HYPERDRIVE_ORIGIN_URL`, `WORKER_VAR_*`                           |
+| `prd_github` | `production.yml`, records              | `MIGRATE_DATABASE_URL`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `WORKER_DOMAIN`; kept as records: `HYPERDRIVE_ID`, `HYPERDRIVE_ORIGIN_URL`, `WORKER_PLACEMENT`, `WORKER_VAR_*`       |
 
 Rules:
 
@@ -47,7 +47,8 @@ read-only service token, `DOPPLER_TOKEN_WORKER`, so exactly its keys become Work
 - **Worker: Cloudflare Workers Builds.** Build `pnpm --filter @omni/web build`, deploy
   `pnpm --filter @omni/worker deploy:cloudflare` (`apps/worker/scripts/deploy-cloudflare.mjs`),
   root `/`, previews off. Its build variables hold this install's values: `HYPERDRIVE_ID`
-  replaces the placeholder id, `WORKER_DOMAIN` lists the custom domains, and `WORKER_VAR_<NAME>`
+  replaces the placeholder id, `WORKER_DOMAIN` lists the custom domains, `WORKER_PLACEMENT`
+  (`aws:us-east-1`, the PlanetScale region) runs the Worker beside the database, and `WORKER_VAR_<NAME>`
   becomes the Worker var `<NAME>` (over the neutral default in `wrangler.jsonc`). They were
   copied from `prd_github`; change both when one changes (`cf builds triggers
   environment-variables upsert <trigger-uuid> --body '{...}'`). Build variables reach only the
