@@ -54,6 +54,12 @@ const at = (path: string) => new URL(path, worker.url);
 
 const NAVIGATION = { accept: "text/html", "sec-fetch-mode": "navigate" };
 
+const AGENT_SCOPES = "mail:read mail:triage mail:draft crm:read crm:write drive:read";
+
+function challenged(response: Response) {
+  return /scope="([^"]*)"/.exec(response.headers.get("www-authenticate") ?? "")?.[1]?.split(" ");
+}
+
 async function nextStep(response: Response) {
   if (response.status === 302) return new URL(response.headers.get("location")!);
   expect(response.status).toBe(200);
@@ -241,16 +247,18 @@ describe("discovery", () => {
     });
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toBe(
-      `Bearer resource_metadata="${BASE}/.well-known/oauth-protected-resource/mcp", scope="mail:read"`,
+      `Bearer resource_metadata="${BASE}/.well-known/oauth-protected-resource/mcp", scope="${AGENT_SCOPES}"`,
     );
     const metadata = (await (
       await fetch(at("/.well-known/oauth-protected-resource/mcp"))
-    ).json()) as { resource: string; authorization_servers: string[] };
+    ).json()) as { resource: string; authorization_servers: string[]; scopes_supported: string[] };
     expect(metadata.resource).toBe(RESOURCE);
+    expect(metadata.scopes_supported).toEqual(AGENT_SCOPES.split(" "));
     const issuerPath = new URL(metadata.authorization_servers[0]!).pathname;
     const server = (await (
       await fetch(at(`/.well-known/oauth-authorization-server${issuerPath}`))
     ).json()) as Record<string, unknown>;
+    expect(server.scopes_supported).not.toContain("storage:sync");
     expect(server).toMatchObject({
       issuer: `${BASE}/api/auth`,
       code_challenge_methods_supported: ["S256"],
@@ -259,6 +267,33 @@ describe("discovery", () => {
       grant_types_supported: ["authorization_code", "refresh_token"],
     });
     expect(server.token_endpoint_auth_methods_supported).toContain("none");
+  });
+
+  test("a client that requests what the first challenge names can use the CRM and Drive tools", async () => {
+    const org = await createOrg(db, "challenged");
+    await createMember(db, org.id, "kim@challenged.test");
+    const jar = new CookieJar();
+    await signIn(worker, db, "kim@challenged.test", jar);
+    const first = await fetch(at("/mcp"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    const scope = ["openid", ...challenged(first)!, "offline_access"].join(" ");
+    const { access_token } = await connect(jar, { scope });
+    for (const [name, args] of [
+      ["crm_search", { query: "Ida" }],
+      ["drive_search", { query: "plan" }],
+      ["triage", { changes: [] }],
+    ] as const) {
+      const response = await legacyCall(access_token, {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name, arguments: args },
+      });
+      expect([name, response.status]).toEqual([name, 200]);
+    }
   });
 
   test("signing in returns to the agent's authorization request", async () => {
@@ -334,6 +369,17 @@ describe("a connected agent", () => {
       url: `${WEB_ORIGIN}/all/${threadId}`,
     });
     expect(JSON.stringify(result)).not.toContain(otherThreadId);
+  });
+
+  test("the server introduces itself with the app's current icon", async () => {
+    const client = await agent(token);
+    const info = client.getServerVersion();
+    await client.close();
+    expect(info).toMatchObject({ name: "omni", title: "Omni", websiteUrl: WEB_ORIGIN });
+    expect(info?.icons?.map((icon) => icon.src)).toEqual([
+      `${WEB_ORIGIN}/favicon.svg`,
+      `${WEB_ORIGIN}/icon-192.png`,
+    ]);
   });
 
   test("2025-era clients list and call tools without a session", async () => {
@@ -945,7 +991,7 @@ describe("changing mail", () => {
         params: { name, arguments: args },
       });
       expect(response.status).toBe(403);
-      expect(response.headers.get("www-authenticate")).toContain(`scope="${scope}"`);
+      expect(challenged(response)).toEqual(["mail:read", scope]);
     }
   });
 
@@ -1036,7 +1082,9 @@ describe("the CRM", () => {
         params: { name, arguments: args },
       });
       expect(response.status).toBe(403);
-      expect(response.headers.get("www-authenticate")).toContain(`scope="${scope}"`);
+      expect(challenged(response)).toEqual(
+        token === mailOnly ? ["mail:read", scope] : ["mail:read", "crm:read", scope],
+      );
     }
     const notes = await forMember(db, member.id).crm.notes({ personId: person.id });
     expect(notes.status === "ok" && notes.items).toEqual([]);

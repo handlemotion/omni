@@ -86,6 +86,9 @@ export function mcpPlugins(env: McpAuthEnv) {
       loginPage: new URL("/api/oauth/login", env.baseURL).toString(),
       consentPage: new URL("/oauth/consent", env.webAppURL ?? env.baseURL).toString(),
       scopes: ["openid", "profile", "email", "offline_access", ...MCP_SCOPES, STORAGE_SYNC_SCOPE],
+      advertisedMetadata: {
+        scopes_supported: ["openid", "profile", "email", "offline_access", ...MCP_SCOPES],
+      },
       resources: [
         {
           identifier: storageSyncResource(env.baseURL),

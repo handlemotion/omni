@@ -32,7 +32,8 @@ export const mcp = new Hono<AppEnv>()
         .json()
         .catch(() => null),
     );
-    if (needed && !caller.scopes.has(needed)) return insufficientScope(baseURL, [needed]);
+    if (needed && !caller.scopes.has(needed))
+      return insufficientScope(baseURL, [needed], caller.scopes);
     c.set("log", log.child({ component: "mcp", clientId: caller.clientId }));
 
     const context = {

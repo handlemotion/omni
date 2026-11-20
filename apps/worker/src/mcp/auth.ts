@@ -1,4 +1,4 @@
-import { MAIL_READ_SCOPE, mcpResource, WORKSPACE_CLAIM, type Auth } from "@omni/auth";
+import { MAIL_READ_SCOPE, MCP_SCOPES, mcpResource, WORKSPACE_CLAIM, type Auth } from "@omni/auth";
 import { tokenSigningKeys, type Db } from "@omni/db";
 import { createLocalJWKSet, errors, jwtVerify, type JSONWebKeySet } from "jose";
 
@@ -58,9 +58,19 @@ function challenge(
   );
 }
 
-/** 403 asking the client to step up to every scope in `needed`. */
-export function insufficientScope(baseURL: string, needed: readonly string[]) {
-  return challenge(403, baseURL, needed, {
+/**
+ * 403 asking the client to step up to `needed`. The challenge names what the token already holds
+ * too, so a client that requests exactly the challenged scopes keeps the tools it had.
+ */
+export function insufficientScope(
+  baseURL: string,
+  needed: readonly string[],
+  granted: Iterable<string> = [],
+) {
+  const scopes = [...new Set([...granted, ...needed])].filter((s) =>
+    (MCP_SCOPES as readonly string[]).includes(s),
+  );
+  return challenge(403, baseURL, scopes, {
     code: "insufficient_scope",
     description: `this needs the ${needed.join(", ")} permission`,
   });
@@ -89,7 +99,9 @@ export async function verifyAccessToken(token: string, auth: Auth, db: Db, audie
 
 /**
  * The caller, or the response to send instead: 401 without a valid token for this resource, 403
- * when it lacks `mail:read` (every tool reads).
+ * when it lacks `mail:read` (every tool reads). A 401 names every scope the tools use: clients
+ * (claude.ai among them) request exactly the challenged scopes, so naming only `mail:read` left
+ * every CRM and Drive tool asking for more permissions on a fresh connection.
  */
 export const authenticate: (
   request: Request,
@@ -99,18 +111,18 @@ export const authenticate: (
 ) => Promise<McpCaller | Response> = async (request, auth, db, baseURL) => {
   const header = request.headers.get("authorization") ?? "";
   const token = /^Bearer (\S+)$/i.exec(header)?.[1];
-  if (!token) return challenge(401, baseURL, [MAIL_READ_SCOPE]);
+  if (!token) return challenge(401, baseURL, MCP_SCOPES);
 
   const payload = await verifyAccessToken(token, auth, db, mcpResource(baseURL));
   if (!payload?.sub) {
-    return challenge(401, baseURL, [MAIL_READ_SCOPE], {
+    return challenge(401, baseURL, MCP_SCOPES, {
       code: "invalid_token",
       description: "the access token is invalid or expired",
     });
   }
 
   const scopes = new Set(typeof payload.scope === "string" ? payload.scope.split(" ") : []);
-  if (!scopes.has(MAIL_READ_SCOPE)) return insufficientScope(baseURL, [MAIL_READ_SCOPE]);
+  if (!scopes.has(MAIL_READ_SCOPE)) return insufficientScope(baseURL, [MAIL_READ_SCOPE], scopes);
   const workspace = payload[WORKSPACE_CLAIM];
   return {
     userId: payload.sub,

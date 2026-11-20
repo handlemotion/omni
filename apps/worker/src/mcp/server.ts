@@ -69,9 +69,23 @@ export const TOOL_SCOPES: Record<string, string> = {
   drive_fetch: DRIVE_READ_SCOPE,
 };
 
+function serverIcons(webAppURL: string) {
+  const at = (path: string) => new URL(path, webAppURL).toString();
+  return [
+    { src: at("/favicon.svg"), mimeType: "image/svg+xml", sizes: ["any"] },
+    { src: at("/icon-192.png"), mimeType: "image/png", sizes: ["192x192"] },
+  ];
+}
+
 export function createServer(context: ToolContext) {
   const server = new McpServer(
-    { name: "omni", title: "Omni", version: "1.0.0" },
+    {
+      name: "omni",
+      title: "Omni",
+      version: "1.0.0",
+      websiteUrl: context.webAppURL,
+      icons: serverIcons(context.webAppURL),
+    },
     { instructions: INSTRUCTIONS },
   );
   registerInbox(server, context);
