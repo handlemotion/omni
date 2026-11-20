@@ -38,3 +38,20 @@ updates:
       npm-development:
         dependency-type: development
         update-types: [minor, patch]
+    ignore:
+      # Expo pins these for apps/ios (expo/bundledNativeModules.json); a version off that list
+      # breaks the native build or fails React Native's exact React match. Move them with
+      # `npx expo install --fix` when the SDK changes. Ignore rules can't be scoped to one
+      # workspace, so react and react-dom stop here for apps/web too: bump those by hand.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@shopify/flash-list"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      # Must match the version @better-auth/passkey depends on, or createAuth's types can't be
+      # named. Take the next major when better-auth's passkey plugin does.
+      - dependency-name: "@simplewebauthn/server"
+        update-types: ["version-update:semver-major"]
