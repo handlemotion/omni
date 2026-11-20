@@ -24,7 +24,7 @@ export const userEmails = pgTable(
 );
 
 /**
- * Which organization is a person's Personal space (ADR 0024): one per person, holding the mail
+ * Which organization is a person's Personal space: one per person, holding the mail
  * accounts they connect themselves. Kept here, not as a column on Better Auth's `organizations`,
  * so the auth schema is unchanged. An organization with no row is a company.
  */
@@ -40,7 +40,7 @@ export const personalSpaces = pgTable("personal_spaces", {
 });
 
 /**
- * A session opened with a company's address (ADR 0024 decision 3): it reaches only that company.
+ * A session opened with a company's address: it reaches only that company.
  * A session with no row is unscoped (a passkey, or an address no company has claimed). Kept here,
  * not as a column on Better Auth's `sessions`, so the auth schema is unchanged.
  */
@@ -56,7 +56,7 @@ export const sessionScopes = pgTable("session_scopes", {
 
 /**
  * Someone who signed in with an address on a company's claimed domain but is not its member
- * asked to join it (ADR 0024 decision 3). Owners and admins accept, which adds them as a member,
+ * asked to join it. Owners and admins accept, which adds them as a member,
  * or decline; either way the row goes. One request per person per company.
  */
 export const joinRequests = pgTable(
@@ -77,7 +77,7 @@ export const joinRequests = pgTable(
 );
 
 /**
- * The workspace a person picked on the MCP consent screen (ADR 0029), for this session's next
+ * The workspace a person picked on the MCP consent screen, for this session's next
  * OAuth grant: `org_id` null means every workspace. Read when the grant is made, then kept only
  * until the session goes. Kept here, not on Better Auth's `sessions`, so its schema is unchanged.
  */

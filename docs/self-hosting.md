@@ -51,8 +51,8 @@ Filled in per unit: see each unit's `.env.example`.
 | `APP_NAME`             | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                                        |
 | `GOOGLE_CLIENT_ID`     | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on Google sign-in and Gmail connect.              |
 | `GOOGLE_CLIENT_SECRET` | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.                            |
-| `SIGN_UP`              | Worker (auth)                   | no       | `open` (default) or `invitation`: who may sign up (ADR 0018).                        |
-| `MCP_CIMD_HOSTS`       | Worker (auth)                   | no       | Hosts whose OAuth client metadata agents connect with (ADR 0029).                    |
+| `SIGN_UP`              | Worker (auth)                   | no       | `open` (default) or `invitation`: who may sign up.                                   |
+| `MCP_CIMD_HOSTS`       | Worker (auth)                   | no       | Hosts whose OAuth client metadata agents connect with.                               |
 | `PURELYMAIL_API_TOKEN` | mail service                    | no       | Secret. Lets onboarding create domains, users and app passwords.                     |
 
 ### Mail service (`apps/mail`)
@@ -109,9 +109,9 @@ mailboxes added later.
 
 The Worker and the mail service call each other over HMAC-signed HTTP (`@omni/crypto`, 60 s
 window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox, and calls
-`POST /provision/domain`, `POST /provision/mailbox` and `POST /dns/lookup` during onboarding
-(ADR 0007, ADR 0010), and `POST /connect/google` and `POST /connect/google/disconnect` to connect
-and disconnect a Google account (ADR 0023); the mail
+`POST /provision/domain`, `POST /provision/mailbox` and `POST /dns/lookup` during onboarding,
+and `POST /connect/google` and `POST /connect/google/disconnect` to connect
+and disconnect a Google account; the mail
 service posts batches of `message.created` events to the Worker after indexing new mail. Paths
 and bodies are defined once in `packages/contracts`.
 
@@ -122,7 +122,7 @@ Objects are keyed by content hash under `<org id>/<mailbox id>/` (`raw/<sha256>.
 
 ### First organization
 
-Sign-up is open by default (`SIGN_UP=open`, ADR 0018): anyone with a verified email signs up and
+Sign-up is open by default (`SIGN_UP=open`): anyone with a verified email signs up and
 creates a workspace in onboarding, so a new install only needs `SYSTEM_MAIL_FROM` set (and its
 domain onboarded to Cloudflare Email Sending, below) to send sign-in links. Anyone who reaches your install can then make a workspace on your AI key
 and, with `PURELYMAIL_API_TOKEN`, your Purelymail account (on domains they prove they control).
@@ -170,7 +170,7 @@ What the Domain and Mailboxes steps do depends on the mail service:
 Either way the credentials are encrypted with `MAIL_CREDENTIALS_KEY` by the mail service, and the
 mailbox starts syncing at once.
 
-#### Domain ownership (ADR 0010)
+#### Domain ownership
 
 Adding a domain opens a claim with a one-time TXT record, `_omni-challenge.<domain>`, whose
 value the app shows once (only its hash is stored). The domain is locked to the first workspace
@@ -230,11 +230,10 @@ for the same address replaces the credentials. With `MAIL_SERVICE_URL` set it pi
 service, which connects the mailbox immediately; otherwise it is picked up on the next sync
 interval. `--kind shared` adds a shared inbox (read state stays per person; `\Seen` is never
 changed on the server). A shared inbox gets a team with the owner on it; owners and admins add
-and remove its members through `PUT`/`DELETE /api/mailboxes/<id>/members/<member id>` (ADR
-0008). Upgrading an install whose shared inboxes predate teams: run
+and remove its members through `PUT`/`DELETE /api/mailboxes/<id>/members/<member id>`. Upgrading an install whose shared inboxes predate teams: run
 `pnpm --filter @omni/db mailbox-teams:backfill` once after `db:migrate` (safe to repeat).
 
-#### Connecting a Gmail account (ADR 0023)
+#### Connecting a Gmail account
 
 Optional. A person's own Gmail connects over IMAP and SMTP with OAuth (XOAUTH2); Gmail has no app
 password flow Omni uses. In the Google Cloud console, on the OAuth client the Worker signs in with
@@ -298,25 +297,25 @@ One Cloudflare Worker serves the web app (`apps/web`), the API (`/api/*`), Bette
 (`/api/auth/*`), the AI queue consumer and realtime, all on one origin. Wrangler builds the web
 app before `dev` and `deploy` (`build` in `wrangler.jsonc`) and serves it as static assets; the
 Worker code runs first only for `/api/*`, `/health`, `/internal/*`, and `/mcp` and
-`/.well-known/*` (the MCP endpoint and its OAuth discovery, ADR 0029), and any other unknown path
+`/.well-known/*` (the MCP endpoint and its OAuth discovery), and any other unknown path
 returns the app's `index.html` so deep links work. Its config is `apps/worker/wrangler.jsonc`;
 every name and id there is a neutral default to replace with your own.
 
 Bindings:
 
-| Binding                                      | Kind                    | Setup                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| -------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HYPERDRIVE`                                 | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://... --origin-connection-limit=<n> --caching-disabled` (see "Connection budget" below), then put the id in `wrangler.jsonc`. Caching stays off: the app reads again right after each write, and a cached read would answer with the rows from before it. Locally, `localConnectionString` is the stack's Postgres.                                                                                                                  |
-| `MAIL_BUCKET`                                | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker reads attachments from it and stores profile pictures and workspace logos under `pictures/`.                                                                                                                                                                                                                                                                                       |
-| `STORAGE_BUCKET`                             | R2                      | The bucket Storage keeps people's files in (ADR 0034): `wrangler r2 bucket create omni-storage`, or your own name in `wrangler.jsonc`. Separate from `MAIL_BUCKET` because these files cannot be rebuilt from the mail host: back it up, and never give it a lifecycle rule that expires objects. One bucket per database: never point two installs (staging and production, say) at the same bucket, because the daily sweep deletes the files of every workspace its own database does not know. |
-| `DESKTOP_BUCKET`                             | R2                      | Desktop app releases: the updater manifest and installers, served at `/desktop/latest.json`, `/desktop/download/macos` and `/desktop/releases/*` (`wrangler r2 bucket create omni-desktop`). Filled by `apps/desktop/scripts/release-macos.sh`; empty, those routes answer 404 and installed apps simply never update.                                                                                                                                                                             |
-| `IMAGES`                                     | Images                  | Storage thumbnails (ADR 0053): resizes image files to small WebPs, kept in `STORAGE_BUCKET` beside the file. Nothing to create: the `images` binding is part of every Cloudflare account, and each file and size is drawn once and billed as one unique transformation under Cloudflare Images pricing, which has a free monthly allowance. `wrangler dev` resizes locally.                                                                                                                        |
-| `AI_QUEUE`                                   | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes both. Failed jobs land in the DLQ after `max_retries`, and the Worker's DLQ consumer records them in `dead_letters` (see [Observability](#observability)). A DLQ is the source queue's name plus `-dlq`.                                                                                                                                                                               |
-| `REPLAY_GUARD`                               | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `REALTIME`                                   | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER` | Rate limiting           | Nothing to create. Per-workspace limits on adding and checking domains (`ratelimits` in `wrangler.jsonc`); `namespace_id` must be unique in your account.                                                                                                                                                                                                                                                                                                                                          |
-| `DOMAIN_WATCH`                               | Durable Object (SQLite) | Migration `v2`. One per domain claim; re-checks DNS while the DNS page is open.                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `RATE_LIMITER`                               | Durable Object (SQLite) | Migration `v3`. One per rate-limit key (hashed); counts hits in a window, then clears itself. See [Rate limits](#rate-limits).                                                                                                                                                                                                                                                                                                                                                                     |
+| Binding                                      | Kind                    | Setup                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HYPERDRIVE`                                 | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://... --origin-connection-limit=<n> --caching-disabled` (see "Connection budget" below), then put the id in `wrangler.jsonc`. Caching stays off: the app reads again right after each write, and a cached read would answer with the rows from before it. Locally, `localConnectionString` is the stack's Postgres.                                                                                                       |
+| `MAIL_BUCKET`                                | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker reads attachments from it and stores profile pictures and workspace logos under `pictures/`.                                                                                                                                                                                                                                                                            |
+| `STORAGE_BUCKET`                             | R2                      | The bucket Storage keeps people's files in: `wrangler r2 bucket create omni-storage`, or your own name in `wrangler.jsonc`. Separate from `MAIL_BUCKET` because these files cannot be rebuilt from the mail host: back it up, and never give it a lifecycle rule that expires objects. One bucket per database: never point two installs (staging and production, say) at the same bucket, because the daily sweep deletes the files of every workspace its own database does not know. |
+| `DESKTOP_BUCKET`                             | R2                      | Desktop app releases: the updater manifest and installers, served at `/desktop/latest.json`, `/desktop/download/macos` and `/desktop/releases/*` (`wrangler r2 bucket create omni-desktop`). Filled by `apps/desktop/scripts/release-macos.sh`; empty, those routes answer 404 and installed apps simply never update.                                                                                                                                                                  |
+| `IMAGES`                                     | Images                  | Storage thumbnails: resizes image files to small WebPs, kept in `STORAGE_BUCKET` beside the file. Nothing to create: the `images` binding is part of every Cloudflare account, and each file and size is drawn once and billed as one unique transformation under Cloudflare Images pricing, which has a free monthly allowance. `wrangler dev` resizes locally.                                                                                                                        |
+| `AI_QUEUE`                                   | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes both. Failed jobs land in the DLQ after `max_retries`, and the Worker's DLQ consumer records them in `dead_letters` (see [Observability](#observability)). A DLQ is the source queue's name plus `-dlq`.                                                                                                                                                                    |
+| `REPLAY_GUARD`                               | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                                                                                                                                                                                       |
+| `REALTIME`                                   | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                                                                                                                                                                                        |
+| `DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER` | Rate limiting           | Nothing to create. Per-workspace limits on adding and checking domains (`ratelimits` in `wrangler.jsonc`); `namespace_id` must be unique in your account.                                                                                                                                                                                                                                                                                                                               |
+| `DOMAIN_WATCH`                               | Durable Object (SQLite) | Migration `v2`. One per domain claim; re-checks DNS while the DNS page is open.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `RATE_LIMITER`                               | Durable Object (SQLite) | Migration `v3`. One per rate-limit key (hashed); counts hits in a window, then clears itself. See [Rate limits](#rate-limits).                                                                                                                                                                                                                                                                                                                                                          |
 
 Connection budget: Hyperdrive's origin limit plus the mail service's pool (5) must stay below
 your Postgres `max_connections` minus its reserved slots, with a few left for migrations. Over
@@ -365,20 +364,20 @@ to `.dev.vars`.
 | `UPLOAD_MAX_BYTES`             | var    | no       | Largest file one upload may stage for a send, in bytes. Empty: 25 MB (`26214400`).                                                                                                                            |
 | `ENVIRONMENT`                  | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`.                               |
 
-| `S2_BASIN_URL`, `S2_BASIN`, `S2_ACCESS_TOKEN` | both | no | Live co-editing of Markdown files (ADR 0043). See [Live co-editing](#live-co-editing-optional). |
+| `S2_BASIN_URL`, `S2_BASIN`, `S2_ACCESS_TOKEN` | both | no | Live co-editing of Markdown files. See [Live co-editing](#live-co-editing-optional). |
 | `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
 | `STRIPE_*`, `BILLING_*` | both | no | Optional billing. Leave unset to self-host with no plan and no limits. See [Billing](#billing-optional). |
 
-The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010) every six hours,
-and once a day the billing reconcile (ADR 0015) and a sweep that deletes accounts which never
+The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check every six hours,
+and once a day the billing reconcile and a sweep that deletes accounts which never
 joined or created a workspace and have not signed in for 30 days (an invitation sent later lets
-them sign up again). For Storage (ADR 0034) the daily run also deletes what has been in Trash for
+them sign up again). For Storage the daily run also deletes what has been in Trash for
 30 days, recounts each workspace's usage, and removes deleted workspaces' files from
 `STORAGE_BUCKET`; the every-minute run, beside the helpdesk's clock, aborts uploads that received no part for 24
 hours, or that opened six days ago (R2 drops an unfinished multipart upload after seven). It needs no setup beyond the deploy.
 
 Magic links, invitations and domain notices are sent with Cloudflare Email Sending (the Worker's
-`EMAIL` binding, ADR 0020) from `SYSTEM_MAIL_FROM`, under `APP_NAME`. No mailbox is needed. Onboard
+`EMAIL` binding) from `SYSTEM_MAIL_FROM`, under `APP_NAME`. No mailbox is needed. Onboard
 the address's domain once: Cloudflare dashboard, **Compute** > **Email Service** > **Email
 Sending** > **Onboard Domain**, which adds its records under `cf-bounce.<domain>`. Sending to any
 address needs the Workers Paid plan. `wrangler dev` sends nothing: it keeps each message, and the
@@ -415,8 +414,8 @@ disconnects one.
 
 #### Live co-editing (optional)
 
-With an S2 basin, everyone editing a Markdown file in Drive types into the same page (ADR 0043
-decision 3 step 2, as amended). Without one, each editor saves on its own and a save that someone
+With an S2 basin, everyone editing a Markdown file in Drive types into the same page.
+Without one, each editor saves on its own and a save that someone
 else's beat is refused, never overwritten. The browser never reaches S2: the Worker reads and
 appends for it.
 
@@ -462,7 +461,7 @@ state: every workspace works as it always has. Hosted Omni turns it on; most sel
 need to. When on, each workspace (organization) has one flat plan; people, inboxes and domains
 are unlimited, and the only limit is a monthly allowance of AI-triaged emails. Past it, mail
 keeps arriving and triage pauses until the next period. A workspace with no plan in good
-standing is read-only: its mail syncs and reads, but nothing is sent or changed. See ADR 0015.
+standing is read-only: its mail syncs and reads, but nothing is sent or changed.
 
 | Variable                      | Kind   | Required with billing  | Notes                                                                                                          |
 | ----------------------------- | ------ | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -498,7 +497,7 @@ Setup in Stripe:
 
 ##### Storage on the plan
 
-Optional (ADR 0034 decision 7). With the three storage variables unset, the plan has no storage
+Optional. With the three storage variables unset, the plan has no storage
 allowance and nothing is metered: a company is held only by `STORAGE_MAX_GB`, when set. With
 them set, a company's plan includes `BILLING_STORAGE_INCLUDED_GB`. A trial, a yearly plan and a
 workspace with no card are capped there (`402 STORAGE_FULL`). A paying monthly workspace with a

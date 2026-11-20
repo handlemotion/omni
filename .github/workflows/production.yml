@@ -1,6 +1,6 @@
 name: Production
 
-# What the platforms can't do on their own when main changes (ADR 0019). Deploys are theirs:
+# What the platforms can't do on their own when main changes. Deploys are theirs:
 # Cloudflare Workers Builds deploys the Worker, Fly's GitHub deploy the mail service, and Doppler
 # syncs Fly's secrets. Left here:
 #
@@ -14,7 +14,7 @@ name: Production
 # commit's Cloudflare build (its GitHub check run) to finish: otherwise a sync that read the
 # version before Cloudflare deployed the new one could put the old code back.
 #
-# Each job runs only when its inputs change (ADR 0050), so most pushes start nothing:
+# Each job runs only when its inputs change, so most pushes start nothing:
 # - migrations when a push adds or edits `packages/db/migrations/`;
 # - the secret sync when the Worker's documented env (`.dev.vars.example`) or config changes, which
 #   is when new code can need a new secret;

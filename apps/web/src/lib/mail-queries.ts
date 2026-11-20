@@ -21,7 +21,7 @@ export const mailboxesQuery = () =>
 
 /**
  * Every mailbox the user can open, in every workspace their session reaches, each with its
- * `orgId` (ADR 0024): what compose sends from, and how a thread from another workspace finds
+ * `orgId`: what compose sends from, and how a thread from another workspace finds
  * its mailbox. `mailboxesQuery` stays the active workspace's, for its settings.
  */
 export const allMailboxesQuery = () =>
@@ -34,8 +34,7 @@ export const allMailboxesQuery = () =>
   });
 
 /**
- * Unread threads per mailbox and lane (inbox view), for badges, in the active workspace (ADR 0014,
- * amended: workspace isolation).
+ * Unread threads per mailbox and lane (inbox view), for badges, in the active workspace.
  */
 export const countsQuery = () =>
   queryOptions({
@@ -46,7 +45,7 @@ export const countsQuery = () =>
 /**
  * One thread list, newest first, paged by an opaque cursor kept in the cache (not the URL).
  * Without a mailbox it is "All mailboxes": every mailbox of the active workspace the member can
- * open, never another workspace's (ADR 0014, amended: workspace isolation).
+ * open, never another workspace's (amended: workspace isolation).
  */
 export const threadsQuery = (filter: ThreadFilter) =>
   infiniteQueryOptions({
@@ -88,7 +87,7 @@ export const threadQuery = (threadId: string) =>
 
 const SEARCH_LIMIT = 50;
 
-/** Search the active workspace's mail (ADR 0014, amended: workspace isolation). */
+/** Search the active workspace's mail (amended: workspace isolation). */
 export const searchQuery = (q: string, mailbox?: string) =>
   queryOptions({
     queryKey: keys.search(q, mailbox),

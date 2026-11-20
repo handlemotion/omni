@@ -8,7 +8,7 @@ const BACKFILL_MAX_BATCHES = 20;
 const BACKFILL_BUDGET_MS = 20_000;
 
 /**
- * Indexes `thread_participants` (ADR 0036 decision 4) for messages stored without them: mail
+ * Indexes `thread_participants` for messages stored without them: mail
  * from before the table, or from an older mail service mid-deploy. Batches until one finds
  * nothing, `BACKFILL_MAX_BATCHES` ran or the budget is spent; each batch is retried on a blip.
  * `now` is for tests: the backfill leaves messages younger than `PARTICIPANT_SETTLE_MS` alone.

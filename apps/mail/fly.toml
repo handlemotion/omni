@@ -1,4 +1,4 @@
-# Fly.io config for the mail service (ADR 0004). Neutral defaults: self-hosters pass their own
+# Fly.io config for the mail service. Neutral defaults: self-hosters pass their own
 # app name with `--app` and pick their region. Deploy from the repo root so the build sees the
 # workspace (Fly's GitHub deploy: working directory = repo root, config path = this file):
 #   flyctl deploy . --config apps/mail/fly.toml --app <your-app>

@@ -10,18 +10,18 @@ export const MAIL_READ_SCOPE = "mail:read";
 export const MAIL_TRIAGE_SCOPE = "mail:triage";
 /** Write drafts for the person to send: `draft_reply`. */
 export const MAIL_DRAFT_SCOPE = "mail:draft";
-/** Read the CRM of the person's company workspaces: `crm_search`, `crm_fetch` (ADR 0036). */
+/** Read the CRM of the person's company workspaces: `crm_search`, `crm_fetch`. */
 export const CRM_READ_SCOPE = "crm:read";
-/** Add and change CRM records and notes, never delete: `crm_write` (ADR 0036). */
+/** Add and change CRM records and notes, never delete: `crm_write`. */
 export const CRM_WRITE_SCOPE = "crm:write";
 
 /**
- * Sync Storage with the desktop app's Finder folder (ADR 0043). Only the first-party Omni
+ * Sync Storage with the desktop app's Finder folder. Only the first-party Omni
  * Desktop client holds it: it is not among the scopes a registered agent may ask for.
  */
 export const STORAGE_SYNC_SCOPE = "storage:sync";
 
-/** The first-party desktop app's public client (ADR 0043): PKCE, no secret, no consent screen. */
+/** The first-party desktop app's public client: PKCE, no secret, no consent screen. */
 export const DESKTOP_CLIENT_ID = "omni-desktop";
 /** Where the desktop app receives its authorization code: its own `omni://` scheme. */
 export const DESKTOP_REDIRECT_URI = "omni://oauth/callback";

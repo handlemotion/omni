@@ -24,7 +24,7 @@ export function useMailboxes() {
   return useQuery(mailboxesQuery());
 }
 
-/** Every mailbox the user can open, in every workspace (ADR 0024), each with its `orgId`. */
+/** Every mailbox the user can open, in every workspace, each with its `orgId`. */
 export function useAllMailboxes() {
   return useQuery(allMailboxesQuery());
 }

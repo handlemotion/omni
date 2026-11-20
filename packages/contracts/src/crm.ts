@@ -131,7 +131,7 @@ export const crmThreadSchema = z.object({
 });
 
 /**
- * A thread in a teammate's mailbox that shares its activity with the CRM (ADR 0039 decision 2),
+ * A thread in a teammate's mailbox that shares its activity with the CRM,
  * which the viewer cannot open: whose mailbox, the direction of its last message and, when that
  * mailbox shares subjects, the subject. Never the thread itself.
  */
@@ -402,7 +402,7 @@ export const crmTimelineContractItemSchema = z.object({
     actorMemberId: id.nullable(),
   }),
 });
-/** Shared activity (ADR 0039 decision 2): `id` is opaque and stable, never a thread id. */
+/** Shared activity: `id` is opaque and stable, never a thread id. */
 export const crmTimelineActivityItemSchema = z.object({
   kind: z.literal("activity"),
   ...timelineItem,

@@ -14,19 +14,19 @@
 
 ## Problem
 
-The spec says to offer hosted mailboxes only if Purelymail allows reselling, and keeps it as an unchecked question. Self-serve sign-up, the paid plan, and Omni-hosted domains and mailboxes are live. No ADR records an answer.
+The spec says to offer hosted mailboxes only if Purelymail allows reselling, and keeps it as an unchecked question. Self-serve sign-up, the paid plan, and Omni-hosted domains and mailboxes are live. Nothing records an answer.
 
 ## Evidence
 
-Docs and ADRs searched.
+Docs searched.
 
 ## Fix
 
-Get Purelymail's answer in writing and record it as an ADR, or gate hosted provisioning.
+Get Purelymail's answer in writing and record it in `docs/spec/v1.md`, or gate hosted provisioning.
 
 ## Done when
 
-An ADR exists.
+The spec records the answer.
 
 ## Before you start
 

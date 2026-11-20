@@ -180,12 +180,12 @@ export const WORKSPACE_PAGES: PageDefinition[] = [
   },
 ];
 
-/** Pages only a company has: a Personal space has no team, shared inboxes or plan (ADR 0024). */
+/** Pages only a company has: a Personal space has no team, shared inboxes or plan. */
 export const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "pipeline", "ai", "billing"]);
 const MANAGER_PAGES = new Set(["ai", "pipeline"]);
 
 /**
- * The workspace's pages; Billing only where the install bills (ADR 0015: it is optional), and
+ * The workspace's pages; Billing only where the install bills (it is optional), and
  * none of the company pages in a Personal space.
  */
 export function useWorkspacePages() {

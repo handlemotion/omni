@@ -90,7 +90,7 @@ export async function purgeStorageTrash(
 }
 
 /**
- * Deletes the versions replaced before `before` (ADR 0043 decision 1), rows first, and subtracts
+ * Deletes the versions replaced before `before`, rows first, and subtracts
  * their bytes. Returns the objects the caller must now delete, and whether more is waiting. Each
  * version goes in its own transaction, and one restored meanwhile is no longer there to delete.
  * `keepReadOnly` is as for `purgeStorageTrash`: nothing is deleted for not paying.
@@ -219,7 +219,7 @@ export function orgHoldsFiles(orgId: SQL) {
 
 /**
  * The grants addressed to the user of the outer query's `users` row: to their primary address
- * once verified, or to any sign-in email they verified (ADR 0034). For `exists`/`notExists`.
+ * once verified, or to any sign-in email they verified. For `exists`/`notExists`.
  */
 export function grantsForUserRow(db: Db) {
   return db

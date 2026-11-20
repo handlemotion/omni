@@ -33,7 +33,7 @@ export interface StorageLimit {
 
 /**
  * Whether a subscription row is one whose extra storage can be billed: paying (a trial is not),
- * monthly (a yearly plan cannot carry the monthly metered price, ADR 0034 amendment), and with
+ * monthly (a yearly plan cannot carry the monthly metered price), and with
  * no scheduled change that would rewrite its items.
  */
 export function billsOverage(
@@ -60,7 +60,7 @@ export function extraGb(peakBytes: number, allowanceBytes: number) {
 }
 
 /**
- * How much `orgId` may store: the one place the quota is decided (ADR 0034 decision 7).
+ * How much `orgId` may store: the one place the quota is decided.
  *
  * - `STORAGE_MAX_GB` caps every workspace, and `STORAGE_PERSONAL_GB` a Personal space, which
  *   never has a plan. Without billing these are the only limits.

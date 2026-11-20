@@ -45,7 +45,7 @@ export const api = createApi({
 
 /**
  * A failed API call. `status` 0 means the request never got an answer (offline, aborted). The
- * rest is what the Worker said (ADR 0038), when it said it: `code` is stable, the message is not.
+ * rest is what the Worker said, when it said it: `code` is stable, the message is not.
  */
 export class ApiError extends Error {
   readonly status: number;

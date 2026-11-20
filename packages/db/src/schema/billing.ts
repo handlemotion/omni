@@ -3,7 +3,7 @@ import { organizations } from "./auth.ts";
 import { orgId, timestamptz, createdAt } from "./columns.ts";
 
 /**
- * One row per AI-triaged email per workspace per usage month (ADR 0015): the count is the rows.
+ * One row per AI-triaged email per workspace per usage month: the count is the rows.
  * Keyed on the message, so a retried or redelivered job never counts twice. No foreign key to
  * `messages`: an email re-synced under a new id was still triaged once.
  */
@@ -41,7 +41,7 @@ export const stripeEvents = pgTable(
 );
 
 /**
- * Free trials granted, and to whom: one per workspace and one per account, ever (ADR 0015). The
+ * Free trials granted, and to whom: one per workspace and one per account, ever. The
  * person who starts a trial uses up their own, so a new workspace of theirs pays. No foreign
  * keys: deleting the workspace or leaving it must not hand the trial back.
  */

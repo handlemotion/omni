@@ -45,8 +45,8 @@ point the API at production or a `pnpm share` URL.
 
 ## Release to TestFlight
 
-Releases are cut by release-please and built by the `iOS release` workflow (ADR 0051,
-`docs/operations/releases.md`): merge the release pull request and the build reaches TestFlight.
+Releases are cut by release-please and built by the `iOS release` workflow
+(`docs/operations/releases.md`): merge the release pull request and the build reaches TestFlight.
 By hand, on a Mac with Xcode signed in to the Apple account that owns the team, and the app created in App
 Store Connect under the same bundle ID:
 

@@ -44,8 +44,8 @@ export const onboardingExit: (
  * Every onboarding step, in one flat order that Back and Continue walk one step at a time: the
  * workspace's name, its domain (and where its mail stays: Google, or Omni), the domain's DNS
  * records, its inboxes (Google accounts, or mailboxes on the domain), teammates (skippable), and
- * the plan, only where billing is on (ADR 0015). A company's mail needs its domain first
- * (ADR 0024): an account lands where its address belongs. The plan comes last, so setup finishes
+ * the plan, only where billing is on. A company's mail needs its domain first:
+ * an account lands where its address belongs. The plan comes last, so setup finishes
  * the moment it starts.
  */
 export type OnboardingPage = "Workspace" | "Domain" | "Records" | "Inbox" | "Team" | "Plan";
@@ -169,7 +169,7 @@ export function challengePasses(domain: OnboardingDomain) {
 
 /**
  * The challenge value for a domain, if this browser saw it. The API shows it once (only its hash
- * is stored, ADR 0010), so it is kept here for a reload mid-setup. A convenience: without it the
+ * is stored), so it is kept here for a reload mid-setup. A convenience: without it the
  * DNS page offers a new value.
  */
 export function rememberedChallenge(domain: OnboardingDomain) {
@@ -212,7 +212,7 @@ export const addDomainMutation = (client: QueryClient) =>
   });
 
 /**
- * `mutate(domainId)`: removes the domain from the workspace (ADR 0016). A claim that never
+ * `mutate(domainId)`: removes the domain from the workspace. A claim that never
  * verified is withdrawn; a verified domain is released (owners only, refused while it has
  * mailboxes). Its remembered challenge value goes with it.
  */
@@ -242,7 +242,7 @@ export const rotateChallengeMutation = (client: QueryClient) =>
   });
 
 /**
- * Keeps the domain checked while its DNS page is open (ADR 0011): results arrive over realtime.
+ * Keeps the domain checked while its DNS page is open: results arrive over realtime.
  * `reset` restarts the quick checks (the page came back into focus).
  */
 export function watchDomain(id: string, reset: boolean) {

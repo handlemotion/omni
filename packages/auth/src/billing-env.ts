@@ -9,7 +9,7 @@ const wholeNumber = z.string().regex(/^\d+$/, "use a whole number").transform(Nu
 const positiveInt = optionalText.pipe(wholeNumber.pipe(z.number().positive()).optional());
 
 /**
- * Billing (ADR 0015): one flat plan per workspace, with a monthly allowance of AI-triaged emails.
+ * Billing: one flat plan per workspace, with a monthly allowance of AI-triaged emails.
  * All of it is optional: with no `STRIPE_SECRET_KEY` there is no Stripe plugin and no limit.
  * Amounts live in Stripe as prices; only their ids are config.
  */
@@ -41,7 +41,7 @@ export const billingFields = {
   /** AI-triaged emails per workspace per month. */
   BILLING_TRIAGE_ALLOWANCE: positiveInt,
   /**
-   * Storage on the plan (ADR 0034 decision 7): the GB a company's plan includes, the metered
+   * Storage on the plan: the GB a company's plan includes, the metered
    * price extra GB are billed at, and the event name of the Stripe meter behind that price. All
    * three or none; with none, the plan has no storage allowance and nothing is metered.
    */

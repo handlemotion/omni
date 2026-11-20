@@ -268,7 +268,7 @@ export async function authPost(worker: Worker, jar: CookieJar, path: string, bod
   );
 }
 
-/** An invitation into the jar's active workspace, the way the web app sends one (ADR 0026). */
+/** An invitation into the jar's active workspace, the way the web app sends one. */
 export async function invite(
   worker: Worker,
   jar: CookieJar,

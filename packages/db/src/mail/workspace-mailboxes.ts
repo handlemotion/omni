@@ -4,7 +4,7 @@ import { mailboxAccess, mailboxes, mailboxFolders, members, users } from "../sch
 
 /**
  * The org's mailboxes, by address. `syncedAt` is the latest folder sync. `people` counts the
- * org members with a grant (for a shared mailbox, its team; ADR 0008). `owner` is the member a
+ * org members with a grant (for a shared mailbox, its team). `owner` is the member a
  * personal mailbox belongs to, or null for a shared one or one whose owner left the org.
  * Callers check the actor may see this (owners and admins of `orgId`).
  */

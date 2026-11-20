@@ -2,7 +2,7 @@
 
 Extends the root `AGENTS.md`.
 
-- Code is laid out by module (ADR 0035): Mail in `src/mail/` behind `src/mail.ts`, Storage in
+- Code is laid out by module: Mail in `src/mail/` behind `src/mail.ts`, Storage in
   `src/storage/` behind `src/storage.ts`; the rest of `src/` is the platform. Outside a module's
   folder, reach it only through its surface file (`scripts/check-modules.mjs` enforces this).
 - Schema lives in `src/schema/`: `schema/mail/` (behind `mail.ts`) and `storage.ts` are the

@@ -52,7 +52,7 @@ export type DomainClaim = typeof domainClaims.$inferSelect;
 
 /**
  * A domain's setup always has a claim, a lock, or both: a claim with no lock is waiting for its
- * challenge, and a lock with no claim predates claims (ADR 0010: those keep their lock).
+ * challenge, and a lock with no claim predates claims (those keep their lock).
  */
 export type DomainSetup =
   | { claim: DomainClaim; lock: MailDomain | null }

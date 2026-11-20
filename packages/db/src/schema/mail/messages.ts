@@ -59,11 +59,11 @@ export const threads = pgTable(
     ),
     /**
      * Set when the latest message was not AI-triaged because the workspace used its monthly
-     * allowance (ADR 0015): when the allowance resets. Cleared by the next triage.
+     * allowance: when the allowance resets. Cleared by the next triage.
      */
     triagePausedUntil: timestamptz("triage_paused_until"),
     /**
-     * The provider's own thread id, when it has one: Gmail's X-GM-THRID (ADR 0023). Messages with
+     * The provider's own thread id, when it has one: Gmail's X-GM-THRID. Messages with
      * one join its thread, so a conversation is the same one the provider shows.
      */
     providerThreadId: text("provider_thread_id"),
@@ -87,7 +87,7 @@ export const threads = pgTable(
     nextResponseDueAt: timestamptz("next_response_due_at"),
     resolutionDueAt: timestamptz("resolution_due_at"),
     /**
-     * SLA clocks (ADR 0023). When the customer started waiting for the reply we owe (cleared by
+     * SLA clocks. When the customer started waiting for the reply we owe (cleared by
      * our reply), and when the current open stretch began (cleared by resolve). The due times
      * above are these plus the inbox's targets for the priority, in business hours.
      */
@@ -346,14 +346,14 @@ export const threadState = pgTable(
     memberId: memberId(),
     read: boolean("read").notNull().default(false),
     /**
-     * Set while the thread is in the member's Later: `infinity` (ADR 0027). Rows from when Later
+     * Set while the thread is in the member's Later: `infinity`. Rows from when Later
      * was a timed deferral hold a time and leave Later once it passes.
      */
     snoozedUntil: timestamptz("snoozed_until"),
     /**
      * Done, up to the thread's `last_message_at` as the member saw it. The thread is done while
      * `last_message_at <= done_through`, so a newer message brings it back to the Inbox without
-     * any job (ADR 0007).
+     * any job.
      */
     doneThrough: timestamptz("done_through"),
     updatedAt: updatedAt(),

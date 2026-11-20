@@ -17,7 +17,7 @@
 
 ## Problem
 
-Notifications can't be tuned per kind and undo-send is stuck at 5 s. Collision detection (who else is viewing or replying, ADR 0021) is relayed by the Worker but never reported or shown, so two agents can answer the same customer.
+Notifications can't be tuned per kind and undo-send is stuck at 5 s. Collision detection (who else is viewing or replying) is relayed by the Worker but never reported or shown, so two agents can answer the same customer.
 
 ## Evidence
 

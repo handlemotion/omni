@@ -1,7 +1,6 @@
 # Omni CRM: the client layer
 
-Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md` and `docs/spec/modules.md` ·
-Decisions: ADR 0036 (v1), ADR 0039 (v1 close-out), ADR 0037 (later)
+Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md` and `docs/spec/modules.md`
 
 ## Summary
 
@@ -14,7 +13,7 @@ mail and the files the workspace already has in Omni.
 - A deal's files are a folder in the shared drive. Its contract is a file there that cannot be
   lost once it is signed.
 - A won deal is the project. The same record goes from lead to delivered, and later it is what
-  the client sees when they sign in (ADR 0037).
+  the client sees when they sign in.
 
 ## Goals and non-goals
 
@@ -27,7 +26,7 @@ mail and the files the workspace already has in Omni.
 - Everything an app can do, an agent can do through MCP.
 - No new service, no new config, nothing to turn on.
 
-**Non-goals for v1** (each is additive later; ADR 0036 "Not in v1")
+**Non-goals for v1** (each is additive later)
 
 - Custom fields, lists, saved views, tags, several pipelines.
 - Tasks, reminders, record merging, imports.
@@ -48,7 +47,7 @@ mail and the files the workspace already has in Omni.
 | Files on records                    | The record's folder in Shared                                 | Previews                                 |
 | An API first, and agents            | Every route typed; MCP tools                                  | Webhooks                                 |
 | A flexible data model               | Fixed columns                                                 | Custom fields as definitions plus JSON   |
-| Contracts and a client's own view   | Stored and tracked                                            | Signed in Omni; the dashboard (ADR 0037) |
+| Contracts and a client's own view   | Stored and tracked                                            | Signed in Omni; the dashboard |
 
 ## Objects
 
@@ -63,7 +62,7 @@ mail and the files the workspace already has in Omni.
 - **Contract.** A title, a status (`draft`, `sent`, `signed`, `ended`), three dates and a
   file, on a deal or a company.
 
-Every member of the company sees and edits all of it (ADR 0036 decision 1).
+Every member of the company sees and edits all of it.
 
 ## How people use it
 
@@ -142,7 +141,7 @@ One list, newest first, of four kinds of item:
 
 ## Agents
 
-Three tools on the MCP server (ADR 0029), through the same member door:
+Three tools on the MCP server, through the same member door:
 
 | Tool         | Scope       | Does                                                                                           |
 | ------------ | ----------- | ---------------------------------------------------------------------------------------------- |
@@ -159,7 +158,7 @@ instructions keep telling agents to treat it as data.
   Personal space has no CRM, so a token that reaches only one gets a tool error.
 - Every row carries `kind`, `id`, `workspace` and a `url` on the web app (`/crm/people/<id>`,
   `/crm/companies/<id>`, `/crm/deals/<id>`), which agents cite. The rows gained it with the web
-  screens (ADR 0039), so it never pointed at a page that answered "Not found".
+  screens, so it never pointed at a page that answered "Not found".
 - `crm_fetch` takes `records: [{ kind, id }]`. Its thread ids come from
   `forUser(user, grant scope).threadsWith`, so they are threads the person can open.
 - `crm_write` takes exactly one of `person`, `company`, `deal` or `note`; with `id` it changes
@@ -231,7 +230,7 @@ Each test below is named for the bug it catches.
 
 ## Open questions
 
-- [x] Web screens: built now from Mobbin references; the founder redesigns them later (ADR 0039).
+- [x] Web screens: built now from Mobbin references; the founder redesigns them later.
 - [ ] The starting stage names (Lead, In progress, Won, Delivered, Lost) and the folder name
       (`Clients`). Both can be renamed by a workspace; these are only what a new one sees.
-- [x] Bringing our own records over from Attio: by hand. No imports in v1 (ADR 0039).
+- [x] Bringing our own records over from Attio: by hand. No imports in v1.

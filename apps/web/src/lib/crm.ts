@@ -27,7 +27,7 @@ type TimelinePage = InferResponseType<Crm["companies"][":id"]["timeline"]["$get"
 type KnownTimelineItem = TimelinePage["items"][number];
 
 /**
- * Mail activity a teammate's mailbox shares with the CRM (ADR 0039 decision 2): who in the
+ * Mail activity a teammate's mailbox shares with the CRM: who in the
  * workspace corresponded with the record, when, and at `subjects` the subject. Typed here until
  * the layer that serves it adds it to the contracts.
  */
@@ -197,7 +197,7 @@ export function patchDealInLists(
   );
 }
 
-/** When the record was last written to or from, once the API says (ADR 0039 decision 2). */
+/** When the record was last written to or from, once the API says. */
 export function lastContactedAt(record: object) {
   const value = (record as { lastContactedAt?: unknown }).lastContactedAt;
   return typeof value === "string" ? value : null;

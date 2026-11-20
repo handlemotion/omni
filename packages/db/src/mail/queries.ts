@@ -52,7 +52,7 @@ export type Lane = (typeof triageBucket.enumValues)[number] | "unsure";
 export const LANES = [...triageBucket.enumValues, "unsure"] as const satisfies readonly Lane[];
 
 /**
- * Per-member triage views (ADR 0007, Later: ADR 0027, shared inboxes: ADR 0032). A thread is *done*
+ * Per-member triage views. A thread is *done*
  * for a member while its `last_message_at` is at or before their `done_through`, and in *Later*
  * while their `snoozed_until` is in the future (`infinity` once moved there); done wins over Later.
  * On a shared inbox they are the member's own too: a conversation stays in each teammate's Inbox
@@ -81,7 +81,7 @@ export const THREAD_VIEWS = [
 export type ThreadView = (typeof THREAD_VIEWS)[number];
 
 /**
- * A shared inbox's helpdesk views (ADR 0021), read from the conversation columns on `threads`:
+ * A shared inbox's helpdesk views, read from the conversation columns on `threads`:
  *
  * - `unassigned`: open, nobody owns it.
  * - `mine`: the member's, open or pending.
@@ -244,11 +244,11 @@ export function memberMail(db: Db, memberId: string) {
 }
 
 /**
- * The same reads across every organization `userId` belongs to (ADR 0014): the union of what
+ * The same reads across every organization `userId` belongs to: the union of what
  * each of their members can see. Each row keeps its `org_id`, and per-member state (read, done,
  * Later) is the state of the member whose grant shows the row. The grant and org checks are
  * the ones `memberMail` runs, so a user sees exactly what their members can, and nothing else.
- * With `scopeOrgId` (a session opened with a company's address, ADR 0024), only their member in
+ * With `scopeOrgId` (a session opened with a company's address), only their member in
  * that organization counts. `forUser` spreads it.
  */
 export function userMail(db: Db, userId: string, scopeOrgId?: string | null) {

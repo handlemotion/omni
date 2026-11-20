@@ -45,7 +45,7 @@ export function notificationTitle(n: Pick<Notification, "kind" | "actor">) {
   return actor ? `${actor} ${action}` : action;
 }
 
-/** Where a comment notification leads: the file (ADR 0043). */
+/** Where a comment notification leads: the file. */
 export interface CommentTarget {
   nodeId: string;
   nodeName: string;

@@ -13,8 +13,8 @@ export function forMember(db: Db, memberId: string) {
 }
 
 /**
- * What a person reaches across every workspace they belong to (ADR 0014), or only `scopeOrgId`'s
- * (a session opened with a company's address, ADR 0024).
+ * What a person reaches across every workspace they belong to, or only `scopeOrgId`'s
+ * (a session opened with a company's address).
  */
 export function forUser(db: Db, userId: string, scopeOrgId?: string | null) {
   return {

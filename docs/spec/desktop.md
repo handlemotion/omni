@@ -1,6 +1,6 @@
 # Omni Desktop: the app in a native window, and Drive in Finder
 
-Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md` and ADR 0034 · Decisions: ADR 0043
+Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md`
 
 ## Summary
 
@@ -92,9 +92,9 @@ because their state and cookies live in its cookie jar.
 - **One domain, "Omni"**, one entry in Finder's sidebar. Its root holds a folder per workspace
   the person turned sync on for, named after the workspace; each holds `My files` and, in a
   company, `Shared`. Those top two levels are made up by the provider, not Storage nodes: they
-  cannot be renamed, moved or deleted in Finder, and nothing can be dropped beside them. ADR
-  0034's access rules are unchanged: the server decides.
-- A move between two workspaces' folders is refused, as in the app (ADR 0034, "Not in v1");
+  cannot be renamed, moved or deleted in Finder, and nothing can be dropped beside them. Storage's
+  access rules are unchanged: the server decides.
+- A move between two workspaces' folders is refused, as in the app ("Not in v1");
   Finder then offers a copy, which is an upload to the other workspace.
 - Windows: one sync root, "Omni", with the same layout, through the Cloud Files API, in Rust, in
   its own process. The `cloud-filter` crate is the starting point; it calls itself experimental,
@@ -120,11 +120,11 @@ shape in Swift or Rust.
   redirects to `omni://…?cookie=…`, the app receives the deep link and sets the cookie in the
   webview's store for the server origin. `omni://` joins `AUTH_TRUSTED_ORIGINS`.
 - **Passkeys**: Windows works in WebView2. macOS needs the associated-domains entitlement
-  (`webcredentials:<rp id>`) and the `apple-app-site-association` file ADR 0006 already plans.
+  (`webcredentials:<rp id>`) and the `apple-app-site-association` file the web app serves.
   Reports of it working in Tauri are mixed, so it is tried in the signing layer and the passkey
   button is hidden on macOS desktop until proven. Magic link always works.
 - **Sync** never sees the cookie. It uses the OAuth 2.1 server Omni already runs for MCP
-  (ADR 0029): a first-party public client "Omni Desktop" (PKCE, redirect `omni://oauth/callback`)
+ : a first-party public client "Omni Desktop" (PKCE, redirect `omni://oauth/callback`)
   and a new scope `storage:sync`. Turning sync on opens the authorize URL in the app window,
   where the person is already signed in. The grant covers every workspace the person belongs to
   (the provider's existing "all workspaces" reference, no `omni_workspace` claim), so one token
@@ -186,7 +186,7 @@ The server is the judge, by version, never by clock.
   the original, then takes the server's version. Nothing is overwritten or lost.
 - Rename, move or delete of something changed on the server: refetch the node and let the system
   reapply or drop the change (File Provider's own rules).
-- Delete on the computer is Trash on the server, 30 days, as in the app. A locked file (ADR 0036)
+- Delete on the computer is Trash on the server, 30 days, as in the app. A locked file
   answers `423`-style refusal today (`locked`); the provider marks the item read-only up front
   from `lockedAt`.
 - Names the server numbers (`report (1).pdf`) come back in the answer and the provider adopts
@@ -216,7 +216,7 @@ Libraries, all official Tauri plugins unless noted: `deep-link`, `single-instanc
 `deep-link` feature, registered first), `updater`, `notification`, `autostart`, `window-state`,
 `opener`, `store` (the chosen server), `log`. On macOS the domain, the sync sign-in and the
 signals go through `omni-sync`, a Swift helper in `Contents/MacOS/` that Rust runs, and the app
-keeps the sync token with `security-framework` (ADR 0043, amendment 1); Windows keeps its
+keeps the sync token with `security-framework`; Windows keeps its
 credentials with the `keyring` crate;
 `tauri-plugin-decorum` or its maintained fork for Windows snap layouts on a custom title bar,
 after a spike. Swift side: Foundation and FileProvider only.
@@ -273,8 +273,8 @@ primitives, and add no text.
 - **CI.** A `Desktop` workflow, on pull requests touching `apps/desktop/**`: Rust fmt, clippy
   and tests on Linux; unsigned compiles on macOS and Windows. `Checks` is unchanged for everyone
   else.
-- **Releases.** Cut by release-please and run on GitHub's macOS runner (ADR 0051,
-  `desktop-release.yml`), or by hand on a Mac: `apps/desktop/scripts/release-macos.sh` builds the version in `tauri.conf.json` (universal,
+- **Releases.** Cut by release-please and run on GitHub's macOS runner
+  (`desktop-release.yml`), or by hand on a Mac: `apps/desktop/scripts/release-macos.sh` builds the version in `tauri.conf.json` (universal,
   Developer ID, both profiles embedded, app and disk image notarized), signs the updater archive
   with the updater key, uploads it to the R2 bucket behind the Worker (`DESKTOP_BUCKET`), writes
   `/desktop/latest.json` last, checks the live feed and tags `desktop-v<version>`. The Worker
@@ -301,7 +301,7 @@ One stack on `main`, each layer one PR. Modules owned: Storage (db, contracts, W
 
 | #   | Layer                                                                                              | Proven by                                                                                                    |
 | --- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 1   | This spec and ADR 0043.                                                                            | Review.                                                                                                      |
+| 1   | This spec.                                                                                         | Review.                                                                                                      |
 | 2   | `apps/desktop` shell: Tauri, bundled local shell, server origin in the window, deep-link sign-in, tray, window chrome, updater wiring (no signing). `omni://` trusted. | Runs on Linux in the cloud session against `pnpm stack:serve`: sign in by magic link through the deep link, screenshot. Unsigned macOS and Windows builds in CI. |
 | 3   | Web: `lib/desktop.ts`, the title-bar group, shortcuts, native notifications.                       | Screenshots in the shell and in the browser (unchanged there). WebKit smoke run in web e2e.                  |
 | 4   | Storage sync, data: revisions, tombstones, content versions, the change feed in `@omni/db`.        | `packages/db` e2e: every write appears once and in order; two writers never skip; a purge leaves a tombstone. |
@@ -331,7 +331,7 @@ machines and reported in the PR, pass or fail per line:
   refused as a move; turning one off removes its folder locally and leaves the server untouched.
 - Sign out: the domain disappears, unsynced files are in `Not uploaded`, the token is revoked.
 - Another member's My files never appears, including after that member is removed (their files
-  arrive in the remover's My files as `Files from <name>`, ADR 0034).
+  arrive in the remover's My files as `Files from <name>`).
 
 ## Risks
 
@@ -345,7 +345,7 @@ machines and reported in the PR, pass or fail per line:
 - **Whether an installed, unpackaged Windows app may register a sync root** is not stated by
   Microsoft; the crate's own example does it. Checked in the spike on a clean machine. The
   fallback is a sparse MSIX identity ("packaging with external location").
-- **Storage rows are the truth** (ADR 0034). A sync bug can now trash files in bulk. Mitigations:
+- **Storage rows are the truth**. A sync bug can now trash files in bulk. Mitigations:
   deletes are always Trash; the provider refuses to send more than 500 deletes in one batch
   without the person confirming in the app; version guards on every write.
 - **Remote content with native access.** The capability is small and pinned to one origin; an
@@ -359,7 +359,7 @@ machines and reported in the PR, pass or fail per line:
   The extension is `app.omnidirectional.desktop.fileprovider`; the app group is
   `group.app.omnidirectional.desktop`. All three stay build config.
 - **One "Omni" folder with a folder per workspace** (decision 3), not an entry per workspace.
-- **Sync turns on for every workspace the first time the Mac app runs** (ADR 0049), then is a
+- **Sync turns on for every workspace the first time the Mac app runs**, then is a
   switch per workspace in Settings → Drive.
 - The macOS layers are built and run on the founder's Mac by an agent there.
 
@@ -370,8 +370,8 @@ Written for an agent starting from this document with none of the conversation b
 ### Order and ownership
 
 Build the layers in "Rollout" order, each as one PR stacked on the one before. Layer 2 (shell)
-and layers 4-5 (server) can run as two parallel stacks: they share no file. Read `AGENTS.md`,
-ADR 0034 and ADR 0035 first; Storage is a module and `scripts/check-modules.mjs` enforces its
+and layers 4-5 (server) can run as two parallel stacks: they share no file. Read `AGENTS.md`
+first; Storage is a module and `scripts/check-modules.mjs` enforces its
 edges. Schema changes go through `db:generate`, never a hand-written migration.
 
 ### The shell

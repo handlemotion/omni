@@ -168,7 +168,7 @@ const or: (a: SQL | null, b: SQL | null) => SQL = (a, b) => {
   return a ?? b ?? sql`false`;
 };
 
-/** The member door's sharing setting and read (ADR 0039 decision 2). `forMember` spreads it. */
+/** The member door's sharing setting and read. `forMember` spreads it. */
 export function memberCrmSharing(db: Db, memberId: string) {
   return {
     async crmSharing(mailboxId: string) {

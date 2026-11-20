@@ -42,7 +42,7 @@ import Stripe from "stripe";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
 
-/** `email`: where the link is mailed. `signInAs`: the address it signs in (ADR 0048). */
+/** `email`: where the link is mailed. `signInAs`: the address it signs in. */
 export type MagicLinkSender = (message: {
   email: string;
   signInAs: string;
@@ -86,14 +86,14 @@ export const authEnvSchema = z
     GOOGLE_CLIENT_ID: optionalText,
     GOOGLE_CLIENT_SECRET: optionalText,
     /**
-     * Who may have an account (ADR 0018). `open` (default): anyone with a verified email signs up
+     * Who may have an account. `open` (default): anyone with a verified email signs up
      * and creates their own workspace in onboarding. `invitation`: sign-up needs a pending
      * invitation, and only people who already own a workspace create another (the first comes
      * from the `org:create` CLI).
      */
     SIGN_UP: optionalText.pipe(z.enum(["open", "invitation"]).default("open")),
     /**
-     * Hosts whose OAuth client metadata documents agents may sign in with (ADR 0029). Empty:
+     * Hosts whose OAuth client metadata documents agents may sign in with. Empty:
      * Claude's and ChatGPT's (`claude.ai`, `chatgpt.com`).
      */
     MCP_CIMD_HOSTS: commaList,
@@ -220,13 +220,13 @@ export interface AuthEnv extends Partial<
   /** Error-level log for billing a person must act on (a canceled duplicate to refund). */
   billingLog?: BillingLog;
   /**
-   * Whether this instance is an OAuth authorization server for agents (ADR 0029). Default on.
+   * Whether this instance is an OAuth authorization server for agents. Default on.
    * The Worker turns it off for requests that never use it: the provider reads its resource row
    * each time an instance starts, and the Worker starts one per request.
    */
   oauthProvider?: boolean;
   /**
-   * Each module's hooks for a member leaving and a workspace being deleted, in order (ADR 0035).
+   * Each module's hooks for a member leaving and a workspace being deleted, in order.
    * The Worker passes its `modules.ts` list; required so a caller cannot drop them by accident.
    */
   modules: readonly ModuleLifecycle[];
@@ -234,8 +234,8 @@ export interface AuthEnv extends Partial<
 
 /**
  * Who gets a magic link. With open sign-up, anyone: the link proves the address, and a new
- * address becomes a user with no workspace (ADR 0018). With `invitation`, any of a known user's
- * sign-in emails (ADR 0014), or an unknown email while it holds a pending, unexpired invitation.
+ * address becomes a user with no workspace. With `invitation`, any of a known user's
+ * sign-in emails, or an unknown email while it holds a pending, unexpired invitation.
  */
 export async function maySignIn(db: Db, email: string, policy: SignUp = "open") {
   if (policy === "open") return true;
@@ -476,7 +476,7 @@ export function createAuth(env: AuthEnv) {
 
 export type Auth = ReturnType<typeof createAuth>;
 
-/** Runs one auth request with its own sign-in store, so its session can be scoped (ADR 0024). */
+/** Runs one auth request with its own sign-in store, so its session can be scoped. */
 export { withSignInRequest } from "./session-scope.ts";
 export type { ModuleLifecycle } from "./module-lifecycle.ts";
 export * from "./mcp.ts";

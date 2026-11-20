@@ -20,7 +20,7 @@ export const ABANDONED_SIGN_UP_BATCH = 500;
  * live invitation to their primary or any extra sign-in email (they may still accept it); anyone
  * who ever invited someone (they were a member, and deleting them would cascade to those
  * invitations); anyone something in Storage is shared with, at an address they verified (the
- * grant is why they signed up, ADR 0034); anyone with a session used since `idleSince`. Safe to run twice and from two
+ * grant is why they signed up); anyone with a session used since `idleSince`. Safe to run twice and from two
  * places at once: a row another run holds is skipped.
  */
 export async function deleteAbandonedSignUps(

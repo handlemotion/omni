@@ -1,6 +1,6 @@
 name: Desktop
 
-# The desktop app (ADR 0043, docs/spec/desktop.md "Build, signing, release"): Rust format, Clippy
+# The desktop app (docs/spec/desktop.md "Build, signing, release"): Rust format, Clippy
 # and tests on Linux when the app or the contracts its types come from change; `Checks` is
 # unchanged for everyone else.
 #

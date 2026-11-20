@@ -600,7 +600,7 @@ describe("what the app learns from other mail apps", () => {
   });
 });
 
-describe("a Google account (ADR 0023)", () => {
+describe("a Google account", () => {
   it("logs in with XOAUTH2 on IMAP and SMTP, and waits for the OAuth client when it is missing", async () => {
     const seeded = await seedMailbox(db);
     const { box } = seeded;
@@ -713,7 +713,7 @@ describe("a Google account (ADR 0023)", () => {
   });
 });
 
-describe("a Google account's first sync (ADR 0045)", () => {
+describe("a Google account's first sync", () => {
   it("indexes the week before it was connected, and an ordinary mailbox still indexes everything", async () => {
     const day = 24 * 60 * 60_000;
     const seedWithHistory = async () => {
@@ -750,7 +750,7 @@ describe("a Google account's first sync (ADR 0045)", () => {
   });
 });
 
-describe("a Google account's read state is Done (ADR 0044)", () => {
+describe("a Google account's read state is Done", () => {
   it("makes mail read in Gmail Done, reopens it when marked unread there, and marks read what Omni marks done", async () => {
     const seeded = await seedConnectable();
     const { box, ownerId } = seeded;
@@ -844,7 +844,7 @@ describe("a Google account's read state is Done (ADR 0044)", () => {
   });
 });
 
-describe("a mailbox finds its home (ADR 0024)", () => {
+describe("a mailbox finds its home", () => {
   async function personalMailbox(address: string) {
     const seeded = await seedMailbox(db, { address });
     const { box } = seeded;

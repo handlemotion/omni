@@ -70,7 +70,7 @@ async function isMember(db: Db, userId: string, orgId: string) {
 const SIGNING_KEY_GRACE = "30 days";
 
 /**
- * The public keys agents' access tokens are signed with (ADR 0029), as Better Auth's JWKS
+ * The public keys agents' access tokens are signed with, as Better Auth's JWKS
  * endpoint shapes them. Read here rather than through that endpoint for two reasons:
  *
  * - Hyperdrive caches reads for up to a minute, and a cached empty read made the endpoint report
@@ -98,7 +98,7 @@ export async function tokenSigningKeys(db: Db) {
   }));
 }
 
-/** A first-party public client, as the server's own config defines it (ADR 0043). */
+/** A first-party public client, as the server's own config defines it. */
 export interface FirstPartyOAuthClient {
   clientId: string;
   name: string;

@@ -13,7 +13,7 @@ pnpm check && pnpm check-types && pnpm test:all && pnpm test:e2e
 pnpm dev:stack         # the whole product at http://localhost:5173, seeded; sign in as dev@example.com
 ```
 
-Agents: read [`AGENTS.md`](AGENTS.md). Decisions that differ from the spec: [`docs/adr/`](docs/adr/).
+Agents: read [`AGENTS.md`](AGENTS.md). The spec: [`docs/spec/`](docs/spec/).
 
 ## License
 

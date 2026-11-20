@@ -22,7 +22,7 @@ export type Api = Client["api"];
  * Typed calls to `/api`. The web app sends the session cookie itself (`credentials: "include"`,
  * which a cross-origin API needs); iOS passes it in `headers`. Mutating routes require an
  * `idempotency-key` header: reuse the same key when retrying the same intent. Every call asks
- * for the nested error shape (ADR 0038); read a failure with `toApiError`.
+ * for the nested error shape; read a failure with `toApiError`.
  */
 export function createApi(options: ApiOptions) {
   const { headers } = options;

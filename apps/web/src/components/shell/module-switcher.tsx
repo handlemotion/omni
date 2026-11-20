@@ -69,7 +69,7 @@ const under = (pathname: string, root: string) =>
   pathname === root || pathname.startsWith(`${root}/`);
 
 /** The module a path belongs to: Drive's and the CRM's own paths, else Mail (every other shell
- *  route is mail's). Paths are `/<workspace>/<module>/…` (ADR 0043). */
+ *  route is mail's). Paths are `/<workspace>/<module>/…`. */
 export const moduleOf: (pathname: string) => ModuleId = (pathname) => {
   const place = `/${pathname.split("/").slice(2).join("/")}`;
   if (under(place, "/files")) return "files";

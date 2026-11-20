@@ -64,7 +64,7 @@ services:
       timeout: 5s
       retries: 30
 
-  # s2-lite: the S2 API for live co-editing (ADR 0043), in memory. Its basin creates a document's
+  # s2-lite: the S2 API for live co-editing, in memory. Its basin creates a document's
   # stream on first use; the Worker reaches it at http://localhost:54380/v1 (S2_BASIN_URL).
   s2:
     image: ghcr.io/s2-streamstore/s2:0.44.3

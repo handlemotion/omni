@@ -5,7 +5,7 @@ import { useConnectGoogle, useGoogleAccounts } from "@/hooks/use-google-connecti
 import { useOnboarding } from "@/hooks/use-onboarding";
 
 /**
- * The inbox before any account is connected, in the Personal space everyone starts in (ADR 0024):
+ * The inbox before any account is connected, in the Personal space everyone starts in:
  * connect a Google account (it opens where its address belongs), or set up a company. Each only
  * where this person can: Google set up on the install, and a company theirs to create.
  */

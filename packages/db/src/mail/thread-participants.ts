@@ -130,7 +130,7 @@ function uuidv7Floor(ms: number) {
 }
 
 /**
- * One batch of the backfill (ADR 0036 decision 4): up to `limit` messages of one mailbox, past
+ * One batch of the backfill: up to `limit` messages of one mailbox, past
  * its cursor in `thread_participants_backfill` and older than `PARTICIPANT_SETTLE_MS`, get their
  * participants, and the cursor moves to the last one. It covers mail stored before the table
  * existed and mail an older mail service stores during a deploy, so it never finishes: once

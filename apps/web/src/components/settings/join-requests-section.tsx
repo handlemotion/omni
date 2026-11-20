@@ -7,7 +7,7 @@ import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
 
 /**
- * People who signed in with this company's address and asked to join (ADR 0024), for its owners
+ * People who signed in with this company's address and asked to join, for its owners
  * and admins to accept or decline. Shown only while someone is waiting.
  */
 export function JoinRequestsSection(props: { canManage: boolean }) {

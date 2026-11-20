@@ -1,6 +1,6 @@
 name: Release
 
-# release-please (ADR 0051). Every push to main updates one open release pull request, "chore:
+# release-please. Every push to main updates one open release pull request, "chore:
 # release main", that raises the version and writes the changelog of each app whose files the
 # merged commits touched, from their Conventional Commit titles (pr-title.yml):
 #

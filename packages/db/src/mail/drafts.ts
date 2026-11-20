@@ -26,7 +26,7 @@ export async function undoSendSeconds(db: Db, memberId: string) {
 
 /**
  * Cancels the member's own send if the mail service has not claimed it: deletes the outbox row
- * and frees its uploads for another send. A hand-off's send (ADR 0030) also puts its shared
+ * and frees its uploads for another send. A hand-off's send also puts its shared
  * conversation back, in the same transaction (`handoff`: what changed there). Returns the
  * payload so the composer can be restored, `"too_late"` once it is claimed or done, or null when
  * there is no such send of theirs.

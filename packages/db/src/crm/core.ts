@@ -46,8 +46,8 @@ export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | nu
 };
 
 /**
- * Who hears a CRM change: the workspace's members now. Every member sees every record
- * (ADR 0036 decision 1), and a member removed since they connected is not among them.
+ * Who hears a CRM change: the workspace's members now. Every member sees every record,
+ * and a member removed since they connected is not among them.
  */
 export async function crmAudience(ex: Ex, member: CrmMember) {
   const rows = await ex

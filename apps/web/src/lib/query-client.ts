@@ -13,7 +13,7 @@ declare module "@tanstack/react-query" {
     mutationMeta: {
       /**
        * Every caller of this mutation tells the person about a failure itself (its own toast,
-       * an inline problem, a retry), so the default toast stays quiet (ADR 0046).
+       * an inline problem, a retry), so the default toast stays quiet.
        */
       handlesError?: boolean;
     };

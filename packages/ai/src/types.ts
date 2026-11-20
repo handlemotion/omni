@@ -3,7 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 export const AI_MODEL = "claude-haiku-5-5";
 
 /**
- * The three lanes triage files mail in (ADR 0052). Mail that fits none of them, such as a receipt
+ * The three lanes triage files mail in. Mail that fits none of them, such as a receipt
  * that asks nothing or a "thanks!" the reader sent, gets no lane: its bucket is `null`.
  */
 export const BUCKETS = ["needs_reply", "waiting_on_them", "noise"] as const;
@@ -66,7 +66,7 @@ export interface TriageInput {
    */
   earlierMessages?: ReadonlyArray<{ from: string; fromUs: boolean; text: string }>;
   /**
-   * Set for a shared inbox (ADR 0021): triage then also judges priority and which of `tags` fit.
+   * Set for a shared inbox: triage then also judges priority and which of `tags` fit.
    * Ignored when the latest message is our own: priority and tags describe what a customer asked.
    */
   helpdesk?: { tags: readonly HelpdeskTag[]; teammates?: readonly HelpdeskTeammate[] };

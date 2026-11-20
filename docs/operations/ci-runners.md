@@ -9,7 +9,7 @@ Cloud plan's included usage. No job depends on a machine of ours being on, and n
 | `Checks` (ci.yml)                                          | `ubuntu-latest`            | Every pull request into main, merge queue     |
 | `Warm pnpm cache` (ci.yml)                                 | `ubuntu-latest`            | A push to main that changes the lockfile      |
 | `Full` (full.yml)                                          | `ubuntu-latest`            | Nightly if main moved, by hand, `full-e2e`    |
-| `Migrate database`, `Sync Worker secrets` (production.yml) | `ubuntu-latest`            | A merge to main that needs them (ADR 0050)    |
+| `Migrate database`, `Sync Worker secrets` (production.yml) | `ubuntu-latest`            | A merge to main that needs them               |
 | `Rust (Linux)` (desktop.yml)                               | `ubuntu-latest`            | Changes to the desktop app or contracts       |
 | Desktop builds (desktop.yml)                               | `macos-15`, `windows-2025` | By hand; Windows also on a `desktop-v*` tag   |
 | `Release PR` (release.yml)                                 | `ubuntu-latest`            | Every push to main (seconds)                  |

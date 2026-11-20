@@ -329,7 +329,7 @@ describe("disconnecting a Google account", () => {
   });
 });
 
-describe("where a connected account goes (ADR 0024)", () => {
+describe("where a connected account goes", () => {
   test("a gmail.com account lands in Personal, not the open workspace", async () => {
     const eve = await signedInMember("eve@place.test");
     const users = await database.db

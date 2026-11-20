@@ -77,7 +77,7 @@ export const listSignInEmails: (db: Db, userId: string) => Promise<SignInEmail[]
 };
 
 /**
- * Where a magic link for `email` is mailed (ADR 0048). An address Omni hosts can't be read before
+ * Where a magic link for `email` is mailed. An address Omni hosts can't be read before
  * signing in, so its link goes to the owner's first verified sign-in address Omni does not host.
  * Any other address, or a hosted one whose owner has no outside address, gets its own link.
  */
@@ -95,7 +95,7 @@ export async function magicLinkRecipient(db: Db, email: string) {
 
 /**
  * Whether mail to `email` can only be read inside Omni by someone already signed in, so a link
- * mailed to it can't be opened (ADR 0048): Omni hosts the address or its domain, and the address
+ * mailed to it can't be opened: Omni hosts the address or its domain, and the address
  * doesn't belong to someone whose sign-in links go to an outside address.
  */
 export async function readableOnlyInOmni(db: Db, email: string) {
@@ -112,8 +112,8 @@ export async function readableOnlyInOmni(db: Db, email: string) {
 }
 
 /**
- * Whether hosting `email` in Omni would leave its owner no address to receive sign-in links at
- * (ADR 0048): it signs someone in, and every other verified address of theirs is hosted too.
+ * Whether hosting `email` in Omni would leave its owner no address to receive sign-in links at:
+ * it signs someone in, and every other verified address of theirs is hosted too.
  */
 export async function hostingStrandsSignIn(db: Db, email: string) {
   const address = normalizeAddress(email);

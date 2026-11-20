@@ -22,7 +22,7 @@ For a subdomain, the DKIM names become `purelymailN._domainkey.<subdomain>`.
 
 ## Steps
 
-The web app's `/onboarding` does steps 1, 3 and 5 through the Purelymail API (ADR 0007) and
+The web app's `/onboarding` does steps 1, 3 and 5 through the Purelymail API and
 lists the records with their checks; the manual path below is the same work by hand.
 
 1. Purelymail → Domains → add the domain. Copy the ownership TXT value.

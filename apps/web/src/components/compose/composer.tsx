@@ -143,8 +143,7 @@ function recipientsFor(kind: ReplyKind, thread: Thread, source: Message | undefi
  * bottom of the conversation once Reply or Forward opens it. A shared inbox's hidden notes have
  * their own composer floating at the pane's bottom (`ChatDock`). Replies go from the inbox's
  * address with your name; they show in the thread at once and can be undone while they wait in
- * the outbox. From one of your own mailboxes instead, a reply hands the conversation off to you
- * (ADR 0030).
+ * the outbox. From one of your own mailboxes instead, a reply hands the conversation off to you.
  */
 export function ReplyComposer({ thread }: { thread: Thread }) {
   const state = useComposerState();

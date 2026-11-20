@@ -26,7 +26,7 @@ export function isSettingsPage(page: string): page is SettingsPageId {
   return (SETTINGS_PAGES as readonly string[]).includes(page);
 }
 
-/** `/<workspace>/settings/…` (ADR 0043). */
+/** `/<workspace>/settings/…`. */
 export const isSettingsPath = (pathname: string) => pathname.split("/")[2] === "settings";
 
 let lastPage: SettingsPageId = "profile";

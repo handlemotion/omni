@@ -235,7 +235,7 @@ export function memberCrm(db: Db, memberId: string) {
 
 /**
  * The guest door: what a person outside the workspace may see of its CRM, by address. Empty in
- * v1; ADR 0037 opens it for a client's own deals.
+ * v1; the client dashboard will open it for a client's own deals.
  */
 export function userCrm(_db: Db, _userId: string, _scopeOrgId?: string | null) {
   return {};

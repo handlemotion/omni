@@ -283,7 +283,7 @@ export const crmNotes = pgTable(
   ],
 );
 
-/** A contract on a deal or a company, with one file in that record's folder (decision 6). */
+/** A contract on a deal or a company, with one file in that record's folder. */
 export const crmContracts = pgTable(
   "crm_contracts",
   {
@@ -323,7 +323,7 @@ export const crmContracts = pgTable(
 
 /**
  * What happened to one record, appended in the transaction of the change it records (as
- * `conversation_events`, ADR 0021). `data` stays small: ids, field names, from and to.
+ * `conversation_events`). `data` stays small: ids, field names, from and to.
  */
 export const crmEvents = pgTable(
   "crm_events",

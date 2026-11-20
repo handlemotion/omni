@@ -29,7 +29,7 @@ export const desktop = {
   /**
    * Where a magic link sent from the desktop app ends: the shell's `omni://auth?state=…`. The
    * link opens in the default browser; the Worker sends the session there, and the shell puts it
-   * in this window and reloads (ADR 0043 decision 5). Each call is a new, single-use state.
+   * in this window and reloads. Each call is a new, single-use state.
    */
   signInCallback() {
     return bridge().then((b) => b.signInCallback()) satisfies Promise<string>;

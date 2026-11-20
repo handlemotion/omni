@@ -25,13 +25,13 @@ WEB_APP_URL=http://localhost:5173
 GOOGLE_CLIENT_ID=
 # Secret.
 GOOGLE_CLIENT_SECRET=
-# Optional. Who may sign up (ADR 0018): "open" (default: anyone with a verified email signs up and
+# Optional. Who may sign up: "open" (default: anyone with a verified email signs up and
 # creates their own workspace in onboarding) or "invitation" (a private install: sign-up needs a
 # pending invitation, and only owners create workspaces; the first comes from
 # `pnpm --filter @omni/db org:create`).
 SIGN_UP=
-# Optional: hosts whose OAuth client metadata documents agents may connect with over MCP
-# (ADR 0029), comma separated. Empty: Claude's and ChatGPT's (claude.ai, chatgpt.com). Other
+# Optional: hosts whose OAuth client metadata documents agents may connect with over MCP,
+# comma separated. Empty: Claude's and ChatGPT's (claude.ai, chatgpt.com). Other
 # MCP clients register dynamically.
 MCP_CIMD_HOSTS=
 
@@ -48,7 +48,7 @@ SYSTEM_MAIL_FROM=
 # Optional. Largest file one upload may stage for a send, in bytes. Empty: 26214400 (25 MB).
 UPLOAD_MAX_BYTES=
 
-# --- Storage (ADR 0034; the STORAGE_BUCKET binding in wrangler.jsonc) ---
+# --- Storage (the STORAGE_BUCKET binding in wrangler.jsonc) ---
 # Optional. Largest file Storage accepts, in bytes. Empty: 107374182400 (100 GB).
 STORAGE_MAX_FILE_BYTES=
 # Optional. Largest upload whose declared sha256 is checked against the bytes. Empty: 8 GB.
@@ -62,7 +62,7 @@ STORAGE_PERSONAL_GB=
 # Optional. Ceiling on what any one workspace may store, in GB. Empty: none.
 STORAGE_MAX_GB=
 
-# --- Live co-editing (ADR 0043; S2, or s2-lite from compose.yml) ---
+# --- Live co-editing (S2, or s2-lite from compose.yml) ---
 # Optional. The basin's API base, ending in /v1. Empty: documents edit with checked saves only.
 # Local stack: http://localhost:54380/v1
 S2_BASIN_URL=
@@ -85,7 +85,7 @@ JEV_MODEL=
 # Optional. TypeSafe API base URL. Defaults to https://api.typesafe.ai.
 TYPESAFE_API_URL=
 
-# --- Billing (optional, ADR 0015; docs/self-hosting.md "Billing") ---
+# --- Billing (optional; docs/self-hosting.md "Billing") ---
 # Leave STRIPE_SECRET_KEY empty for no billing: no plan, no limits. Set it (test mode, sk_test_...)
 # and the three marked "required" below must be set too, or the Worker will not start.
 # Optional. "off" turns billing off even with the Stripe settings below set (they stay unchecked).
@@ -105,7 +105,7 @@ STRIPE_PUBLISHABLE_KEY=
 BILLING_TRIAL_DAYS=
 # Required. AI-triaged emails per workspace per month. Past it, triage pauses until the next period.
 BILLING_TRIAGE_ALLOWANCE=
-# Optional, all three or none (ADR 0034). GB of Storage a company's plan includes (decimals allowed),
+# Optional, all three or none. GB of Storage a company's plan includes (decimals allowed),
 # the price id of the metered monthly price extra GB are billed at, and the event name of the Stripe
 # meter behind that price (aggregation: last). None: the plan has no storage allowance, nothing is metered.
 BILLING_STORAGE_INCLUDED_GB=
@@ -121,7 +121,7 @@ EXPO_ACCESS_TOKEN=
 # and credentials; their environment tag is ENVIRONMENT.
 SENTRY_DSN=
 
-# --- Domain Connect (ADR 0011, docs/domain-connect/) ---
+# --- Domain Connect (docs/domain-connect/) ---
 # Optional. The providerId our templates are published under. Empty hides "Set up automatically".
 DOMAIN_CONNECT_PROVIDER_ID=
 # Optional. Host of the TXT record with our public key, for templates that require signing.

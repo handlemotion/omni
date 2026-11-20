@@ -15,7 +15,7 @@ export const storageSpaceSchema = z.enum(["personal", "shared"]);
 export const storageNodeKindSchema = z.enum(["folder", "file"]);
 /**
  * `member` is someone in the node's space; the others come from a grant or a link. A `commenter`
- * reads and writes comments (ADR 0043 decision 5); absent from a Worker older than comments.
+ * reads and writes comments; absent from a Worker older than comments.
  */
 export const storageRoleSchema = z.enum(["member", "editor", "commenter", "viewer"]);
 export const storageGrantRoleSchema = z.enum(["viewer", "commenter", "editor"]);
@@ -30,7 +30,7 @@ const isoDate = z.iso.datetime();
 const id = z.string().min(1);
 const name = z.string().min(1).max(255);
 
-/** The glyphs a folder may take in Drive's sidebar instead of the folder (ADR 0047). */
+/** The glyphs a folder may take in Drive's sidebar instead of the folder. */
 export const STORAGE_FOLDER_ICONS = [
   "rocket",
   "star",
@@ -79,7 +79,7 @@ export const storageNodeSchema = z.object({
    */
   lockedAt: isoDate.nullable().optional(),
   /**
-   * Sync (ADR 0043): the drive's revision when the row last changed in any way. Absent from a
+   * Sync: the drive's revision when the row last changed in any way. Absent from a
    * Worker older than sync.
    */
   revision: z.number().int().nonnegative().optional(),
@@ -583,7 +583,7 @@ export const desktopSyncStatusSchema = z.object({
 });
 
 /**
- * On the workspace's realtime socket for the web app (ADR 0043 decision 3): someone who sees the
+ * On the workspace's realtime socket for the web app: someone who sees the
  * file is editing it, or stopped. The app sends `{"type":"file.presence","nodeId","state"}`
  * with `editing` while a file is open in its editor (again every 30 s, as a heartbeat) and
  * `left` when it closes; the others who see the file hear this, and a newcomer hears who is
@@ -597,7 +597,7 @@ export const storageFilePresenceEventSchema = z.object({
 });
 
 /**
- * Live co-editing (ADR 0043 decision 3 step 2): an open document is one S2 stream of these
+ * Live co-editing: an open document is one S2 stream of these
  * records, `docs/<nodeId>`. A `seed` starts an epoch: the editor's whole state, made from the file
  * at `contentVersion`. Each `update` (an editor update, base64) and `fold` names its epoch by the
  * seed's sequence number; a `fold` says the epoch up to record `s` was saved as `contentVersion`. An editor joins
@@ -671,7 +671,7 @@ export const storageDocEventSchema = z.discriminatedUnion("type", [
 ]);
 
 /**
- * What `omni-sync` (the macOS shell's sync helper, ADR 0043 amendment 1) prints for
+ * What `omni-sync` (the macOS shell's sync helper) prints for
  * `sign-in`: the authorize URL the shell opens in the app window.
  */
 export const desktopSyncSignInSchema = z.object({ url: z.string() });

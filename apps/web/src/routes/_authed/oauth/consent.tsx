@@ -5,7 +5,7 @@ import { oauthClientQuery } from "../../../lib/oauth-consent.ts";
 import { workspacesQuery } from "../../../lib/workspaces.ts";
 
 /**
- * An agent asking to connect (ADR 0029). Better Auth's OAuth provider sends a signed-in person
+ * An agent asking to connect. Better Auth's OAuth provider sends a signed-in person
  * here with the signed authorization request; the page answers it with that same query.
  */
 export const Route = createFileRoute("/_authed/oauth/consent")({

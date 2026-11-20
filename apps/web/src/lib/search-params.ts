@@ -23,7 +23,7 @@ export const loginSearch = z.object({
 export const inboxSearch = z.object({
   mailbox: optionalId,
   lane: optional(z.enum(LANES)),
-  /** A shared inbox's helpdesk view (with `mailbox`): Unassigned, Mine, Open, … (ADR 0021). */
+  /** A shared inbox's helpdesk view (with `mailbox`): Unassigned, Mine, Open, …. */
   view: optional(z.enum(HELPDESK_VIEWS)),
   /** Only conversations with this tag (a `tags.id` of the inbox). */
   tag: optionalId,
@@ -34,7 +34,7 @@ export const listSearch = z.object({ mailbox: optionalId });
 /** Drive's Search: `q` matches file and folder names on the server. */
 export const fileSearchSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
 
-/** A CRM list (ADR 0039): `q` searches it on the server. */
+/** A CRM list: `q` searches it on the server. */
 export const crmListSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
 
 /** The deals: the board unless `view=list`. */
@@ -70,7 +70,7 @@ export const composeSearch = z.object({
   subject: optional(z.string()),
 });
 
-/** The confirmation link mailed to a new sign-in email (ADR 0014). */
+/** The confirmation link mailed to a new sign-in email. */
 export const verifySignInEmailSearch = z.object({ token: optional(z.string()) });
 
 /** A shared link: the folder inside it (`node`), and the file open in the preview. */

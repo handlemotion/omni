@@ -31,7 +31,7 @@ export const storageSignatureEventKind = pgEnum("storage_signature_event_kind", 
 ]);
 
 /**
- * A stronger proof attached to a sealed copy (ADR 0037 decision 4): an RFC 3161 timestamp, or in
+ * A stronger proof attached to a sealed copy: an RFC 3161 timestamp, or in
  * Mexico a NOM-151 conservation certificate. Optional; empty until a provider is configured.
  */
 export interface StorageSignatureConservation {

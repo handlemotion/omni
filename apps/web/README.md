@@ -2,7 +2,7 @@
 
 The web app: a Vite + React single-page app on TanStack Router and TanStack Query. The Worker
 serves the built files and `/api` on one origin, so the session cookie is first-party and there
-is no CORS. Design decisions: `docs/adr/0006-web-app-foundation.md`.
+is no CORS.
 
 ## Run it
 
@@ -48,7 +48,7 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 
 ## Path map
 
-Every page inside a workspace starts with its slug (`$ws` below, ADR 0043); mail has its own
+Every page inside a workspace starts with its slug (`$ws` below); mail has its own
 `/mail` prefix. A path from before (`/inbox/<id>`, `/files/my`, `/settings`) is sent on under the
 session's workspace.
 
@@ -67,7 +67,7 @@ session's workspace.
 | `/$ws/mail/search`, `/$ws/mail/search/$id`         | `q`, `mailbox?`                      | results for `q`; the thread                      |
 | `/$ws/mail/compose`                                | `mailbox?`, `to?`, `subject?`        | (mailboxes come from the shell)                  |
 | `/$ws/settings`, `/$ws/settings/$page`             |                                      | the settings page shown last (⌘. anywhere)       |
-| `/$ws/files/my`, `/$ws/files/my/$folderId`         | `mailbox?`                           | a folder of My files (ADR 0034)                  |
+| `/$ws/files/my`, `/$ws/files/my/$folderId`         | `mailbox?`                           | a folder of My files                             |
 | `/$ws/files/shared`, `/$ws/files/shared/$folderId` | `mailbox?`                           | a folder of Shared (companies only)              |
 | `/$ws/files/shared-with-me`, `/$ws/files/trash`    | `mailbox?`                           | what was shared with you; Trash                  |
 | `/s/$shareId`                                      | `node?`                              | a shared link, signed in or not; 404 → not found |
@@ -80,9 +80,9 @@ workspace (`lib/workspaces.ts` `enterWorkspace`: every API call sends `omni-work
 workspace query key carries its id, the session's active organization follows), moves a
 `?mailbox=` or a thread of another workspace to that one, and needs the user's member there; it
 loads mailboxes and counts for the shell. A user with no organization goes to `/onboarding` if
-they may create one (always with open sign-up; owners only with `SIGN_UP=invitation`, ADR 0018), else to `/login?error=no_organization`; an owner or
+they may create one (always with open sign-up; owners only with `SIGN_UP=invitation`), else to `/login?error=no_organization`; an owner or
 admin whose workspace's setup is unfinished (`member.setup !== "complete"`, from `/api/me`) goes
-to `/onboarding`, which resumes at the saved step; `/$ws/settings` stays reachable (ADR 0007, 0009). The thread routes are children of their list, so the
+to `/onboarding`, which resumes at the saved step; `/$ws/settings` stays reachable. The thread routes are children of their list, so the
 list stays mounted (three panes) and the back button walks the URL history.
 
 ## How the data layer works
@@ -113,13 +113,13 @@ The socket reconnects with jittered exponential backoff (0.5 s up to 30 s), and 
 browser comes online, the tab becomes visible again, or the API answers again after a failure.
 After a reconnect every mail query is marked stale: the ones on screen refetch (joining any fetch
 already running), the rest when next shown, and queued sends are checked against the outbox.
-`useRealtimeStatus()` exposes `connecting | open | closed`. Helpdesk events (ADR 0021): `thread.changed`,
+`useRealtimeStatus()` exposes `connecting | open | closed`. Helpdesk events: `thread.changed`,
 `note.created` and `sla.*` mark the thread and its mailbox's lists stale like `changed`;
 `action.succeeded` for a pending reply refetches its thread; `presence` fills `lib/presence.ts`,
 whose entries expire after 70 s unless repeated (`useReportPresence` repeats every 30 s, again
 on reconnect, and says `left` on unmount). A dropped socket clears presence.
 
-**Conversations** (shared inboxes, ADR 0021). `useConversation` is under the thread's key, so
+**Conversations** (shared inboxes). `useConversation` is under the thread's key, so
 anything that refetches the thread refetches it. The change hooks patch it at once, put it back
 if the request fails, take the server's values on success, and refetch the thread, lists and
 counts when they settle. Each offers its inverse as undo (resolve and snooze undo to reopen, so a
@@ -147,7 +147,7 @@ while offline. Queued actions live in memory: closing the tab while offline drop
 **Optimistic updates.** Archive, read/unread, later and done change every cached list and the
 thread at once (`lib/cache.ts`), then roll back if the request fails. Move just refetches.
 
-**Done and Later** are yours alone, even on a shared mailbox (ADR 0007, ADR 0027). Later has no
+**Done and Later** are yours alone, even on a shared mailbox. Later has no
 time: a thread stays there until moved back (`useMoveToLater().mutate({ threadId, later })`). Pass the thread's
 `lastMessageAt` as `through` when marking done: a newer message brings the thread back to the
 Inbox, and one that arrived after the screen was drawn keeps it there.
@@ -204,10 +204,10 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useConversations(filter)`, `useConversationCounts()`                                                                                                                                                  | helpdesk lists (`conversations`, paging) and the navigation's counts                             |
 | `useThreadListShortcuts({ …, helpdesk: { filter, conversations } })`                                                                                                                                   | on a helpdesk list e/h/i resolve, snooze, assign to me (one bulk request, one undo)              |
 | `useBulkChange()`                                                                                                                                                                                      | `run(threadIds, change, { mailboxId, tag?, undo? })`: one request per 100, failed rows roll back |
-| `useStorageList(place)`, `useStorageTrash()`, `useSharedWithMe()`, `useStorageLink(shareId, node?)`, `useStorageUsage()`                                                                               | Storage (ADR 0034): folders, Trash, shared with you, a link's contents, usage                    |
+| `useStorageList(place)`, `useStorageTrash()`, `useSharedWithMe()`, `useStorageLink(shareId, node?)`, `useStorageUsage()`                                                                               | Storage: folders, Trash, shared with you, a link's contents, usage                               |
 | `useCreateFolder()`, `useChangeNode()`, `useTrashNode()`, `useRestoreNode()`, `useDeleteForever()`, `useUploads()`                                                                                     | changes and uploads; pass `shareId` to go through a link's door (an Editor)                      |
 | `useStorageSharing(id)`, `usePutStoragePerson()`, `useRemoveStoragePerson()`, `useSetStorageLink()`                                                                                                    | who an item is shared with, and its link                                                         |
-| `useCrmCompanies(q)`, `useCrmPeople(q)`, `useCrmDeals(q, { all? })`, `useCrmCompany(id)`, `useCrmPerson(id)`, `useCrmDeal(id)`, `useCrmTimeline(kind, id)`, `useCrmContracts(where)`, `useCrmStages()` | the CRM (ADR 0039); `crm.changed` marks all of it stale                                          |
+| `useCrmCompanies(q)`, `useCrmPeople(q)`, `useCrmDeals(q, { all? })`, `useCrmCompany(id)`, `useCrmPerson(id)`, `useCrmDeal(id)`, `useCrmTimeline(kind, id)`, `useCrmContracts(where)`, `useCrmStages()` | the CRM; `crm.changed` marks all of it stale                                                     |
 | `useMoveDeal()`, `useCreate*()`, `useUpdate*()`, `useCreateNote()`, `useRecordFolder()`, `useCreateContract()`, `useUpdateContract()`, `usePutStages()`                                                | CRM changes; a deal's move is optimistic with rollback                                           |
 | `useSlaSettings(mailboxId)`                                                                                                                                                                            | `{ policies, businessHours, autoAssign }` for an inbox                                           |
 | `usePutSlaPolicy()`, `useDeleteSlaPolicy()`, `usePutBusinessHours()`, `useDeleteBusinessHours()`, `useSetAutoAssign()`                                                                                 | inbox SLA settings (owners and admins; optimistic, rollback)                                     |
@@ -229,4 +229,4 @@ announce what they did in a polite live region.
 
 ## Not yet
 
-- Drafts, labels, manual triage re-sort, shared-inbox assignment (ADR 0006, "v1 scope").
+- Drafts, labels, manual triage re-sort, shared-inbox assignment ("v1 scope").

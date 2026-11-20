@@ -13,7 +13,7 @@ import { type Role, RoleSelect } from "./workspace-pages";
 const NO_SHARED = "none";
 
 /**
- * Invites someone with an inbox (ADR 0026): their own on a domain on Omni's host, starting as the
+ * Invites someone with an inbox: their own on a domain on Omni's host, starting as the
  * name they sign in with, and/or a shared inbox to be on. Where the workspace has neither to give,
  * the invitation goes alone and they get theirs after joining.
  */

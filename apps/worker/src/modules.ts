@@ -13,7 +13,7 @@ export interface Module extends ModuleLifecycle {
   minute?: (env: Env) => Promise<unknown>;
   /** Once a day. Safe to run twice, and bounded per run. */
   daily?: (env: Env) => Promise<unknown>;
-  /** After the Stripe webhook applied `event` (ADR 0015). Safe to run twice for one event. */
+  /** After the Stripe webhook applied `event`. Safe to run twice for one event. */
   stripeEvent?: (db: Db, billing: BillingConfig, event: Stripe.Event) => Promise<unknown>;
 }
 

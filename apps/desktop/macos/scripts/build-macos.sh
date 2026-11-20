@@ -2,7 +2,7 @@
 # Builds the app's two Swift pieces (docs/spec/desktop.md "Build, signing, release"), universal
 # and signed, into OMNI_EXTENSION_OUT:
 #   OmniFileProvider.appex  the File Provider extension, for Contents/PlugIns
-#   omni-sync               the shell's sync helper, for Contents/MacOS (ADR 0043, amended)
+#   omni-sync               the shell's sync helper, for Contents/MacOS (amended)
 #
 # Config, all from the environment (apps/desktop/.env.example):
 #   OMNI_DESKTOP_BUNDLE_ID   the app's bundle id; the extension is <id>.fileprovider

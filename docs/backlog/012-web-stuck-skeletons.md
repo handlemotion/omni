@@ -3,7 +3,7 @@
 |          |                                                 |
 | -------- | ----------------------------------------------- |
 | Severity | medium                                          |
-| Area     | Web (error states, ADR 0046)                    |
+| Area     | Web (error states)                              |
 | Who      | Agent (UI owned by Rodrigo; no new copy needed) |
 | Status   | open                                            |
 | Found    | 2026-11-19, read against `main` at `15ffca9`    |
@@ -17,7 +17,7 @@
 
 ## Problem
 
-`<Skeleton data={q.data}>` with no `isError` branch. The query client sets no `throwOnError`, and ADR 0046 stops retrying 404s and refusals, so a failed request stays loading forever. The pipeline page is the worst: an owner sees no stages and can overwrite the real pipeline.
+`<Skeleton data={q.data}>` with no `isError` branch. The query client sets no `throwOnError`, and it stops retrying 404s and refusals, so a failed request stays loading forever. The pipeline page is the worst: an owner sees no stages and can overwrite the real pipeline.
 
 ## Evidence
 

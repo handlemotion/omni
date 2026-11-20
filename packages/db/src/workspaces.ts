@@ -53,7 +53,7 @@ export interface Workspace {
   name: string;
   slug: string;
   logo: string | null;
-  /** `personal` (the user's own, ADR 0024) or `company`. */
+  /** `personal` (the user's own) or `company`. */
   kind: "personal" | "company";
   /** This user's role in it. */
   role: string;
@@ -76,7 +76,7 @@ export interface Workspace {
  * Every organization `userId` belongs to, oldest membership first, each with its setup step and
  * the mailboxes their member there can access (personal first, then by address). A mailbox
  * shows only through a grant to a member of the mailbox's own org. The user's Personal space is
- * left out unless `includePersonal`: clients from before ADR 0024 would show it as a company.
+ * left out unless `includePersonal`: clients from before Personal spaces would show it as a company.
  */
 export async function listUserWorkspaces(
   db: Db,

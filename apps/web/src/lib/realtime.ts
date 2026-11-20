@@ -255,7 +255,7 @@ export const onThreadsMerged: (listener: (event: MergedEvent) => void) => () => 
   return () => mergeListeners.delete(listener);
 };
 
-/** Calls `listener(event)` for every live document event (ADR 0043), from any workspace. */
+/** Calls `listener(event)` for every live document event, from any workspace. */
 export const onDocEvent: (listener: (event: DocEvent) => void) => () => void = (listener) => {
   docListeners.add(listener);
   return () => docListeners.delete(listener);

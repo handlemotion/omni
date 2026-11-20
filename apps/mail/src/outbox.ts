@@ -44,7 +44,7 @@ export interface OutboxOptions {
   store?: Pick<MailStore, "storeSent">;
   /** Reads a send's attachments. Required for sends that carry any. */
   files?: SendFiles;
-  /** The CRM forwarding address (ADR 0032). Required for `forward_copy`. */
+  /** The CRM forwarding address. Required for `forward_copy`. */
   forwarding?: Forwarding;
   maxAttempts?: number;
   retryBaseMs?: number;

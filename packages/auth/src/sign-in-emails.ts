@@ -88,7 +88,7 @@ const INVITATION_PATHS = new Set([
 ]);
 
 /**
- * The plugin half of ADR 0014. `init` makes `internalAdapter.findUserByEmail` resolve extra
+ * The plugin half of sign-in by any verified address. `init` makes `internalAdapter.findUserByEmail` resolve extra
  * addresses. The hooks handle invitations: Better Auth lets only the user whose `users.email`
  * equals the invitation's address see, accept or decline it. Before those calls, an invitation
  * addressed to one of the signed-in user's verified extra emails is readdressed to their primary,

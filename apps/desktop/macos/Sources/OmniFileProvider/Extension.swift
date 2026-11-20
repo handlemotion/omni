@@ -5,7 +5,7 @@ import OmniSyncCore
 import SystemConfiguration
 import UniformTypeIdentifiers
 
-/// The Omni File Provider (ADR 0043 decision 3): one domain, a folder per synced workspace. It
+/// The Omni File Provider: one domain, a folder per synced workspace. It
 /// answers the system's four questions (what is here, what changed, give me the bytes, here is a
 /// change) from the Storage sync API and decides nothing the server decides.
 final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {

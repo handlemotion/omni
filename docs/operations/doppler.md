@@ -31,9 +31,9 @@ Rules:
 
 ## Production deploys
 
-Each platform deploys `main` itself (ADR 0019). GitHub Actions (`.github/workflows/production.yml`)
+Each platform deploys `main` itself. GitHub Actions (`.github/workflows/production.yml`)
 does the two things the platforms can't, when a push changes their inputs, daily, and by hand
-(Actions → Production → Run; ADR 0050). Doppler's GitHub sync copies `prd_github` into the secrets of the GitHub environment
+(Actions → Production → Run). Doppler's GitHub sync copies `prd_github` into the secrets of the GitHub environment
 `production` (only jobs that declare it can read them). `prd_worker` is read at run time with a
 read-only service token, `DOPPLER_TOKEN_WORKER`, so exactly its keys become Worker secrets.
 

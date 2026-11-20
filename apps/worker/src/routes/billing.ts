@@ -106,7 +106,7 @@ const planPrice: (
 };
 
 /**
- * Owners and admins only. A Personal space is free (ADR 0024): it may never start a plan
+ * Owners and admins only. A Personal space is free: it may never start a plan
  * (`subscribe`), and may manage one (`manage`: the portal, cards) only if it somehow has one,
  * so it can always be cancelled.
  */

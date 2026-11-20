@@ -114,7 +114,7 @@ export const SHORTCUTS = {
 export type ShortcutId = keyof typeof SHORTCUTS;
 
 /**
- * The place a path is in. Paths are `/<workspace>/<place>/…` (ADR 0043); every shell path that is
+ * The place a path is in. Paths are `/<workspace>/<place>/…`; every shell path that is
  * not Drive's, the CRM's or settings' is Mail's, as the module switcher reads it (`moduleOf`).
  */
 export function placeOf(pathname: string) {

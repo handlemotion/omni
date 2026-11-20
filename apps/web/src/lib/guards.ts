@@ -13,7 +13,7 @@ export async function requireUser(client: QueryClient, location: ParsedLocation)
 
 /**
  * Signed in and a member of the active organization: everyone is, at least of their Personal
- * space (ADR 0024). An owner or admin whose workspace's setup is unfinished goes to onboarding,
+ * space. An owner or admin whose workspace's setup is unfinished goes to onboarding,
  * which resumes at the saved step; settings stay reachable (to switch workspace or account, or
  * sign out).
  */

@@ -11,7 +11,7 @@ import { useAskToJoin, useJoin } from "@/hooks/use-join.ts";
 import { keys } from "@/lib/query-keys.ts";
 
 /**
- * A sign-in with a company's address whose person is not its member (ADR 0024): ask to join it,
+ * A sign-in with a company's address whose person is not its member: ask to join it,
  * or use another account. The sign-in card's frame (Figma: Omni, frame "/").
  */
 export function Join() {

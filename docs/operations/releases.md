@@ -1,6 +1,6 @@
 # Releases
 
-Desktop and iOS releases are cut by release-please and built on GitHub (ADR 0051).
+Desktop and iOS releases are cut by release-please and built on GitHub.
 
 ## Shipping a release
 

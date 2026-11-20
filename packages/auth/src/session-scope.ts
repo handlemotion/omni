@@ -129,7 +129,7 @@ function onlyInScope(returned: unknown, scope: string) {
 }
 
 /**
- * Keeps a scoped session inside its company through Better Auth's own endpoints (ADR 0024): every
+ * Keeps a scoped session inside its company through Better Auth's own endpoints: every
  * organization request must name only that company, it cannot create or delete one, the lists
  * that span every workspace show only that company, and it cannot add a sign-in method.
  */

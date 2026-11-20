@@ -124,7 +124,7 @@ function useOwnMailboxes() {
 
 /**
  * Domains a new mailbox can go on: verified here, and accepted by the provider. Not a domain
- * whose mail stays at Google: its accounts connect from Google instead (ADR 0024).
+ * whose mail stays at Google: its accounts connect from Google instead.
  */
 export function useMailboxDomains() {
   const onboarding = useOnboarding();

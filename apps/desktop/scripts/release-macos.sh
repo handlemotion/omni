@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds, signs, notarizes and publishes a macOS release of Omni (docs/spec/desktop.md, "Build,
 # signing, release"). Runs on a Mac, from a clean checkout of a commit on main: the `Desktop release`
-# workflow's macOS runner (ADR 0051), or a person's Mac. Installed apps find it at
+# workflow's macOS runner, or a person's Mac. Installed apps find it at
 # <OMNI_DESKTOP_ORIGIN>/desktop/latest.json within six hours and install it on their own.
 #
 #   apps/desktop/scripts/release-macos.sh             build, check and publish

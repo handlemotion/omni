@@ -1,10 +1,10 @@
-//! Drive sync, as the web app sees it (ADR 0043 decision 2): the three commands the server
+//! Drive sync, as the web app sees it: the three commands the server
 //! origin may call. Settings → Drive reads `sync_status` and switches a workspace with
 //! `sync_connect` / `sync_disconnect`. Their shapes are `desktopSyncStatusSchema` and
 //! `desktopWorkspaceSyncSchema` in `@omni/contracts`, generated into `omni-sync-types`.
 //!
 //! On macOS the work is done by `omni-sync`, the Swift helper beside the app's executable
-//! (`apps/desktop/macos`, ADR 0043 as amended): it registers the File Provider domain, keeps the
+//! (`apps/desktop/macos`): it registers the File Provider domain, keeps the
 //! token in the keychain group the extension reads, and signals the extension. This module only
 //! runs it and moves the window through sign-in. Elsewhere sync is not available yet.
 

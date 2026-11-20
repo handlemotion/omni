@@ -19,7 +19,7 @@ export interface Failure {
   readonly kind: FailureKind;
   /** The same action may succeed later, unchanged. */
   readonly retryable: boolean;
-  /** The Worker's stable code (ADR 0038), when the failure came from the API. */
+  /** The Worker's stable code, when the failure came from the API. */
   readonly code?: string;
   /** Shown on the error page and attached to reports, so a person can quote it. */
   readonly requestId?: string;

@@ -28,7 +28,7 @@ export interface FetchedMessage {
   flags: string[];
   modseq: bigint | null;
   internalDate: Date | null;
-  /** Gmail's X-GM-THRID: the message joins that thread (ADR 0023). Absent elsewhere. */
+  /** Gmail's X-GM-THRID: the message joins that thread. Absent elsewhere. */
   providerThreadId?: string;
 }
 
@@ -51,7 +51,7 @@ export interface MailStore {
   applyFlags(mailboxId: string, folder: string, changes: FlagChange[]): Promise<void>;
   /**
    * Brings every thread with a copy in `folder` in line with the flags already stored, for state
-   * no flag change will report (a Google account's mail read before Omni followed it, ADR 0044).
+   * no flag change will report (a Google account's mail read before Omni followed it).
    */
   reconcileFolder(mailboxId: string, folder: string): Promise<void>;
   /** Messages expunged or moved out of `folder`. */
@@ -135,7 +135,7 @@ export interface ActionSource {
   defer(actionId: string, retryAt: Date): Promise<void>;
   /**
    * True while sending from this address's domain is paused: the domain's ownership challenge
-   * left DNS (ADR 0010). Sends wait, attempts not counted, until it is back.
+   * left DNS. Sends wait, attempts not counted, until it is back.
    */
   sendingPaused(address: string): Promise<boolean>;
   /** When the next pending action becomes due, or null: an undo-send window ending. */

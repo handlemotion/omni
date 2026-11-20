@@ -39,7 +39,7 @@ export function answerMembership(c: Context<AppEnv>, result: MailboxMembershipRe
 }
 
 /**
- * Refuses to take away the last inbox a member can open (ADR 0026: every member sees at least
+ * Refuses to take away the last inbox a member can open (every member sees at least
  * one). Only for a shared inbox of this workspace that they are on; anything else is left to the
  * caller's own checks.
  */

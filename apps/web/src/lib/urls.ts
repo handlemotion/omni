@@ -32,7 +32,7 @@ export function attachmentUrl(threadId: string, attachmentId: string) {
     .toString();
 }
 
-/** A stored file's bytes (ADR 0034): always a download, never rendered on our origin. */
+/** A stored file's bytes: always a download, never rendered on our origin. */
 export function storageFileUrl(fileId: string) {
   return withWorkspace(api.storage.files[":id"].content.$url({ param: { id: fileId } }).toString());
 }

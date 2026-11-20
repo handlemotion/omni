@@ -101,7 +101,7 @@ export const ERROR_CODES = {
   no_thumbnail: spec(415, "validation"),
   /** The selection holds more files or bytes than one zip carries: zip less at a time. */
   zip_too_large: spec(413, "payload_too_large"),
-  /** Only a PDF is sent for signature (ADR 0043 decision 6). */
+  /** Only a PDF is sent for signature. */
   not_a_pdf: spec(415, "validation"),
   /** The file is already out for signature: void that request before sending it again. */
   signature_open: spec(409, "conflict"),

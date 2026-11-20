@@ -231,7 +231,7 @@ test("triage actions need an idempotency key and a thread the member can see", a
   ).toEqual([]);
 });
 
-test("on a Google account Done marks the mail read in Gmail and never moves it; reading in Omni stays in Omni (ADR 0044)", async () => {
+test("on a Google account Done marks the mail read in Gmail and never moves it; reading in Omni stays in Omni", async () => {
   const { db } = database;
   const org = await createOrg(db, "gmail-done");
   await createMailbox(db, org.id, SYSTEM_MAIL_FROM);

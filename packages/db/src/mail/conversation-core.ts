@@ -30,7 +30,7 @@ export type ConversationChange =
       type: "assign";
       memberId: string | null;
       expectedAssignee?: string | null;
-      /** `ai`: triage handed it to the teammate whose role fits (ADR 0033). */
+      /** `ai`: triage handed it to the teammate whose role fits. */
       source?: "ai";
     }
   | { type: "priority"; priority: Priority; source?: "ai" }

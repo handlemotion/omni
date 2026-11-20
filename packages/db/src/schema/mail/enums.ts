@@ -4,7 +4,7 @@ export const mailboxKind = pgEnum("mailbox_kind", ["personal", "shared"]);
 
 export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft", "imap"]);
 
-/** What a mailbox copies to its forwarding address (ADR 0032). */
+/** What a mailbox copies to its forwarding address. */
 export const forwardScope = pgEnum("forward_scope", ["sent", "conversations", "all"]);
 
 export const mailboxStatus = pgEnum("mailbox_status", ["pending", "active", "error", "disabled"]);
@@ -43,7 +43,7 @@ export const mailActionKind = pgEnum("mail_action_kind", [
 ]);
 
 /**
- * A shared conversation's status (ADR 0021): `open` waits on the team, `pending` on the customer,
+ * A shared conversation's status: `open` waits on the team, `pending` on the customer,
  * `snoozed` until `snoozed_until`, `resolved` is filed. Transitions: `@omni/mail-core/conversation-status`.
  */
 export const conversationStatus = pgEnum("conversation_status", [

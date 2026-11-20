@@ -141,7 +141,7 @@ export const READ_ONLY_ALLOWED = [
   },
   {
     path: "/api/oauth",
-    reason: "an agent's sign-in and its workspace choice: access, not mail (ADR 0029)",
+    reason: "an agent's sign-in and its workspace choice: access, not mail",
   },
 ] as const satisfies readonly { path: string; reason: string }[];
 

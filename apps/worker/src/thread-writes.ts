@@ -47,7 +47,7 @@ function written({ orgId, mailboxId, ...state }: StateRow) {
 /**
  * Read or unread for this member. On a personal mailbox it also syncs the IMAP \Seen flag; a
  * shared mailbox never changes it (spec: "Sync rules"), and neither does a Google account, where
- * \Seen means Done (ADR 0044). Null when the member cannot see the thread.
+ * \Seen means Done. Null when the member cannot see the thread.
  */
 export async function markRead(writer: ThreadWriter, threadId: string, read: boolean, key: string) {
   const row = await forMember(writer.db, writer.memberId).setThreadState(threadId, { read });
@@ -84,8 +84,8 @@ function enqueueFlag(
 export type TriagePatch = Parameters<ReturnType<typeof forMember>["setThreadState"]>[1];
 
 /**
- * Done and Later for this member (ADR 0007, ADR 0027): Postgres only, except on a Google
- * account, where Done is Gmail's read (ADR 0044). There, a thread that is now done has every
+ * Done and Later for this member: Postgres only, except on a Google
+ * account, where Done is Gmail's read. There, a thread that is now done has every
  * copy marked read, and one taken out of Done (or put in Later) has its newest message marked
  * unread, which is what keeps it out of Done when Gmail is synced again. Nothing is ever moved
  * or deleted. Null when the member cannot see the thread.

@@ -22,7 +22,7 @@ export function useWorkspaces(options: { enabled?: boolean } = {}) {
   return useQuery({ ...workspacesQuery(), enabled: options.enabled ?? true });
 }
 
-/** The workspace this page's URL is in (`/<slug>/…`, ADR 0043); undefined outside one. */
+/** The workspace this page's URL is in (`/<slug>/…`); undefined outside one. */
 export function useCurrentWorkspace() {
   const { workspace: slug } = useParams({ strict: false }) as { workspace?: string };
   const data = useWorkspaces().data;
@@ -71,7 +71,7 @@ export function useOpenMailbox() {
   });
 }
 
-/** Whether this page's workspace is the user's Personal space (ADR 0024). */
+/** Whether this page's workspace is the user's Personal space. */
 export function usePersonalWorkspace() {
   return useCurrentWorkspace()?.kind === "personal";
 }
@@ -79,7 +79,7 @@ export function usePersonalWorkspace() {
 /**
  * A thread opened by link under another workspace than its own (a notification, an agent's link,
  * an old `/all/<id>`) moves to its own: the thread reads as its workspace's member whatever the
- * URL says, so the page around it must be that workspace's too (ADR 0043).
+ * URL says, so the page around it must be that workspace's too.
  */
 export function useThreadInItsWorkspace() {
   const router = useRouter();

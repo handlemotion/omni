@@ -30,15 +30,15 @@ export const keys = {
   /** The signed-in user's sessions on every device (not the accounts on this browser). */
   sessions: () => [...root, "sessions"] as const,
   signInMethods: () => [...root, "sign-in-methods"] as const,
-  /** The addresses this person signs in with (ADR 0014). */
+  /** The addresses this person signs in with. */
   signInEmails: () => [...root, "sign-in-emails"] as const,
-  /** The company a scoped sign-in may ask to join (ADR 0024). */
+  /** The company a scoped sign-in may ask to join. */
   join: () => [...root, "join"] as const,
-  /** Drive sync on this computer, as the desktop shell reports it (ADR 0043). */
+  /** Drive sync on this computer, as the desktop shell reports it. */
   desktopSync: () => [...root, "desktop-sync"] as const,
   /** A sender's avatar picture and its edge, by address or company domain. The same everywhere. */
   senderLogo: (who: string) => [...root, "sender-logo", who] as const,
-  /** An agent asking to connect over OAuth (ADR 0029). */
+  /** An agent asking to connect over OAuth. */
   oauthClients: () => [...root, "oauth-clients"] as const,
 
   org: () => org(),
@@ -59,9 +59,9 @@ export const keys = {
 
   mail: () => mail(),
   mailboxes: () => [...mail(), "mailboxes"] as const,
-  /** Every mailbox the user can open, in every workspace (ADR 0024): where they can send from. */
+  /** Every mailbox the user can open, in every workspace: where they can send from. */
   allMailboxes: () => [...mail(), "mailboxes", "all"] as const,
-  /** Your personal mailboxes in every workspace, with their CRM forwarding (ADR 0032). */
+  /** Your personal mailboxes in every workspace, with their CRM forwarding. */
   forwarding: () => [...mail(), "forwarding"] as const,
   /** Whether Google can be connected here, and the member's connected Gmail accounts. */
   googleAccounts: () => [...mail(), "google-accounts"] as const,
@@ -115,7 +115,7 @@ export const keys = {
   drafts: (where: { threadId: string } | { mailboxId?: string | undefined }) =>
     [...mail(), "drafts", where] as const,
 
-  /** Storage (ADR 0034): every folder listing, Trash and usage. */
+  /** Storage: every folder listing, Trash and usage. */
   storage: () => storage(),
   /** One folder's contents: a space's root, or a folder by id. */
   storageList: (place: { space: string } | { parentId: string }) =>
@@ -133,7 +133,7 @@ export const keys = {
   storageSharing: (nodeId: string) => [...storage(), "sharing", nodeId] as const,
   storageVersions: (nodeId: string) => [...storage(), "versions", nodeId] as const,
   storageComments: (nodeId: string) => [...storage(), "comments", nodeId] as const,
-  /** A file's signature requests (ADR 0043 decision 6). */
+  /** A file's signature requests. */
   storageSignatures: (nodeId: string) => [...storage(), "signatures", nodeId] as const,
   /** A request the signed-in person was asked to sign. */
   signing: (requestId: string) => [...storage(), "signing", requestId] as const,
@@ -142,7 +142,7 @@ export const keys = {
   storageLink: (shareId: string, nodeId: string | undefined) =>
     [...storage(), "link", shareId, nodeId ?? null] as const,
 
-  /** The CRM (ADR 0036): every list, record, timeline and the stages. */
+  /** The CRM: every list, record, timeline and the stages. */
   crm: () => crm(),
   crmCompanies: (q: string) => [...crm(), "companies", { q }] as const,
   crmPeople: (q: string) => [...crm(), "people", { q }] as const,
@@ -159,7 +159,7 @@ export const keys = {
   /** People, companies and deals whose name starts with `q`, for pickers. */
   crmFind: (q: string) => [...crm(), "find", { q }] as const,
   /**
-   * A file's preview (ADR 0040): `image`, `thumbnail`, `text` or `sheets`, by the URL it is read
+   * A file's preview: `image`, `thumbnail`, `text` or `sheets`, by the URL it is read
    * through and the file's `updatedAt`, so a new version is a new key.
    */
   storagePreview: (

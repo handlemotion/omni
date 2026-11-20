@@ -1,4 +1,4 @@
-//! Where a URL the main window is asked to load goes (ADR 0043 decision 2, docs/spec/desktop.md
+//! Where a URL the main window is asked to load goes (docs/spec/desktop.md
 //! "The shell"). Web pages load in the window: only the chosen server's origin holds the remote
 //! capability, so another origin's page or frame can call nothing. They have to load there:
 //! WebKit asks this same hook for every subframe (Stripe Elements), and the app's round trips

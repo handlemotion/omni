@@ -4,7 +4,7 @@ import Security
 @preconcurrency import StorageSync
 
 /// The sync grant: an OAuth access token for `/api/storage/sync` and the refresh token that
-/// renews it (client `omni-desktop`, ADR 0043 decision 5), in the shape the app writes to the
+/// renews it (client `omni-desktop`), in the shape the app writes to the
 /// keychain (`desktopSyncTokensSchema`). Never logged.
 public typealias SyncTokens = DesktopSyncTokens
 

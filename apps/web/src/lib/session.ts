@@ -87,7 +87,7 @@ export function safeRedirect(to: string | undefined) {
 
 /**
  * Whether `to` is served by the Worker, not the app: an agent's sign-in returns to
- * `/api/auth/oauth2/authorize` (ADR 0029). The app's router cannot open it; the browser must.
+ * `/api/auth/oauth2/authorize`. The app's router cannot open it; the browser must.
  */
 export function isServerPath(to: string) {
   return to.startsWith("/api/");

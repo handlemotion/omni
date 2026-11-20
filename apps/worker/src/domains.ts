@@ -61,7 +61,7 @@ export function lookupDns(scope: MailServiceScope, body: DnsLookupBody) {
 }
 
 /**
- * Resumable setup (ADR 0009): a claimed domain counts as added; once it is locked and every
+ * Resumable setup: a claimed domain counts as added; once it is locked and every
  * provider record passed (`domainView(...).verified`), as DNS verified.
  */
 export function advanceDomainStep(db: Db, orgId: string, view: { verified: boolean }) {

@@ -18,7 +18,7 @@ import {
 
 /**
  * Keeps the realtime socket for `orgId`, the active workspace, open while mounted. The lists show
- * only the active workspace's mail (ADR 0014, amended: workspace isolation), so that is the one
+ * only the active workspace's mail (amended: workspace isolation), so that is the one
  * socket that always stays open. Another workspace's opens only while (a) a thread of it is on
  * screen (a link opens it as that workspace's member) or (b) for `SEND_SOCKET_MS` after a send
  * from one of its addresses, and closes once neither holds, so the member is offline there again

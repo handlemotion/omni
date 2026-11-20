@@ -25,8 +25,8 @@ export interface Access {
 }
 
 /**
- * Whether the holder may replace a file's content and see what it replaced (ADR 0043
- * decision 1): a member who reaches it, or an editor, whether the grant is on the file itself or
+ * Whether the holder may replace a file's content and see what it replaced:
+ * a member who reaches it, or an editor, whether the grant is on the file itself or
  * on a folder above it. Unlike `change`, which an editor has only inside the folder they were
  * given: writing a document they were handed is what editing it means.
  */
@@ -34,7 +34,7 @@ export const editsContent = (access: Access) =>
   access.role === "member" || access.role === "editor";
 
 /**
- * Whether the holder may read a file's comments and write their own (ADR 0043 decision 5): a
+ * Whether the holder may read a file's comments and write their own: a
  * member, an editor or a commenter. A viewer, and a link alone, see the file and not what people
  * said about it.
  */
@@ -139,7 +139,7 @@ export const memberDoor: (memberId: string) => Door = (memberId) => {
 
 /**
  * The addresses a grant may be addressed to for this session: every address the person has
- * verified (ADR 0014) or, for a session scoped to a company (ADR 0024 decision 3), only those on
+ * verified or, for a session scoped to a company, only those on
  * that company's claimed domains.
  */
 export async function grantAddresses(ex: Db, userId: string, scopeOrgId?: string | null) {
@@ -266,7 +266,7 @@ export async function storagePolicyOf(ex: Db, orgId: string) {
 export interface LinkVisitor {
   /** The signed-in user, for a link open to the workspace's members. */
   userId?: string | null;
-  /** The session's scope (ADR 0024): with one, only that workspace's links open to members. */
+  /** The session's scope: with one, only that workspace's links open to members. */
   scopeOrgId?: string | null;
   /** Whether the visitor unlocked this password-protected link (see `@omni/crypto` link keys). */
   unlocked?: (link: { shareId: string; passwordHash: string }) => Promise<boolean>;

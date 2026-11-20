@@ -69,7 +69,7 @@ export async function checkRateLimit(
 
 /**
  * 429 `rate_limited` after `rule` refused for `retryAfter` seconds: `retry-after`, the
- * `X-RateLimit-*` headers and `error.limit` (ADR 0038). The refused hit was not counted and the
+ * `X-RateLimit-*` headers and `error.limit`. The refused hit was not counted and the
  * window is full, so nothing remains until it resets.
  */
 export function tooManyRequests(c: Context<AppEnv>, retryAfter: number, rule: RateLimitRule) {

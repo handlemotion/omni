@@ -31,7 +31,7 @@ export interface FolderPosition {
 
 /**
  * Mailboxes the mail service should keep connected: everything not disabled, except a personal
- * inbox whose owner left the org (ADR 0026), which nobody can open until it is given away.
+ * inbox whose owner left the org, which nobody can open until it is given away.
  */
 export function listServiceMailboxes(db: Db) {
   return db
@@ -436,7 +436,7 @@ export async function removeLocations(
 
 /**
  * Reconciles every thread with a copy in this folder. A Google account's INBOX gets this on each
- * connect, so mail read in Gmail before Omni followed its read state is Done here too (ADR 0044).
+ * connect, so mail read in Gmail before Omni followed its read state is Done here too.
  */
 export function reconcileFolder(db: Db, input: { mailboxId: string; path: string }) {
   return db.transaction((tx) =>
@@ -734,7 +734,7 @@ export async function saveMailbox(
     kind: (typeof mailboxes.$inferSelect)["kind"];
     provider: (typeof mailboxes.$inferSelect)["provider"];
     credentialsEnc: string;
-    /** Null only for a personal inbox waiting for an invitee (ADR 0026): no grant yet. */
+    /** Null only for a personal inbox waiting for an invitee: no grant yet. */
     ownerMemberId: string | null;
     /** The account's picture from its provider. Absent keeps the one saved. */
     picture?: string | null;

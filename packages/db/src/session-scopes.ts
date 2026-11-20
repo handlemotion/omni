@@ -8,7 +8,7 @@ import { mailDomains } from "./schema/domains.ts";
 /**
  * The company whose locked domain `address` is on, or null. A lock on a parent counts
  * (`acme.com` covers `ana@mail.acme.com`), the closest lock winning; free-mail domains are never
- * locked, since nobody can publish a challenge on them (ADR 0010).
+ * locked, since nobody can publish a challenge on them.
  */
 export async function companyForAddress(db: Db, address: string) {
   const at = address.lastIndexOf("@");

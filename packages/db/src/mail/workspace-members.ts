@@ -87,7 +87,7 @@ export async function hasSharedGrant(db: Db, orgId: string, mailboxId: string, m
 
 /**
  * The members of `orgId` for whom this mailbox is the only inbox they can open: removing the
- * mailbox would leave them with none (ADR 0026).
+ * mailbox would leave them with none.
  */
 export async function membersStrandedWithout(db: Db, orgId: string, mailboxId: string) {
   const holders = await db

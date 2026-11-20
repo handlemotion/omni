@@ -56,7 +56,7 @@ export const actionFailedEventSchema = z.object({
 export const MAX_PRUNED_THREADS_PER_EVENT = 500;
 
 /**
- * Messages deleted on the server were removed from the index (ADR 0013). `threadIds` are the
+ * Messages deleted on the server were removed from the index. `threadIds` are the
  * threads that lost messages; any of them may be gone too, if it was left empty. The Worker
  * refreshes those threads for open apps and re-runs triage and summary on the ones that remain,
  * whose latest message may have changed. At least once; both are idempotent.
@@ -96,7 +96,7 @@ export const threadsDiscardedEventSchema = z.object({
 
 /**
  * Threads whose state changed in another mail app: a message was read, flagged, archived or moved
- * there, and the index followed (ADR 0013). Sent only when a thread's derived state actually
+ * there, and the index followed. Sent only when a thread's derived state actually
  * changed, so no new mail and nothing for AI. The Worker refreshes those threads for open apps.
  * At least once; idempotent.
  */
@@ -134,8 +134,7 @@ export const messageTargetSchema = z.object({
 });
 
 /**
- * `done`: the flag carries Done to a Google account, where Gmail's read is Omni's Done (ADR
- * 0044). There the mail service runs only these, and drops a plain read or unread: Omni's read
+ * `done`: the flag carries Done to a Google account, where Gmail's read is Omni's Done. There the mail service runs only these, and drops a plain read or unread: Omni's read
  * state is not Gmail's, whatever a Worker from before that rule still queues.
  */
 export const flagTargetSchema = messageTargetSchema.extend({ done: z.literal(true).optional() });
@@ -170,7 +169,7 @@ export const sendPayloadSchema = z.object({
   inReplyToMessageId: z.string().min(1).optional(),
   attachments: z.array(sendAttachmentSchema).max(MAX_SEND_ATTACHMENTS).optional(),
   /**
-   * A hand-off (ADR 0030): the shared conversation (`threads.id`, another mailbox's) this reply
+   * A hand-off: the shared conversation (`threads.id`, another mailbox's) this reply
    * from a personal mailbox takes over. The Worker reads it when the send is cancelled, to undo
    * the hand-off; the mail service ignores it.
    */
@@ -185,7 +184,7 @@ export const sendPayloadSchema = z.object({
     .optional(),
 });
 
-/** A copy of a received message for the mailbox's forwarding address (ADR 0032). */
+/** A copy of a received message for the mailbox's forwarding address. */
 export const forwardCopyPayloadSchema = z.object({
   /** `messages.id` of the received message. */
   messageId: z.string().min(1),
@@ -288,7 +287,7 @@ export const dnsRecordStatusSchema = z.object({
 /**
  * Add `domain` at the provider if it is not there yet, then re-check its DNS. Idempotent. With
  * `add: false` only the records and their current state are read: the Worker asks for those
- * before the domain is locked to an org, and adds it at the provider only after (ADR 0010).
+ * before the domain is locked to an org, and adds it at the provider only after.
  */
 export const provisionDomainBodySchema = z.object({
   /** Already normalized (`normalizeDomain` from `@omni/mail-core/domains`). */
@@ -325,7 +324,7 @@ export const provisionMailboxBodySchema = z.object({
   kind: z.enum(["personal", "shared"]),
   /**
    * Gets an owner grant in `mailbox_access`. Null only for a personal inbox made with an
-   * invitation (ADR 0026): it waits with no owner until the person accepts.
+   * invitation: it waits with no owner until the person accepts.
    */
   ownerMemberId: z.string().min(1).nullable(),
   login: z.discriminatedUnion("provider", [
@@ -348,7 +347,7 @@ export const provisionMailboxResultSchema = z.object({
 });
 
 /**
- * Ask the domain's own nameservers (ADR 0010). The mail service finds the zone's NS records and
+ * Ask the domain's own nameservers. The mail service finds the zone's NS records and
  * queries those servers directly, so an answer reflects a record seconds after it is saved
  * instead of after a public resolver's cache expires. Names must be `domain` or under it.
  */
@@ -405,12 +404,12 @@ export const googleConnectBodySchema = z.object({
   /** Gets an owner grant on the mailbox. */
   memberId: z.string().min(1),
   /**
-   * With it, the account goes where its address belongs (ADR 0024): the company that locked its
+   * With it, the account goes where its address belongs: the company that locked its
    * domain, if this person is a member there, else their Personal space. `orgId` and `memberId`
    * are then ignored. Without it, the account goes to `orgId` as before.
    */
   userId: z.string().min(1).optional(),
-  /** A session scoped to one company (ADR 0024) may connect only into it. */
+  /** A session scoped to one company may connect only into it. */
   scopeOrgId: z.string().min(1).optional(),
   /** Google's one-time authorization code. Never logged. */
   code: z.string().min(1),
@@ -426,7 +425,7 @@ export const googleConnectResultSchema = z.object({
   address: z.string(),
   /** False when an existing mailbox was reconnected (new refresh token). */
   created: z.boolean(),
-  /** The workspace it landed in. Absent from mail services before ADR 0024. */
+  /** The workspace it landed in. Absent from mail services that predate workspaces. */
   orgId: z.string().optional(),
 });
 
@@ -436,8 +435,8 @@ export const googleDisconnectBodySchema = z.object({
   memberId: z.string().min(1),
   mailboxId: z.string().min(1),
   /**
-   * With it, the owner is this person's member in the mailbox's own workspace, wherever that is
-   * (ADR 0024); `orgId` and `memberId` are then ignored.
+   * With it, the owner is this person's member in the mailbox's own workspace, wherever that is;
+   * `orgId` and `memberId` are then ignored.
    */
   userId: z.string().min(1).optional(),
 });
@@ -457,7 +456,7 @@ export const hostedDisconnectResultSchema = z.object({ mailboxId: z.string().min
 export type HostedDisconnectBody = z.infer<typeof hostedDisconnectBodySchema>;
 
 /**
- * Removing any mailbox of an org from Omni, whatever its provider (ADR 0026). Same body and
+ * Removing any mailbox of an org from Omni, whatever its provider. Same body and
  * answer as the hosted path; the Worker checks the member is an owner or admin.
  */
 export const MAILBOX_DISCONNECT_PATH = "/mailbox/disconnect";

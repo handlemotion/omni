@@ -1,4 +1,4 @@
-/* A Markdown file as a page (ADR 0043): the blocks Tiptap renders, in the app's tokens. */
+/* A Markdown file as a page: the blocks Tiptap renders, in the app's tokens. */
 @reference "../../../styles.css";
 
 .document-page {

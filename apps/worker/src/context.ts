@@ -40,7 +40,7 @@ export interface AppEnv {
     shared?: SharedAccess;
     /** Set beside `shared`: the signed-in person who opened it, or null for a visitor. */
     linkUser?: SessionUser | null;
-    /** Set under `/api/storage/sync` only: who a desktop sync token acts for (ADR 0043). */
+    /** Set under `/api/storage/sync` only: who a desktop sync token acts for. */
     syncCaller?: SyncCaller;
   };
 }
@@ -92,19 +92,19 @@ export interface SessionUser {
   id: string;
   email: string;
   /**
-   * The one organization this session reaches when it was opened with a company's address
-   * (ADR 0024), or null when it reaches every workspace the user belongs to.
+   * The one organization this session reaches when it was opened with a company's address,
+   * or null when it reaches every workspace the user belongs to.
    */
   scopeOrgId: string | null;
 }
 
 /**
  * The session's user and their member, or null when signed out. `member` is null for a user who
- * belongs to no organization yet. With `threadId` (thread routes, ADR 0014) it is the user's member
+ * belongs to no organization yet. With `threadId` (thread routes) it is the user's member
  * in that thread's org when one of their members can see it, so a thread opened from the
  * cross-workspace list reads and changes as that member without switching the active org;
  * otherwise, and without `threadId`, it is the member in the workspace the request names
- * (`omni-workspace`, ADR 0043), else in the session's active org (or the user's first org).
+ * (`omni-workspace`), else in the session's active org (or the user's first org).
  * Both lookups run in one round trip.
  */
 export const resolveSession: (
@@ -140,7 +140,7 @@ export const resolveSession: (
 
 /**
  * `userId`'s member in `orgId`, or null. Without `orgId`, their oldest company membership, or their
- * Personal space when they are in no company (ADR 0024). A session scoped to a company
+ * Personal space when they are in no company. A session scoped to a company
  * (`scopeOrgId`) finds only its member there, whatever `orgId` asks for.
  */
 export const findMember: (
@@ -175,7 +175,7 @@ export const findMember: (
 
 /**
  * Every member the session may act as: the user's member in each workspace they belong to, or
- * only the one in the company the session is scoped to (ADR 0024).
+ * only the one in the company the session is scoped to.
  */
 export async function findMemberIds(db: Db, userId: string, scopeOrgId?: string | null) {
   const rows = await db
@@ -209,7 +209,7 @@ function memberMiddleware(threadParam?: string) {
 export const requireMember = memberMiddleware();
 
 /**
- * `requireMember` for `/threads/:id/*`: the user's member who can see thread `:id` (ADR 0014),
+ * `requireMember` for `/threads/:id/*`: the user's member who can see thread `:id`,
  * else the active member, and the route answers 404 for a thread none of them can see.
  */
 export const requireThreadMember = memberMiddleware("id");
@@ -273,7 +273,7 @@ async function requestedMailbox(c: {
 
 /**
  * A request that names a mailbox runs as the user's member who can open it, in its own
- * workspace (ADR 0024: write from any address you can open), as thread routes do (ADR 0014).
+ * workspace (write from any address you can open), as thread routes do.
  * Only mailboxes `forUser` shows count, so a scoped session stays in its company. One it cannot
  * see leaves the active member in place, and the route answers as before.
  */

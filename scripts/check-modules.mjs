@@ -4,8 +4,8 @@ import { dirname, join, normalize } from "node:path";
 
 /**
  * The modules and what each may use. Mail's tables predate `<module>_*` and keep their names: a
- * rename is a destructive migration that buys nothing (ADR 0035 decision 3). Mail's Worker
- * folder calls Storage's door to save an attachment to drive (ADR 0039 decision 3).
+ * rename is a destructive migration that buys nothing. Mail's Worker
+ * folder calls Storage's door to save an attachment to drive.
  */
 export const MODULES = {
   mail: { uses: [], workerUses: ["storage"], prefixed: false },
@@ -250,7 +250,7 @@ const MESSAGES = {
     `names another module's tables (${tables.join(", ")}); read them through that module's surface file`,
   barrel: (names) =>
     `imports ${names.slice(0, 5).join(", ")}${names.length > 5 ? ` and ${names.length - 5} more` : ""} through a barrel from a module it does not declare in \`uses\``,
-  naming: (table) => `table ${table} must be named <module>_* (ADR 0035 decision 3)`,
+  naming: (table) => `table ${table} must be named <module>_*`,
 };
 
 /**

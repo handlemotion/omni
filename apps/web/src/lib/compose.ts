@@ -296,7 +296,7 @@ export interface HandoffVariables extends Recipients {
 }
 
 /**
- * A reply to a shared conversation from the member's personal mailbox (ADR 0030): it is sent and
+ * A reply to a shared conversation from the member's personal mailbox: it is sent and
  * answered there, and the shared conversation is assigned to them and resolved. No pending
  * bubble: the sent mail lands in their own mailbox's thread, not this one.
  */

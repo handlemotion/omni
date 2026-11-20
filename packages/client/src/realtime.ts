@@ -27,7 +27,7 @@ export type NotificationEvent =
 
 /**
  * What the Worker's realtime Durable Object broadcasts: the events typed from its `broadcast`,
- * plus the helpdesk events from `@omni/contracts` (ADR 0021) and notifications.
+ * plus the helpdesk events from `@omni/contracts` and notifications.
  */
 export type RealtimeEvent =
   | Parameters<RealtimeObject["broadcast"]>[1]
@@ -41,8 +41,8 @@ export type RealtimeStatus = "connecting" | "open" | "closed";
 /**
  * What an app sends on the socket. `presence`: this member is viewing or replying in a
  * conversation, or `left` it; the Durable Object adds the member and mailbox and tells the
- * inbox's other members (ADR 0021). `file.presence`: this socket has a Drive file open in its
- * editor, or closed it; those who see the file hear it (ADR 0043 decision 3). `doc.append`: one
+ * inbox's other members. `file.presence`: this socket has a Drive file open in its
+ * editor, or closed it; those who see the file hear it. `doc.append`: one
  * record for the live document of the file this socket edits (`storageDocEventSchema`).
  */
 export type RealtimeClientMessage =

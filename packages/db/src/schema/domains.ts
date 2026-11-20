@@ -14,7 +14,7 @@ export interface MailDomainRecord {
 }
 
 /**
- * A domain an org set up mailboxes on (ADR 0007). Unique across orgs: the first org to claim a
+ * A domain an org set up mailboxes on. Unique across orgs: the first org to claim a
  * domain owns it, so no other org can create mailboxes on it through the provider API.
  */
 export const mailDomains = pgTable(
@@ -33,7 +33,7 @@ export const mailDomains = pgTable(
     verifiedAt: timestamptz("verified_at"),
     checkedAt: timestamptz("checked_at"),
     /**
-     * When a check last found Omni's challenge gone from DNS (ADR 0010). Set: sending from the
+     * When a check last found Omni's challenge gone from DNS. Set: sending from the
      * domain pauses; the lock stays. Cleared when the challenge verifies again.
      */
     dnsLostAt: timestamptz("dns_lost_at"),
@@ -56,7 +56,7 @@ export interface DomainRecordDiagnostic {
   suggestion?: string;
 }
 
-/** What the last DNS check of a claim saw (ADR 0011), shown until the next one. */
+/** What the last DNS check of a claim saw, shown until the next one. */
 export interface DomainCheck {
   checkedAt: string;
   zone: string | null;
@@ -77,7 +77,7 @@ export interface DomainCheck {
 export const domainClaimStatus = pgEnum("domain_claim_status", ["pending", "verified", "released"]);
 
 /**
- * An org's claim on a domain (ADR 0010). Many orgs may hold a pending claim on one domain; the
+ * An org's claim on a domain. Many orgs may hold a pending claim on one domain; the
  * first to publish its challenge in DNS locks the domain (its `mail_domains` row, with the same
  * id). Pending claims expire. One row per (org, domain): claiming again rotates the challenge.
  */

@@ -42,7 +42,7 @@ import {
 } from "../../lib/workspaces.ts";
 
 /**
- * The app shell, inside the workspace the URL names by slug (ADR 0043): every route below needs
+ * The app shell, inside the workspace the URL names by slug: every route below needs
  * the user's member there. Entering it makes it this tab's workspace (every API call names it)
  * and drops anything cached for another. A slug the user has no workspace for is a path from
  * before workspaces were in the URL (`/inbox`), sent on under the session's workspace, or else

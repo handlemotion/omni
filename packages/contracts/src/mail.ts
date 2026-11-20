@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * `POST /api/mail/attachments/:id/save-to-drive` (ADR 0039 decision 3): copies the attachment
+ * `POST /api/mail/attachments/:id/save-to-drive`: copies the attachment
  * once into the folder `parentId` (My files or Shared), or My files' root without one. The answer
  * is Storage's `{ node }` (`StorageNodeResponse`), 201.
  */

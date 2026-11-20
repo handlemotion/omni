@@ -3,8 +3,7 @@
 [Domain Connect](https://www.domainconnect.org) lets a DNS host add a service's records in one
 click. Omni offers "Set up automatically" on the DNS page only when the domain's DNS host serves
 the standard (a `_domainconnect` TXT on the zone) **and** has onboarded our template. Otherwise
-the page shows the records to add by hand, with the host's own steps when it is one we know
-(ADR 0011).
+the page shows the records to add by hand, with the host's own steps when it is one we know.
 
 | Template      | Used for                                        | Variables                |
 | ------------- | ----------------------------------------------- | ------------------------ |

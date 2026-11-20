@@ -49,10 +49,10 @@ export interface MailboxConfig {
   address: string;
   /** Shared mailboxes keep read state per person in Postgres; we never touch their `\Seen`. */
   kind: "personal" | "shared";
-  /** `gmail` for a Google account, where Gmail's read is Omni's Done (ADR 0044). */
+  /** `gmail` for a Google account, where Gmail's read is Omni's Done. */
   provider?: string;
   /**
-   * Index only mail from this date on (ADR 0045). Each folder syncs from its oldest message dated
+   * Index only mail from this date on. Each folder syncs from its oldest message dated
    * on or after it; everything older stays on the server. Unset: every message.
    */
   syncSince?: Date;

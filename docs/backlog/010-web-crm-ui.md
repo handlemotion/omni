@@ -1,4 +1,4 @@
-# ADR 0039 CRM features have a backend but no UI
+# CRM features have a backend but no UI
 
 |          |                                              |
 | -------- | -------------------------------------------- |
@@ -17,7 +17,7 @@
 
 ## Problem
 
-Save an attachment to Drive, CRM participants in the conversation sidebar (ADR 0039 §1), and per-mailbox CRM activity sharing are built and tested in the Worker but unreachable.
+Save an attachment to Drive, CRM participants in the conversation sidebar, and per-mailbox CRM activity sharing are built and tested in the Worker but unreachable.
 
 ## Evidence
 

@@ -28,7 +28,7 @@ type ThreadListQuery = InferRequestType<Api["threads"]["$get"]>["query"];
 export type Lane = NonNullable<ThreadListQuery["lane"]>;
 /**
  * Which threads a list shows: `inbox` (not done, not in Later), `later`, `done`, `archive`, or
- * `all` (ADR 0007, ADR 0027). Not `queue`: the API still takes Later's old name from old tabs.
+ * `all`. Not `queue`: the API still takes Later's old name from old tabs.
  */
 export type ThreadView = Exclude<NonNullable<ThreadListQuery["view"]>, "queue">;
 
@@ -53,7 +53,7 @@ export interface ThreadFilter {
 type ConversationListQuery = InferRequestType<Api["conversations"]["$get"]>["query"];
 
 /**
- * A shared inbox's helpdesk views (ADR 0021), in navigation order. `mine` is open or pending
+ * A shared inbox's helpdesk views, in navigation order. `mine` is open or pending
  * and assigned to you; `sla_at_risk` is open with a due time near or past, soonest first; `all`
  * is every conversation (for a tag on its own). The API's `snoozed` view is left out: the web
  * no longer snoozes (Later replaces it), and that view stays only for older clients.

@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Sync's own sign-in (ADR 0043 decision 5): the first-party `omni-desktop` client with PKCE.
+/// Sync's own sign-in: the first-party `omni-desktop` client with PKCE.
 /// `begin` keeps the verifier in the App Group container and answers the URL to open in the app
 /// window, where the person is already signed in; the server redirects to
 /// `omni://oauth/callback?code=&state=`, and `finish` trades that code for the tokens.

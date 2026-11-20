@@ -1,7 +1,7 @@
 import type { DesktopSyncStatus } from "@omni/client";
 
 /**
- * Drive sync's first run on a Mac (ADR 0049): the app turns sync on for every workspace once,
+ * Drive sync's first run on a Mac: the app turns sync on for every workspace once,
  * so the Omni folder appears without a trip to Settings → Drive.
  *
  * `fresh`: never run on this computer. `signing-in`: the first workspace was switched on, which

@@ -157,7 +157,7 @@ async function threadBackfill(db: Db, row: ForwardContext, ownMessageId: string)
 
 /**
  * A user's forwarding settings: one entry per personal mailbox they own, in every organization
- * they belong to (a personal space and company workspaces alike, ADR 0024). With `scopeOrgId`,
+ * they belong to (a personal space and company workspaces alike). With `scopeOrgId`,
  * only that organization's. The owner grant and the org match are the same checks `forUser` runs.
  */
 export function ownedPersonalMailbox(userId: string, scopeOrgId?: string | null) {

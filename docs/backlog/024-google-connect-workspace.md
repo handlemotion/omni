@@ -15,7 +15,7 @@
 
 ## Problem
 
-The signed cookie stores only `memberId`, and the callback resolves the member from the session's active org. With two tabs in two workspaces, connecting from the other one fails as "expired" or lands the inbox in the wrong workspace (ADR 0043 workspace-in-the-url).
+The signed cookie stores only `memberId`, and the callback resolves the member from the session's active org. With two tabs in two workspaces, connecting from the other one fails as "expired" or lands the inbox in the wrong workspace (the workspace is in the URL, not the session).
 
 ## Evidence
 

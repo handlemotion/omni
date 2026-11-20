@@ -1,4 +1,4 @@
-// `omni-sync`: the app's side of Drive sync on macOS (ADR 0043, amended). The Tauri shell runs it
+// `omni-sync`: the app's side of Drive sync on macOS (amended). The Tauri shell runs it
 // from `Contents/MacOS/` for each sync command and reads one line of JSON back. It registers and
 // removes the File Provider domain, runs the sync sign-in, writes `sync.json`, and signals the
 // working set. It holds no restricted entitlement (macOS kills a bare tool that claims one), so

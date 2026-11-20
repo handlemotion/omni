@@ -16,7 +16,7 @@
 
 ## Problem
 
-CI (`Checks`) only runs the `@omni/db` e2e suite; worker, mail, web and client e2e run nightly in `Full`. Nov 13–16 the nightly failed in `client.e2e.test.ts` (`organization.list()` expected `[org.id]`, got two orgs, probably the Personal space from ADR 0024), and Turbo stopped every other e2e task. Nov 17–18 it failed starting the stack (S2 on port 8090, fixed by #477; no nightly has confirmed it yet).
+CI (`Checks`) only runs the `@omni/db` e2e suite; worker, mail, web and client e2e run nightly in `Full`. Nov 13–16 the nightly failed in `client.e2e.test.ts` (`organization.list()` expected `[org.id]`, got two orgs, probably the Personal space), and Turbo stopped every other e2e task. Nov 17–18 it failed starting the stack (S2 on port 8090, fixed by #477; no nightly has confirmed it yet).
 
 ## Evidence
 

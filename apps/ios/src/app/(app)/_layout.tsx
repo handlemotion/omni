@@ -12,7 +12,7 @@ import { useWorkspace } from "@/lib/workspace.ts";
 import { colors } from "@/theme/tokens.ts";
 
 /**
- * Everything past sign-in: the modules (ADR 0035), each a stack of its own, one on screen at a
+ * Everything past sign-in: the modules, each a stack of its own, one on screen at a
  * time, under one shell: a top bar (☰, the module pill, the workspace), a bottom bar (search and
  * the module's main action) and the menu that slides down between them, drawn on each module's
  * root page (`ModuleRoot`) so pushed pages cover it natively. No tab bar.

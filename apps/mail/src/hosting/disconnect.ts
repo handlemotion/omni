@@ -29,7 +29,7 @@ export const disconnectHostedMailbox: (
 };
 
 /**
- * Removes any mailbox of the org from Omni (ADR 0026), whatever its provider: stops it, revokes
+ * Removes any mailbox of the org from Omni, whatever its provider: stops it, revokes
  * what Omni holds (a hosted app password, a Google token; an IMAP login is only forgotten) and
  * deletes Omni's index of it. The mail stays wherever it lives. Idempotent.
  */

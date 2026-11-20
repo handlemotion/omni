@@ -6,7 +6,7 @@ import { createLogger, type Logger } from "../log.ts";
 const EXPIRY_MAX_BATCHES = 20;
 
 /**
- * Ends every signed contract whose `expires_on` is before today, UTC (ADR 0039 decision 4).
+ * Ends every signed contract whose `expires_on` is before today, UTC.
  * Batches until one finds nothing more or `EXPIRY_MAX_BATCHES` ran; each batch is retried on a
  * blip, and a contract a batch already ended is not ended again. `now` is for tests.
  */

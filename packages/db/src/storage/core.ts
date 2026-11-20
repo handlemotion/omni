@@ -44,7 +44,7 @@ export interface StorageNode {
   trashedAt: Date | null;
   /** Set on a locked file: see `lock.ts`. */
   lockedAt: Date | null;
-  /** The workspace's sync revision at the node's last change (ADR 0043). */
+  /** The workspace's sync revision at the node's last change. */
   revision: number;
   /** Goes up each time the file's bytes are replaced in place. */
   contentVersion: number;

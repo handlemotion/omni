@@ -1,6 +1,5 @@
 // swift-tools-version: 6.0
-// The File Provider extension's Swift code that needs no extension to run (ADR 0043,
-// docs/spec/desktop.md "The File Provider extension"): the wire types generated from
+// The File Provider extension's Swift code that needs no extension to run (docs/spec/desktop.md "The File Provider extension"): the wire types generated from
 // @omni/contracts, and the pure rules the extension applies to them. The Xcode project that
 // builds OmniFileProvider.appex links these; `swift test` checks them on any Mac.
 

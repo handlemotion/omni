@@ -147,7 +147,7 @@ Each thread returns `{ id, title, url, text, metadata }` (the ChatGPT shape):
 
 - `text`: the conversation as plain text, one block per message: sender, recipients, date, then
   its body. The body is `clean_text`, with quoted history and signatures already stripped
-  (mail-core `stripReply`, ADR 0003), plus a forwarded message's text. That is our biggest token
+  (mail-core `stripReply`), plus a forwarded message's text. That is our biggest token
   saving: a 20-message thread is new text only, not 20 nested copies. Reading the quoted history
   back from the raw message (`detail: "full"`) is left for later: it needs a MIME parse in the
   Worker, and no question in the eval has needed it yet.
@@ -190,8 +190,8 @@ where role = 'from' and sent_at > now() - interval '3 months' and address <> all
   select address from mailboxes) group by 1, 2 order by 3 desc limit 10
 ```
 
-**Isolation is enforced by Postgres, not by parsing SQL.** This is the access that ADR 0005
-named as the trigger for row-level security ("another service gets direct SQL access"). The
+**Isolation is enforced by Postgres, not by parsing SQL.** Row-level security was left off the app's tables because it
+turns full-text search into a sequential scan; direct SQL access is the point to add a wall. The
 design keeps `forMember` as the app's path and adds a database-level wall for this one client:
 
 1. **Its own role.** The tool connects as `omni_agent` through a second Hyperdrive config. It has
@@ -211,7 +211,7 @@ design keeps `forMember` as the app's path and adds a database-level wall for th
    but cannot mint a signature, so it can only see what the person sees.
 4. **Fast where it matters.** Comparisons on ids, timestamps and text equality are leakproof, so
    Postgres still pushes them into the views' indexes. Full-text match is not leakproof
-   (ADR 0005's finding), so `agent.search(q)` does it inside the definer function, with the
+   (which is why RLS was left off), so `agent.search(q)` does it inside the definer function, with the
    grant applied first: the GIN index stays in use.
 5. **A parser for good errors, not for security.** The Worker parses the statement
    (`pgsql-ast-parser`): one `SELECT`, `agent` relations only, known functions. It rejects the
@@ -242,7 +242,7 @@ Each field sets an absolute value, so a retried call writes the same state:
 | `read`                                  | `markRead` in `thread-writes.ts`, shared with the route (syncs IMAP on personal inboxes) |
 | `archived: true`                        | `archiveThread` in `thread-writes.ts`, shared with the route          |
 | `lane`                                  | **new**: `resortThread`, a person's re-sort (`triage_source = person`) plus a `triage_feedback` row; no route uses it yet |
-| `status`, `assignee`, `priority`, tags  | the conversation change functions (ADR 0021), shared inboxes only    |
+| `status`, `assignee`, `priority`, tags  | the conversation change functions, shared inboxes only    |
 
 Returns one result per change: `ok` with the fields applied, or an error for that change alone.
 Every change is checked against billing (`inGoodStanding`: a read-only workspace still reads), the
@@ -318,10 +318,10 @@ Claude and ChatGPT ask for every advertised scope. A tool that needs a scope the
 Refresh tokens rotate, last 30 days, and have no reuse window (`refreshTokenReuseInterval: 0`).
 
 **Who the token acts as.** The token names the user and the consented workspace scope: every
-workspace, or one. A session opened with a company address (ADR 0024, `session_scopes`) can only
+workspace, or one. A session opened with a company address (`session_scopes`) can only
 consent for that company. A scoped session cannot widen itself through OAuth. Each call reads as
 `forUser(userId, scopeOrgId)`, and each write acts as the member whose grant shows the thread, as
-the thread routes already do (ADR 0014). Membership is checked live on every call, so removing
+the thread routes already do. Membership is checked live on every call, so removing
 someone from a workspace cuts their agent off at once, before the token expires.
 
 **Screens (web).** OAuth needs two small screens: consent (see "Decided", item 3) and "Connected apps" in Settings to see and revoke grants. Login
@@ -398,12 +398,12 @@ Tests prove it is correct. An eval proves it is useful.
 - **Real clients:** connect Claude Code (`claude mcp add --transport http`) and MCP Inspector to
   the local stack; claude.ai and ChatGPT once it is on a public URL.
 
-## Decisions this needs (ADR 0029)
+## Decisions this needs
 
 - The v1 spec says "the model has no tools and cannot act" and lists "ask your inbox" as v2. This
   opens Omni to the person's own agents, which have tools. The spec's rule still holds for our
   triage model.
-- ADR 0005 named direct SQL access as the time to add database-level isolation. `query` does that
+- Direct SQL access is the time to add database-level isolation. `query` does that
   for its own role only, with `security_barrier` views and signed grants, instead of RLS on the
   app's tables. Search stays fast for the app and for the agent.
 - OAuth client registration: CIMD from allowlisted hosts plus Dynamic Client Registration, not

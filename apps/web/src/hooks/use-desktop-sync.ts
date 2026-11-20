@@ -44,7 +44,7 @@ function writePhase(phase: SyncSetupPhase) {
 }
 
 /**
- * Sync's first run (ADR 0049): on the Mac app's first launch, every workspace is switched on once,
+ * Sync's first run: on the Mac app's first launch, every workspace is switched on once,
  * so the Omni folder appears in Finder without a visit to Settings → Drive.
  */
 export function useDesktopSyncSetup() {

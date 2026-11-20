@@ -1,6 +1,6 @@
 # @omni/desktop rules
 
-Extends the root `AGENTS.md`. The design is `docs/spec/desktop.md` and ADR 0043: read both first.
+Extends the root `AGENTS.md`. The design is `docs/spec/desktop.md`: read it first.
 
 - Tauri 2. The main window loads the Omni server's origin; the only bundled page is `src/` (server
   picker, offline screen). It never calls `/api`, and no product logic lives in Rust or Swift.
@@ -23,7 +23,7 @@ Extends the root `AGENTS.md`. The design is `docs/spec/desktop.md` and ADR 0043:
   chosen origin (`REMOTE_PERMISSIONS` in `src-tauri/src/server.rs`). Adding a command means
   listing it in `src-tauri/build.rs` and granting its `allow-<command>` there too.
 - Rust: `cargo fmt`, `cargo clippy --all-targets` with every Clippy lint denied, no `unsafe`.
-  Tests only for pure logic, named for the bug they catch (ADR 0043, "Consequences").
+  Tests only for pure logic, named for the bug they catch ("Consequences").
 - Config is build-time env (`.env.example`); nothing Handlemotion-specific in code.
 - Run it: `pnpm --filter @omni/desktop dev` (Linux needs WebKitGTK 4.1, see Tauri's
   prerequisites). `OMNI_DESKTOP_ORIGIN=http://127.0.0.1:8787` after `pnpm stack:serve` opens the

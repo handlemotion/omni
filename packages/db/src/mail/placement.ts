@@ -58,7 +58,7 @@ export interface MisplacedMailbox {
 }
 
 /**
- * Mailboxes in the wrong workspace (ADR 0024 decision 2), both ways:
+ * Mailboxes in the wrong workspace, both ways:
  * - Personal-space mailboxes that belong to a company now: their domain, or a parent of it, is
  *   locked by a company their owner is a member of. The closest lock wins. A mailbox whose owner
  *   is not a member there stays until they join.
@@ -86,7 +86,7 @@ export async function listMisplacedMailboxes(db: Db) {
     join ${members} cm on cm.organization_id = c.org_id and cm.user_id = ps.user_id
     union all
     -- A company's Gmail account whose address no company has locked (gmail.com, an unclaimed
-    -- domain) is its owner's own: it goes to their Personal space (ADR 0024 step 3). Gmail only:
+    -- domain) is its owner's own: it goes to their Personal space. Gmail only:
     -- an IMAP mailbox added by the CLI may have no claimed domain and still be the company's.
     select m.id, m.org_id, m.address, m.provider, m.credentials_enc,
       ps.org_id as target_org_id, pm.id as target_member_id
@@ -157,7 +157,7 @@ export async function firstSyncDone(db: Db, mailboxId: string) {
 }
 
 /**
- * Copies Omni-only thread state (read, deferred, done; ADR 0013 keeps it nowhere else) from one
+ * Copies Omni-only thread state (read, deferred, done; kept nowhere else) from one
  * copy of a mailbox to another, for `toMemberId`. A thread matches by the provider's thread id
  * or by a message both copies hold. Merged into whatever the new copy's sync already wrote: read
  * if either says so, the later done mark, the new copy's deferral if it has one. Merging is

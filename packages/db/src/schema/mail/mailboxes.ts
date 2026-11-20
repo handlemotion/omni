@@ -65,7 +65,7 @@ export const mailboxes = pgTable(
     senderName: text("sender_name"),
     /**
      * A shared mailbox's Better Auth team: its members are who can see it, and `mailbox_access`
-     * is derived from them (ADR 0008). Null for personal mailboxes, and for a shared mailbox
+     * is derived from them. Null for personal mailboxes, and for a shared mailbox
      * until `ensureMailboxTeam` runs. Same org as the mailbox, enforced where it is read.
      */
     teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
@@ -76,7 +76,7 @@ export const mailboxes = pgTable(
     autoAssign: boolean("auto_assign").notNull().default(false),
     autoAssignLastMemberId: text("auto_assign_last_member_id"),
     /**
-     * A CRM's forwarding address (ADR 0032): sends BCC it, received mail is forwarded to it per
+     * A CRM's forwarding address: sends BCC it, received mail is forwarded to it per
      * `forward_scope`. Null is off. Personal mailboxes only. `forward_since` is when it was last
      * turned on: nothing older is forwarded, so a sync or import never floods the CRM.
      */
@@ -94,7 +94,7 @@ export const mailboxes = pgTable(
 );
 
 /**
- * A personal inbox made with an invitation, waiting for the person to accept (ADR 0026). It sits
+ * A personal inbox made with an invitation, waiting for the person to accept. It sits
  * orphaned (no grant, not synced) until then; accepting gives it to the new member. Gone with the
  * invitation or the mailbox.
  */

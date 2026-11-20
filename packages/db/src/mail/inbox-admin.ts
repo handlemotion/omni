@@ -174,7 +174,7 @@ export async function reserveInvitationInbox(
 }
 
 /**
- * Gives the new member the inboxes made with their invitation (ADR 0026), and records it. Safe to
+ * Gives the new member the inboxes made with their invitation, and records it. Safe to
  * run twice: giving an inbox to its owner again changes nothing. An inbox someone else was given
  * in the meantime stays theirs.
  */

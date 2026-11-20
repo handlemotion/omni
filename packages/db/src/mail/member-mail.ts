@@ -234,7 +234,7 @@ async function resortLanded(tx: Executor, memberId: string, threadId: string, re
 }
 
 /**
- * A person files a thread in `lane` (ADR 0029: an agent's `triage` does it for them): the triage
+ * A person files a thread in `lane` (an agent's `triage` does it for them): the triage
  * becomes theirs (`triage_source = person`, which always files), describes the thread's latest
  * message so a newer one re-triages it, and the re-sort is kept in `triage_feedback` to tune the
  * model. Reaffirming the person's lane after new mail only moves the marker to that mail. Returns

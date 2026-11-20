@@ -19,7 +19,7 @@
     "not_found_handling": "single-page-application",
     // `/assets/*`: the build's hashed files, so one the deployed build lacks is a 404, not
     // index.html (src/build-assets.ts).
-    // `/mcp` and `/.well-known/*`: the MCP endpoint and its OAuth discovery (ADR 0029).
+    // `/mcp` and `/.well-known/*`: the MCP endpoint and its OAuth discovery.
     "run_worker_first": [
       "/assets/*",
       "/api/*",
@@ -39,7 +39,7 @@
     "APP_NAME": "Omni",
     // Web app origin for invitation links; empty means the same origin as BETTER_AUTH_URL.
     "WEB_APP_URL": "",
-    // Who may sign up (ADR 0018): "open" (empty means this) or "invitation" for a private install.
+    // Who may sign up: "open" (empty means this) or "invitation" for a private install.
     "SIGN_UP": "",
     "MAIL_SERVICE_URL": "http://localhost:8788",
     "SYSTEM_MAIL_FROM": "",
@@ -48,7 +48,7 @@
     "JEV_MODEL": "",
     "TYPESAFE_API_URL": "",
     "EXPO_PUSH_ENABLED": "false",
-    // Billing (ADR 0015). Off unless the STRIPE_SECRET_KEY secret is set; then the monthly price
+    // Billing. Off unless the STRIPE_SECRET_KEY secret is set; then the monthly price
     // id and the allowance are required. Amounts live in Stripe; these are ids and numbers only.
     // "off" turns billing off with the Stripe settings left in place.
     "BILLING": "",
@@ -58,18 +58,18 @@
     "STRIPE_PUBLISHABLE_KEY": "",
     "BILLING_TRIAL_DAYS": "",
     "BILLING_TRIAGE_ALLOWANCE": "",
-    // Storage on the plan (ADR 0034): GB included, the metered price for extra GB, and the event
+    // Storage on the plan: GB included, the metered price for extra GB, and the event
     // name of the Stripe meter behind it. All three or none (none: no allowance, nothing metered).
     "BILLING_STORAGE_INCLUDED_GB": "",
     "STRIPE_PRICE_STORAGE": "",
     "STRIPE_STORAGE_METER_EVENT": "",
     "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
-    // Storage (ADR 0034). Largest file in bytes (empty: 5 GB); the most a Personal space and any
+    // Storage. Largest file in bytes (empty: 5 GB); the most a Personal space and any
     // one workspace may store, in GB (empty: no cap).
     "STORAGE_MAX_FILE_BYTES": "",
     "STORAGE_PERSONAL_GB": "",
     "STORAGE_MAX_GB": "",
-    // Live co-editing on S2 (ADR 0043): the basin's API base ending in /v1, and its name. Empty:
+    // Live co-editing on S2: the basin's API base ending in /v1, and its name. Empty:
     // documents edit with checked saves only. The S2_ACCESS_TOKEN secret goes with them.
     "S2_BASIN_URL": "",
     "S2_BASIN": "",
@@ -111,7 +111,7 @@
       "bucket_name": "omni-mail",
       "preview_bucket_name": "omni-mail-dev",
     },
-    // Storage's files (ADR 0034). Its own bucket: these cannot be rebuilt from the mail host,
+    // Storage's files. Its own bucket: these cannot be rebuilt from the mail host,
     // so never give it a lifecycle rule that expires objects.
     {
       "binding": "STORAGE_BUCKET",
@@ -126,7 +126,7 @@
       "preview_bucket_name": "omni-desktop-dev",
     },
   ],
-  // Storage thumbnails (ADR 0053): images are resized and re-encoded as WebP by Cloudflare
+  // Storage thumbnails: images are resized and re-encoded as WebP by Cloudflare
   // Images, part of any Cloudflare account; `wrangler dev` and the e2e suites resize locally.
   "images": { "binding": "IMAGES" },
   // AI jobs: the Worker produces them on new mail and consumes them itself. Jobs that use up
@@ -145,7 +145,7 @@
       { "queue": "omni-ai-dlq", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 10 },
     ],
   },
-  // Per-org limits on domain setup (ADR 0010). `namespace_id` is any number unique in the
+  // Per-org limits on domain setup. `namespace_id` is any number unique in the
   // account; `period` is 10 or 60 seconds.
   "ratelimits": [
     {
@@ -159,11 +159,11 @@
       "simple": { "limit": 30, "period": 60 },
     },
   ],
-  // Every 6 hours: re-checks every verified domain's ownership record; a lost one pauses sending
-  // (ADR 0010). Daily: reads every workspace's subscriptions back from Stripe (ADR 0015; nothing
+  // Every 6 hours: re-checks every verified domain's ownership record; a lost one pauses sending.
+  // Daily: reads every workspace's subscriptions back from Stripe (nothing
   // with billing off), and deletes accounts that never joined or created a workspace and sat
   // unused for 30 days; Storage's Trash older than 30 days is purged, its usage recounted and
-  // deleted workspaces' files swept (ADR 0034). The daily one must match DAILY_CRON in
+  // deleted workspaces' files swept. The daily one must match DAILY_CRON in
   // src/index.ts. Every minute: the helpdesk's clock, and uploads nobody completed in 24 hours
   // are aborted.
   "triggers": { "crons": ["23 */6 * * *", "47 3 * * *", "* * * * *"] },
@@ -177,7 +177,7 @@
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["ReplayGuard", "Realtime"] },
-    // Auto-checks a domain's DNS while its setup page is open (ADR 0011).
+    // Auto-checks a domain's DNS while its setup page is open.
     { "tag": "v2", "new_sqlite_classes": ["DomainWatch"] },
     // Rate limits on abuse-prone routes (src/rate-limiter.ts).
     { "tag": "v3", "new_sqlite_classes": ["RateLimiter"] },

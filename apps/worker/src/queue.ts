@@ -118,7 +118,7 @@ function recordFromDeadLetterQueue(db: Db, queue: string, source: string, messag
  * `changed`: mail was merged in or pruned while the model ran, so the done marker was not set; the job
  *   runs again on the thread as it is now.
  * `triage_paused`: the workspace used its monthly allowance; the thread records until when.
- * `billing_inactive`: no plan in good standing, so no AI at all (ADR 0015).
+ * `billing_inactive`: no plan in good standing, so no AI at all.
  * `ingesting`: a shared inbox's message whose own ingest has not run yet; the job runs again shortly.
  */
 export type AiJobOutcome =

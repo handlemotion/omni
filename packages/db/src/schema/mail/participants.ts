@@ -6,7 +6,7 @@ import { threads } from "./messages.ts";
 /**
  * Every address a thread's messages were from, to or cc, one row each. The index `threadsWith`
  * looks threads up by: `messages.to` and `cc` are JSON and cannot serve it. Derived from the
- * messages, so a re-sync rebuilds it (ADR 0013). `address` is `normalizeAddress`'s form and
+ * messages, so a re-sync rebuilds it. `address` is `normalizeAddress`'s form and
  * `domain` is `domainOf` it (`@omni/mail-core/addresses`); an address without a domain has no row.
  */
 export const threadParticipants = pgTable(

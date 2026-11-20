@@ -175,7 +175,7 @@ export function useForward() {
 
 /**
  * `mutate({ threadId, mailboxId, to, text, cc?, bcc?, messageId?, attachments? })`: replies from
- * the member's personal mailbox and hands the shared conversation off to them (ADR 0030).
+ * the member's personal mailbox and hands the shared conversation off to them.
  */
 export function useHandoff() {
   return useKeyedMutation(handoffMutation(useQueryClient()));
@@ -183,7 +183,7 @@ export function useHandoff() {
 
 /**
  * Where a reply on this inbox can go from: the inbox itself first, then, on a shared inbox, the
- * member's own connected personal mailboxes in its workspace, for a hand-off (ADR 0030).
+ * member's own connected personal mailboxes in its workspace, for a hand-off.
  */
 export function useReplyFromMailboxes(inbox: { id: string; address: string }) {
   const all = useAllMailboxes().data ?? [];
@@ -230,7 +230,7 @@ export function useDrafts(mailbox?: string) {
 const AUTOSAVE_MS = 800;
 
 /**
- * A shared draft for one composer (ADR 0021: drafts live in Postgres, everyone on the inbox sees
+ * A shared draft for one composer (drafts live in Postgres, everyone on the inbox sees
  * them). `draft` is the saved one this composer resumes, if any. `save(content)` autosaves
  * (creating the draft on the first change); a teammate's newer save wins and comes back through
  * `onConflict`. `discard()` deletes it; `id` is what a send passes as `draftId`.

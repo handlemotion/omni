@@ -45,7 +45,7 @@ export const storageLinkAccess = pgEnum("storage_link_access", [
 ]);
 /**
  * In this order: `max()` over a person's grants is the strongest one. A `commenter` reads and
- * writes comments (ADR 0043 decision 5).
+ * writes comments.
  */
 export const storageGrantRole = pgEnum("storage_grant_role", ["viewer", "commenter", "editor"]);
 
@@ -68,7 +68,7 @@ export const storageNodes = pgTable(
     space: storageSpace("space").notNull(),
     /**
      * Whose My files this is in; null in Shared. No cascade: removing a member must move their
-     * files first (ADR 0034 decision 1), and a delete that skipped that fails instead of losing
+     * files first, and a delete that skipped that fails instead of losing
      * them. Deleting the workspace still cascades through `org_id`.
      */
     ownerMemberId: text("owner_member_id").references(() => members.id),
@@ -101,7 +101,7 @@ export const storageNodes = pgTable(
     /** Set on the node that was moved to Trash; everything inside it is in Trash with it. */
     trashedAt: timestamptz("trashed_at"),
     /**
-     * The workspace's sync revision (ADR 0043) at the last change to the row, from
+     * The workspace's sync revision at the last change to the row, from
      * `storage_sync_state` in the same transaction. 0 for a row last changed before sync existed.
      */
     revision: bigint("revision", { mode: "number" }).notNull().default(0),
@@ -157,7 +157,7 @@ export const storageNodes = pgTable(
 );
 
 /**
- * A workspace's sync counter (ADR 0043). Every change to a node takes the next revision from
+ * A workspace's sync counter. Every change to a node takes the next revision from
  * here in its own transaction; the row stays locked until it commits, so revisions commit in
  * order and a change feed read up to one never skips an earlier one.
  */
@@ -206,7 +206,7 @@ export const storageTombstones = pgTable(
 );
 
 /**
- * Content a file used to have (ADR 0043 decision 1): one row per replaced content, kept 30 days
+ * Content a file used to have: one row per replaced content, kept 30 days
  * from `replaced_at`. The file's current content stays on its node. A version owns its object as
  * a node does, so whatever deletes a file deletes its versions' objects with it.
  */
@@ -245,8 +245,8 @@ export const storageVersions = pgTable(
 );
 
 /**
- * Who wrote a file's current content, and when, once it has replaced an earlier one (ADR 0043
- * decision 1). No row: the content is the one the file was created with. A table of its own, as
+ * Who wrote a file's current content, and when, once it has replaced an earlier one.
+ * No row: the content is the one the file was created with. A table of its own, as
  * `storage_upload_targets` is, so that the code reading `storage_nodes` and `storage_uploads`
  * before these existed keeps working beside them.
  */
@@ -271,7 +271,7 @@ export const storageContents = pgTable(
 );
 
 /**
- * A locked file (ADR 0036 decision 6): it cannot be renamed, moved, trashed or deleted for good,
+ * A locked file: it cannot be renamed, moved, trashed or deleted for good,
  * and a folder holding one cannot be trashed or leave its drive. A row is the lock; only a file
  * is locked, which `storage/lock.ts` checks. Only an owner or admin unlocks. Deleting the node,
  * or the workspace, takes the lock with it.
@@ -297,7 +297,7 @@ export const storageLocks = pgTable(
 );
 
 /**
- * A cluster's chosen glyph in Drive's sidebar (`STORAGE_FOLDER_ICONS`, ADR 0047); no row is the
+ * A cluster's chosen glyph in Drive's sidebar (`STORAGE_FOLDER_ICONS`); no row is the
  * folder glyph. Its own table, not a column on `storage_nodes`, so no query that reads or writes
  * nodes depends on it. Deleting the node takes the glyph with it.
  */
@@ -470,7 +470,7 @@ export const storageUploadParts = pgTable(
 );
 
 /**
- * The file an upload is a new version of (ADR 0043 decision 1). An upload with no row here
+ * The file an upload is a new version of. An upload with no row here
  * becomes a new file. Completing one with a row replaces that file's content and sets the
  * upload's `node_id` to it. Goes with the upload. When the file is deleted first, the row stays
  * with `node_id` null: the upload was a replacement whose target is gone, and must never
@@ -499,7 +499,7 @@ export const storageUsage = pgTable("storage_usage", {
   bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
 });
 
-/** The most a workspace stored in a usage month: what is billed (ADR 0034 decision 7). */
+/** The most a workspace stored in a usage month: what is billed. */
 export const storagePeaks = pgTable(
   "storage_peaks",
   {
@@ -513,7 +513,7 @@ export const storagePeaks = pgTable(
 
 /**
  * Workspaces whose subscription Stripe showed with a payment method: the one fact "no overage
- * without a card" needs that the subscription row lacks (ADR 0034 decision 7). Written from
+ * without a card" needs that the subscription row lacks. Written from
  * Stripe's webhook and by the daily job; a row counts only for the subscription it names.
  */
 export const storageOverage = pgTable("storage_overage", {

@@ -1,7 +1,6 @@
 # Omni modules: the tools a company runs on
 
-Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md` · Decisions: ADR 0035, ADR 0036,
-ADR 0037
+Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md`
 
 ## Summary
 
@@ -17,13 +16,13 @@ same address a person signs in with.
 
 ## Where each module is
 
-| Module           | What it is                                                | State (Nov 16, 2026)                                       | Decided in    |
-| ---------------- | --------------------------------------------------------- | ---------------------------------------------------------- | ------------- |
-| Mail             | Inboxes, shared inboxes, helpdesk, AI triage, MCP         | In production                                              | spec v1, ADRs |
-| Storage          | My files, Shared, sharing by address and by link          | 5 of 6 layers merged (#296 to #304); the web screens left  | ADR 0034      |
-| CRM              | Companies, people, deals, contracts                       | Specified: `docs/spec/crm.md`                              | ADR 0036      |
-| Client dashboard | Clients sign in, get deliverables, sign contracts         | Direction set, not scheduled                               | ADR 0037      |
-| Calendar         | Events on the mail host over CalDAV                       | Not started; needs a spike first                           | future ADR    |
+| Module           | What it is                                                | State (Nov 16, 2026)                                       |
+| ---------------- | --------------------------------------------------------- | ---------------------------------------------------------- |
+| Mail             | Inboxes, shared inboxes, helpdesk, AI triage, MCP         | In production                                              |
+| Storage          | My files, Shared, sharing by address and by link          | 5 of 6 layers merged (#296 to #304); the web screens left  |
+| CRM              | Companies, people, deals, contracts                       | Specified: `docs/spec/crm.md`                              |
+| Client dashboard | Clients sign in, get deliverables, sign contracts         | Direction set, not scheduled                               |
+| Calendar         | Events on the mail host over CalDAV                       | Not started; needs a spike first                           |
 
 ## Principles
 
@@ -36,7 +35,7 @@ same address a person signs in with.
 
 ## The shape of a module
 
-ADR 0035 decision 3 fixes it. For the CRM it looks like this:
+Every module has this layout. For the CRM it looks like this:
 
 ```
 packages/db/src/schema/crm.ts        tables, all named crm_*
@@ -50,7 +49,7 @@ apps/web/src/components/crm/         screens (Rodrigo)
 ```
 
 Storage has this shape in `@omni/db`, `@omni/contracts` and the Worker.
-Mail predates it and moved into it in place (ADR 0035 "Rollout"): its tables keep their names.
+Mail predates it and moved into it in place: its tables keep their names.
 
 ## What is shared
 
@@ -84,7 +83,7 @@ not before.
 ## How modules enrich each other
 
 The join key is the email address, and for companies the domain. Nothing below needs a sync
-job, and each row obeys ADR 0035 decision 5: a reference, read through the far side's door.
+job, and each row is a reference, read through the far side's door.
 
 | Link                    | What a person sees                                                                                  | How                                                                                           | When           |
 | ----------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------- |
@@ -96,7 +95,7 @@ job, and each row obeys ADR 0035 decision 5: a reference, read through the far s
 | Mail → Storage          | Save an attachment to Storage.                                                                      | A Worker route calling both doors; the bytes are copied, since mail objects can be rebuilt     | After CRM v1   |
 | Storage → Mail          | Attach a file from Storage; send a large file as a link.                                            | Compose accepts a Storage node as an attachment source; Storage's share link                   | After CRM v1   |
 | Storage → CRM           | A file shared with a client's address shows on their record.                                        | Grantee address equals a person's address, at read time                                       | Later          |
-| CRM → client            | The client signs in and sees their project, deliverables and contracts.                             | ADR 0037                                                                                      | Later          |
+| CRM → client            | The client signs in and sees their project, deliverables and contracts.                             | A deal guest, by address, through `forUser`                                                                | Later          |
 | CRM → your phone        | The company's contacts in your own address book.                                                    | One-way CardDAV export by the mail service                                                    | Later          |
 | Calendar → CRM          | Meetings with a person on their timeline.                                                           | Attendee addresses, at read time                                                              | With Calendar  |
 | Every module → search   | One search box over mail, files and records.                                                        | Each module's surface offers a search; the Worker merges them                                 | Later          |
@@ -104,8 +103,8 @@ job, and each row obeys ADR 0035 decision 5: a reference, read through the far s
 ## DAV
 
 Purelymail offers WebDAV, CardDAV and CalDAV at no extra cost, so it was the first thing to
-check as a way to connect the modules. It is not that, and ADR 0035 decision 6 says why from
-Purelymail's own documentation:
+check as a way to connect the modules. It is not that, and Purelymail's own documentation says
+why:
 
 - **WebDAV** caps a file at 50 MB and knows nothing of sharing, links or quotas. Storage stays
   on R2.
@@ -139,7 +138,7 @@ of everything it touches.
 
 - M1 and S1 change modules that have other owners. Each is its own PR on `main`, small and
   useful alone, and is coordinated with whoever holds that module's open stack. Storage's
-  remaining layer (ADR 0034 layer 6, the web screens) is untouched by any of this.
+  remaining layer (the web screens) is untouched by any of this.
 - C1 to C5 are one stack. What each layer must prove is in `docs/spec/crm.md` "Plan".
 
 **Next, in the order we would take them**
@@ -148,22 +147,21 @@ of everything it touches.
 2. Custom fields, then saved views.
 3. Mail ↔ Storage: save an attachment, attach from Storage.
 4. Storage's Worker files move into the module layout; mail's follow when quiet.
-5. The client dashboard and signing (ADR 0037), once its open points are answered.
+5. The client dashboard and signing, once its open points are answered.
 6. Tasks, imports (CSV, Attio), CardDAV export, the Calendar spike.
 
 ## Risks and open questions
 
 | Risk                                                       | Why it matters                                           | Answer                                                                                         |
 | ---------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Modules in one Worker grow it past a size or startup limit | A deploy fails for every module at once.                 | Watch the bundle in CI. A module's surface can move behind a service binding (ADR 0035).       |
+| Modules in one Worker grow it past a size or startup limit | A deploy fails for every module at once.                 | Watch the bundle in CI. A module's surface can move behind a service binding.       |
 | The boundary check is skipped "just this once"             | Access gets decided in two places.                       | It runs in `pnpm check`, and CI requires it. Debt is a list that only shrinks.                 |
-| Two module stacks both add a migration                     | Drizzle's journal conflicts.                             | The later layer regenerates (ADR 0035 decision 7). Never hand-merged.                          |
+| Two module stacks both add a migration                     | Drizzle's journal conflicts.                             | The later layer regenerates. Never hand-merged.                          |
 | CRM and Storage rows are the truth                         | A lost row is lost work, unlike a lost mail index.       | Database backups are now a product requirement. Restore is tested before CRM holds real data.  |
-| Everyone sees every record                                 | Fine at five people, wrong at fifty.                     | Named as the first change a larger customer asks for (ADR 0036).                               |
+| Everyone sees every record                                 | Fine at five people, wrong at fifty.                     | Named as the first change a larger customer asks for.                               |
 
 **Open questions**
 
-- [ ] The AGENTS.md text in ADR 0035 decision 7: approve, or edit.
-- [ ] CRM web screens: built now from references, as Storage's were (ADR 0034 decision 8), or
+- [ ] CRM web screens: built now from references, as Storage's were, or
       after Figma frames exist. It does not block C1 to C4.
 - [ ] Who owns M1 and S1: the CRM stack's author, or the mail and Storage owners.

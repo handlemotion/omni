@@ -5,7 +5,7 @@ import { keys } from "../../lib/query-keys.ts";
 import { leaveWorkspace } from "../../lib/current-workspace.ts";
 
 /**
- * Ask to join the company a sign-in is scoped to (ADR 0024). With nothing to join (accepted, or
+ * Ask to join the company a sign-in is scoped to. With nothing to join (accepted, or
  * never scoped), the cached session is dropped and the inbox opens, whose guard reads it again.
  */
 export const Route = createFileRoute("/_authed/join")({

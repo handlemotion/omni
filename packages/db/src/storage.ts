@@ -222,7 +222,7 @@ export function memberStorage(db: Db, memberId: string) {
 /**
  * The grant door. What was shared with the person by address, in any workspace: browse and
  * download, with a commenter grant comment too, and with an editor grant upload, create folders,
- * rename, move and trash inside the granted folder. `scopeOrgId` is the session's scope (ADR 0024): with one, only grants to an
+ * rename, move and trash inside the granted folder. `scopeOrgId` is the session's scope: with one, only grants to an
  * address on that company's claimed domains count.
  */
 export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) {

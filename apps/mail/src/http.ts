@@ -87,9 +87,9 @@ export interface HttpDeps {
   health(): Promise<{ ok: boolean } & Record<string, unknown>>;
   /** Onboarding's domain and mailbox setup. Absent: those routes answer 404. */
   provisioner?: Provisioner;
-  /** Connects a Google account from an OAuth code (ADR 0023). Absent: that route answers 404. */
+  /** Connects a Google account from an OAuth code. Absent: that route answers 404. */
   connectGoogle?(input: GoogleConnectBody): Promise<GoogleConnectResult>;
-  /** Disconnects a Google account (ADR 0023). Absent: that route answers 404. */
+  /** Disconnects a Google account. Absent: that route answers 404. */
   disconnectGoogle?(input: GoogleDisconnectBody): Promise<{ mailboxId: string }>;
   /** Disconnects an Omni-hosted mailbox, keeping its mail at the host. Absent: 404. */
   disconnectHosted?(input: HostedDisconnectBody): Promise<{ mailboxId: string }>;

@@ -3,7 +3,7 @@ import { requireMember } from "../lib/guards.ts";
 import { isServerPath, takeSignInRedirect } from "../lib/session.ts";
 import { homeWorkspace, workspaceHome, workspacesWith } from "../lib/workspaces.ts";
 
-/** `/` opens the session's workspace's Inbox (ADR 0043). */
+/** `/` opens the session's workspace's Inbox. */
 export const Route = createFileRoute("/")({
   beforeLoad: async ({ context, location }) => {
     const client = context.queryClient;

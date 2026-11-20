@@ -56,7 +56,7 @@ function useCreateInbox(person: InboxOwner | undefined) {
 }
 
 /**
- * Creates a mailbox on one of the workspace's domains (the setup route, ADR 0017): a shared one,
+ * Creates a mailbox on one of the workspace's domains (the setup route): a shared one,
  * or `person`'s personal inbox that only they will see. A personal inbox starts as their sign-in
  * address when its domain is one of these. On the workspace's own mail host it needs the
  * mailbox's existing password and servers, as in setup.
@@ -173,7 +173,7 @@ export function NewMailboxDialog(props: {
 }
 
 /**
- * In a Personal space, its owner creates their own inboxes on its domains (ADR 0042): `open()`
+ * In a Personal space, its owner creates their own inboxes on its domains: `open()`
  * shows the dialog, `dialog` renders it. In a company that is People's, for owners and admins.
  */
 export function useOwnInboxCreation(domainId?: string) {

@@ -29,7 +29,7 @@ export function openWorkspace(id: string | null) {
   resetCache(id, isWorkspaceList);
 }
 
-/** Every workspace the user belongs to, their Personal space included (ADR 0024). */
+/** Every workspace the user belongs to, their Personal space included. */
 export const workspacesQuery = () =>
   queryOptions({
     queryKey: keys.workspaces(),

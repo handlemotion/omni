@@ -50,9 +50,9 @@ export type NotFound = { status: "not_found" };
 export type Forbidden = { status: "forbidden" };
 export type InvalidName = { status: "invalid_name" };
 export type TooDeep = { status: "too_deep" };
-/** A locked file, or a folder holding one, refuses the change (ADR 0036 decision 6). */
+/** A locked file, or a folder holding one, refuses the change. */
 export type Locked = { status: "locked" };
-/** The node changed since the revision the caller read (ADR 0043); nothing was changed. */
+/** The node changed since the revision the caller read; nothing was changed. */
 export type VersionConflict = { status: "version_conflict" };
 
 /** What a sync client read: a change is refused when the node has moved on since. */

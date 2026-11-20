@@ -26,8 +26,8 @@ function loadRemoteImages(frame: HTMLIFrameElement | null) {
 /**
  * A message's sanitized HTML, as the sender laid it out. Sandboxed with scripts off; same-origin
  * so its images can send the session cookie (see `messageHtmlUrl`), which also lets this page
- * read the document's height and swap in its remote images, through the image proxy, as it opens
- * (ADR 0041). The frame grows to fit its content, so the conversation scrolls as one page instead
+ * read the document's height and swap in its remote images, through the image proxy, as it opens.
+ * The frame grows to fit its content, so the conversation scrolls as one page instead
  * of a box inside a box.
  */
 export function FullMessage(props: {

@@ -11,10 +11,10 @@ const STALL_MS = 60_000;
 export interface UploadRequest {
   file: File;
   place: StoragePlace;
-  /** The file this becomes a new version of (ADR 0043); absent, it becomes a file in `place`. */
+  /** The file this becomes a new version of; absent, it becomes a file in `place`. */
   replaces?: string | undefined;
   /**
-   * With `replaces`, a checked save (ADR 0043 decision 3): the file's `contentVersion` this
+   * With `replaces`, a checked save: the file's `contentVersion` this
    * content was made from. Refused `409 version_conflict` if someone saved since.
    */
   ifContentVersion?: number | undefined;

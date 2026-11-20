@@ -1,7 +1,7 @@
 name: iOS release
 
-# Builds the iOS app from its tag and uploads it to App Store Connect, where TestFlight picks it up
-# (ADR 0051): apps/ios/scripts/release-testflight.sh, the same script a Mac runs. release.yml calls
+# Builds the iOS app from its tag and uploads it to App Store Connect, where TestFlight picks it up:
+# apps/ios/scripts/release-testflight.sh, the same script a Mac runs. release.yml calls
 # it when a release pull request raises the iOS version; run it by hand (Actions, iOS release, Run
 # workflow) for another build of a tag. The build number is one above the highest App Store
 # Connect holds. About 20 minutes of macOS, so only for a release.

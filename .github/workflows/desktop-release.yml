@@ -1,7 +1,7 @@
 name: Desktop release
 
-# Builds, signs, notarizes and publishes one macOS release of the desktop app from its tag
-# (ADR 0051): apps/desktop/scripts/release-macos.sh, the same script a Mac runs. release.yml calls
+# Builds, signs, notarizes and publishes one macOS release of the desktop app from its tag:
+# apps/desktop/scripts/release-macos.sh, the same script a Mac runs. release.yml calls
 # it when a release pull request raises the desktop version; run it by hand (Actions, Desktop
 # release, Run workflow) to retry a tag. About 25 minutes of macOS, so only for a release.
 #
