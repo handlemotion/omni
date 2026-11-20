@@ -292,6 +292,10 @@ export function refusalText(refusal: { status: string }) {
       return "The value must be a whole number of minor units (cents).";
     case "invalid_body":
       return "A note needs some text, up to 20,000 characters.";
+    case "invalid_title":
+      return "A task needs a title of 1 to 500 characters.";
+    case "invalid_assignee":
+      return "That assignee is not in this workspace.";
     case "invalid_action":
       return "That change does not apply to this kind of record.";
     default:

@@ -219,13 +219,14 @@ Still out: custom fields, saved views, several pipelines, merging duplicates, im
 
 ## Agents
 
-Three tools on the MCP server, through the same member door:
+Four tools on the MCP server, through the same member door:
 
 | Tool         | Scope       | Does                                                                                     |
 | ------------ | ----------- | ---------------------------------------------------------------------------------------- |
 | `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, owner, archived, stage kind or close date. Compact rows. |
-| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, recent notes and thread ids.                  |
-| `crm_write`  | `crm:write` | Adds or changes a record, archives or restores it, moves a stage, adds a note, or changes many at once. Never deletes. |
+| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, open tasks, recent notes and thread ids.                  |
+| `crm_tasks`  | `crm:read`  | Lists tasks by status, assignee, due (overdue, upcoming, none), record or title words.    |
+| `crm_write`  | `crm:write` | Adds or changes a record or task, archives or restores, moves a stage, adds a note, or changes many at once. Never deletes. |
 
 Thread ids from `crm_fetch` go to the mail `fetch` tool, which applies mail's own access. Note
 text is written by teammates, and names and titles can come from mail: the server's
@@ -236,6 +237,10 @@ instructions keep telling agents to treat it as data.
   Personal space has no CRM, so a token that reaches only one gets a tool error.
 - Every row carries `kind`, `id`, `workspace` and a `url` on the web app
   (`/<workspace slug>/crm/people/<id>`, `…/companies/<id>`, `…/deals/<id>`), which agents cite.
+- Tasks: `crm_tasks` lists them (open by default, soonest due first) with their record,
+  assignee, due time and a `url` (`/<slug>/crm/tasks/<id>`); `crm_fetch` gives each record its
+  open tasks; `crm_write`'s `task` adds one (assigned to the caller unless `assignee` says
+  otherwise), changes it, moves it to another record, or completes it with `done: true`.
 - `crm_fetch` takes `records: [{ kind, id }]`. Its thread ids come from
   `forUser(user, grant scope).threadsWith`, so they are threads the person can open.
 - Every row carries its `owner` (name and address, or null); a deal's also carries

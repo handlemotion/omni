@@ -8,6 +8,7 @@ import {
   teammate,
   type CrmWorkspace,
 } from "../crm.ts";
+import { taskRowSchema } from "../crm-tasks.ts";
 import type { ToolContext } from "../server.ts";
 
 const recordRefSchema = z.object({
@@ -22,6 +23,7 @@ export const outputSchema = z.object({
   person: personRowSchema.optional(),
   company: companyRowSchema.optional(),
   deal: dealRowSchema.optional(),
+  task: taskRowSchema.optional(),
   note: z.object({ id: z.string(), record: recordRefSchema, at: z.string() }).optional(),
   bulk: z
     .object({

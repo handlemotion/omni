@@ -8,6 +8,7 @@ import { dealSchema, writeDeal } from "../crm-write/deal.ts";
 import { noteSchema, writeNote } from "../crm-write/note.ts";
 import { companySchema, personSchema, writeCompany, writePerson } from "../crm-write/records.ts";
 import { outputSchema } from "../crm-write/shared.ts";
+import { taskSchema, writeTask } from "../crm-write/task.ts";
 import { result, toolError } from "../format.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
@@ -17,6 +18,7 @@ const inputSchema = z.object({
   deal: dealSchema.optional(),
   note: noteSchema.optional(),
   bulk: bulkSchema.optional(),
+  task: taskSchema.optional(),
   workspace: z
     .string()
     .min(1)
@@ -26,7 +28,7 @@ const inputSchema = z.object({
 
 type Input = z.infer<typeof inputSchema>;
 
-const WRITES = ["person", "company", "deal", "note", "bulk"] as const;
+const WRITES = ["person", "company", "deal", "note", "bulk", "task"] as const;
 
 function run(context: ToolContext, workspace: CrmWorkspace, input: Input) {
   if (input.person) return writePerson(context, workspace, input.person);
@@ -34,13 +36,16 @@ function run(context: ToolContext, workspace: CrmWorkspace, input: Input) {
   if (input.deal) return writeDeal(context, workspace, input.deal);
   if (input.note) return writeNote(context, workspace, input.note);
   if (input.bulk) return writeBulk(context, workspace, input.bulk);
+  if (input.task) return writeTask(context, workspace, input.task);
   return Promise.resolve({ error: "Nothing to write." });
 }
 
 async function write(context: ToolContext, input: Input) {
   const given = WRITES.filter((k) => input[k]);
   if (given.length !== 1) {
-    return toolError("Give exactly one of `person`, `company`, `deal`, `note` or `bulk` per call.");
+    return toolError(
+      "Give exactly one of `person`, `company`, `deal`, `note`, `bulk` or `task` per call.",
+    );
   }
   const wait = await context.rateLimit("actions", input.bulk ? 5 : 1);
   if (wait) return toolError(`Too many changes. Try again in ${wait} seconds.`);
@@ -78,7 +83,7 @@ export function registerCrmWrite(server: McpServer, context: ToolContext) {
     {
       title: "Change the CRM",
       description:
-        "Add or change CRM records, or add a note. Give exactly one of `person`, `company`, `deal`, `note` or `bulk`. With `id` it changes that record, only the fields given; without, it adds one (adding a person whose address is already known returns that person). A deal's `stage` moves it; a won deal is a running project. `owner` sets who owns a record. `archived: true` archives a record and `false` restores it; nothing is ever deleted. `bulk` makes one change (archive, restore, owner or stage) to many records of one kind. Address edits (`add_emails`, `remove_emails`, `primary_email`) need `id`. Records come back with their `url` to cite.",
+        "Add or change CRM records, or add a note. Give exactly one of `person`, `company`, `deal`, `note`, `bulk` or `task`. With `id` it changes that record, only the fields given; without, it adds one (adding a person whose address is already known returns that person). A deal's `stage` moves it; a won deal is a running project. `owner` sets who owns a record. `archived: true` archives a record and `false` restores it; nothing is ever deleted. `bulk` makes one change (archive, restore, owner or stage) to many records of one kind. `task` adds, changes or completes (`done: true`) a task, on a record or none. Address edits (`add_emails`, `remove_emails`, `primary_email`) need `id`. Records come back with their `url` to cite.",
       inputSchema,
       outputSchema,
       annotations: {

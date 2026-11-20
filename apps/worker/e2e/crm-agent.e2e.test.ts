@@ -219,3 +219,82 @@ describe("records", () => {
     ).toMatch(/exactly one/);
   });
 });
+
+interface Task {
+  id: string;
+  title: string;
+  url: string;
+  done: boolean;
+  due_at: string | null;
+  record: { kind: string; id: string; name: string | null } | null;
+  assignee: { address: string } | null;
+}
+
+describe("tasks", () => {
+  test("an agent adds a task on a deal for a teammate, finds it, and completes it", async () => {
+    const { org, ben, agent, crm } = await workspace("agenttasks");
+    const deal = await crm.createDeal({ name: "Calpolli launch" });
+    if (deal.status !== "ok") throw new Error("seed");
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+
+    const added = await call<{ task: Task }>(agent, "crm_write", {
+      task: {
+        title: "Send the kickoff deck",
+        assignee: ben.email,
+        due_at: yesterday,
+        record: { kind: "deal", id: deal.deal.id },
+      },
+    });
+    const { task } = added;
+    expect(task.assignee?.address).toBe(ben.email);
+    expect(task.record).toEqual({ kind: "deal", id: deal.deal.id, name: "Calpolli launch" });
+    expect(new URL(task.url).pathname).toBe(`/${org.slug}/crm/tasks/${task.id}`);
+    expect((await crm.task(task.id)).status).toBe("ok");
+
+    const overdue = await call<{ tasks: Task[] }>(agent, "crm_tasks", {
+      assignee: ben.email,
+      due: "overdue",
+    });
+    expect(overdue.tasks.map((t) => t.id)).toEqual([task.id]);
+    const mine = await call<{ tasks: Task[] }>(agent, "crm_tasks", { assignee: "me" });
+    expect(mine.tasks).toEqual([]);
+    const fetched = await call<{ deals: { tasks: Task[] }[] }>(agent, "crm_fetch", {
+      records: [{ kind: "deal", id: deal.deal.id }],
+    });
+    expect(fetched.deals[0]!.tasks.map((t) => t.title)).toEqual(["Send the kickoff deck"]);
+
+    const completed = await call<{ task: Task }>(agent, "crm_write", {
+      task: { id: task.id, done: true },
+    });
+    expect(completed.task.done).toBe(true);
+    expect((await call<{ tasks: Task[] }>(agent, "crm_tasks", {})).tasks).toEqual([]);
+    const done = await call<{ tasks: Task[] }>(agent, "crm_tasks", { status: "done" });
+    expect(done.tasks.map((t) => t.id)).toEqual([task.id]);
+    const stored = await crm.task(task.id);
+    expect(stored.status === "ok" && stored.task.completedAt).toBeInstanceOf(Date);
+  });
+
+  test("tasks stay in their workspace, and reading them needs crm:read", async () => {
+    const ours = await workspace("agenttaskours");
+    const theirs = await workspace("agenttasktheirs");
+    const hidden = await theirs.crm.createTask({ title: "Their secret task" });
+    if (hidden.status !== "ok") throw new Error("seed");
+
+    expect((await call<{ tasks: Task[] }>(ours.agent, "crm_tasks", {})).tasks).toEqual([]);
+    expect(
+      await refusal(ours.agent, "crm_write", { task: { id: hidden.task.id, done: true } }),
+    ).toMatch(/No record with that id/);
+    const still = await theirs.crm.task(hidden.task.id);
+    expect(still.status === "ok" && still.task.completedAt).toBeNull();
+    expect(
+      await refusal(ours.agent, "crm_write", { task: { title: "x", assignee: theirs.ana.email } }),
+    ).toMatch(/not in this workspace/);
+
+    const mailOnly = await connectAgent(stack.worker.url, ours.ana.jar, {
+      scope: "openid mail:read",
+    });
+    await expect(mailOnly.callTool({ name: "crm_tasks", arguments: {} })).rejects.toThrow(
+      /403|scope/i,
+    );
+  });
+});
