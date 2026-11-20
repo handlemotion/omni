@@ -19,6 +19,7 @@ export function useListView(
   const set = useSetListSearch();
   const viewKey = JSON.stringify(search);
   const [state, setState] = useState({ viewKey, keys: EMPTY });
+  if (state.viewKey !== viewKey) setState({ viewKey, keys: EMPTY });
   const picked = state.viewKey === viewKey ? state.keys : EMPTY;
   const keys = useMemo(
     () => new Set(rows.filter((row) => picked.has(row.id)).map((row) => row.id)),

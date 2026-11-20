@@ -128,6 +128,25 @@ test("bulk archive moves the selected companies to the archived view and restore
   await expect.poll(() => names(page)).toEqual(["Acme", "Globex", "Initech"]);
 });
 
+test("a selection is dropped when a filter changes the view, and stays gone when the filter is removed", async () => {
+  const team = await workspace("bulk-view");
+  for (const name of ["Acme", "Globex"]) await team.api("POST", "/companies", { name });
+  const page = await team.page("/crm/companies");
+  await pick(page, "Acme");
+  await page.getByText("1 selected").waitFor();
+
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Archived" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("archived")).toBe("only");
+  await page.getByRole("button", { name: "Remove Archived filter" }).click();
+  await page.getByRole("row", { name: /Acme/ }).waitFor();
+
+  expect(await page.getByText("1 selected").count()).toBe(0);
+  expect(await page.getByRole("row", { name: /Acme/ }).getByRole("checkbox").isChecked()).toBe(
+    false,
+  );
+});
+
 test("the company filter narrows the people list and removing its chip lists everyone again", async () => {
   const team = await workspace("filter");
   const { company } = await team.api("POST", "/companies", { name: "Initech" });
