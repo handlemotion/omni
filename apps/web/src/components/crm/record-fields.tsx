@@ -1,6 +1,6 @@
 import { parseDate, type CalendarDate } from "@internationalized/date";
 import { useMemo, useState, type ReactNode } from "react";
-import { IconCalendar, IconX } from "@/components/icons/central";
+import { IconCalendar } from "@/components/icons/central";
 import { Button as AriaButton } from "react-aria-components/Button";
 import { Group } from "react-aria-components/Group";
 import { cn } from "cn";
@@ -116,7 +116,7 @@ export function ChoiceValue<T extends { id: string; name: string }>(props: {
  */
 export function MoneyValue(props: {
   label: string;
-  /** The amount as shown, formatted. */
+  /** The amount as shown, formatted without its currency, which the picker beside it shows. */
   value: string | null;
   currency: string;
   onSaveAmount: (minor: number | null) => void;
@@ -163,17 +163,33 @@ export function DayValue(props: {
   value: string | null;
   onSave: (day: string | null) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const value = props.value ? parseDate(props.value) : null;
+  const clear = props.value && (
+    <Button
+      intent="plain"
+      size="sm"
+      className="w-full"
+      onPress={() => {
+        setOpen(false);
+        props.onSave(null);
+      }}
+    >
+      Clear date
+    </Button>
+  );
   return (
     <FieldRow label={props.label}>
       <DatePicker
         aria-label={props.label}
         value={value}
+        isOpen={open}
+        onOpenChange={setOpen}
         onChange={(next: CalendarDate | null) => {
           const day = next?.toString() ?? null;
           if (day !== props.value) props.onSave(day);
         }}
-        popover={{ placement: "bottom start" }}
+        popover={{ placement: "bottom start", footer: clear }}
         className="min-w-0 flex-1"
       >
         <Group className="flex">
@@ -193,16 +209,6 @@ export function DayValue(props: {
           </AriaButton>
         </Group>
       </DatePicker>
-      {props.value && (
-        <Button
-          intent="plain"
-          size="sq-xs"
-          aria-label={`Clear ${props.label.toLowerCase()}`}
-          onPress={() => props.onSave(null)}
-        >
-          <IconX />
-        </Button>
-      )}
     </FieldRow>
   );
 }

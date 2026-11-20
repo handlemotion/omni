@@ -10,8 +10,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createContext, use, useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { IconPlus } from "@/components/icons/central";
@@ -20,12 +19,9 @@ import { StorageFrame } from "@/components/storage/storage-frame";
 import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { Heading } from "@/components/ui/heading";
+import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { Link } from "@/components/ui/link";
-import { SearchField, SearchInput } from "@/components/ui/search-field";
-import { ItemLabel } from "@/components/ui/dropdown";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useCrmTaskCounts, useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
+import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import type { CrmRecordKind } from "@/lib/crm.ts";
@@ -41,53 +37,62 @@ import {
   type TaskFilter,
 } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
-import { useListSearch } from "./record-list.tsx";
 import { RecordMark } from "./record-list.tsx";
+import type { FilterKind } from "./list-filters.tsx";
+import { ListFilter } from "./list-toolbar.tsx";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { NewTaskDialog, useMemberNames } from "./task-dialog.tsx";
-
-export type TasksView = "mine" | "all" | "done";
-
-const VIEWS: { id: TasksView; label: string }[] = [
-  { id: "mine", label: "My tasks" },
-  { id: "all", label: "All" },
-  { id: "done", label: "Done" },
-];
+import { TaskPanel, useOpenTask } from "./task-panel.tsx";
 
 /** Every task in the workspace: mine, everyone's (by assignee and due), or done. */
-export function TasksPage(props: { view: TasksView; assignee?: string; q: string }) {
+export function TasksPage(props: {
+  /** A member id, `none` or `anyone`; left out, the person's own. */
+  assignee?: string | undefined;
+  status?: "done" | undefined;
+  q: string;
+  /** The task open in the panel beside the list. */
+  task?: string;
+}) {
   const phone = useIsMobile();
-  const search = useListSearch(props.q);
+  const open = useOpenTask();
+  const panel = useStoredWidth("omni:task-panel-width", PANEL_WIDTH, PANEL_MIN, PANEL_MAX);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [resizing, setResizing] = useState(false);
+  const { close } = open;
+  useEffect(() => {
+    if (!props.task) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || isControl(event.target)) return;
+      event.preventDefault();
+      close();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [props.task, close]);
+  const opened = useMemo(
+    () => ({ id: props.task ?? null, href: open.href }),
+    [props.task, open.href],
+  );
   const [adding, setAdding] = useState(false);
   const filter: TaskFilter = {
-    status: props.view === "done" ? "done" : "open",
-    assignee: props.view === "mine" ? "me" : props.assignee,
+    status: props.status ?? "open",
+    assignee: props.assignee === "anyone" ? undefined : (props.assignee ?? "me"),
     q: props.q,
   };
-  const views = (
-    <>
-      <ViewTabs view={props.view} />
-      {props.view !== "mine" && <AssigneeFilter value={props.assignee} />}
-    </>
-  );
-  return (
+  const list = (
     <StorageFrame
       title={
         <div className="flex min-w-0 items-center gap-3">
           <Heading className="truncate text-md">Tasks</Heading>
-          {!phone && views}
         </div>
       }
       actions={
         <>
-          <SearchField
-            aria-label="Search tasks"
-            value={search.text}
-            onChange={search.setText}
-            className="w-40 sm:w-56"
-          >
-            <SearchInput size="sm" />
-          </SearchField>
+          <ListFilter
+            search={{ assignee: props.assignee, status: props.status }}
+            filters={TASK_FILTERS}
+          />
           <Button
             size={phone ? "sq-sm" : "sm"}
             aria-label={phone ? "New task" : undefined}
@@ -99,93 +104,64 @@ export function TasksPage(props: { view: TasksView; assignee?: string; q: string
         </>
       }
     >
-      {phone && <div className="flex shrink-0 items-center gap-2 px-5 pb-2">{views}</div>}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6">
-        <TaskList filter={filter} grouped={props.view !== "done"} showRecord searched={!!props.q} />
+        <TaskList
+          filter={filter}
+          grouped={props.status !== "done"}
+          showRecord
+          searched={!!props.q}
+        />
       </div>
       {adding && <NewTaskDialog onClose={() => setAdding(false)} />}
     </StorageFrame>
   );
-}
-
-function ViewTabs({ view }: { view: TasksView }) {
-  const navigate = useNavigate();
-  const counts = useCrmTaskCounts().data;
-  const count = (id: TasksView) =>
-    id === "mine" ? counts?.mine : id === "all" ? counts?.open : undefined;
+  if (!props.task) return <OpenTaskContext value={opened}>{list}</OpenTaskContext>;
   return (
-    <ToggleGroup
-      size="xs"
-      aria-label="Tasks"
-      selectedKeys={[view]}
-      disallowEmptySelection
-      onSelectionChange={(keys) => {
-        const next = [...keys][0] as TasksView | undefined;
-        if (!next) return;
-        void navigate({
-          to: ".",
-          search: (prev: Record<string, unknown>) => ({
-            ...prev,
-            view: next === "mine" ? undefined : next,
-          }),
-          replace: true,
-        });
-      }}
-    >
-      {VIEWS.map(({ id, label }) => (
-        <ToggleGroupItem key={id} id={id}>
-          {label}
-          {count(id) ? (
-            <span className="text-muted-foreground tabular-nums">{count(id)}</span>
-          ) : null}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+    <OpenTaskContext value={opened}>
+      <div
+        ref={rowRef}
+        className={`flex h-svh min-h-0 min-w-0 flex-1 ${resizing ? "cursor-ew-resize select-none" : ""}`}
+      >
+        <div ref={listRef} className={`flex min-w-80 flex-1 flex-col ${phone ? "hidden" : ""}`}>
+          {list}
+        </div>
+        <div
+          style={phone ? undefined : { width: panel.width }}
+          className={`relative flex min-w-0 ${phone ? "flex-1" : "shrink"}`}
+        >
+          {!phone && (
+            <ResizeGrip
+              label="Resize tasks"
+              width={() => listRef.current?.offsetWidth ?? 0}
+              onResize={(width) =>
+                panel.set((rowRef.current?.offsetWidth ?? 0) - Math.max(LIST_MIN, width))
+              }
+              onReset={panel.reset}
+              onResizingChange={setResizing}
+            />
+          )}
+          <TaskPanel key={props.task} id={props.task} onClose={open.close} />
+        </div>
+      </div>
+    </OpenTaskContext>
   );
 }
 
-const ANYONE = "anyone";
+const TASK_FILTERS: FilterKind[] = ["assignee", "status"];
 
-function AssigneeFilter({ value }: { value: string | undefined }) {
-  const navigate = useNavigate();
-  const members = useMemberNames();
-  const people = [
-    { id: ANYONE, name: "Anyone", image: null },
-    ...members,
-    { id: "none", name: "Unassigned", image: null },
-  ];
-  const chosen = members.find((member) => member.id === value);
-  return (
-    <Select
-      aria-label="Assignee"
-      value={value ?? ANYONE}
-      onChange={(id) =>
-        void navigate({
-          to: ".",
-          search: (prev: Record<string, unknown>) => ({
-            ...prev,
-            assignee: !id || id === ANYONE ? undefined : String(id),
-          }),
-          replace: true,
-        })
-      }
-      className="w-44"
-    >
-      <SelectTrigger
-        className="h-7"
-        leading={chosen && <MemberAvatar name={chosen.name} image={chosen.image} />}
-      />
-      <SelectContent items={people}>
-        {(person) => (
-          <SelectItem id={person.id} textValue={person.name}>
-            {members.includes(person) && <MemberAvatar name={person.name} image={person.image} />}
-            <ItemLabel>{person.name}</ItemLabel>
-          </SelectItem>
-        )}
-      </SelectContent>
-    </Select>
-  );
-}
+const PANEL_WIDTH = 480;
+const PANEL_MIN = 360;
+const PANEL_MAX = 4096;
+const LIST_MIN = 320;
+
+const isControl = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  !!target.closest("input, textarea, select, [contenteditable], [role=listbox], [role=dialog]");
+
+const OpenTaskContext = createContext<{
+  id: string | null;
+  href: (id: string) => string;
+} | null>(null);
 
 /** A record's own tasks, open first then done, with a way to add one. */
 export function RecordTasks(props: { kind: CrmRecordKind; id: string }) {
@@ -216,7 +192,7 @@ function DoneTasks({ filter }: { filter: TaskFilter }) {
   if (!list.tasks.length) return null;
   return (
     <section className="flex flex-col gap-1">
-      <h3 className="flex h-12 items-end px-2 pb-2 text-sm text-muted-foreground">Done</h3>
+      <h3 className="flex h-12 items-end px-2 pb-2 text-xs text-muted-foreground">Done</h3>
       <TaskRows tasks={list.tasks} showRecord={false} />
     </section>
   );
@@ -349,7 +325,7 @@ function DueSection(props: {
       className="flex flex-col rounded-lg transition-colors duration-150 ease-out data-taking:bg-hover"
     >
       <h3
-        className={`flex items-end gap-1.5 px-2 pb-2 text-sm text-muted-foreground ${props.first ? "h-9" : "h-12"}`}
+        className={`flex items-end gap-1.5 px-2 pb-2 text-xs text-muted-foreground ${props.first ? "h-9" : "h-12"}`}
       >
         {props.label}
         <span className="text-subtle-foreground tabular-nums">{props.tasks.length}</span>
@@ -400,6 +376,7 @@ export function TaskRow(props: {
 }) {
   const { task } = props;
   const { href: inWorkspace } = useWorkspacePaths();
+  const opened = use(OpenTaskContext);
   const update = useUpdateTask();
   const names = useMemberNames();
   const assignee = names.find((member) => member.id === task.assigneeMemberId);
@@ -415,7 +392,7 @@ export function TaskRow(props: {
     <li
       ref={props.lift?.ref}
       onPointerDownCapture={props.lift?.onPointerDownCapture}
-      className={`group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out hover:bg-hover ${props.lift?.hidden ? "opacity-0" : ""}`}
+      className={`group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out ${opened?.id === task.id ? "bg-accent" : "hover:bg-hover"} ${props.lift?.hidden ? "opacity-0" : ""}`}
     >
       <CheckboxField
         aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
@@ -425,7 +402,9 @@ export function TaskRow(props: {
         <Checkbox />
       </CheckboxField>
       <Link
-        href={inWorkspace(`/crm/tasks/${encodeURIComponent(task.id)}`)}
+        href={
+          opened ? opened.href(task.id) : inWorkspace(`/crm/tasks/${encodeURIComponent(task.id)}`)
+        }
         className={`min-w-0 flex-1 truncate text-sm ${done ? "text-muted-foreground" : "text-foreground"}`}
       >
         {task.title}

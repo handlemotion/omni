@@ -245,6 +245,9 @@ One list, newest first, of four kinds of item:
   id, `me` or `none`; `?due=` is `overdue`, `upcoming` or `none`. Each task carries its record's
   name.
 - A record's tasks are its own: a company's panel does not gather its deals' tasks.
+- On the web a task opens in a panel beside the task list (`/crm/tasks?task=<id>`), like an
+  email; `/crm/tasks/<id>` stays its full page.
+- The command menu (⌘K) finds open tasks by title, so the task list has no search of its own.
 - Writes publish `crm.changed` with kind `task`, plus the record's kind. Tasks write no timeline
   events yet. Not yet: reminders, recurring tasks, subtasks, several records per task, MCP tools.
 

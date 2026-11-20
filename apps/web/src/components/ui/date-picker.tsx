@@ -10,6 +10,7 @@ import {
 } from "react-aria-components/DatePicker";
 import type { GroupProps } from "react-aria-components/Group";
 import type { PopoverProps } from "react-aria-components/Popover";
+import type { ReactNode } from "react";
 import { twJoin } from "cn";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cx } from "@/lib/primitive";
@@ -22,7 +23,7 @@ import { AriaPopover as Popover } from "./aria-popover";
 import { RangeCalendar } from "./range-calendar";
 
 export interface DatePickerProps<T extends DateValue> extends DatePickerPrimitiveProps<T> {
-  popover?: Omit<PopoverProps, "children">;
+  popover?: DatePickerOverlayProps;
 }
 
 export function DatePicker<T extends DateValue>({
@@ -51,6 +52,8 @@ export interface DatePickerOverlayProps extends Omit<PopoverProps, "children"> {
   range?: boolean;
   visibleDuration?: DateDuration;
   pageBehavior?: "visible" | "single";
+  /** Under the calendar, such as a Clear button. */
+  footer?: ReactNode;
 }
 
 export function DatePickerOverlay({
@@ -58,6 +61,7 @@ export function DatePickerOverlay({
   pageBehavior = "visible",
   placement = "bottom",
   range,
+  footer,
   ...props
 }: DatePickerOverlayProps) {
   const isMobile = useIsMobile();
@@ -71,6 +75,7 @@ export function DatePickerOverlay({
           <Calendar />
         )}
       </div>
+      {footer && <div className="flex justify-center px-6 pb-6">{footer}</div>}
     </Dialog>
   ) : (
     <Popover
@@ -78,6 +83,7 @@ export function DatePickerOverlay({
       arrow={false}
       className={twJoin(
         "flex min-w-auto max-w-none snap-x justify-center p-4 sm:min-w-[16.5rem] sm:p-2 sm:pt-3",
+        footer && "flex-col items-stretch gap-1",
         visibleDuration?.months === 1 ? "sm:max-w-2xs" : "sm:max-w-none",
       )}
       {...props}
@@ -87,6 +93,7 @@ export function DatePickerOverlay({
       ) : (
         <Calendar />
       )}
+      {footer}
     </Popover>
   );
 }

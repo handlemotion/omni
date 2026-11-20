@@ -32,33 +32,43 @@ export function TaskPage({ id }: { id: string }) {
   return <TaskView task={query.data.task} />;
 }
 
-function TaskView({ task }: { task: CrmTask }) {
+/** Saves a change to the task, with a toast when it fails. */
+export function useSaveTask(id: string) {
   const update = useUpdateTask();
-  const remove = useDeleteTask();
-  const navigate = useNavigate();
-  const workspace = useWorkspaceSlug();
-  const save = (change: TaskChange) =>
+  return (change: TaskChange) =>
     update.mutate(
-      { id: task.id, ...change },
+      { id, ...change },
       { onError: (error) => crmErrorToast(error, "The task was not changed") },
     );
+}
+
+/** Deletes the task, then `onDeleted` (back to the list). */
+export function useDeleteThisTask(id: string, onDeleted: () => void) {
+  const remove = useDeleteTask();
+  return {
+    isPending: remove.isPending,
+    run: () =>
+      remove.mutate(id, {
+        onSuccess: onDeleted,
+        onError: (error) => crmErrorToast(error, "The task was not deleted"),
+      }),
+  };
+}
+
+function TaskView({ task }: { task: CrmTask }) {
+  const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
+  const save = useSaveTask(task.id);
+  const remove = useDeleteThisTask(
+    task.id,
+    () => void navigate({ to: "/$workspace/crm/tasks", params: { workspace } }),
+  );
   return (
     <RecordFrame
       list="tasks"
       name={task.title}
       actions={
-        <Button
-          size="sm"
-          intent="outline"
-          isPending={remove.isPending}
-          onPress={() =>
-            remove.mutate(task.id, {
-              onSuccess: () =>
-                void navigate({ to: "/$workspace/crm/tasks", params: { workspace } }),
-              onError: (error) => crmErrorToast(error, "The task was not deleted"),
-            })
-          }
-        >
+        <Button size="sm" intent="outline" isPending={remove.isPending} onPress={remove.run}>
           <IconTrash />
           Delete task
         </Button>
@@ -66,21 +76,7 @@ function TaskView({ task }: { task: CrmTask }) {
     >
       <div className="flex min-h-0 flex-1 overflow-y-auto max-lg:flex-col lg:overflow-hidden">
         <main className="flex min-w-0 flex-1 flex-col gap-3 px-5 py-5 lg:overflow-y-auto">
-          <div className="flex gap-3">
-            <div className="flex h-9 items-center">
-              <CheckboxField
-                aria-label={task.completedAt ? "Reopen" : "Complete"}
-                isSelected={!!task.completedAt}
-                onChange={(done) => save({ done })}
-              >
-                <Checkbox />
-              </CheckboxField>
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-3">
-              <TitleField task={task} onSave={(title) => save({ title })} />
-              <BodyField task={task} onSave={(body) => save({ body })} />
-            </div>
-          </div>
+          <TaskContent task={task} onSave={save} />
         </main>
         <aside
           aria-label="Details"
@@ -90,6 +86,28 @@ function TaskView({ task }: { task: CrmTask }) {
         </aside>
       </div>
     </RecordFrame>
+  );
+}
+
+/** The task's check, title and notes. */
+export function TaskContent(props: { task: CrmTask; onSave: (change: TaskChange) => void }) {
+  const { task, onSave } = props;
+  return (
+    <div className="flex gap-3">
+      <div className="flex h-9 items-center">
+        <CheckboxField
+          aria-label={task.completedAt ? "Reopen" : "Complete"}
+          isSelected={!!task.completedAt}
+          onChange={(done) => onSave({ done })}
+        >
+          <Checkbox />
+        </CheckboxField>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <TitleField key={task.id} task={task} onSave={(title) => onSave({ title })} />
+        <BodyField key={task.id} task={task} onSave={(body) => onSave({ body })} />
+      </div>
+    </div>
   );
 }
 
@@ -147,11 +165,10 @@ function BodyField(props: { task: CrmTask; onSave: (body: string | null) => void
       plain
       aria-label="Notes"
       maxLength={BODY_MAX}
-      rows={8}
       placeholder="Notes"
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
-      className="min-h-40 w-full resize-none rounded-md px-2 py-1.5 text-sm hover:bg-hover focus:bg-hover sm:px-2"
+      className="field-sizing-content min-h-16 w-full resize-none rounded-md px-2 py-1.5 text-sm hover:bg-hover focus:bg-hover sm:px-2"
       onFocus={onFocus}
       onBlur={() => {
         done();
@@ -162,7 +179,8 @@ function BodyField(props: { task: CrmTask; onSave: (body: string | null) => void
   );
 }
 
-function TaskDetails(props: { task: CrmTask; onSave: (change: TaskChange) => void }) {
+/** Who, when and on what: the task's fields, one per row. */
+export function TaskDetails(props: { task: CrmTask; onSave: (change: TaskChange) => void }) {
   const { task, onSave } = props;
   const names = useMemberNames();
   const record = taskRecord(task);

@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { defaultFilter } from "cmdk";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -15,8 +14,7 @@ import {
   IconUserAdd,
   IconX,
 } from "@/components/icons/central";
-import { IconSearch, IconWrite } from "@/components/icons/sidebar";
-import { useListSweep } from "@/components/inbox/list-sweep";
+import { IconWrite } from "@/components/icons/sidebar";
 import {
   type PageDefinition,
   useAccountPages,
@@ -35,14 +33,12 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { EmptyState } from "@/components/empty/empty-state";
-import { Loader } from "@/components/ui/loader";
 import { useStorageHref } from "@/components/storage/file-list.tsx";
 import { useCommandSearch, useWarmCommandSearch } from "@/hooks/use-command-search.ts";
 import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useThreads } from "@/hooks/use-mail.ts";
 import { runShortcut, useAvailableShortcuts, useShortcut } from "@/hooks/use-shortcuts.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
-import { searchQuery } from "@/lib/mail-queries.ts";
 import { COMMAND_IDS, keyLabel, SHORTCUTS, type ShortcutId } from "@/lib/shortcuts.ts";
 import type { FileHit } from "@/hooks/use-command-search.ts";
 import { workspaceHref } from "@/lib/workspaces.ts";
@@ -99,10 +95,9 @@ const FOOTER = [
 
 const keysOf = (id: ShortcutId) => (SHORTCUTS[id].keys[0] ?? []).flatMap(keyLabel);
 
-const SMART = "smart-search";
-const RECORD = /^(node|company|person|deal|thread):/;
+const RECORD = /^(node|company|person|deal|task|thread):/;
 const filter = (value: string, search: string, keywords?: string[]) =>
-  value === SMART || RECORD.test(value) ? 1 : defaultFilter("", search, keywords);
+  RECORD.test(value) ? 1 : defaultFilter("", search, keywords);
 
 /** Mounted once by the workspace shell: binds `/` and ⌘K and renders the menu. */
 export function CommandMenu() {
@@ -138,7 +133,6 @@ function sections(scope: Scope, query: string) {
     crm: all || scope === "crm",
     commands: all || scope === "mail",
     messages: (all && !!query) || scope === "mail",
-    smart: !!query && (all || scope === "mail"),
     settings: (all && !!query) || scope === "settings",
   };
 }
@@ -147,16 +141,12 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
   const navigate = useNavigate();
   const workspace = useWorkspaceSlug();
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const sweepList = useListSweep();
   const available = useAvailableShortcuts();
   const company = useHasCrm();
   const settingsPages = [...useAccountPages(), ...useWorkspacePages()];
   const storageHref = useStorageHref();
   const { threads: inbox } = useThreads({ view: "inbox" });
   const [q, setQ] = useState(seed?.q ?? "");
-  const mailbox = seed?.mailbox;
-  const [searching, setSearching] = useState(false);
   const [scope, setScope] = useState<Scope>(seed?.scope ?? "all");
   useWarmCommandSearch(company);
   const hits = useCommandSearch(q, company);
@@ -203,24 +193,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
     const folder = storageHref(node.space, node.parentId ?? undefined);
     const file = `file=${encodeURIComponent(node.id)}`;
     void router.navigate({ href: `${folder}${folder.includes("?") ? "&" : "?"}${file}` });
-  };
-
-  const smartSearch = async () => {
-    if (!query || searching) return;
-    setSearching(true);
-    try {
-      await queryClient.fetchQuery(searchQuery(query, mailbox));
-    } finally {
-      setSearching(false);
-    }
-    onClose();
-    sweepList(() =>
-      navigate({
-        to: "/$workspace/mail/search",
-        params: { workspace },
-        search: { q: query, mailbox },
-      }),
-    );
   };
 
   return (
@@ -272,16 +244,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
         )}
         {show.settings && (
           <SettingsGroup pages={settingsPages} onOpen={(id) => go(`/settings/${id}`)} />
-        )}
-        {show.smart && (
-          <CommandGroup>
-            <CommandItem value={SMART} onSelect={() => void smartSearch()}>
-              {searching ? <Loader /> : <IconSearch />}
-              <span className={`min-w-0 truncate ${searching ? "shimmer" : ""}`}>
-                Smart search for “{query}”
-              </span>
-            </CommandItem>
-          </CommandGroup>
         )}
       </CommandList>
       <CommandFooter hints={FOOTER} />

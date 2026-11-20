@@ -62,7 +62,13 @@ export function Timeline({ kind, id }: { kind: CrmRecordKind; id: string }) {
       ) : (
         <ol className="flex flex-col gap-5" aria-label="Timeline">
           {timeline.items.map((item) => (
-            <Item key={`${item.kind}:${item.id}`} item={item} names={names} stages={stages} />
+            <Item
+              key={`${item.kind}:${item.id}`}
+              item={item}
+              names={names}
+              stages={stages}
+              noun={NOUNS[kind]}
+            />
           ))}
         </ol>
       )}
@@ -128,7 +134,7 @@ function recipients(
   return to.length === 1 ? first : `${first} and ${to.length - 1} more`;
 }
 
-function Item(props: { item: CrmTimelineItem; names: Names; stages: CrmStage[] }) {
+function Item(props: { item: CrmTimelineItem; names: Names; stages: CrmStage[]; noun: string }) {
   const { item, names } = props;
   const who = (id: string | null) =>
     id ? (names.byId.get(id)?.name ?? "A former member") : "Someone";
@@ -177,7 +183,7 @@ function Item(props: { item: CrmTimelineItem; names: Names; stages: CrmStage[] }
         />
       );
     case "event": {
-      const said = eventText(item.event, props.stages);
+      const said = eventText(item.event, props.stages, props.noun);
       if (!said) return null;
       return (
         <Line
@@ -252,20 +258,26 @@ type EventItem = Extract<CrmTimelineItem, { kind: "event" }>["event"];
 const isOnly = (fields: unknown, field: string) =>
   Array.isArray(fields) && fields.length === 1 && fields[0] === field;
 
-function eventText(event: EventItem, stages: CrmStage[]) {
+const NOUNS: Record<CrmRecordKind, string> = {
+  companies: "this company",
+  people: "this person",
+  deals: "this deal",
+};
+
+function eventText(event: EventItem, stages: CrmStage[], noun: string) {
   const data = event.data as Record<string, unknown>;
   const text = (key: string) => (typeof data[key] === "string" ? (data[key] as string) : "");
   switch (event.kind) {
     case "created":
-      return "created this";
+      return `created ${noun}`;
     case "updated":
       return isOnly(data.fields, "expectedCloseOn")
         ? "changed the close date"
         : "edited the details";
     case "archived":
-      return "archived this";
+      return `archived ${noun}`;
     case "restored":
-      return "restored this";
+      return `restored ${noun}`;
     case "stage_moved": {
       const stage = stages.find((s) => s.id === text("to"));
       return stage ? `moved it to ${stage.name}` : "moved its stage";
@@ -399,7 +411,12 @@ function NoteComposer({ kind, id }: { kind: CrmRecordKind; id: string }) {
   };
   return (
     <form
-      className="flex flex-col gap-2 rounded-xl border bg-background p-3 shadow-(--shadow-raised)"
+      className="flex cursor-text flex-col gap-2 rounded-xl border bg-background px-3 pt-2.5 pb-2.5"
+      onMouseDown={(event) => {
+        if ((event.target as HTMLElement).closest("textarea, button")) return;
+        event.preventDefault();
+        event.currentTarget.querySelector("textarea")?.focus();
+      }}
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -412,7 +429,7 @@ function NoteComposer({ kind, id }: { kind: CrmRecordKind; id: string }) {
         aria-label="Note"
         maxLength={20_000}
         placeholder="Write a note…"
-        className="max-h-60 min-h-10"
+        className="field-sizing-content max-h-60 min-h-6 resize-none py-0 sm:py-0"
         onKeyDown={(event) => {
           if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submit();
         }}

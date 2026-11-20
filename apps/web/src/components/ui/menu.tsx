@@ -353,12 +353,15 @@ export function MenuSubMenu({ children, delay }: MenuSubMenuProps) {
         })}
       >
         {row.children}
-        <ChevronRightIcon
-          data-slot="chevron"
+        <span
           aria-hidden
-          className="absolute end-0 size-4 -translate-y-1/2"
-          style={{ top: "calc(var(--spacing) * 3)" }}
-        />
+          className="pointer-events-none absolute inset-y-0 end-1.5 flex items-center"
+        >
+          <ChevronRightIcon
+            data-slot="chevron"
+            className="size-4 text-muted-foreground group-data-open:text-accent-foreground"
+          />
+        </span>
       </MenuSubTrigger>
       <SubmenuContext.Provider value={true}>{rest}</SubmenuContext.Provider>
     </MenuSub>

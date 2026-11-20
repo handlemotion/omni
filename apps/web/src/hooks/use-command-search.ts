@@ -1,7 +1,13 @@
-import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { crmCompaniesQuery, crmDealsQuery, crmFindQuery, crmPeopleQuery } from "../lib/crm.ts";
 import type { CrmCompany, CrmDeal, CrmPerson } from "../lib/crm.ts";
+import { crmTasksQuery, type CrmTask } from "../lib/crm-tasks.ts";
 import { threadsQuery } from "../lib/mail-queries.ts";
 import { keys } from "../lib/query-keys.ts";
 import { storageListQuery, type StorageNode } from "../lib/storage.ts";
@@ -23,6 +29,8 @@ export interface CommandHits {
   companies: CrmCompany[];
   people: CrmPerson[];
   deals: CrmDeal[];
+  /** Open tasks, by title. */
+  tasks: CrmTask[];
   threads: ThreadSummary[];
   /** True while a server search for the current text is still on its way. */
   searching: boolean;
@@ -98,6 +106,7 @@ export function useWarmCommandSearch(company: boolean) {
     void client.prefetchInfiniteQuery(crmCompaniesQuery(""));
     void client.prefetchInfiniteQuery(crmPeopleQuery(""));
     void client.prefetchInfiniteQuery(crmDealsQuery(""));
+    void client.prefetchInfiniteQuery(crmTasksQuery({ status: "open" }));
   }, [client, company]);
 }
 
@@ -141,6 +150,18 @@ function crmHits(
   };
 }
 
+function taskHits(
+  client: QueryClient,
+  needle: string,
+  found: CrmTask[] | undefined,
+  fresh: boolean,
+) {
+  const open = cached<CrmTask>(client, [...keys.crm(), "tasks", "list"], "tasks").filter(
+    (task) => !task.completedAt,
+  );
+  return pick(open, fresh ? found : undefined, needle, (task) => task.title);
+}
+
 /** Records named like `text`: local ones at once, the server's merged in as they arrive. */
 export function useCommandSearch(text: string, company: boolean) {
   const client = useQueryClient();
@@ -153,11 +174,24 @@ export function useCommandSearch(text: string, company: boolean) {
     enabled: company && settled.length > 0,
     placeholderData: (prev) => prev,
   });
+  const tasks = useInfiniteQuery({
+    ...crmTasksQuery({ status: "open", q: settled }),
+    enabled: company && settled.length > 0,
+    placeholderData: (prev) => prev,
+  });
 
   return useMemo(() => {
     void version;
     if (!needle) {
-      return { files: [], companies: [], people: [], deals: [], threads: [], searching: false };
+      return {
+        files: [],
+        companies: [],
+        people: [],
+        deals: [],
+        tasks: [],
+        threads: [],
+        searching: false,
+      };
     }
     const fresh = settled === needle;
     const drive = split(files, fresh);
@@ -177,13 +211,14 @@ export function useCommandSearch(text: string, company: boolean) {
       ...(company
         ? crmHits(client, needle, split(crm, fresh))
         : { companies: [], people: [], deals: [] }),
+      tasks: company ? taskHits(client, needle, tasks.data?.pages[0]?.tasks, fresh) : [],
       threads: pick(
         cached<ThreadSummary>(client, keys.threadLists(), "threads"),
         undefined,
         needle,
         threadText,
       ),
-      searching: !fresh || files.isFetching || crm.isFetching,
+      searching: !fresh || files.isFetching || crm.isFetching || tasks.isFetching,
     };
-  }, [version, client, needle, settled, company, files, crm]) satisfies CommandHits;
+  }, [version, client, needle, settled, company, files, crm, tasks]) satisfies CommandHits;
 }

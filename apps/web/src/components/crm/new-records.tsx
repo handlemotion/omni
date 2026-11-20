@@ -4,6 +4,8 @@ import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-d
 import { ComboBox, ComboBoxContent, ComboBoxInput, ComboBoxItem } from "@/components/ui/combo-box";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Link } from "@/components/ui/link";
+import { IconArrowUpRight } from "@/components/icons/central";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import {
@@ -16,6 +18,8 @@ import {
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
 import { currencyCodes, parseMoney, valueCurrency } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
+import { FieldRow } from "./record-fields.tsx";
+import { useRecordHref } from "./record-trail.tsx";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 /** The longest name the API takes. */
@@ -215,5 +219,59 @@ export function CompanyPicker(props: {
         )}
       </ComboBoxContent>
     </ComboBox>
+  );
+}
+
+/** The company a person or deal is with, picked in place by name, with a link to open it. */
+export function CompanyValue(props: {
+  current: { id: string; name: string } | null;
+  onSave: (companyId: string) => void;
+}) {
+  const [text, setText] = useState<string | null>(null);
+  const q = useDebouncedValue((text ?? "").trim(), 200);
+  const { companies } = useCrmCompanies(q);
+  const recordHref = useRecordHref();
+  const { current } = props;
+  return (
+    <FieldRow label="Company">
+      <ComboBox
+        aria-label="Company"
+        className="min-w-0 flex-1"
+        selectedKey={current?.id ?? null}
+        onSelectionChange={(key) => {
+          setText(null);
+          if (key !== null && String(key) !== current?.id) props.onSave(String(key));
+        }}
+        inputValue={text ?? current?.name ?? ""}
+        onInputChange={setText}
+        items={companies}
+        allowsEmptyCollection
+        menuTrigger="focus"
+      >
+        <ComboBoxInput
+          plain
+          autoComplete="off"
+          placeholder="–"
+          className="h-8 w-full truncate rounded-md px-2 hover:bg-hover focus:bg-hover"
+          onBlur={() => setText(null)}
+        />
+        <ComboBoxContent items={companies}>
+          {(company) => (
+            <ComboBoxItem id={company.id} textValue={company.name}>
+              {company.name}
+            </ComboBoxItem>
+          )}
+        </ComboBoxContent>
+      </ComboBox>
+      {current && (
+        <Link
+          href={recordHref("companies", current.id)}
+          aria-label={`Open ${current.name}`}
+          className="grid size-7 shrink-0 place-content-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground"
+        >
+          <IconArrowUpRight className="size-4" />
+        </Link>
+      )}
+    </FieldRow>
   );
 }

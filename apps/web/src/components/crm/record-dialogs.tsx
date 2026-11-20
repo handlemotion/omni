@@ -7,30 +7,6 @@ import { TextField } from "@/components/ui/text-field";
 import { useAddDomain, useCrmPeople, useUpdatePerson } from "@/hooks/use-crm.ts";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
 import { crmErrorToast } from "./crm-errors.ts";
-import { CompanyPicker } from "./new-records.tsx";
-
-/** Picks the company `onSave` sets; mount it while open. */
-export function ChooseCompanyDialog(props: {
-  current: { id: string; name: string } | null;
-  saving: boolean;
-  onSave: (companyId: string) => void;
-  onClose: () => void;
-}) {
-  const [companyId, setCompanyId] = useState<string | null>(props.current?.id ?? null);
-  return (
-    <SettingsFormDialog
-      isOpen
-      onOpenChange={(open) => !open && props.onClose()}
-      title="Company"
-      action="Save"
-      disabled={!companyId || companyId === props.current?.id}
-      saving={props.saving}
-      onSubmit={() => companyId && props.onSave(companyId)}
-    >
-      <CompanyPicker value={companyId} onChange={setCompanyId} initialName={props.current?.name} />
-    </SettingsFormDialog>
-  );
-}
 
 export function AddDomainDialog(props: { companyId: string; onClose: () => void }) {
   const add = useAddDomain();

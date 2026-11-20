@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { IconPencil } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
 import {
   useCrmCompany,
   useCrmDeal,
@@ -19,25 +17,13 @@ import { AccessSection } from "./project-access.tsx";
 import { ProjectPlan } from "./project-plan.tsx";
 import { crmErrorToast } from "./crm-errors.ts";
 import { StageBadge } from "./list-pages.tsx";
-import { NewDealDialog, NewPersonDialog } from "./new-records.tsx";
+import { CompanyValue, NewDealDialog, NewPersonDialog } from "./new-records.tsx";
 import { ArchivedBadge, RecordActions } from "./record-actions.tsx";
-import {
-  AddAddressDialog,
-  AddDomainDialog,
-  AddPersonDialog,
-  ChooseCompanyDialog,
-} from "./record-dialogs.tsx";
-import {
-  ChoiceValue,
-  DayValue,
-  LinkValue,
-  MoneyValue,
-  PlainValue,
-  TextValue,
-} from "./record-fields.tsx";
+import { AddAddressDialog, AddDomainDialog, AddPersonDialog } from "./record-dialogs.tsx";
+import { ChoiceValue, DayValue, MoneyValue, PlainValue, TextValue } from "./record-fields.tsx";
 import { RecordFiles } from "./record-files.tsx";
 import { byAddress } from "@/components/avatar/sender-avatar";
-import { MemberAvatar } from "./member-avatar.tsx";
+import { MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
 import { DetailSection, RecordLayout, RecordState } from "./record-layout.tsx";
 import { DAY } from "./record-list.tsx";
 import {
@@ -54,14 +40,6 @@ const onFail = (fallback: string) => ({
   onError: (error: unknown) => crmErrorToast(error, fallback),
 });
 
-function EditButton(props: { label: string; onPress: () => void }) {
-  return (
-    <Button intent="plain" size="sq-xs" aria-label={props.label} onPress={props.onPress}>
-      <IconPencil />
-    </Button>
-  );
-}
-
 const NO_OWNER = "none";
 
 function OwnerValue(props: {
@@ -76,7 +54,11 @@ function OwnerValue(props: {
       options={[...owners, { id: NO_OWNER, name: "No owner", image: null }]}
       onSave={(id) => props.onSave(id === NO_OWNER ? null : id)}
       mark={(owner) =>
-        owner.id === NO_OWNER ? undefined : <MemberAvatar name={owner.name} image={owner.image} />
+        owner.id === NO_OWNER ? (
+          <NoMemberAvatar />
+        ) : (
+          <MemberAvatar name={owner.name} image={owner.image} />
+        )
       }
     />
   );
@@ -177,7 +159,7 @@ function useCompanyName(companyId: string | null) {
 export function PersonPage({ id }: { id: string }) {
   const query = useCrmPerson(id);
   const update = useUpdatePerson();
-  const [open, setOpen] = useState<"company" | "address" | null>(null);
+  const [open, setOpen] = useState<"address" | null>(null);
   const companyId = query.data?.person.companyId ?? null;
   const company = useCompanyName(companyId);
   if (!query.data) return <RecordState list="people" query={query} />;
@@ -218,11 +200,7 @@ export function PersonPage({ id }: { id: string }) {
                 value={person.phone}
                 onSave={(phone) => save({ id, phone })}
               />
-              <LinkValue
-                label="Company"
-                to={company && { kind: "companies", ...company }}
-                action={<EditButton label="Change company" onPress={() => setOpen("company")} />}
-              />
+              <CompanyValue current={company} onSave={(companyId) => save({ id, companyId })} />
               <OwnerValue
                 value={person.ownerMemberId}
                 onSave={(ownerMemberId) => save({ id, ownerMemberId })}
@@ -239,19 +217,6 @@ export function PersonPage({ id }: { id: string }) {
           { id: "tasks", label: "Tasks", panel: <RecordTasks kind="people" id={id} /> },
         ]}
       />
-      {open === "company" && (
-        <ChooseCompanyDialog
-          current={company}
-          saving={update.isPending}
-          onSave={(next) =>
-            update.mutate(
-              { id, companyId: next },
-              { ...onFail("The company was not changed"), onSuccess: () => setOpen(null) },
-            )
-          }
-          onClose={() => setOpen(null)}
-        />
-      )}
       {open === "address" && <AddAddressDialog personId={id} onClose={() => setOpen(null)} />}
     </>
   );
@@ -263,7 +228,7 @@ export function DealPage({ id }: { id: string }) {
   const move = useMoveDeal();
   const stages = useCrmStages().data ?? [];
   const workspaceCurrency = useCrmDefaultCurrency();
-  const [open, setOpen] = useState<"company" | "person" | null>(null);
+  const [open, setOpen] = useState<"person" | null>(null);
   const company = useCompanyName(query.data?.deal.companyId ?? null);
   if (!query.data) return <RecordState list="deals" query={query} />;
   const { deal, people } = query.data;
@@ -309,7 +274,7 @@ export function DealPage({ id }: { id: string }) {
               />
               <MoneyValue
                 label="Value"
-                value={formatMoney(deal.valueMinor, deal.valueCurrency)}
+                value={formatMoney(deal.valueMinor, null)}
                 currency={currency}
                 onSaveAmount={(valueMinor) => save({ id, valueMinor, currency })}
                 onSaveCurrency={(next) => save({ id, currency: next })}
@@ -323,11 +288,7 @@ export function DealPage({ id }: { id: string }) {
                 value={deal.ownerMemberId}
                 onSave={(ownerMemberId) => save({ id, ownerMemberId })}
               />
-              <LinkValue
-                label="Company"
-                to={company && { kind: "companies", ...company }}
-                action={<EditButton label="Change company" onPress={() => setOpen("company")} />}
-              />
+              <CompanyValue current={company} onSave={(companyId) => save({ id, companyId })} />
               <PlainValue label="Won">{day(deal.wonAt)}</PlainValue>
               <PlainValue label="Added">{day(deal.createdAt)}</PlainValue>
             </DetailSection>
@@ -359,14 +320,6 @@ export function DealPage({ id }: { id: string }) {
           },
         ]}
       />
-      {open === "company" && (
-        <ChooseCompanyDialog
-          current={company}
-          saving={update.isPending}
-          onSave={(companyId) => save({ id, companyId }, () => setOpen(null))}
-          onClose={() => setOpen(null)}
-        />
-      )}
       {open === "person" && (
         <AddPersonDialog
           title="Add person"

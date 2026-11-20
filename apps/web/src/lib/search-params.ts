@@ -46,8 +46,13 @@ const amount = optional(z.number());
 export const crmTasksSearch = z.object({
   mailbox: optionalId,
   q: optional(z.string()),
+  /** Older links: `all` is everyone's open tasks, `done` everyone's done ones. */
   view: optional(z.enum(["mine", "all", "done"])),
+  /** A member id, `none` or `anyone`; left out, the person's own. */
   assignee: optionalId,
+  status: optional(z.enum(["done"])),
+  /** The task open in the panel beside the list. */
+  task: optionalId,
 });
 
 const crmListFields = {

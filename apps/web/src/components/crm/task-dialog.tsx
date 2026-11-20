@@ -16,7 +16,7 @@ import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import type { CrmRecordKind } from "@/lib/crm.ts";
 import { dueAtOf, onRecord } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
-import { MemberAvatar } from "./member-avatar.tsx";
+import { MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
 import { NAME_MAX } from "./new-records.tsx";
 
 /** The workspace's members as `{ id, name }`, for assignee pickers. */
@@ -49,7 +49,7 @@ export function AssigneePicker(props: {
   inline?: boolean;
 }) {
   const people = [...useMemberNames(), { id: NOBODY, name: "Nobody", image: null }];
-  const chosen = people.find((person) => person.id === props.value);
+  const chosen = people.find((person) => person.id === (props.value ?? NOBODY));
   return (
     <Select
       aria-label="Assignee"
@@ -63,12 +63,22 @@ export function AssigneePicker(props: {
             ? "border-transparent bg-transparent enabled:hover:border-transparent enabled:hover:bg-hover"
             : undefined
         }
-        leading={chosen && <MemberAvatar name={chosen.name} image={chosen.image} />}
+        leading={
+          chosen?.id === NOBODY ? (
+            <NoMemberAvatar />
+          ) : (
+            chosen && <MemberAvatar name={chosen.name} image={chosen.image} />
+          )
+        }
       />
       <SelectContent items={people}>
         {(person) => (
           <SelectItem id={person.id} textValue={person.name}>
-            {person.id !== NOBODY && <MemberAvatar name={person.name} image={person.image} />}
+            {person.id === NOBODY ? (
+              <NoMemberAvatar />
+            ) : (
+              <MemberAvatar name={person.name} image={person.image} />
+            )}
             <ItemLabel>{person.name}</ItemLabel>
           </SelectItem>
         )}

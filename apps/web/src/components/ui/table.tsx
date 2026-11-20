@@ -39,11 +39,11 @@ export interface TableProps extends Omit<TablePrimitiveProps, "className"> {
   striped?: boolean;
   /**
    * `page`: the table is a page's whole content, edge to edge. Fixed column widths, cells from the
-   * page's 20px gutter, 44px rows under a 36px header of regular-weight labels that sticks to the
+   * page's 20px gutter, 48px rows under a 40px header of regular-weight labels that sticks to the
    * page's scroll container (the table's own wrapper scrolls nothing).
    */
   variant?: "default" | "page";
-  /** A `page` table's row height: `md` 44px, `lg` 56px (rows that lead with a 32px tile). */
+  /** A `page` table's row height: `md` 48px, `lg` 56px (rows that lead with a 32px tile). */
   rowSize?: "md" | "lg";
   ref?: React.Ref<HTMLTableElement>;
 }
@@ -322,7 +322,7 @@ export function TableColumn({ isResizable = false, className, ...props }: TableC
           !bleed && "sm:first:ps-1 sm:last:pe-1",
           grid && "border-l first:border-l-0",
           isResizable && "truncate overflow-hidden",
-          variant === "page" && "h-9 py-0 text-xs font-normal",
+          variant === "page" && "h-10 py-0 text-xs font-normal",
         ],
         className,
       )}
@@ -337,8 +337,8 @@ export function TableColumn({ isResizable = false, className, ...props }: TableC
           {values.allowsSorting && (
             <span
               className={twJoin(
-                "touch-target bg-secondary text-foreground grid size-[1.15rem] flex-none shrink-0 place-content-center rounded *:[svg]:size-3.5 *:[svg]:shrink-0 *:[svg]:transition-transform *:[svg]:duration-200",
-                values.isHovered ? "bg-secondary-foreground/10" : "",
+                "touch-target text-muted-foreground grid size-[1.15rem] flex-none shrink-0 place-content-center rounded transition-colors duration-150 ease-out *:[svg]:size-3.5 *:[svg]:shrink-0 *:[svg]:transition-transform *:[svg]:duration-200",
+                values.isHovered && "bg-secondary text-foreground",
                 !values.sortDirection && !values.isHovered && "invisible",
               )}
             >
@@ -386,11 +386,9 @@ export function TableHeader<T extends object>({
       {selectionBehavior === "toggle" && (
         <Column
           data-slot="table-column"
-          width={32}
-          minWidth={32}
           focusMode="child"
           allowsArrowNavigation
-          style={{ width: 32 }}
+          style={{ width: "calc(var(--gutter, 0.5rem) + 1.5rem)" }}
           className={cn("first:ps-(--gutter,--spacing(2))", !bleed && "sm:last:pe-1 sm:first:ps-1")}
         >
           {selectionMode === "multiple" && (
@@ -520,7 +518,7 @@ export function TableCell({ className, actions = false, ref, ...props }: TableCe
           grid && "border-l first:border-l-0",
           !bleed && "sm:first:ps-1 sm:last:pe-1",
           allowResize && "truncate overflow-hidden",
-          variant === "page" && (rowSize === "lg" ? "h-14 py-0" : "h-11 py-0"),
+          variant === "page" && (rowSize === "lg" ? "h-14 py-0" : "h-12 py-0"),
           variant === "page" && "overflow-hidden",
           actions && "px-0 last:pe-2.5",
         ),

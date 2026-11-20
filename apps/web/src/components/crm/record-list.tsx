@@ -103,8 +103,6 @@ interface RecordListProps<T> {
   extra?: ReactNode;
   /** Filter: in the header beside the search, and beside the bulk bar while rows are picked. */
   filter?: ReactNode;
-  /** Under the header: the sort and the filters. */
-  toolbar?: ReactNode;
   /** A filter narrows the list, so an empty one says nothing matches. */
   filtered?: boolean;
   sorting?: { value: SortState; onChange: (next: SortState) => void };
@@ -129,7 +127,6 @@ export function RecordList<T extends { id: string; name: string }>(props: Record
         )
       }
     >
-      {props.toolbar}
       {props.replaceBody ?? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <Body {...props} />
@@ -264,9 +261,9 @@ function RecordTable<T extends { id: string; name: string }>(props: RecordListPr
 function ListBones() {
   return (
     <div>
-      <div className="h-9 border-b" />
+      <div className="h-10 border-b" />
       {Array.from({ length: 12 }, (_, i) => (
-        <div key={i} className="flex h-11 items-center gap-3 border-b px-5">
+        <div key={i} className="flex h-12 items-center gap-3 border-b px-5">
           <SkeletonBox width={20} height={20} radius="999px" />
           <span className="min-w-0 flex-1">
             <SkeletonBox width={`${25 + ((i * 17) % 30)}%`} height={10} />

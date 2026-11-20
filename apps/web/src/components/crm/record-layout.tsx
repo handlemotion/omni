@@ -86,7 +86,7 @@ export function RecordLayout(props: {
               onResizingChange={setResizing}
             />
             <Tabs className="w-full">
-              <TabList aria-label="Record" className="px-5 pt-2">
+              <TabList aria-label="Record" className="px-5 pt-1.5 [--tab-list-pb:--spacing(1.5)]">
                 {props.tabs.map((tab) => (
                   <Tab key={tab.id} id={tab.id}>
                     {tab.label}

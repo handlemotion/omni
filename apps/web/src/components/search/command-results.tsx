@@ -1,9 +1,15 @@
 import { Skeleton, SkeletonBox } from "skullet/react";
-import { IconBuildings, IconHandshake, IconUserRound } from "@/components/icons/central";
+import {
+  IconBuildings,
+  IconChecklist,
+  IconHandshake,
+  IconUserRound,
+} from "@/components/icons/central";
 import { IconEmail } from "@/components/icons/sidebar";
 import { FileGlyph } from "@/components/storage/file-glyph.tsx";
 import { CommandDetail, CommandGroup, CommandItem } from "@/components/ui/command";
 import type { CrmCompany, CrmDeal, CrmPerson } from "@/lib/crm.ts";
+import type { CrmTask } from "@/lib/crm-tasks.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import type { CommandHits, FileHit } from "@/hooks/use-command-search.ts";
 import { senderLabel } from "@/lib/threads.ts";
@@ -61,11 +67,15 @@ export function FileGroup(props: { nodes: FileHit[]; onOpen: (node: FileHit) => 
   );
 }
 
-/** The CRM's companies, people and deals by name (a person also by address). */
+/**
+ * The CRM's companies, people and deals by name (a person also by address), and open tasks by
+ * title; a task opens beside the task list.
+ */
 export function CrmGroups(props: {
   companies: CrmCompany[];
   people: CrmPerson[];
   deals: CrmDeal[];
+  tasks: CrmTask[];
   onOpen: (path: string) => void;
 }) {
   return (
@@ -115,6 +125,22 @@ export function CrmGroups(props: {
             >
               <IconHandshake />
               <span className="min-w-0 truncate">{deal.name}</span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      )}
+      {props.tasks.length > 0 && (
+        <CommandGroup heading="Tasks">
+          {props.tasks.map((task) => (
+            <CommandItem
+              key={task.id}
+              value={`task:${task.id}`}
+              keywords={[task.title]}
+              onSelect={() => props.onOpen(`/crm/tasks?assignee=anyone&task=${task.id}`)}
+            >
+              <IconChecklist />
+              <span className="min-w-0 truncate">{task.title}</span>
+              {task.recordName && <CommandDetail>{task.recordName}</CommandDetail>}
             </CommandItem>
           ))}
         </CommandGroup>
