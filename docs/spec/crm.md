@@ -342,7 +342,9 @@ instructions keep telling agents to treat it as data.
 - Tasks: `crm_tasks` lists them (open by default, soonest due first) with their record,
   assignee, due time and a `url` (`/<slug>/crm/tasks/<id>`); `crm_fetch` gives each record its
   open tasks; `crm_write`'s `task` adds one (assigned to the caller unless `assignee` says
-  otherwise), changes it, moves it to another record, or completes it with `done: true`.
+  otherwise), changes it, moves it to another record, or completes it with `done: true`. Each
+  task row carries its `subtasks` checklist; `crm_write`'s `subtasks` replaces the whole list
+  (steps kept by `id`, new ones without), as the app's `PATCH /tasks/:id` does.
 - Files and contracts: a company's or deal's `crm_fetch` carries its Drive `folder_id`, its
   linked `files` (ids for `drive_fetch`, and a `url` to the file in its folder) and its
   `contracts` with each one's signing progress (signers, viewed and signed times).

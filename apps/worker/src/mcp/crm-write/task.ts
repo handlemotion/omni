@@ -9,7 +9,12 @@ export const taskSchema = z
   .object({
     id: z.string().min(1).optional().describe("Change this task. Leave out to add one."),
     title: z.string().min(1).max(500).optional(),
-    body: z.string().max(20_000).nullable().optional(),
+    body: z
+      .string()
+      .max(20_000)
+      .nullable()
+      .optional()
+      .describe("Its description, as the app labels it."),
     assignee: z
       .string()
       .min(1)
@@ -22,6 +27,19 @@ export const taskSchema = z
       .optional()
       .describe("When it is due, an ISO date-time; null for none."),
     done: z.boolean().optional().describe("Changing: true completes it, false opens it again."),
+    subtasks: z
+      .array(
+        z.object({
+          id: z.string().min(1).max(100).optional().describe("Keep it on a step you keep."),
+          title: z.string().min(1).max(500),
+          done: z.boolean().default(false),
+        }),
+      )
+      .max(100)
+      .optional()
+      .describe(
+        "Its whole checklist, in order: it replaces the one it has, so send the steps you keep (with their `id`) and the new ones (without). [] clears it.",
+      ),
     record: recordRefSchema.nullable().optional().describe("The record it is on; null for none."),
   })
   .describe("Add, change or complete a task. Adding needs `title`.");
@@ -30,6 +48,13 @@ type TaskInput = z.infer<typeof taskSchema>;
 
 const dueOf = (due: string | null | undefined) =>
   due === undefined ? undefined : due === null ? null : new Date(due);
+
+const stepsOf = (steps: TaskInput["subtasks"]) =>
+  steps?.map((step) => ({
+    id: step.id ?? crypto.randomUUID(),
+    title: step.title,
+    done: step.done,
+  }));
 
 const recordOf = (record: TaskInput["record"]) =>
   record === undefined ? undefined : record === null ? null : recordRef(record);
@@ -71,12 +96,18 @@ export const writeTask: (
     const made = await crm.createTask({ title: input.title, ...fields });
     if (made.status !== "ok") return refusal(made);
     task = made.task;
+    if (input.subtasks?.length) {
+      const stepped = await crm.updateTask(task.id, { subtasks: stepsOf(input.subtasks) });
+      if (stepped.status !== "ok") return refusal(stepped);
+      task = stepped.task;
+    }
   } else {
     const found = await crm.task(input.id);
     if (found.status === "ok") before = [found.task];
     const changed = await crm.updateTask(input.id, {
       title: input.title,
       done: input.done,
+      subtasks: stepsOf(input.subtasks),
       ...fields,
     });
     if (changed.status !== "ok") return refusal(changed);
