@@ -1,8 +1,9 @@
-import { eq, sql, type AnyColumn } from "drizzle-orm";
+import { and, eq, inArray, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
-import { crmEvents } from "../schema/crm.ts";
+import { crmEvents, crmProjectMembers } from "../schema/crm.ts";
 import { personalSpaces } from "../schema/identity.ts";
+import { listSignInEmails } from "../sign-in-emails.ts";
 
 /** A Drizzle database or a transaction on one. */
 export type Ex = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -22,9 +23,36 @@ export interface CrmMember {
   orgId: string;
   /** Owner or admin of the workspace: may delete for good and edit stages. */
   admin: boolean;
+  /**
+   * Null for a teammate, who reaches every record. A freelancer's projects: the deals they were
+   * added to, and nothing else (`docs/spec/crm.md`, "Project access").
+   */
+  projects: string[] | null;
 }
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
+export const FREELANCER_ROLE = "freelancer";
+
+export const hasRole = (roles: string, role: string) =>
+  roles.split(",").some((one) => one.trim() === role);
+
+async function projectsOf(ex: Ex, orgId: string, userId: string) {
+  const addresses = (await listSignInEmails(ex as Db, userId))
+    .filter((address) => address.verified)
+    .map((address) => address.email.toLowerCase());
+  if (addresses.length === 0) return [];
+  const rows = await ex
+    .select({ dealId: crmProjectMembers.dealId })
+    .from(crmProjectMembers)
+    .where(
+      and(
+        eq(crmProjectMembers.orgId, orgId),
+        eq(crmProjectMembers.scope, "freelancer"),
+        inArray(crmProjectMembers.email, addresses),
+      ),
+    );
+  return [...new Set(rows.map((row) => row.dealId))];
+}
 
 /** The member when their workspace is a company; null in a Personal space or when they are gone. */
 export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | null> = async (
@@ -36,25 +64,31 @@ export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | nu
       id: members.id,
       orgId: members.organizationId,
       role: members.role,
+      userId: members.userId,
       personal: sql<boolean>`exists (select 1 from ${personalSpaces} where ${personalSpaces.orgId} = ${members.organizationId})`,
     })
     .from(members)
     .where(eq(members.id, memberId));
   if (!row || row.personal) return null;
   const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
-  return { id: row.id, orgId: row.orgId, admin };
+  const projects =
+    !admin && hasRole(row.role, FREELANCER_ROLE)
+      ? await projectsOf(ex, row.orgId, row.userId)
+      : null;
+  return { id: row.id, orgId: row.orgId, admin, projects };
 };
 
 /**
- * Who hears a CRM change: the workspace's members now. Every member sees every record,
- * and a member removed since they connected is not among them.
+ * Who hears a CRM change: the workspace's teammates now. A member removed since they connected
+ * is not among them, and neither is a freelancer, who would learn other records' ids.
  */
 export async function crmAudience(ex: Ex, member: CrmMember) {
   const rows = await ex
-    .select({ id: members.id })
+    .select({ id: members.id, role: members.role })
     .from(members)
     .where(eq(members.organizationId, member.orgId));
-  return { status: "ok" as const, memberIds: rows.map((row) => row.id) };
+  const team = rows.filter((row) => !hasRole(row.role, FREELANCER_ROLE));
+  return { status: "ok" as const, memberIds: team.map((row) => row.id) };
 }
 
 /** The member door's context: the database, and how to resolve the member once per call. */
@@ -63,10 +97,36 @@ export interface CrmDoor {
   memberId: string;
 }
 
-/** Runs `fn` for the member, or answers `no_crm`. Reads run on the database directly. */
-export async function asMember<T>(door: CrmDoor, fn: (member: CrmMember, ex: Ex) => Promise<T>) {
+/** A freelancer: a member who reaches only their projects. */
+export type Freelancer = CrmMember & { projects: string[] };
+
+/**
+ * Whether a freelancer may run a door operation. Teammates always may. Without a gate an
+ * operation is for teammates only, so a new one is closed to freelancers until it says otherwise.
+ */
+export type Gate = (member: Freelancer, ex: Ex) => boolean | Promise<boolean>;
+
+export const TEAM_ONLY: Gate = () => false;
+export const ANYONE: Gate = () => true;
+
+const isFreelancer = (member: CrmMember): member is Freelancer => member.projects !== null;
+
+async function admits(member: CrmMember, ex: Ex, gate: Gate) {
+  return !isFreelancer(member) || (await gate(member, ex));
+}
+
+/**
+ * Runs `fn` for the member, or answers `no_crm`; a freelancer the gate turns away gets
+ * `not_found`, as for a record in another workspace. Reads run on the database directly.
+ */
+export async function asMember<T>(
+  door: CrmDoor,
+  fn: (member: CrmMember, ex: Ex) => Promise<T>,
+  gate: Gate = TEAM_ONLY,
+) {
   const member = await loadCrmMember(door.db, door.memberId);
   if (!member) return NO_CRM;
+  if (!(await admits(member, door.db, gate))) return NOT_FOUND;
   return fn(member, door.db);
 }
 
@@ -94,12 +154,15 @@ export function refuse<R extends { status: string }>(result: R): never {
 export async function writeAsMember<T>(
   door: CrmDoor,
   fn: (member: CrmMember, tx: Ex) => Promise<T>,
+  gate: Gate = TEAM_ONLY,
 ) {
   try {
     return (await door.db.transaction(async (tx) => {
       const member = await loadCrmMember(tx, door.memberId);
-      return member ? fn(member, tx) : NO_CRM;
-    })) satisfies T | NoCrm;
+      if (!member) return NO_CRM;
+      if (!(await admits(member, tx, gate))) return NOT_FOUND;
+      return fn(member, tx);
+    })) satisfies T | NoCrm | NotFound;
   } catch (error) {
     if (error instanceof Refusal) return error.result as T satisfies T | NoCrm;
     throw error;

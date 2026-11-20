@@ -69,6 +69,11 @@ export interface StorageMember {
   admin: boolean;
   /** The workspace is a Personal space: it has My files and no Shared. */
   personal: boolean;
+  /**
+   * A freelancer reaches My files and what is shared with them by address (their projects'
+   * folders), never the rest of Shared.
+   */
+  freelancer: boolean;
 }
 
 export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | null> = async (
@@ -85,8 +90,10 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
     .from(members)
     .where(eq(members.id, memberId));
   if (!row) return null;
-  const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
-  return { id: row.id, orgId: row.orgId, admin, personal: row.personal };
+  const roles = row.role.split(",").map((role) => role.trim());
+  const admin = roles.some((role) => ADMIN_ROLES.has(role));
+  const freelancer = !admin && roles.includes("freelancer");
+  return { id: row.id, orgId: row.orgId, admin, personal: row.personal, freelancer };
 };
 
 /**
@@ -104,7 +111,7 @@ export const memberDoor: (memberId: string) => Door = (memberId) => {
       const member = await loadMember(ex, memberId);
       if (!node || !member || node.orgId !== member.orgId) return null;
       const mine = node.space === "personal" && node.ownerMemberId === member.id;
-      const shared = node.space === "shared" && !member.personal;
+      const shared = node.space === "shared" && !member.personal && !member.freelancer;
       if (!mine && !shared) return null;
       return {
         role: "member",
@@ -127,7 +134,9 @@ export const memberDoor: (memberId: string) => Door = (memberId) => {
       if (space === "personal") {
         return { orgId: member.orgId, space, ownerMemberId: member.id };
       }
-      return member.personal ? null : { orgId: member.orgId, space, ownerMemberId: null };
+      return member.personal || member.freelancer
+        ? null
+        : { orgId: member.orgId, space, ownerMemberId: null };
     },
     async actor(ex, orgId) {
       const member = await loadMember(ex, memberId);

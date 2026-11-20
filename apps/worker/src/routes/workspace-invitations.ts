@@ -21,7 +21,7 @@ import { zValidator } from "../validator.ts";
 
 const invitationBody = z.object({
   email: z.string().trim().toLowerCase().email().max(320),
-  role: z.enum(["member", "admin"]).default("member"),
+  role: z.enum(["member", "admin", "freelancer"]).default("member"),
   inbox: mailboxPlacement.optional(),
   sharedInboxIds: z.array(z.string().min(1)).max(100).default([]),
 });
@@ -136,7 +136,10 @@ export const workspaceInvitations = new Hono<AppEnv>()
         headers: c.req.raw.headers,
         body: {
           email: invitation.email,
-          role: invitation.role === "admin" ? "admin" : "member",
+          role:
+            invitation.role === "admin" || invitation.role === "freelancer"
+              ? invitation.role
+              : "member",
           organizationId: member.orgId,
           resend: true,
           ...(invitation.teamId ? { teamId: invitation.teamId.split(",") } : {}),

@@ -69,7 +69,8 @@ mail and the files the workspace already has in Omni.
   same deal, maybe a Drive file, a due day, a status (`draft`, `in_review`, `approved`,
   `changes_requested`) and whether the client sees it.
 
-Every member of the company sees and edits all of it.
+Every teammate sees and edits all of it. A freelancer sees only the projects they are on (see
+"Project access").
 
 ## How people use it
 
@@ -125,6 +126,24 @@ folder. Deleting a milestone keeps its deliverables on the deal, under none. A d
 200 of each, so the plan is always read whole. Days are days (`YYYY-MM-DD`), the same on every
 client.
 
+**Project access.** Instead of roles and permissions, a project (a deal, usually won) lists the
+people from outside the team who reach it, by address, each with a scope (founder's call, Nov 20,
+2026: no general RBAC):
+
+- **Teammates** (owners, admins, members) are never listed. They see every record, as before.
+- **Freelancers** join the workspace with the `freelancer` role (invited as one) and are added to
+  the projects they work on. In the CRM they reach those deals and nothing else: the deal, its
+  plan, notes, timeline, tasks, files and contracts, the tasks assigned to them, and search and the
+  conversation sidebar narrowed to their projects. No company or person pages, no lists of them, no
+  new deals, no changes to a deal itself, no workspace settings. Every operation of the member door
+  names what it opens to a freelancer; one that names nothing answers `not_found`, so a new
+  operation stays closed to them until it says otherwise. In Drive they have My files and no Shared:
+  being added gives them editor on the project's folder, which they open from Shared with me, and
+  being taken off removes it. They hear no realtime CRM changes.
+- **Clients** reach the project on the client portal only (a later layer).
+
+A teammate's address cannot be added. A project holds at most 50 people from outside the team.
+
 ## API
 
 All under `/api/crm` on the Worker, for the active workspace. Shapes live in
@@ -154,6 +173,7 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `GET /settings` · `PUT /settings`                                   | The default currency.                                                                                        |
 | `GET /tasks` · `POST /tasks` · `GET /tasks/counts`                  | List by `?status=`, `?assignee=`, `?due=`, `?company=`/`?person=`/`?deal=`, `?q=` (see Tasks). Create. Counts.    |
 | `GET /tasks/:id` · `PATCH` · `DELETE`                               | Read. Change, complete or reopen (`done`), move to another record. Delete.                                   |
+| `GET /deals/:id/access` · `PUT /deals/:id/access/:email` · `DELETE` | Who outside the team reaches the project. `PUT { scope }` adds or changes; a freelancer gets the folder. Teammates only. |
 | `GET /deals/:id/plan`                                               | The deal's milestones in order and its deliverables, oldest first.                                           |
 | `POST /deals/:id/milestones` · `PATCH /milestones/:id` · `DELETE`   | Add one last. Change; `position` moves it. Delete; its deliverables stay, under no milestone.                 |
 | `POST /deals/:id/deliverables` · `PATCH /deliverables/:id` · `DELETE` | Add, change, delete. `milestoneId` is one of the deal's, `nodeId` a file the member can open.              |

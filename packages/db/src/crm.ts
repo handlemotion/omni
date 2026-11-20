@@ -12,6 +12,13 @@ import {
   type CompanyPatch,
   type ListCompaniesInput,
 } from "./crm/companies.ts";
+import {
+  grantAccess,
+  listAccess,
+  revokeAccess,
+  type GrantAccessResult,
+  type ProjectScope,
+} from "./crm/access.ts";
 import { bulkCrm, type CrmBulkAction, type CrmBulkRecords } from "./crm/bulk.ts";
 import { changeCompany, type CompanyChange } from "./crm/company-change.ts";
 import {
@@ -31,11 +38,15 @@ import {
   type ListContractsInput,
 } from "./crm/contracts.ts";
 import {
+  ANYONE,
   asMember,
   crmAudience,
+  TEAM_ONLY,
   writeAsMember,
   type CrmDoor,
+  type CrmMember,
   type CrmRecordRef,
+  type Freelancer,
 } from "./crm/core.ts";
 import {
   archiveDeal,
@@ -86,6 +97,19 @@ import {
   type MilestoneInput,
   type MilestonePatch,
 } from "./crm/plan.ts";
+import {
+  deliverableOnProject,
+  freelancerLookup,
+  freelancerSearch,
+  freelancerTasks,
+  milestoneOnProject,
+  noteOnProject,
+  onProject,
+  onProjectRecord,
+  projectDeals,
+  taskChangeOnProject,
+  taskOnProject,
+} from "./crm/scope.ts";
 import { lookupCrm, searchCrm } from "./crm/search.ts";
 import { getSettings, putSettings } from "./crm/settings.ts";
 import { replaceStages, stagesOf, type StageInput } from "./crm/stages.ts";
@@ -194,6 +218,16 @@ export type {
   UpdatePersonResult,
 } from "./crm/people.ts";
 export {
+  PROJECT_ACCESS_MAX,
+  type AlreadyTeammate,
+  type CrmProjectAccess,
+  type GrantAccessResult,
+  type InvalidEmail,
+  type ProjectScope,
+  type SharingRefused,
+  type TooMany,
+} from "./crm/access.ts";
+export {
   CRM_PLAN_DESCRIPTION_MAX,
   CRM_PLAN_MAX,
   CRM_PLAN_TITLE_MAX,
@@ -243,9 +277,13 @@ export {
   type StageTarget,
 } from "./crm/stage-transition.ts";
 
+const isFreelancer = (member: CrmMember): member is Freelancer => member.projects !== null;
+
 /**
  * The member door. Every record of the member's company workspace, read and written by every
- * member; deleting for good and editing stages are for owners and admins. Nothing reaches
+ * teammate; deleting for good and editing stages are for owners and admins. A freelancer
+ * reaches only their projects (`docs/spec/crm.md`, "Project access"): each operation names the
+ * gate it opens to them, and one that names none answers them `not_found`. Nothing reaches
  * another workspace, and in a Personal space every call answers `{ status: "no_crm" }`.
  */
 export function memberCrm(db: Db, memberId: string) {
@@ -279,8 +317,13 @@ export function memberCrm(db: Db, memberId: string) {
     restorePerson: (id: string) => writeAsMember(door, (m, tx) => restorePerson(tx, m, id)),
     deletePerson: (id: string) => writeAsMember(door, (m, tx) => deletePerson(tx, m, id)),
 
-    listDeals: (input: ListDealsInput = {}) => asMember(door, (m, ex) => listDeals(ex, m, input)),
-    deal: (id: string) => asMember(door, (m, ex) => getDeal(ex, m, id)),
+    listDeals: (input: ListDealsInput = {}) =>
+      asMember(
+        door,
+        (m, ex) => (isFreelancer(m) ? projectDeals(ex, m) : listDeals(ex, m, input)),
+        ANYONE,
+      ),
+    deal: (id: string) => asMember(door, (m, ex) => getDeal(ex, m, id), onProject(id)),
     createDeal: (input: DealInput) => writeAsMember(door, (m, tx) => createDeal(tx, m, input)),
     updateDeal: (id: string, patch: DealPatch) =>
       writeAsMember(door, (m, tx) => updateDeal(tx, m, id, patch)),
@@ -293,15 +336,21 @@ export function memberCrm(db: Db, memberId: string) {
     deleteDeal: (id: string) => writeAsMember(door, (m, tx) => deleteDeal(tx, m, id)),
 
     companyFolder: (id: string) => writeAsMember(door, (m, tx) => companyFolder(tx, m, id)),
-    dealFolder: (id: string) => writeAsMember(door, (m, tx) => dealFolder(tx, m, id)),
-    fileLinks: (record: FileLinkRecord) => asMember(door, (m, ex) => fileLinksOf(ex, m, record)),
+    dealFolder: (id: string) =>
+      writeAsMember(door, (m, tx) => dealFolder(tx, m, id), onProject(id)),
+    fileLinks: (record: FileLinkRecord) =>
+      asMember(door, (m, ex) => fileLinksOf(ex, m, record), onProjectRecord(record)),
     linkFiles: (record: FileLinkRecord, nodeIds: string[]) =>
-      writeAsMember(door, (m, tx) => linkFiles(tx, m, record, nodeIds)),
+      writeAsMember(door, (m, tx) => linkFiles(tx, m, record, nodeIds), onProjectRecord(record)),
     unlinkFile: (record: FileLinkRecord, nodeId: string) =>
-      writeAsMember(door, (m, tx) => unlinkFile(tx, m, record, nodeId)),
+      writeAsMember(door, (m, tx) => unlinkFile(tx, m, record, nodeId), onProjectRecord(record)),
 
     listContracts: (input: ListContractsInput) =>
-      asMember(door, (m, ex) => listContracts(ex, m, input)),
+      asMember(
+        door,
+        (m, ex) => listContracts(ex, m, input),
+        "dealId" in input ? onProject(input.dealId) : TEAM_ONLY,
+      ),
     createContract: (input: ContractInput) =>
       writeAsMember(door, (m, tx) => createContract(tx, m, input)),
     updateContract: (id: string, patch: ContractPatch) =>
@@ -317,50 +366,76 @@ export function memberCrm(db: Db, memberId: string) {
       writeAsMember(door, (m, tx) => withdrawContract(tx, m, id, requestId)),
 
     stages: () =>
-      asMember(door, async (m, ex) => ({
-        status: "ok" as const,
-        stages: await stagesOf(ex, m.orgId),
-      })),
+      asMember(
+        door,
+        async (m, ex) => ({ status: "ok" as const, stages: await stagesOf(ex, m.orgId) }),
+        ANYONE,
+      ),
     replaceStages: (input: StageInput[]) =>
       writeAsMember(door, (m, tx) => replaceStages(tx, m, input)),
-    settings: () => asMember(door, (m, ex) => getSettings(ex, m)),
-    audience: () => asMember(door, (m, ex) => crmAudience(ex, m)),
+    settings: () => asMember(door, (m, ex) => getSettings(ex, m), ANYONE),
+    audience: () => asMember(door, (m, ex) => crmAudience(ex, m), ANYONE),
     putSettings: (input: { defaultCurrency: string | null }) =>
       writeAsMember(door, (m, tx) => putSettings(tx, m, input)),
 
     createNote: (input: { record: CrmRecordRef; body: string }) =>
-      writeAsMember(door, (m, tx) => createNote(tx, m, input)),
+      writeAsMember(door, (m, tx) => createNote(tx, m, input), onProjectRecord(input.record)),
     updateNote: (id: string, input: { body: string }) =>
-      writeAsMember(door, (m, tx) => updateNote(tx, m, id, input)),
-    deleteNote: (id: string) => writeAsMember(door, (m, tx) => deleteNote(tx, m, id)),
+      writeAsMember(door, (m, tx) => updateNote(tx, m, id, input), noteOnProject(id)),
+    deleteNote: (id: string) =>
+      writeAsMember(door, (m, tx) => deleteNote(tx, m, id), noteOnProject(id)),
     events: (record: CrmRecordRef, page: TimelinePage = {}) =>
-      asMember(door, (m, ex) => eventsOf(ex, m, record, page)),
+      asMember(door, (m, ex) => eventsOf(ex, m, record, page), onProjectRecord(record)),
     notes: (record: CrmRecordRef, page: TimelinePage = {}) =>
-      asMember(door, (m, ex) => notesOf(ex, m, record, page)),
+      asMember(door, (m, ex) => notesOf(ex, m, record, page), onProjectRecord(record)),
 
-    listTasks: (input: ListTasksInput = {}) => asMember(door, (m, ex) => listTasks(ex, m, input)),
+    listTasks: (input: ListTasksInput = {}) =>
+      asMember(
+        door,
+        (m, ex) => (isFreelancer(m) ? freelancerTasks(ex, m, input) : listTasks(ex, m, input)),
+        ANYONE,
+      ),
     taskCounts: () => asMember(door, (m, ex) => countTasks(ex, m)),
-    task: (id: string) => asMember(door, (m, ex) => getTask(ex, m, id)),
-    createTask: (input: TaskInput) => writeAsMember(door, (m, tx) => createTask(tx, m, input)),
+    task: (id: string) => asMember(door, (m, ex) => getTask(ex, m, id), taskOnProject(id)),
+    createTask: (input: TaskInput) =>
+      writeAsMember(door, (m, tx) => createTask(tx, m, input), onProjectRecord(input.record)),
     updateTask: (id: string, patch: TaskPatch) =>
-      writeAsMember(door, (m, tx) => updateTask(tx, m, id, patch)),
-    deleteTask: (id: string) => writeAsMember(door, (m, tx) => deleteTask(tx, m, id)),
+      writeAsMember(door, (m, tx) => updateTask(tx, m, id, patch), taskChangeOnProject(id, patch)),
+    deleteTask: (id: string) =>
+      writeAsMember(door, (m, tx) => deleteTask(tx, m, id), taskOnProject(id)),
 
-    plan: (dealId: string) => asMember(door, (m, ex) => getPlan(ex, m, dealId)),
+    plan: (dealId: string) => asMember(door, (m, ex) => getPlan(ex, m, dealId), onProject(dealId)),
     createMilestone: (dealId: string, input: MilestoneInput) =>
-      writeAsMember(door, (m, tx) => createMilestone(tx, m, dealId, input)),
+      writeAsMember(door, (m, tx) => createMilestone(tx, m, dealId, input), onProject(dealId)),
     updateMilestone: (id: string, patch: MilestonePatch) =>
-      writeAsMember(door, (m, tx) => updateMilestone(tx, m, id, patch)),
-    deleteMilestone: (id: string) => writeAsMember(door, (m, tx) => deleteMilestone(tx, m, id)),
+      writeAsMember(door, (m, tx) => updateMilestone(tx, m, id, patch), milestoneOnProject(id)),
+    deleteMilestone: (id: string) =>
+      writeAsMember(door, (m, tx) => deleteMilestone(tx, m, id), milestoneOnProject(id)),
     createDeliverable: (dealId: string, input: DeliverableInput) =>
-      writeAsMember(door, (m, tx) => createDeliverable(tx, m, dealId, input)),
+      writeAsMember(door, (m, tx) => createDeliverable(tx, m, dealId, input), onProject(dealId)),
     updateDeliverable: (id: string, patch: DeliverablePatch) =>
-      writeAsMember(door, (m, tx) => updateDeliverable(tx, m, id, patch)),
-    deleteDeliverable: (id: string) => writeAsMember(door, (m, tx) => deleteDeliverable(tx, m, id)),
+      writeAsMember(door, (m, tx) => updateDeliverable(tx, m, id, patch), deliverableOnProject(id)),
+    deleteDeliverable: (id: string) =>
+      writeAsMember(door, (m, tx) => deleteDeliverable(tx, m, id), deliverableOnProject(id)),
+
+    projectAccess: (dealId: string) => asMember(door, (m, ex) => listAccess(ex, m, dealId)),
+    grantProjectAccess: (dealId: string, input: { email: string; scope: ProjectScope }) =>
+      writeAsMember<GrantAccessResult>(door, (m, tx) => grantAccess(tx, m, dealId, input)),
+    revokeProjectAccess: (dealId: string, email: string) =>
+      writeAsMember(door, (m, tx) => revokeAccess(tx, m, dealId, email)),
 
     search: (input: { q: string; limit?: number }) =>
-      asMember(door, (m, ex) => searchCrm(ex, m, input)),
-    lookup: (input: { addresses: string[] }) => asMember(door, (m, ex) => lookupCrm(ex, m, input)),
+      asMember(
+        door,
+        (m, ex) => (isFreelancer(m) ? freelancerSearch(ex, m, input) : searchCrm(ex, m, input)),
+        ANYONE,
+      ),
+    lookup: (input: { addresses: string[] }) =>
+      asMember(
+        door,
+        (m, ex) => (isFreelancer(m) ? freelancerLookup(ex, m, input) : lookupCrm(ex, m, input)),
+        ANYONE,
+      ),
   };
 }
 

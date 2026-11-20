@@ -37,6 +37,7 @@ import { refreshSessionCacheOnOrgChange } from "./session-cache.ts";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { multiSession } from "better-auth/plugins/multi-session";
 import { organization } from "better-auth/plugins/organization";
+import { adminAc, defaultAc, memberAc, ownerAc } from "better-auth/plugins/organization/access";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import Stripe from "stripe";
 import { uuidv7 } from "uuidv7";
@@ -279,11 +280,14 @@ async function hasPendingInvitation(db: Db, email: string) {
   return invitation !== undefined;
 }
 
+const freelancerAc = defaultAc.newRole({ ...memberAc.statements });
+
 /**
  * Better Auth instance for one request scope. The Worker calls this with its bindings, and
  * `auth.config.ts` calls it so the CLI generates `@omni/db`'s auth schema from the same options.
  * Model names are plural to match our tables.
  */
+
 export function createAuth(env: AuthEnv) {
   return betterAuth({
     appName: env.appName ?? "Omni",
@@ -412,6 +416,7 @@ export function createAuth(env: AuthEnv) {
             expiresAt: invitation.expiresAt,
           }),
         teams: { enabled: true, defaultTeam: { enabled: false } },
+        roles: { owner: ownerAc, admin: adminAc, member: memberAc, freelancer: freelancerAc },
         organizationHooks: {
           ...personalSpaceHooks(env.db),
           beforeDeleteOrganization: async (input) => {

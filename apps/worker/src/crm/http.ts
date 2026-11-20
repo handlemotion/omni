@@ -68,8 +68,14 @@ export type CrmRefusal =
   | FilesRefusal
   | PlanRefusal;
 
-/** What a project's plan adds: a milestone on another deal, a file the caller cannot open. */
-type PlanRefusal = { status: "invalid_milestone" } | { status: "invalid_file" };
+/** What a project's plan and access add. */
+type PlanRefusal =
+  | { status: "invalid_milestone" }
+  | { status: "invalid_file" }
+  | { status: "invalid_email" }
+  | { status: "already_teammate" }
+  | { status: "too_many" }
+  | { status: "sharing_refused"; reason: string };
 
 /** What contracts and record folders add: Storage's refusals to make a folder among them. */
 type FilesRefusal =
@@ -142,13 +148,24 @@ const PLAN_ANSWERS: Record<PlanRefusal["status"], Answer> = {
     message: "that is not a file you can open",
     param: "nodeId",
   },
+  invalid_email: { code: "invalid_email", message: "that is not an email address", param: "email" },
+  already_teammate: {
+    code: "conflict",
+    message: "that address is a teammate's, who already sees every project",
+  },
+  too_many: { code: "conflict", message: "a project has at most 50 people from outside the team" },
+  sharing_refused: {
+    code: "sharing_policy",
+    message: "Drive would not share the project's folder with that address",
+  },
 };
+const PLAN_STATUSES = new Set<string>(Object.keys(PLAN_ANSWERS));
+const isPlanRefusal = (refusal: CrmRefusal): refusal is PlanRefusal =>
+  PLAN_STATUSES.has(refusal.status);
 
 function answerFor(refusal: CrmRefusal) {
   if (isFilesRefusal(refusal)) return filesAnswerFor(refusal) satisfies Answer;
-  if (refusal.status === "invalid_milestone" || refusal.status === "invalid_file") {
-    return PLAN_ANSWERS[refusal.status];
-  }
+  if (isPlanRefusal(refusal)) return PLAN_ANSWERS[refusal.status];
   switch (refusal.status) {
     case "no_crm":
       return { code: "no_crm", message: "a Personal space has no CRM" } satisfies Answer;
