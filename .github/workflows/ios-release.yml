@@ -78,6 +78,11 @@ jobs:
           OMNI_IOS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_IOS_PROJECT: ${{ secrets.SENTRY_IOS_PROJECT }}
+          OMNI_IOS_LINK_HOST: ${{ secrets.OMNI_IOS_LINK_HOST }}
         run: apps/ios/scripts/release-testflight.sh
 
       - name: Clean up
