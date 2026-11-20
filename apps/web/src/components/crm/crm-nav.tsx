@@ -6,6 +6,7 @@ import {
   IconCircleCheck,
   IconCircleX,
   IconHandshake,
+  IconProjects,
   IconUsers,
 } from "@/components/icons/central";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
@@ -19,6 +20,7 @@ export const CRM_LISTS = {
   companies: { label: "Companies", path: "/crm/companies" },
   people: { label: "People", path: "/crm/people" },
   deals: { label: "Deals", path: "/crm/deals" },
+  projects: { label: "Projects", path: "/crm/projects" },
   tasks: { label: "Tasks", path: "/crm/tasks" },
 } as const;
 
@@ -26,6 +28,7 @@ const ROWS: { list: keyof typeof CRM_LISTS; icon: ReactNode }[] = [
   { list: "companies", icon: <IconBuildings className="size-icon" /> },
   { list: "people", icon: <IconUsers className="size-icon" /> },
   { list: "deals", icon: <IconHandshake className="size-icon" /> },
+  { list: "projects", icon: <IconProjects className="size-icon" /> },
   { list: "tasks", icon: <IconChecklist className="size-icon" /> },
 ];
 

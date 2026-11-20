@@ -115,5 +115,11 @@ export { IconConnectors1 as IconConnections } from "central-icons-outlined/IconC
 export { IconChatBubbleSimple as IconCommentPlain } from "central-icons-outlined/IconChatBubbleSimple";
 export { IconCursor1 as IconCursor } from "central-icons-outlined/IconCursor1";
 export { IconCircleCheck as IconCircleCheckFilled } from "central-icons-filled/IconCircleCheck";
+export { IconProjects } from "central-icons-outlined/IconProjects";
+export { IconCalendar1 as IconCalendar } from "central-icons-outlined/IconCalendar1";
+export { IconFilter1 as IconFilter } from "central-icons-outlined/IconFilter1";
+export { IconArrowDown } from "central-icons-outlined/IconArrowDown";
+export { IconText1 as IconText } from "central-icons-outlined/IconText1";
+export { IconMoneybag as IconMoney } from "central-icons-outlined/IconMoneybag";
 export { IconChecklist } from "central-icons-outlined/IconChecklist";
 export { IconCalendarDays } from "central-icons-outlined/IconCalendarDays";

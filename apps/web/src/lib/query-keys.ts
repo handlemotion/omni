@@ -147,15 +147,19 @@ export const keys = {
 
   /** The CRM: every list, record, timeline and the stages. */
   crm: () => crm(),
-  crmCompanies: (q: string) => [...crm(), "companies", { q }] as const,
-  crmPeople: (q: string) => [...crm(), "people", { q }] as const,
+  /** A list by every filter, sort and search it is asked with, so each view caches apart. */
+  crmCompanies: (filter: object) => [...crm(), "companies", filter] as const,
+  crmPeople: (filter: object) => [...crm(), "people", filter] as const,
+  /** Every live company's name, for the Company columns. */
+  crmCompanyIndex: () => [...crm(), "company-index"] as const,
   /** Every deals list (the board's and the searched ones), so a move patches them all. */
   crmDealLists: () => [...crm(), "deals"] as const,
-  crmDeals: (q: string) => [...crm(), "deals", { q }] as const,
+  crmDeals: (filter: object) => [...crm(), "deals", filter] as const,
   crmCompany: (id: string) => [...crm(), "company", id] as const,
   crmPerson: (id: string) => [...crm(), "person", id] as const,
   crmDeal: (id: string) => [...crm(), "deal", id] as const,
   crmStages: () => [...crm(), "stages"] as const,
+  crmSettings: () => [...crm(), "settings"] as const,
   crmTimeline: (kind: string, id: string) => [...crm(), "timeline", kind, id] as const,
   crmContracts: (where: { company: string } | { deal: string }) =>
     [...crm(), "contracts", where] as const,

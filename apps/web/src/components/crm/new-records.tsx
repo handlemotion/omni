@@ -1,18 +1,20 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
 import { ComboBox, ComboBoxContent, ComboBoxInput, ComboBoxItem } from "@/components/ui/combo-box";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import {
   useCreateCompany,
   useCreateDeal,
   useCreatePerson,
   useCrmCompanies,
+  useCrmDefaultCurrency,
 } from "@/hooks/use-crm.ts";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
-import { parseMoney } from "@/lib/crm.ts";
+import { currencyCodes, parseMoney, valueCurrency } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
@@ -109,6 +111,9 @@ export function NewDealDialog(props: { companyId?: string; onClose: () => void }
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [companyId, setCompanyId] = useState<string | null>(props.companyId ?? null);
+  const workspaceCurrency = useCrmDefaultCurrency();
+  const [picked, setPicked] = useState<string | null>(null);
+  const currency = picked ?? valueCurrency(null, workspaceCurrency);
   const minor = parseMoney(value);
   return (
     <SettingsFormDialog
@@ -124,6 +129,7 @@ export function NewDealDialog(props: { companyId?: string; onClose: () => void }
             name: name.trim(),
             ...(companyId ? { companyId } : {}),
             ...(minor !== null ? { valueMinor: minor } : {}),
+            currency,
           },
           {
             onSuccess: ({ deal }) =>
@@ -141,11 +147,35 @@ export function NewDealDialog(props: { companyId?: string; onClose: () => void }
         <Input autoComplete="off" />
       </TextField>
       {!props.companyId && <CompanyPicker value={companyId} onChange={setCompanyId} />}
-      <TextField value={value} onChange={setValue} inputMode="decimal">
-        <Label>Value</Label>
-        <Input autoComplete="off" />
-      </TextField>
+      <div className="flex items-end gap-2">
+        <TextField value={value} onChange={setValue} inputMode="decimal" className="flex-1">
+          <Label>Value</Label>
+          <Input autoComplete="off" />
+        </TextField>
+        <CurrencyPicker value={currency} onChange={setPicked} />
+      </div>
     </SettingsFormDialog>
+  );
+}
+
+function CurrencyPicker(props: { value: string; onChange: (code: string) => void }) {
+  const codes = useMemo(() => currencyCodes().map((code) => ({ id: code, name: code })), []);
+  return (
+    <Select
+      aria-label="Currency"
+      value={props.value}
+      onChange={(code) => code && props.onChange(code)}
+      className="w-24"
+    >
+      <SelectTrigger className="tabular-nums" />
+      <SelectContent items={codes}>
+        {(code) => (
+          <SelectItem id={code.id} textValue={code.name}>
+            {code.name}
+          </SelectItem>
+        )}
+      </SelectContent>
+    </Select>
   );
 }
 

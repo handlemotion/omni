@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PeoplePage } from "../../../../components/crm/list-pages.tsx";
 import { crmPeopleQuery } from "../../../../lib/crm.ts";
-import { crmListSearch } from "../../../../lib/search-params.ts";
+import { peopleFilter } from "../../../../lib/crm-lists.ts";
+import { crmPeopleSearch } from "../../../../lib/search-params.ts";
 
 export const Route = createFileRoute("/_authed/$workspace/crm/people/")({
-  validateSearch: crmListSearch,
-  loaderDeps: ({ search }) => ({ q: search.q ?? "" }),
+  validateSearch: crmPeopleSearch,
+  loaderDeps: ({ search }) => peopleFilter(search),
   loader: ({ context, deps }) =>
-    void context.queryClient.prefetchInfiniteQuery(crmPeopleQuery(deps.q)),
+    void context.queryClient.prefetchInfiniteQuery(crmPeopleQuery(deps)),
   component: People,
 });
 
 function People() {
-  const { q } = Route.useSearch();
-  return <PeoplePage q={q ?? ""} />;
+  return <PeoplePage search={Route.useSearch()} />;
 }

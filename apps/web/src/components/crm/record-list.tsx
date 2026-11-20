@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { Selection } from "react-aria-components";
 import { TableLoadMoreItem } from "react-aria-components/Table";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -7,6 +8,7 @@ import { ListFailed } from "@/components/inbox/thread-list";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { SenderAvatar } from "@/components/avatar/sender-avatar";
 import type { SenderLogoFor } from "@/lib/sender-logo";
+import type { CrmSort } from "@/lib/crm.ts";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
@@ -19,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
+import { descriptorOf, fromDescriptor, type SortState } from "./list-sort.tsx";
 
 export const DAY = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -31,6 +34,8 @@ export interface RecordColumn<T> {
   /** Its width; secondary columns leave on a phone with `max-sm:hidden`. */
   className: string;
   cell: (row: T) => ReactNode;
+  /** The sort its header sets, when it can sort the list. */
+  sort?: CrmSort;
 }
 
 export interface RecordListSource<T> {
@@ -41,6 +46,14 @@ export interface RecordListSource<T> {
   hasNextPage: boolean;
   fetchNextPage: () => unknown;
   isFetchingNextPage: boolean;
+}
+
+/** The rows picked for a bulk action, and the bar that acts on them. */
+export interface RecordSelection {
+  keys: ReadonlySet<string>;
+  onChange: (keys: Set<string>) => void;
+  /** Shown in place of the header's actions while anything is picked. */
+  bar: ReactNode;
 }
 
 /**
@@ -76,7 +89,7 @@ export function Muted({ children }: { children: ReactNode }) {
 
 export { useListSearch } from "@/hooks/use-list-search.ts";
 
-export function RecordList<T extends { id: string; name: string }>(props: {
+interface RecordListProps<T> {
   title: string;
   /** "company": names the New button and the empty state. */
   noun: string;
@@ -85,38 +98,27 @@ export function RecordList<T extends { id: string; name: string }>(props: {
   columns: RecordColumn<T>[];
   mark: (row: T) => ReactNode;
   href: (row: T) => string;
-  onNew: () => void;
+  onNew?: () => void;
   /** Between the search and New: the deals' Board and List. */
   extra?: ReactNode;
+  /** Under the header: the sort and the filters. */
+  toolbar?: ReactNode;
+  /** A filter narrows the list, so an empty one says nothing matches. */
+  filtered?: boolean;
+  sorting?: { value: SortState; onChange: (next: SortState) => void };
+  selection?: RecordSelection;
   /** Shown under the header in place of the table (the deals' board). */
   replaceBody?: ReactNode;
-}) {
-  const phone = useIsMobile();
+}
+
+export function RecordList<T extends { id: string; name: string }>(props: RecordListProps<T>) {
+  const picking = !!props.selection && props.selection.keys.size > 0;
   return (
     <StorageFrame
       title={<Heading className="truncate text-md">{props.title}</Heading>}
-      actions={
-        <>
-          {props.extra}
-          <SearchField
-            aria-label={`Search ${props.title.toLowerCase()}`}
-            value={props.search.text}
-            onChange={props.search.setText}
-            className="w-40 sm:w-56"
-          >
-            <SearchInput size="sm" />
-          </SearchField>
-          <Button
-            size={phone ? "sq-sm" : "sm"}
-            aria-label={phone ? `New ${props.noun}` : undefined}
-            onPress={props.onNew}
-          >
-            <IconPlus />
-            {!phone && `New ${props.noun}`}
-          </Button>
-        </>
-      }
+      actions={picking ? props.selection?.bar : <HeaderActions {...props} />}
     >
+      {props.toolbar}
       {props.replaceBody ?? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <Body {...props} />
@@ -126,8 +128,36 @@ export function RecordList<T extends { id: string; name: string }>(props: {
   );
 }
 
-function Body<T extends { id: string; name: string }>(props: Parameters<typeof RecordList<T>>[0]) {
-  const { source } = props;
+function HeaderActions<T>(props: RecordListProps<T>) {
+  const phone = useIsMobile();
+  const { onNew } = props;
+  return (
+    <>
+      {props.extra}
+      <SearchField
+        aria-label={`Search ${props.title.toLowerCase()}`}
+        value={props.search.text}
+        onChange={props.search.setText}
+        className="w-40 sm:w-56"
+      >
+        <SearchInput size="sm" />
+      </SearchField>
+      {onNew && (
+        <Button
+          size={phone ? "sq-sm" : "sm"}
+          aria-label={phone ? `New ${props.noun}` : undefined}
+          onPress={onNew}
+        >
+          <IconPlus />
+          {!phone && `New ${props.noun}`}
+        </Button>
+      )}
+    </>
+  );
+}
+
+function Body<T extends { id: string; name: string }>(props: RecordListProps<T>) {
+  const { source, onNew } = props;
   if (source.isPending) {
     return (
       <Skeleton loading label={`Loading ${props.title.toLowerCase()}`} skeleton={<ListBones />}>
@@ -145,24 +175,51 @@ function Body<T extends { id: string; name: string }>(props: Parameters<typeof R
   if (!source.rows.length) {
     return (
       <div className="flex h-full flex-col">
-        {props.search.q ? (
+        {props.search.q || props.filtered ? (
           <EmptyState figure="loupe" title="Nothing matches" />
         ) : (
           <EmptyState figure="cabinet" title={`No ${props.title.toLowerCase()} yet`}>
-            <Button size="sm" onPress={props.onNew}>
-              New {props.noun}
-            </Button>
+            {onNew && (
+              <Button size="sm" onPress={onNew}>
+                New {props.noun}
+              </Button>
+            )}
           </EmptyState>
         )}
       </div>
     );
   }
+  return <RecordTable {...props} />;
+}
+
+function RecordTable<T extends { id: string; name: string }>(props: RecordListProps<T>) {
+  const { source, sorting, selection } = props;
+  const onSelectionChange = (keys: Selection) =>
+    selection?.onChange(
+      keys === "all" ? new Set(source.rows.map((row) => row.id)) : new Set([...keys].map(String)),
+    );
   return (
-    <Table variant="page" aria-label={props.title}>
+    <Table
+      variant="page"
+      aria-label={props.title}
+      sortDescriptor={sorting ? descriptorOf(sorting.value) : undefined}
+      onSortChange={(next) => sorting?.onChange(fromDescriptor(next, sorting.value))}
+      selectionMode={selection ? "multiple" : "none"}
+      selectionBehavior="toggle"
+      selectedKeys={selection ? new Set(selection.keys) : undefined}
+      onSelectionChange={onSelectionChange}
+    >
       <TableHeader>
-        <TableColumn isRowHeader>Name</TableColumn>
+        <TableColumn id="name" isRowHeader allowsSorting={!!sorting}>
+          Name
+        </TableColumn>
         {props.columns.map((column) => (
-          <TableColumn key={column.title} className={column.className}>
+          <TableColumn
+            key={column.title}
+            id={column.sort ?? column.title}
+            allowsSorting={!!sorting && !!column.sort}
+            className={column.className}
+          >
             {column.title}
           </TableColumn>
         ))}

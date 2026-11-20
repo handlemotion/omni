@@ -1,9 +1,17 @@
-import { useState, type ReactNode } from "react";
+import { parseDate, type CalendarDate } from "@internationalized/date";
+import { useMemo, useState, type ReactNode } from "react";
+import { IconX } from "@/components/icons/central";
+import { Button } from "@/components/ui/button";
+import { DatePicker, DatePickerTrigger } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
+import { currencyCodes, parseMoney } from "@/lib/crm.ts";
 import { Link } from "@/components/ui/link";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
+
+const PLAIN_TRIGGER =
+  "border-transparent bg-transparent enabled:hover:border-transparent enabled:hover:bg-hover";
 
 export function FieldRow(props: { label: string; children: ReactNode; htmlFor?: string }) {
   return (
@@ -81,7 +89,7 @@ export function ChoiceValue<T extends { id: string; name: string }>(props: {
         placeholder="–"
         className="w-full"
       >
-        <SelectTrigger className="border-transparent bg-transparent enabled:hover:border-transparent enabled:hover:bg-hover" />
+        <SelectTrigger className={PLAIN_TRIGGER} />
         <SelectContent items={props.options}>
           {(option) => (
             <SelectItem id={option.id} textValue={option.name}>
@@ -90,6 +98,82 @@ export function ChoiceValue<T extends { id: string; name: string }>(props: {
           )}
         </SelectContent>
       </Select>
+    </FieldRow>
+  );
+}
+
+/**
+ * An amount and its currency: the amount edits in place (null when emptied, `undefined` when it
+ * isn't a number), the currency is picked beside it.
+ */
+export function MoneyValue(props: {
+  label: string;
+  /** The amount as shown, formatted. */
+  value: string | null;
+  currency: string;
+  onSaveAmount: (minor: number | null) => void;
+  onSaveCurrency: (currency: string) => void;
+}) {
+  const codes = useMemo(() => currencyCodes().map((code) => ({ id: code, name: code })), []);
+  return (
+    <div className="flex min-h-8 items-center gap-1">
+      <div className="min-w-0 flex-1">
+        <TextValue
+          label={props.label}
+          value={props.value}
+          parse={(text) => (text ? (parseMoney(text) === null ? undefined : text) : null)}
+          onSave={(text) => props.onSaveAmount(text === null ? null : parseMoney(text))}
+        />
+      </div>
+      <Select
+        aria-label={`${props.label} currency`}
+        value={props.currency}
+        onChange={(code) => code && code !== props.currency && props.onSaveCurrency(code)}
+        className="w-20 shrink-0"
+      >
+        <SelectTrigger className={`${PLAIN_TRIGGER} tabular-nums`} />
+        <SelectContent items={codes}>
+          {(code) => (
+            <SelectItem id={code.id} textValue={code.name}>
+              {code.name}
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/** A calendar day (`YYYY-MM-DD`) picked in place; null once it is cleared. */
+export function DayValue(props: {
+  label: string;
+  value: string | null;
+  onSave: (day: string | null) => void;
+}) {
+  const value = props.value ? parseDate(props.value) : null;
+  return (
+    <FieldRow label={props.label}>
+      <DatePicker
+        aria-label={props.label}
+        value={value}
+        onChange={(next: CalendarDate | null) => {
+          const day = next?.toString() ?? null;
+          if (day !== props.value) props.onSave(day);
+        }}
+        className="w-full"
+      >
+        <DatePickerTrigger className="border-transparent bg-transparent hover:bg-hover" />
+      </DatePicker>
+      {props.value && (
+        <Button
+          intent="plain"
+          size="sq-xs"
+          aria-label={`Clear ${props.label.toLowerCase()}`}
+          onPress={() => props.onSave(null)}
+        >
+          <IconX />
+        </Button>
+      )}
     </FieldRow>
   );
 }

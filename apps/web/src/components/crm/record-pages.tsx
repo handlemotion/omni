@@ -1,28 +1,48 @@
 import { useState } from "react";
-import { IconPencil, IconPlus } from "@/components/icons/central";
+import { IconPencil } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import {
   useCrmCompany,
   useCrmDeal,
+  useCrmDefaultCurrency,
   useCrmPerson,
   useCrmStages,
   useMoveDeal,
+  useOwners,
   useUpdateCompany,
   useUpdateDeal,
   useUpdatePerson,
 } from "@/hooks/use-crm.ts";
-import { useMembers } from "@/hooks/use-organization.ts";
-import { formatMoney, lastContactedAt, parseMoney, type CrmDealDetail } from "@/lib/crm.ts";
+import { formatMoney, lastContactedAt, valueCurrency } from "@/lib/crm.ts";
 import { Contracts } from "./contracts.tsx";
 import { crmErrorToast } from "./crm-errors.ts";
 import { StageBadge } from "./list-pages.tsx";
 import { NewDealDialog, NewPersonDialog } from "./new-records.tsx";
-import { AddDomainDialog, AddPersonDialog, ChooseCompanyDialog } from "./record-dialogs.tsx";
-import { ChoiceValue, LinkValue, PlainValue, TextValue } from "./record-fields.tsx";
+import { ArchivedBadge, RecordActions } from "./record-actions.tsx";
+import {
+  AddAddressDialog,
+  AddDomainDialog,
+  AddPersonDialog,
+  ChooseCompanyDialog,
+} from "./record-dialogs.tsx";
+import {
+  ChoiceValue,
+  DayValue,
+  LinkValue,
+  MoneyValue,
+  PlainValue,
+  TextValue,
+} from "./record-fields.tsx";
 import { RecordFiles } from "./record-files.tsx";
 import { byAddress } from "@/components/avatar/sender-avatar";
-import { DetailSection, NoneRow, RecordLayout, RecordState, RelatedRow } from "./record-layout.tsx";
+import { DetailSection, RecordLayout, RecordState } from "./record-layout.tsx";
 import { DAY } from "./record-list.tsx";
+import {
+  AddressesSection,
+  DealsSection,
+  DomainsSection,
+  PeopleSection,
+} from "./record-sections.tsx";
 import { RecordTasks } from "./tasks.tsx";
 import { Timeline } from "./timeline.tsx";
 
@@ -31,19 +51,28 @@ const onFail = (fallback: string) => ({
   onError: (error: unknown) => crmErrorToast(error, fallback),
 });
 
-function AddButton(props: { label: string; onPress: () => void }) {
-  return (
-    <Button intent="plain" size="sq-xs" aria-label={props.label} onPress={props.onPress}>
-      <IconPlus />
-    </Button>
-  );
-}
-
 function EditButton(props: { label: string; onPress: () => void }) {
   return (
     <Button intent="plain" size="sq-xs" aria-label={props.label} onPress={props.onPress}>
       <IconPencil />
     </Button>
+  );
+}
+
+const NO_OWNER = "none";
+
+function OwnerValue(props: {
+  value: string | null | undefined;
+  onSave: (id: string | null) => void;
+}) {
+  const owners = useOwners();
+  return (
+    <ChoiceValue
+      label="Owner"
+      value={props.value ?? NO_OWNER}
+      options={[...owners, { id: NO_OWNER, name: "No owner" }]}
+      onSave={(id) => props.onSave(id === NO_OWNER ? null : id)}
+    />
   );
 }
 
@@ -54,8 +83,12 @@ export function CompanyPage({ id }: { id: string }) {
   const close = () => setOpen(null);
   if (!query.data) return <RecordState list="companies" query={query} />;
   const { company, domains, people, deals } = query.data;
-  const save = (change: { name?: string; description?: string | null }) =>
-    update.mutate({ id, ...change }, onFail("The company was not changed"));
+  const save = (change: {
+    name?: string;
+    description?: string | null;
+    ownerMemberId?: string | null;
+  }) => update.mutate({ id, ...change }, onFail("The company was not changed"));
+  const archived = !!company.archivedAt;
   return (
     <>
       <RecordLayout
@@ -64,6 +97,8 @@ export function CompanyPage({ id }: { id: string }) {
         square
         who={domains[0] ? { domain: domains[0] } : null}
         subtitle={domains[0]}
+        badge={archived && <ArchivedBadge />}
+        actions={<RecordActions kind="companies" id={id} name={company.name} archived={archived} />}
         details={
           <>
             <DetailSection title="Details">
@@ -79,42 +114,15 @@ export function CompanyPage({ id }: { id: string }) {
                 value={company.description}
                 onSave={(description) => save({ description })}
               />
+              <OwnerValue
+                value={company.ownerMemberId}
+                onSave={(ownerMemberId) => save({ ownerMemberId })}
+              />
               <PlainValue label="Last contacted">{day(lastContactedAt(company))}</PlainValue>
               <PlainValue label="Added">{day(company.createdAt)}</PlainValue>
             </DetailSection>
-            <DetailSection
-              title="Domains"
-              action={<AddButton label="Add domain" onPress={() => setOpen("domain")} />}
-            >
-              {domains.length ? (
-                domains.map((domain) => (
-                  <span key={domain} className="flex h-8 items-center truncate text-sm">
-                    {domain}
-                  </span>
-                ))
-              ) : (
-                <NoneRow />
-              )}
-            </DetailSection>
-            <DetailSection
-              title="People"
-              action={<AddButton label="Add person" onPress={() => setOpen("person")} />}
-            >
-              {people.length ? (
-                people.map((person) => (
-                  <RelatedRow
-                    key={person.id}
-                    kind="people"
-                    id={person.id}
-                    name={person.name}
-                    who={byAddress(person.addresses[0]?.address)}
-                    meta={person.jobTitle}
-                  />
-                ))
-              ) : (
-                <NoneRow />
-              )}
-            </DetailSection>
+            <DomainsSection companyId={id} domains={domains} onAdd={() => setOpen("domain")} />
+            <PeopleSection people={people} onAdd={() => setOpen("person")} />
             <DealsSection deals={deals} onAdd={() => setOpen("deal")} />
           </>
         }
@@ -147,30 +155,6 @@ export function CompanyPage({ id }: { id: string }) {
   );
 }
 
-function DealsSection(props: { deals: CrmDealDetail["deal"][]; onAdd?: () => void }) {
-  const stages = useCrmStages().data ?? [];
-  return (
-    <DetailSection
-      title="Deals"
-      action={props.onAdd && <AddButton label="Add deal" onPress={props.onAdd} />}
-    >
-      {props.deals.length ? (
-        props.deals.map((deal) => (
-          <RelatedRow
-            key={deal.id}
-            kind="deals"
-            id={deal.id}
-            name={deal.name}
-            meta={stages.find((stage) => stage.id === deal.stageId)?.name}
-          />
-        ))
-      ) : (
-        <NoneRow />
-      )}
-    </DetailSection>
-  );
-}
-
 function useCompanyName(companyId: string | null) {
   const company = useCrmCompany(companyId ?? "", { enabled: !!companyId });
   if (!companyId) return null;
@@ -180,7 +164,7 @@ function useCompanyName(companyId: string | null) {
 export function PersonPage({ id }: { id: string }) {
   const query = useCrmPerson(id);
   const update = useUpdatePerson();
-  const [choosing, setChoosing] = useState(false);
+  const [open, setOpen] = useState<"company" | "address" | null>(null);
   const companyId = query.data?.person.companyId ?? null;
   const company = useCompanyName(companyId);
   if (!query.data) return <RecordState list="people" query={query} />;
@@ -188,6 +172,7 @@ export function PersonPage({ id }: { id: string }) {
   const save = (change: Parameters<typeof update.mutate>[0]) =>
     update.mutate(change, onFail("The person was not changed"));
   const primary = person.addresses.find((a) => a.isPrimary)?.address ?? null;
+  const archived = !!person.archivedAt;
   return (
     <>
       <RecordLayout
@@ -195,62 +180,65 @@ export function PersonPage({ id }: { id: string }) {
         name={person.name}
         who={byAddress(primary)}
         subtitle={person.jobTitle ?? primary}
+        badge={archived && <ArchivedBadge />}
+        actions={<RecordActions kind="people" id={id} name={person.name} archived={archived} />}
         details={
-          <DetailSection title="Details">
-            <TextValue
-              label="Name"
-              required
-              value={person.name}
-              onSave={(name) => name && save({ id, name })}
-            />
-            <PlainValue label="Email">{primary}</PlainValue>
-            {person.addresses
-              .filter((a) => !a.isPrimary)
-              .map((a) => (
-                <PlainValue key={a.address} label="">
-                  {a.address}
-                </PlainValue>
-              ))}
-            <TextValue
-              label="Title"
-              maxLength={2000}
-              value={person.jobTitle}
-              onSave={(jobTitle) => save({ id, jobTitle })}
-            />
-            <TextValue
-              label="Phone"
-              type="tel"
-              maxLength={2000}
-              value={person.phone}
-              onSave={(phone) => save({ id, phone })}
-            />
-            <LinkValue
-              label="Company"
-              to={company && { kind: "companies", ...company }}
-              action={<EditButton label="Change company" onPress={() => setChoosing(true)} />}
-            />
-            <PlainValue label="Last contacted">{day(lastContactedAt(person))}</PlainValue>
-            <PlainValue label="Added">{day(person.createdAt)}</PlainValue>
-          </DetailSection>
+          <>
+            <DetailSection title="Details">
+              <TextValue
+                label="Name"
+                required
+                value={person.name}
+                onSave={(name) => name && save({ id, name })}
+              />
+              <TextValue
+                label="Title"
+                maxLength={2000}
+                value={person.jobTitle}
+                onSave={(jobTitle) => save({ id, jobTitle })}
+              />
+              <TextValue
+                label="Phone"
+                type="tel"
+                maxLength={2000}
+                value={person.phone}
+                onSave={(phone) => save({ id, phone })}
+              />
+              <LinkValue
+                label="Company"
+                to={company && { kind: "companies", ...company }}
+                action={<EditButton label="Change company" onPress={() => setOpen("company")} />}
+              />
+              <OwnerValue
+                value={person.ownerMemberId}
+                onSave={(ownerMemberId) => save({ id, ownerMemberId })}
+              />
+              <PlainValue label="Last contacted">{day(lastContactedAt(person))}</PlainValue>
+              <PlainValue label="Added">{day(person.createdAt)}</PlainValue>
+            </DetailSection>
+            <AddressesSection person={person} onAdd={() => setOpen("address")} />
+            <DealsSection deals={query.data.deals ?? []} />
+          </>
         }
         tabs={[
           { id: "timeline", label: "Timeline", panel: <Timeline kind="people" id={id} /> },
           { id: "tasks", label: "Tasks", panel: <RecordTasks kind="people" id={id} /> },
         ]}
       />
-      {choosing && (
+      {open === "company" && (
         <ChooseCompanyDialog
           current={company}
           saving={update.isPending}
           onSave={(next) =>
             update.mutate(
               { id, companyId: next },
-              { ...onFail("The company was not changed"), onSuccess: () => setChoosing(false) },
+              { ...onFail("The company was not changed"), onSuccess: () => setOpen(null) },
             )
           }
-          onClose={() => setChoosing(false)}
+          onClose={() => setOpen(null)}
         />
       )}
+      {open === "address" && <AddAddressDialog personId={id} onClose={() => setOpen(null)} />}
     </>
   );
 }
@@ -260,21 +248,24 @@ export function DealPage({ id }: { id: string }) {
   const update = useUpdateDeal();
   const move = useMoveDeal();
   const stages = useCrmStages().data ?? [];
-  const members = useMembers().data?.members ?? [];
+  const workspaceCurrency = useCrmDefaultCurrency();
   const [open, setOpen] = useState<"company" | "person" | null>(null);
   const company = useCompanyName(query.data?.deal.companyId ?? null);
   if (!query.data) return <RecordState list="deals" query={query} />;
   const { deal, people } = query.data;
   const save = (change: Parameters<typeof update.mutate>[0], then?: () => void) =>
     update.mutate(change, { ...onFail("The deal was not changed"), onSuccess: then });
-  const owners = members.map((m) => ({ id: m.id, name: m.user.name || m.user.email }));
   const stage = stages.find((s) => s.id === deal.stageId);
+  const currency = valueCurrency(deal.valueCurrency, workspaceCurrency);
+  const archived = !!deal.archivedAt;
   return (
     <>
       <RecordLayout
-        list="deals"
+        list={deal.stageKind === "won" ? "projects" : "deals"}
         name={deal.name}
         subtitle={<StageBadge stage={stage} deal={deal} />}
+        badge={archived && <ArchivedBadge />}
+        actions={<RecordActions kind="deals" id={id} name={deal.name} archived={archived} />}
         details={
           <>
             <DetailSection title="Details">
@@ -294,16 +285,20 @@ export function DealPage({ id }: { id: string }) {
                     move.mutate({ dealId: id, stage: next }, onFail("The deal was not moved"));
                 }}
               />
-              <TextValue
+              <MoneyValue
                 label="Value"
                 value={formatMoney(deal.valueMinor, deal.valueCurrency)}
-                parse={(text) => (text ? (parseMoney(text) === null ? undefined : text) : null)}
-                onSave={(text) => save({ id, valueMinor: text === null ? null : parseMoney(text) })}
+                currency={currency}
+                onSaveAmount={(valueMinor) => save({ id, valueMinor, currency })}
+                onSaveCurrency={(next) => save({ id, currency: next })}
               />
-              <ChoiceValue
-                label="Owner"
+              <DayValue
+                label="Close date"
+                value={deal.expectedCloseOn ?? null}
+                onSave={(expectedCloseOn) => save({ id, expectedCloseOn })}
+              />
+              <OwnerValue
                 value={deal.ownerMemberId}
-                options={owners}
                 onSave={(ownerMemberId) => save({ id, ownerMemberId })}
               />
               <LinkValue
@@ -314,25 +309,13 @@ export function DealPage({ id }: { id: string }) {
               <PlainValue label="Won">{day(deal.wonAt)}</PlainValue>
               <PlainValue label="Added">{day(deal.createdAt)}</PlainValue>
             </DetailSection>
-            <DetailSection
-              title="People"
-              action={<AddButton label="Add person" onPress={() => setOpen("person")} />}
-            >
-              {people.length ? (
-                people.map((person) => (
-                  <RelatedRow
-                    key={person.id}
-                    kind="people"
-                    id={person.id}
-                    name={person.name}
-                    who={byAddress(person.addresses[0]?.address)}
-                    meta={person.jobTitle}
-                  />
-                ))
-              ) : (
-                <NoneRow />
-              )}
-            </DetailSection>
+            <PeopleSection
+              people={people}
+              onAdd={() => setOpen("person")}
+              onRemove={(personId) =>
+                save({ id, personIds: people.map((p) => p.id).filter((p) => p !== personId) })
+              }
+            />
           </>
         }
         tabs={[

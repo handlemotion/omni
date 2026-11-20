@@ -339,6 +339,7 @@ export function TableColumn({ isResizable = false, className, ...props }: TableC
               className={twJoin(
                 "touch-target bg-secondary text-foreground grid size-[1.15rem] flex-none shrink-0 place-content-center rounded *:[svg]:size-3.5 *:[svg]:shrink-0 *:[svg]:transition-transform *:[svg]:duration-200",
                 values.isHovered ? "bg-secondary-foreground/10" : "",
+                !values.sortDirection && !values.isHovered && "invisible",
               )}
             >
               <ChevronDownIcon

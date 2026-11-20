@@ -46,49 +46,18 @@ export type CrmTimelineItem = KnownTimelineItem | CrmActivityItem;
 /** The three records, as the API's paths name them. */
 export type CrmRecordKind = "companies" | "people" | "deals";
 
-const PAGE_SIZE = "50";
-const BOARD_PAGE_SIZE = "200";
-
-const pageQuery = (q: string, cursor: string | null, limit = PAGE_SIZE) => ({
-  ...(q ? { q } : {}),
-  ...(cursor ? { cursor } : {}),
-  limit,
-});
-
-/** Companies by name, `q` matching the start of the name or one of its words. */
-export const crmCompaniesQuery = (q: string) =>
-  infiniteQueryOptions({
-    queryKey: keys.crmCompanies(q),
-    queryFn: ({ pageParam, signal }) =>
-      call(api.crm.companies.$get({ query: pageQuery(q, pageParam) }, { init: { signal } })),
-    initialPageParam: null as string | null,
-    getNextPageParam: (page) => page.nextCursor,
-  });
-
-/** People by name; `q` also matches the start of an address. */
-export const crmPeopleQuery = (q: string) =>
-  infiniteQueryOptions({
-    queryKey: keys.crmPeople(q),
-    queryFn: ({ pageParam, signal }) =>
-      call(api.crm.people.$get({ query: pageQuery(q, pageParam) }, { init: { signal } })),
-    initialPageParam: null as string | null,
-    getNextPageParam: (page) => page.nextCursor,
-  });
-
-/** Deals by name. Unsearched, it is the board's list, in pages of 200. */
-export const crmDealsQuery = (q: string) =>
-  infiniteQueryOptions({
-    queryKey: keys.crmDeals(q),
-    queryFn: ({ pageParam, signal }) =>
-      call(
-        api.crm.deals.$get(
-          { query: pageQuery(q, pageParam, q ? PAGE_SIZE : BOARD_PAGE_SIZE) },
-          { init: { signal } },
-        ),
-      ),
-    initialPageParam: null as string | null,
-    getNextPageParam: (page) => page.nextCursor,
-  });
+export {
+  crmCompaniesQuery,
+  crmCompanyIndexQuery,
+  crmDealsQuery,
+  crmPeopleQuery,
+  crmSettingsQuery,
+  type CrmCompanyFilter,
+  type CrmDealFilter,
+  type CrmListFilter,
+  type CrmPeopleFilter,
+  type CrmSort,
+} from "./crm-lists.ts";
 
 export const crmCompanyQuery = (id: string) =>
   queryOptions({
@@ -217,6 +186,49 @@ export function formatMoney(minor: number | null, currency: string | null) {
   } catch {
     return `${amount} ${currency}`;
   }
+}
+
+/** The currency a new value is in: the deal's, the workspace's, then the browser's. */
+export function valueCurrency(
+  deal: string | null | undefined,
+  workspace: string | null | undefined,
+) {
+  return deal || workspace || localeCurrency();
+}
+
+const REGION_CURRENCY: Record<string, string> = {
+  US: "USD",
+  GB: "GBP",
+  CA: "CAD",
+  AU: "AUD",
+  NZ: "NZD",
+  JP: "JPY",
+  CN: "CNY",
+  IN: "INR",
+  MX: "MXN",
+  BR: "BRL",
+  CH: "CHF",
+  SE: "SEK",
+  NO: "NOK",
+  DK: "DKK",
+  PL: "PLN",
+  ZA: "ZAR",
+  SG: "SGD",
+  HK: "HKD",
+  KR: "KRW",
+  AE: "AED",
+};
+const EURO = new Set("AT BE CY DE EE ES FI FR GR HR IE IT LT LU LV MT NL PT SI SK".split(" "));
+
+/** The browser locale's currency: its region's, else the dollar. */
+export function localeCurrency() {
+  const region = new Intl.Locale(navigator.language).maximize().region ?? "US";
+  return EURO.has(region) ? "EUR" : (REGION_CURRENCY[region] ?? "USD");
+}
+
+/** Every currency the browser knows, by code. */
+export function currencyCodes() {
+  return Intl.supportedValuesOf("currency");
 }
 
 /** "12500.50" or "12,500" typed by a person, as minor units; null when it is not a number. */

@@ -165,6 +165,9 @@ function Item(props: { item: CrmTimelineItem; names: Names; stages: CrmStage[] }
 
 type EventItem = Extract<CrmTimelineItem, { kind: "event" }>["event"];
 
+const isOnly = (fields: unknown, field: string) =>
+  Array.isArray(fields) && fields.length === 1 && fields[0] === field;
+
 function eventText(event: EventItem, stages: CrmStage[]) {
   const data = event.data as Record<string, unknown>;
   const text = (key: string) => (typeof data[key] === "string" ? (data[key] as string) : "");
@@ -172,9 +175,13 @@ function eventText(event: EventItem, stages: CrmStage[]) {
     case "created":
       return "created this";
     case "updated":
-      return "edited the details";
+      return isOnly(data.fields, "expectedCloseOn")
+        ? "changed the close date"
+        : "edited the details";
     case "archived":
       return "archived this";
+    case "restored":
+      return "restored this";
     case "stage_moved": {
       const stage = stages.find((s) => s.id === text("to"));
       return stage ? `moved it to ${stage.name}` : "moved its stage";

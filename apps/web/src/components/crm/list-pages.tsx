@@ -2,93 +2,31 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { IconBoard, IconList } from "@/components/icons/central";
 import { byAddress } from "@/components/avatar/sender-avatar";
-import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useCrmCompanies, useCrmDeals, useCrmPeople, useCrmStages } from "@/hooks/use-crm.ts";
-import {
-  formatMoney,
-  lastContactedAt,
-  type CrmCompany,
-  type CrmDeal,
-  type CrmPerson,
-  type CrmStage,
-} from "@/lib/crm.ts";
-import { DealBoard } from "./deal-board.tsx";
-import { NewCompanyDialog, NewDealDialog, NewPersonDialog } from "./new-records.tsx";
-import {
-  DAY,
-  Muted,
-  RecordList,
-  RecordMark,
-  useListSearch,
-  type RecordColumn,
-} from "./record-list.tsx";
+import { useCrmCompanies, useCrmDeals, useCrmPeople } from "@/hooks/use-crm.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
+import {
+  BOARD_SORTS,
+  companiesFilter,
+  dealsFilter,
+  peopleFilter,
+  projectsFilter,
+} from "@/lib/crm-lists.ts";
+import type {
+  CrmCompaniesSearch,
+  CrmDealsSearch,
+  CrmPeopleSearch,
+  CrmProjectsSearch,
+} from "@/lib/search-params.ts";
+import { DealBoard } from "./deal-board.tsx";
+import { COMPANY_COLUMNS, DEAL_COLUMNS, PEOPLE_COLUMNS } from "./list-columns.tsx";
+import { DEAL_SORTS, RECORD_SORTS } from "./list-sort.tsx";
+import { ListToolbar } from "./list-toolbar.tsx";
+import { isFiltered, useListView } from "./list-view.tsx";
+import { NewCompanyDialog, NewDealDialog, NewPersonDialog } from "./new-records.tsx";
+import { RecordList, RecordMark, useListSearch } from "./record-list.tsx";
 
-const day = (iso: string | null) => (iso ? DAY.format(new Date(iso)) : null);
-
-const lastContactedColumn = {
-  title: "Last contacted",
-  className: "w-36 max-md:hidden",
-  cell: (row: object) => <Muted>{day(lastContactedAt(row))}</Muted>,
-};
-
-const COMPANY_COLUMNS: RecordColumn<CrmCompany>[] = [
-  {
-    title: "Description",
-    className: "w-[40%] max-sm:hidden",
-    cell: (company) => <Muted>{company.description}</Muted>,
-  },
-  lastContactedColumn,
-  { title: "Added", className: "w-32", cell: (company) => <Muted>{day(company.createdAt)}</Muted> },
-];
-
-const PEOPLE_COLUMNS: RecordColumn<CrmPerson>[] = [
-  {
-    title: "Email",
-    className: "w-[30%] max-sm:hidden",
-    cell: (person) => <Muted>{person.addresses[0]?.address}</Muted>,
-  },
-  {
-    title: "Title",
-    className: "w-44 max-md:hidden",
-    cell: (person) => <Muted>{person.jobTitle}</Muted>,
-  },
-  lastContactedColumn,
-  { title: "Added", className: "w-32", cell: (person) => <Muted>{day(person.createdAt)}</Muted> },
-];
-
-const dealColumns = (stages: CrmStage[]) => {
-  const result: RecordColumn<CrmDeal>[] = [
-    {
-      title: "Stage",
-      className: "w-40",
-      cell: (deal) => <StageBadge stage={stages.find((s) => s.id === deal.stageId)} deal={deal} />,
-    },
-    {
-      title: "Value",
-      className: "w-36 max-sm:hidden",
-      cell: (deal) => <Muted>{formatMoney(deal.valueMinor, deal.valueCurrency)}</Muted>,
-    },
-    {
-      title: "Added",
-      className: "w-32 max-md:hidden",
-      cell: (deal) => <Muted>{day(deal.createdAt)}</Muted>,
-    },
-  ];
-  return result;
-};
-
-/** A stage's name, coloured by its kind: open neutral, won and done green, lost red. */
-export function StageBadge({ stage, deal }: { stage: CrmStage | undefined; deal: CrmDeal }) {
-  const kind = stage?.kind ?? deal.stageKind;
-  const intent = kind === "lost" ? "danger" : kind === "open" ? "secondary" : "success";
-  return (
-    <Badge intent={intent} className="max-w-full truncate">
-      {stage?.name ?? kind}
-    </Badge>
-  );
-}
+export { StageBadge } from "./list-columns.tsx";
 
 interface PagedQuery {
   isPending: boolean;
@@ -109,19 +47,29 @@ const sourceOf = <T,>(query: PagedQuery, rows: T[]) => ({
   isFetchingNextPage: query.isFetchingNextPage,
 });
 
-export function CompaniesPage({ q }: { q: string }) {
+const recordHref = (inWorkspace: (path: string) => string, kind: string) => (row: { id: string }) =>
+  inWorkspace(`/crm/${kind}/${encodeURIComponent(row.id)}`);
+
+export function CompaniesPage({ search }: { search: CrmCompaniesSearch }) {
   const { href: inWorkspace } = useWorkspacePaths();
-  const search = useListSearch(q);
-  const list = useCrmCompanies(q);
+  const q = search.q ?? "";
+  const text = useListSearch(q);
+  const list = useCrmCompanies(companiesFilter(search));
+  const view = useListView("companies", search, list.companies);
   const [adding, setAdding] = useState(false);
   return (
     <>
       <RecordList
         title="Companies"
         noun="company"
-        search={{ ...search, q }}
+        search={{ ...text, q }}
         source={sourceOf(list, list.companies)}
         columns={COMPANY_COLUMNS}
+        toolbar={
+          <ListToolbar search={search} sorts={RECORD_SORTS} filters={["owner", "archived"]} />
+        }
+        filtered={isFiltered(search)}
+        {...view}
         mark={(company) => (
           <RecordMark
             name={company.name}
@@ -129,7 +77,7 @@ export function CompaniesPage({ q }: { q: string }) {
             who={company.domain ? { domain: company.domain } : null}
           />
         )}
-        href={(company) => inWorkspace(`/crm/companies/${encodeURIComponent(company.id)}`)}
+        href={recordHref(inWorkspace, "companies")}
         onNew={() => setAdding(true)}
       />
       {adding && <NewCompanyDialog onClose={() => setAdding(false)} />}
@@ -137,23 +85,34 @@ export function CompaniesPage({ q }: { q: string }) {
   );
 }
 
-export function PeoplePage({ q }: { q: string }) {
+export function PeoplePage({ search }: { search: CrmPeopleSearch }) {
   const { href: inWorkspace } = useWorkspacePaths();
-  const search = useListSearch(q);
-  const list = useCrmPeople(q);
+  const q = search.q ?? "";
+  const text = useListSearch(q);
+  const list = useCrmPeople(peopleFilter(search));
+  const view = useListView("people", search, list.people);
   const [adding, setAdding] = useState(false);
   return (
     <>
       <RecordList
         title="People"
         noun="person"
-        search={{ ...search, q }}
+        search={{ ...text, q }}
         source={sourceOf(list, list.people)}
         columns={PEOPLE_COLUMNS}
+        toolbar={
+          <ListToolbar
+            search={search}
+            sorts={RECORD_SORTS}
+            filters={["owner", "company", "archived"]}
+          />
+        }
+        filtered={isFiltered(search)}
+        {...view}
         mark={(person) => (
           <RecordMark name={person.name} who={byAddress(person.addresses[0]?.address)} />
         )}
-        href={(person) => inWorkspace(`/crm/people/${encodeURIComponent(person.id)}`)}
+        href={recordHref(inWorkspace, "people")}
         onNew={() => setAdding(true)}
       />
       {adding && <NewPersonDialog onClose={() => setAdding(false)} />}
@@ -164,29 +123,71 @@ export function PeoplePage({ q }: { q: string }) {
 export type DealsView = "board" | "list";
 
 /** The deals: the board by stage, or the list. A search shows the list. */
-export function DealsPage({ q, view }: { q: string; view: DealsView }) {
+export function DealsPage({ search }: { search: CrmDealsSearch }) {
   const { href: inWorkspace } = useWorkspacePaths();
-  const search = useListSearch(q);
-  const shown: DealsView = q ? "list" : view;
-  const list = useCrmDeals(q, { all: shown === "board" });
-  const stages = useCrmStages().data ?? [];
+  const q = search.q ?? "";
+  const text = useListSearch(q);
+  const shown: DealsView = q ? "list" : (search.view ?? "board");
+  const board = shown === "board";
+  const list = useCrmDeals(dealsFilter(search, board), { all: board });
+  const view = useListView("deals", search, list.deals);
   const [adding, setAdding] = useState(false);
   return (
     <>
       <RecordList
         title="Deals"
         noun="deal"
-        search={{ ...search, q }}
+        search={{ ...text, q }}
         source={sourceOf(list, list.deals)}
-        columns={dealColumns(stages)}
+        columns={DEAL_COLUMNS}
+        toolbar={
+          <ListToolbar
+            search={board ? { ...search, archived: undefined } : search}
+            sorts={board ? BOARD_SORTS : DEAL_SORTS}
+            filters={
+              board ? ["owner", "close", "value"] : ["owner", "stage", "close", "value", "archived"]
+            }
+          />
+        }
+        filtered={isFiltered(search)}
+        {...view}
         mark={(deal) => <RecordMark name={deal.name} />}
-        href={(deal) => inWorkspace(`/crm/deals/${encodeURIComponent(deal.id)}`)}
+        href={recordHref(inWorkspace, "deals")}
         onNew={() => setAdding(true)}
         extra={<ViewToggle view={shown} />}
-        replaceBody={shown === "board" ? <DealBoard deals={list.deals} list={list} /> : undefined}
+        replaceBody={board ? <DealBoard deals={list.deals} list={list} /> : undefined}
       />
       {adding && <NewDealDialog onClose={() => setAdding(false)} />}
     </>
+  );
+}
+
+/** Won deals, the work the team is delivering. */
+export function ProjectsPage({ search }: { search: CrmProjectsSearch }) {
+  const { href: inWorkspace } = useWorkspacePaths();
+  const q = search.q ?? "";
+  const text = useListSearch(q);
+  const list = useCrmDeals(projectsFilter(search));
+  const view = useListView("deals", search, list.deals);
+  return (
+    <RecordList
+      title="Projects"
+      noun="project"
+      search={{ ...text, q }}
+      source={sourceOf(list, list.deals)}
+      columns={DEAL_COLUMNS}
+      toolbar={
+        <ListToolbar
+          search={search}
+          sorts={DEAL_SORTS}
+          filters={["owner", "close", "value", "archived"]}
+        />
+      }
+      filtered={isFiltered(search)}
+      {...view}
+      mark={(deal) => <RecordMark name={deal.name} />}
+      href={recordHref(inWorkspace, "deals")}
+    />
   );
 }
 
@@ -207,6 +208,7 @@ function ViewToggle({ view }: { view: DealsView }) {
               ...prev,
               view: next === "list" ? "list" : undefined,
               q: undefined,
+              archived: undefined,
             }),
             replace: true,
           });

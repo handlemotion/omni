@@ -4,7 +4,7 @@ import { ComboBox, ComboBoxContent, ComboBoxInput, ComboBoxItem } from "@/compon
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
-import { useAddDomain, useCrmPeople } from "@/hooks/use-crm.ts";
+import { useAddDomain, useCrmPeople, useUpdatePerson } from "@/hooks/use-crm.ts";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { CompanyPicker } from "./new-records.tsx";
@@ -55,6 +55,42 @@ export function AddDomainDialog(props: { companyId: string; onClose: () => void 
     >
       <TextField isRequired autoFocus maxLength={253} value={domain} onChange={setDomain}>
         <Label>Domain</Label>
+        <Input autoComplete="off" />
+      </TextField>
+    </SettingsFormDialog>
+  );
+}
+
+export function AddAddressDialog(props: { personId: string; onClose: () => void }) {
+  const update = useUpdatePerson();
+  const [address, setAddress] = useState("");
+  return (
+    <SettingsFormDialog
+      isOpen
+      onOpenChange={(open) => !open && props.onClose()}
+      title="Add address"
+      action="Add"
+      disabled={!address.trim()}
+      saving={update.isPending}
+      onSubmit={() =>
+        update.mutate(
+          { id: props.personId, addresses: { add: [address.trim()] } },
+          {
+            onSuccess: props.onClose,
+            onError: (error) => crmErrorToast(error, "The address was not added"),
+          },
+        )
+      }
+    >
+      <TextField
+        isRequired
+        autoFocus
+        type="email"
+        maxLength={320}
+        value={address}
+        onChange={setAddress}
+      >
+        <Label>Email</Label>
         <Input autoComplete="off" />
       </TextField>
     </SettingsFormDialog>

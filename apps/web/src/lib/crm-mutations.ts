@@ -81,6 +81,90 @@ export const addDomainMutation = (client: QueryClient) =>
     ...settle(client),
   });
 
+/** `mutate({ id, domain })` takes a domain off a company. */
+export const removeDomainMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: ({ id, domain }: { id: string; domain: string }) =>
+      call(api.crm.companies[":id"].domains[":domain"].$delete({ param: { id, domain } })),
+    ...settle(client),
+  });
+
+export type RecordLifecycle = "archive" | "restore" | "delete";
+
+const DELETE_QUERY: Record<Exclude<RecordLifecycle, "restore">, { forever?: "1" }> = {
+  archive: {},
+  delete: { forever: "1" },
+};
+
+async function lifecycle(kind: CrmRecordKind, id: string, action: RecordLifecycle) {
+  const param = { id };
+  if (action === "restore") {
+    if (kind === "companies") await call(api.crm.companies[":id"].restore.$post({ param }));
+    else if (kind === "people") await call(api.crm.people[":id"].restore.$post({ param }));
+    else await call(api.crm.deals[":id"].restore.$post({ param }));
+    return;
+  }
+  const query = DELETE_QUERY[action];
+  if (kind === "companies") await call(api.crm.companies[":id"].$delete({ param, query }));
+  else if (kind === "people") await call(api.crm.people[":id"].$delete({ param, query }));
+  else await call(api.crm.deals[":id"].$delete({ param, query }));
+}
+
+/** `mutate({ kind, id, action })`: archive, bring back, or delete for good (owners and admins). */
+export const recordLifecycleMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: ({
+      kind,
+      id,
+      action,
+    }: {
+      kind: CrmRecordKind;
+      id: string;
+      action: RecordLifecycle;
+    }) => lifecycle(kind, id, action),
+    ...settle(client),
+  });
+
+export type BulkAction = Json<InferRequestType<Crm["companies"]["bulk"]["$post"]>>["action"];
+
+const bulkRoute = (kind: CrmRecordKind) =>
+  kind === "companies"
+    ? api.crm.companies.bulk
+    : kind === "people"
+      ? api.crm.people.bulk
+      : api.crm.deals.bulk;
+
+const BULK_BATCH = 200;
+
+async function bulk(kind: CrmRecordKind, ids: string[], action: BulkAction) {
+  const result = { done: [] as string[], refused: [] as { id: string; code: string }[] };
+  for (let start = 0; start < ids.length; start += BULK_BATCH) {
+    const batch = ids.slice(start, start + BULK_BATCH);
+    const answer = await call(bulkRoute(kind).$post({ json: { ids: batch, action } }));
+    result.done.push(...answer.done);
+    result.refused.push(...answer.refused);
+  }
+  return result;
+}
+
+/** `mutateAsync({ kind, ids, action })` → what changed and what was refused, by id. */
+export const bulkMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: ({
+      kind,
+      ids,
+      action,
+    }: {
+      kind: CrmRecordKind;
+      ids: string[];
+      action: BulkAction;
+    }) => bulk(kind, ids, action),
+    ...settle(client),
+  });
+
 /**
  * `mutate({ dealId, stage })` moves a deal to another stage on every board and list at once; the
  * request's failure puts it back where it was.

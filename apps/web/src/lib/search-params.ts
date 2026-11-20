@@ -34,8 +34,10 @@ export const listSearch = z.object({ mailbox: optionalId });
 /** Drive's Search: `q` matches file and folder names on the server. */
 export const fileSearchSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
 
-/** A CRM list: `q` searches it on the server. */
-export const crmListSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
+const RECORD_SORTS = ["name", "created", "updated"] as const;
+const DEAL_SORTS = [...RECORD_SORTS, "value", "closeOn", "stageEntered"] as const;
+const isoDay = optional(z.string().check(z.regex(/^\d{4}-\d{2}-\d{2}$/)));
+const amount = optional(z.number());
 
 /** The tasks: mine unless `view` says all or done; `assignee` narrows all and done. */
 export const crmTasksSearch = z.object({
@@ -45,12 +47,50 @@ export const crmTasksSearch = z.object({
   assignee: optionalId,
 });
 
-/** The deals: the board unless `view=list`. */
-export const crmDealsSearch = z.object({
+const crmListFields = {
   mailbox: optionalId,
   q: optional(z.string()),
+  sort: optional(z.enum(RECORD_SORTS)),
+  dir: optional(z.enum(["asc", "desc"])),
+  owner: optionalId,
+  archived: optional(z.literal("only")),
+};
+
+/**
+ * A CRM list's view, all in the URL so a link reproduces it: `q` searches on the
+ * server, then the sort, the owner (a member's id or `none`) and the archived view.
+ */
+export const crmCompaniesSearch = z.object(crmListFields);
+
+/** People also filter by having a company (`with`) or not (`without`). */
+export const crmPeopleSearch = z.object({
+  ...crmListFields,
+  company: optional(z.enum(["with", "without"])),
+});
+
+const crmDealFields = {
+  ...crmListFields,
+  sort: optional(z.enum(DEAL_SORTS)),
+  stage: optionalId,
+  closeAfter: isoDay,
+  closeBefore: isoDay,
+  minValue: amount,
+  maxValue: amount,
+};
+
+/** The deals: the board unless `view=list`; a stage, a close window, a value range. */
+export const crmDealsSearch = z.object({
+  ...crmDealFields,
   view: optional(z.enum(["board", "list"])),
 });
+
+/** Projects: won deals. */
+export const crmProjectsSearch = z.object(crmDealFields);
+
+export type CrmCompaniesSearch = z.infer<typeof crmCompaniesSearch>;
+export type CrmPeopleSearch = z.infer<typeof crmPeopleSearch>;
+export type CrmDealsSearch = z.infer<typeof crmDealsSearch>;
+export type CrmProjectsSearch = z.infer<typeof crmProjectsSearch>;
 /**
  * A Storage folder's page: the mailbox the switcher keeps, and the file open in the preview or the
  * file whose comments are open (one panel at a time).

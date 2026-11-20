@@ -27,6 +27,8 @@ export function RecordLayout(props: {
   who?: SenderLogoFor | null;
   /** A line under the name: a person's title, a deal's stage. */
   subtitle?: ReactNode;
+  /** After the name: Archived. */
+  badge?: ReactNode;
   actions?: ReactNode;
   details: ReactNode;
   tabs: RecordTab[];
@@ -41,7 +43,10 @@ export function RecordLayout(props: {
           <div className="flex min-w-0 items-center gap-3">
             <RecordMark name={props.name} square={props.square} who={props.who} size={32} />
             <div className="flex min-w-0 flex-col">
-              <h2 className="truncate text-md text-foreground">{props.name}</h2>
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="truncate text-md text-foreground">{props.name}</h2>
+                {props.badge}
+              </div>
               {props.subtitle && (
                 <span className="truncate text-xs/4 text-muted-foreground">{props.subtitle}</span>
               )}
