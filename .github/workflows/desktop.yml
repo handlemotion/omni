@@ -81,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.ref_type == 'tag' && '["windows-2025"]' || '["macos-15", "windows-2025"]') }}
+        os: ${{ fromJSON(github.ref_type == 'tag' && '["windows-2025"]' || '["macos-26", "windows-2025"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:

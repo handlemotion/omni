@@ -29,7 +29,9 @@ permissions:
 jobs:
   macos:
     name: Sign and publish (macOS)
-    runs-on: macos-15
+    # macos-26: the Swift on macos-15 (Xcode 16) can't build the File Provider package for both
+    # architectures at once (`swift build --arch arm64 --arch x86_64` rejects its Swift 5 mode).
+    runs-on: macos-26
     timeout-minutes: 60
     environment: production
     steps:

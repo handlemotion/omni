@@ -11,9 +11,9 @@ Cloud plan's included usage. No job depends on a machine of ours being on, and n
 | `Full` (full.yml)                                          | `ubuntu-latest`            | Nightly if main moved, by hand, `full-e2e`    |
 | `Migrate database`, `Sync Worker secrets` (production.yml) | `ubuntu-latest`            | A merge to main that needs them               |
 | `Rust (Linux)` (desktop.yml)                               | `ubuntu-latest`            | Changes to the desktop app or contracts       |
-| Desktop builds (desktop.yml)                               | `macos-15`, `windows-2025` | By hand; Windows also on a `desktop-v*` tag   |
+| Desktop builds (desktop.yml)                               | `macos-26`, `windows-2025` | By hand; Windows also on a `desktop-v*` tag   |
 | `Release PR` (release.yml)                                 | `ubuntu-latest`            | Every push to main (seconds)                  |
-| `Desktop release` (desktop-release.yml)                    | `macos-15`                 | A merged release PR that raises desktop       |
+| `Desktop release` (desktop-release.yml)                    | `macos-26`                 | A merged release PR that raises desktop       |
 | `iOS release` (ios-release.yml)                            | `macos-26`                 | A merged release PR that raises iOS           |
 | `PR title` (pr-title.yml)                                  | `ubuntu-latest`            | Every pull request into main (seconds)        |
 | `Container scan (mail)`                                    | `ubuntu-latest`            | Weekly, or a pull request changing Dockerfile |
