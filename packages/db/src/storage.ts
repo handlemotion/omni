@@ -37,6 +37,8 @@ import { uploadLinkOperations } from "./storage/upload-links.ts";
 import { uploadOperations } from "./storage/uploads.ts";
 import { versionOperations } from "./storage/versions.ts";
 
+/** The addresses a person's grants and signatures are matched on, for this session. */
+export { grantAddresses as storageAddresses } from "./storage/access.ts";
 export {
   STORAGE_MAX_DEPTH,
   STORAGE_NAME_MAX_LENGTH,

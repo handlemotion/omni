@@ -18,6 +18,7 @@ import {
   type AppEnv,
 } from "./context.ts";
 import type { Config } from "./env.ts";
+import { portal } from "./crm/portal.ts";
 import { crm } from "./crm/routes.ts";
 import { answerThrown, apiError } from "./errors.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
@@ -191,6 +192,7 @@ export const app = new Hono<AppEnv>()
   .route("/api/pictures", pictures)
   .route("/api/storage/shared", storageShared)
   .route("/api/storage/signing", storageSigning)
+  .route("/api/portal", portal)
   .route("/api/storage/sync", storageSync)
   .use("/api/connect/google/callback", desktopGoogleReturn)
   .route("/api", api)

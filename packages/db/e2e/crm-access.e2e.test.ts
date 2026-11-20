@@ -60,7 +60,7 @@ test("a member of another company gets nothing through the member door, by id or
   expect(theirs.person.id).not.toBe(person.id);
 
   const [anaRow] = await db.select().from(members).where(eq(members.organizationId, acme.id));
-  expect(forUser(db, anaRow!.userId).crm).toEqual({});
+  expect(ok(await forUser(db, anaRow!.userId).crm.projects()).projects).toEqual([]);
 });
 
 test("a Personal space has no CRM", async () => {

@@ -1,7 +1,7 @@
 import { and, asc, eq, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
-import { crmProjectMembers } from "../schema/crm/projects.ts";
+import { crmPortals, crmProjectMembers } from "../schema/crm/projects.ts";
 import { userEmails } from "../schema/identity.ts";
 import { memberStorage } from "../storage.ts";
 import { FREELANCER_ROLE, NOT_FOUND, refuse, type CrmMember, type Ex } from "./core.ts";
@@ -89,23 +89,66 @@ async function isTeammate(ex: Ex, orgId: string, email: string) {
   return Boolean(row);
 }
 
-async function grantFolder(tx: Ex, member: CrmMember, dealId: string, email: string) {
-  const folder = await dealFolder(tx, member, dealId);
-  if (folder.status !== "ok") refuse({ status: "sharing_refused", reason: folder.status });
-  const put = await memberStorage(tx as Db, member.id).putGrant(folder.nodeId, email, "editor");
-  if (put.status !== "ok") refuse({ status: "sharing_refused", reason: put.status });
+const PORTAL_FOLDER_NAME = "Client";
+
+const sharingRefused = (reason: string) => refuse({ status: "sharing_refused", reason });
+
+async function portalFolder(tx: Ex, member: CrmMember, dealId: string, parentId: string) {
+  const [portal] = await tx
+    .select({ folderNodeId: crmPortals.folderNodeId })
+    .from(crmPortals)
+    .where(eq(crmPortals.dealId, dealId));
+  const storage = memberStorage(tx as Db, member.id);
+  const live = portal?.folderNodeId ? await storage.node(portal.folderNodeId) : null;
+  if (live && !live.inTrash) return live.node.id;
+  const made = await storage.createFolder({ parentId }, PORTAL_FOLDER_NAME);
+  if (made.status !== "ok") return sharingRefused(made.status);
+  await tx
+    .insert(crmPortals)
+    .values({ dealId, orgId: member.orgId, folderNodeId: made.node.id })
+    .onConflictDoUpdate({ target: crmPortals.dealId, set: { folderNodeId: made.node.id } });
+  return made.node.id;
 }
 
-async function revokeFolder(tx: Ex, member: CrmMember, dealId: string, email: string) {
-  const deal = await loadDeal(tx, member.orgId, dealId);
-  if (!deal?.folderNodeId) return;
-  await memberStorage(tx as Db, member.id).removeGrant(deal.folderNodeId, email);
+async function grantFolder(
+  tx: Ex,
+  member: CrmMember,
+  dealId: string,
+  email: string,
+  scope: ProjectScope,
+) {
+  const folder = await dealFolder(tx, member, dealId);
+  if (folder.status !== "ok") return sharingRefused(folder.status);
+  const storage = memberStorage(tx as Db, member.id);
+  const target =
+    scope === "freelancer" ? folder.nodeId : await portalFolder(tx, member, dealId, folder.nodeId);
+  const put = await storage.putGrant(target, email, scope === "freelancer" ? "editor" : "viewer");
+  if (put.status !== "ok") sharingRefused(put.status);
+}
+
+async function revokeFolder(
+  tx: Ex,
+  member: CrmMember,
+  dealId: string,
+  email: string,
+  scope: ProjectScope,
+) {
+  const storage = memberStorage(tx as Db, member.id);
+  if (scope === "freelancer") {
+    const deal = await loadDeal(tx, member.orgId, dealId);
+    if (deal?.folderNodeId) await storage.removeGrant(deal.folderNodeId, email);
+    return;
+  }
+  const [portal] = await tx
+    .select({ folderNodeId: crmPortals.folderNodeId })
+    .from(crmPortals)
+    .where(eq(crmPortals.dealId, dealId));
+  if (portal?.folderNodeId) await storage.removeGrant(portal.folderNodeId, email);
 }
 
 /**
- * Adds someone outside the team to a project, or changes their scope. A freelancer gets editor
- * on the project's folder; a client gets nothing in Drive from here (the portal shows them what
- * is theirs). Adding twice with the same scope changes nothing.
+ * Adds someone outside the team to a project, or changes their scope, with the Drive grant that
+ * goes with it. Adding twice with the same scope changes nothing.
  */
 export async function grantAccess(
   tx: Ex,
@@ -127,11 +170,9 @@ export async function grantAccess(
       target: [crmProjectMembers.dealId, crmProjectMembers.email],
       set: { scope: input.scope },
     });
-  if (input.scope === "freelancer" && before?.scope !== "freelancer") {
-    await grantFolder(tx, member, dealId, email);
-  }
-  if (input.scope !== "freelancer" && before?.scope === "freelancer") {
-    await revokeFolder(tx, member, dealId, email);
+  if (before?.scope !== input.scope) {
+    if (before) await revokeFolder(tx, member, dealId, email, before.scope);
+    await grantFolder(tx, member, dealId, email, input.scope);
   }
   return {
     status: "ok" as const,
@@ -140,7 +181,7 @@ export async function grantAccess(
   };
 }
 
-/** Takes someone off a project, and a freelancer out of its folder. */
+/** Takes someone off a project, and out of the folder their scope reached. */
 export async function revokeAccess(tx: Ex, member: CrmMember, dealId: string, email: string) {
   const address = email.trim().toLowerCase();
   const [removed] = await tx
@@ -154,6 +195,6 @@ export async function revokeAccess(tx: Ex, member: CrmMember, dealId: string, em
     )
     .returning({ scope: crmProjectMembers.scope });
   if (!removed) return NOT_FOUND;
-  if (removed.scope === "freelancer") await revokeFolder(tx, member, dealId, address);
+  await revokeFolder(tx, member, dealId, address, removed.scope);
   return { status: "ok" as const, access: await accessOf(tx, member.orgId, dealId) };
 }

@@ -4,6 +4,7 @@ export * from "./storage.ts";
 export * from "./crm.ts";
 export * from "./crm-access.ts";
 export * from "./crm-plan.ts";
+export * from "./crm-portal.ts";
 export * from "./crm-tasks.ts";
 export * from "./mail.ts";
 export * from "./errors.ts";

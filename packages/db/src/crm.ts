@@ -110,6 +110,13 @@ import {
   taskChangeOnProject,
   taskOnProject,
 } from "./crm/scope.ts";
+import {
+  portalProject,
+  portalProjects,
+  reviewDeliverable,
+  type PortalPerson,
+  type ReviewDecision,
+} from "./crm/portal.ts";
 import { lookupCrm, searchCrm } from "./crm/search.ts";
 import { getSettings, putSettings } from "./crm/settings.ts";
 import { replaceStages, stagesOf, type StageInput } from "./crm/stages.ts";
@@ -243,6 +250,16 @@ export {
   type MilestoneResult,
   type MilestoneStatus,
 } from "./crm/plan.ts";
+export type {
+  NotInReview,
+  NoteRequired,
+  PortalContract,
+  PortalDeliverable,
+  PortalFile,
+  PortalProject,
+  PortalProjectDetail,
+  ReviewDecision,
+} from "./crm/portal.ts";
 export type { CrmCompany, CrmDeal, CrmPerson, CrmPersonAddress } from "./crm/records.ts";
 export {
   LOOKUP_MAX_ADDRESSES,
@@ -440,11 +457,21 @@ export function memberCrm(db: Db, memberId: string) {
 }
 
 /**
- * The guest door: what a person outside the workspace may see of its CRM, by address. Empty in
- * v1; the client dashboard will open it for a client's own deals.
+ * The client door: what a person outside the workspace sees of its CRM, by address. The projects
+ * they were added to as a client, each with its plan's milestones, the deliverables shown to them,
+ * its sent and signed contracts and its `Client` folder (`docs/spec/crm.md`, "Client portal").
  */
-export function userCrm(_db: Db, _userId: string, _scopeOrgId?: string | null) {
-  return {};
+export function userCrm(db: Db, userId: string, scopeOrgId?: string | null) {
+  const person: PortalPerson = { db, userId, scopeOrgId };
+  return {
+    projects: () => portalProjects(person),
+    project: (dealId: string) => portalProject(person, dealId),
+    reviewDeliverable: (
+      dealId: string,
+      id: string,
+      input: { decision: ReviewDecision; note?: string | null },
+    ) => reviewDeliverable(person, dealId, id, input),
+  };
 }
 
 export type MemberCrm = ReturnType<typeof memberCrm>;

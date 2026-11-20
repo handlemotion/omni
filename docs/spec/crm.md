@@ -32,7 +32,6 @@ mail and the files the workspace already has in Omni.
 - Reminders, record merging, imports.
 - Stored "last contacted" facts, and sharing a personal mailbox's activity with the workspace.
 - AI on records.
-- The client dashboard, deliverables and signing.
 - A CRM in a Personal space. The iOS app.
 
 ## What we take from Attio and Twenty
@@ -140,9 +139,26 @@ people from outside the team who reach it, by address, each with a scope (founde
   operation stays closed to them until it says otherwise. In Drive they have My files and no Shared:
   being added gives them editor on the project's folder, which they open from Shared with me, and
   being taken off removes it. They hear no realtime CRM changes.
-- **Clients** reach the project on the client portal only (a later layer).
+- **Clients** reach the project on the client portal only (below). They need no workspace.
 
 A teammate's address cannot be added. A project holds at most 50 people from outside the team.
+
+**Client portal.** A client signs in with an ordinary magic link (a real account, so passkeys and
+the iOS app work) and opens `/portal`, which lists every project one of their verified addresses
+is a client on, across workspaces (a session scoped to one company sees that company's only). On
+a project, the way Attio and HubSpot portals and Linear's project page show it:
+
+- **Milestones**, in the team's order, with target days and status.
+- **Deliverables** the team marked `clientVisible`, with their file when it is in the portal's
+  folder. One `in_review` can be approved, or sent back with a note (`changes_requested`); the
+  team sees the answer, who gave it and when, and puts it in review again to ask once more.
+- **Contracts** that went out (never drafts), with the client's own signing request when they
+  are a signer: they sign at `/sign/:id` signed in, as Dropbox Sign shows it, and download the
+  sealed copy there once everyone signed.
+- **Files**: the project's `Client` folder, made inside the project's folder when the first client
+  is added. Clients get viewer on it, and nothing else in Drive. Taking a client off removes it.
+
+The portal is a door of its own (`forUser().crm`): it reads no member and never the member door.
 
 ## API
 
@@ -174,6 +190,8 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `GET /tasks` · `POST /tasks` · `GET /tasks/counts`                  | List by `?status=`, `?assignee=`, `?due=`, `?company=`/`?person=`/`?deal=`, `?q=` (see Tasks). Create. Counts.    |
 | `GET /tasks/:id` · `PATCH` · `DELETE`                               | Read. Change, complete or reopen (`done`), move to another record. Delete.                                   |
 | `GET /deals/:id/access` · `PUT /deals/:id/access/:email` · `DELETE` | Who outside the team reaches the project. `PUT { scope }` adds or changes; a freelancer gets the folder. Teammates only. |
+| `GET /api/portal/projects` · `GET /api/portal/projects/:id`        | The client portal, for any signed-in person: their projects, and one with milestones, shown deliverables, contracts and files. |
+| `POST /api/portal/projects/:id/deliverables/:id/review`             | `{ decision: approve \| request_changes, note }` while in review. `note_required` for changes.             |
 | `GET /deals/:id/plan`                                               | The deal's milestones in order and its deliverables, oldest first.                                           |
 | `POST /deals/:id/milestones` · `PATCH /milestones/:id` · `DELETE`   | Add one last. Change; `position` moves it. Delete; its deliverables stay, under no milestone.                 |
 | `POST /deals/:id/deliverables` · `PATCH /deliverables/:id` · `DELETE` | Add, change, delete. `milestoneId` is one of the deal's, `nodeId` a file the member can open.              |
