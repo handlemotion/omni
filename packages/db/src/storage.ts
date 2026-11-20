@@ -11,6 +11,7 @@ import {
 import type { StorageListCursor, StorageSpace } from "./storage/core.ts";
 import { storagePeakOf } from "./storage/billing.ts";
 import { commentOperations } from "./storage/comments.ts";
+import { contextOperations } from "./storage/context.ts";
 import { findOperations } from "./storage/find.ts";
 import { iconOperations } from "./storage/icons.ts";
 import { lockOperations } from "./storage/lock.ts";
@@ -174,6 +175,23 @@ export {
   type RecordSealResult,
   type StorageSealInput,
 } from "./storage/seal.ts";
+export {
+  STORAGE_CONTEXT_SEARCH_MAX,
+  type ContextHit,
+  type ContextNode,
+  type ContextRead,
+  type ContextText,
+  type ContextWorkspace,
+  type StorageContext,
+} from "./storage/context.ts";
+export {
+  saveStorageText,
+  storageFilesToRead,
+  STORAGE_TEXT_MAX_ATTEMPTS,
+  type StorageFileToRead,
+  type StorageTextInput,
+  type StorageTextStatus,
+} from "./storage/texts.ts";
 export { handOverMemberStorage, type StorageHandOverResult } from "./storage/handover.ts";
 export {
   deletedStorageWorkspaces,
@@ -257,6 +275,7 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
     ...through(),
     ...signerOperations(db, userId, scopeOrgId),
     under: (shareId: string) => through(shareId),
+    context: contextOperations(db, userId, scopeOrgId),
     syncWorkspaces: () => listSyncWorkspaces(db, userId, scopeOrgId),
     async sharedWithMe(page: { cursor?: SharedWithMeCursor | null; limit?: number } = {}) {
       return listSharedWith(db, await grantAddresses(db, userId, scopeOrgId), page);

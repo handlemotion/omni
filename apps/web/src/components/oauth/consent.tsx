@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   IconArrowRotateClockwise,
+  IconFolder,
   IconInbox,
   IconKey,
   IconMail,
@@ -35,6 +36,7 @@ const SCOPE_LINES: { scopes: string[]; icon: Icon; label: string }[] = [
   { scopes: ["mail:draft"], icon: IconPencil, label: "Write drafts for you to send" },
   { scopes: ["crm:read"], icon: IconUsers, label: "Read your CRM" },
   { scopes: ["crm:write"], icon: IconUserAdd, label: "Add and change CRM records" },
+  { scopes: ["drive:read"], icon: IconFolder, label: "Read your files" },
   {
     scopes: ["offline_access"],
     icon: IconArrowRotateClockwise,

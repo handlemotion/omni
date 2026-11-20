@@ -550,3 +550,4 @@ export const storageOverage = pgTable("storage_overage", {
 
 export * from "./storage/comments.ts";
 export * from "./storage/signing.ts";
+export * from "./storage/texts.ts";

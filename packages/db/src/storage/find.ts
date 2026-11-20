@@ -7,7 +7,7 @@ import { lockJoin, MAX_WALK, nodeColumns, toNode, type Drive, type StorageNode }
 /** Search shows this many; it does not page. */
 export const STORAGE_FIND_LIMIT = 50;
 
-function inDrives(drives: Drive[], alias: string) {
+export function inDrives(drives: Drive[], alias: string) {
   const t = sql.raw(alias);
   return sql.join(
     drives.map(
@@ -37,7 +37,7 @@ function firstLiveMatches(drives: Drive[], pattern: string) {
   limit ${STORAGE_FIND_LIMIT}` satisfies SQL;
 }
 
-const likeEscaped = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`);
+export const likeEscaped = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 export function findOperations(db: Db, door: Door) {
   const drives = async () => {

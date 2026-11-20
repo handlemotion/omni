@@ -269,6 +269,33 @@ It creates an Omni draft on the thread through the existing drafts code
 where the composer shows it. The person reviews and sends it in Omni. The tool description says
 so, so the agent tells the person where the draft is.
 
+### Drive: `drive_search`, `drive_list`, `drive_fetch`
+
+`readOnlyHint: true`. Scope `drive:read`. Drive is the company's context layer: agents find and
+read files the way they find and read mail.
+
+- **Text.** Every minute the Worker reads the text of files whose text is missing or behind
+  their `content_version` (`storage_texts`, newest first, a bounded batch per run), so new
+  uploads, new versions and every file from before this existed go through one path. PDFs
+  (`unpdf`), Word, PowerPoint and Excel (their XML, through `fflate`), HTML, and text, Markdown,
+  CSV and code are read in the Worker; nothing else is a dependency. A file over 25 MB (10 MB for
+  plain text) is `too_large`; text stops at 400k characters. PDFs mark pages (`--- Page 3 ---`),
+  decks slides and workbooks sheets, so answers can cite them. Scanned PDFs and pictures have no
+  text until OCR lands.
+- **Search.** `drive_search { query, workspace?, limit? }` matches names and text with Postgres
+  full text (`simple` config: Spanish and English sit side by side and an English stemmer would
+  mangle Spanish), names first, then `ts_rank`, with a `ts_headline` snippet. It returns the
+  ChatGPT `{ id, title, url }` shape plus where the file is.
+- **Read.** `drive_fetch { id, ids?, max_chars? }` returns up to 10 files' text, the budget split
+  evenly, with `text_status` (`pending` until the indexer reaches it).
+- **Browse.** `drive_list` without arguments names the drives and what was shared with the
+  person; with `workspace` and `space` it lists a drive's top; with `folder_id` a folder.
+- **Access.** Every node is opened through the app's own doors (`memberDoor`, then `grantDoor`
+  for the session's scope) before it is returned: a person's agent reaches their My files, their
+  companies' Shared, and what was shared with their addresses, never another member's My files
+  and never Trash. Search narrows in SQL and the door decides. Leak cases are in
+  `apps/worker/e2e/drive-context.e2e.test.ts`.
+
 ## Authorization
 
 OAuth 2.1, per the MCP 2026-07-28 authorization spec, with Omni's own Better Auth as the

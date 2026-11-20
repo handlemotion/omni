@@ -129,6 +129,11 @@ Each test must catch a bug we would plausibly ship; name it before writing the t
 - Before each push run `pnpm check`, `pnpm check-types`, the affected unit suites and the e2e
   files your change touches. CI runs only the `@omni/db` e2e suite; the rest run nightly in
   `Full`, or on a PR with the `full-e2e` label.
+- Before calling a PR done or ready, check it has no conflicts with `main`: `git fetch origin main`
+  and `git merge-tree --write-tree HEAD origin/main` (non-zero exit means conflicts), or
+  `gh api repos/{owner}/{repo}/pulls/<n> --jq .mergeable` is `true`. If it conflicts, merge `main`
+  in (the stack rules above for migrations and shared files) and re-run the checks before saying
+  it is done. Check again after each push and each merge to `main` while it is open.
 - Merging to `main` deploys: Workers Builds ships the Worker, Fly deploys the mail service,
   `.github/workflows/production.yml` migrates. Never `wrangler deploy` or `flyctl deploy` by
   hand. After a merge, check production: the new version is live, `/health` and changed routes

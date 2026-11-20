@@ -15,6 +15,9 @@ export const CRM_READ_SCOPE = "crm:read";
 /** Add and change CRM records and notes, never delete: `crm_write`. */
 export const CRM_WRITE_SCOPE = "crm:write";
 
+/** Read Drive: `drive_search`, `drive_list`, `drive_fetch`. */
+export const DRIVE_READ_SCOPE = "drive:read";
+
 /**
  * Sync Storage with the desktop app's Finder folder. Only the first-party Omni
  * Desktop client holds it: it is not among the scopes a registered agent may ask for.
@@ -37,6 +40,7 @@ export const MCP_SCOPES = [
   MAIL_DRAFT_SCOPE,
   CRM_READ_SCOPE,
   CRM_WRITE_SCOPE,
+  DRIVE_READ_SCOPE,
 ] as const;
 
 /** The access-token claim naming the one workspace a grant reaches; absent for every workspace. */
