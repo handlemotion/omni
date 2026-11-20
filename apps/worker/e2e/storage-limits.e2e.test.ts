@@ -178,54 +178,63 @@ test("STORAGE_MAX_GB caps a company, which the Personal cap does not touch", asy
   expect((await open("fits.bin", MIB - 10)).status).toBe(201);
 });
 
-test("a complete refused after its object was stitched leaves no object, no file and no usage", async () => {
+test("a complete refused as full or into a trashed folder keeps the upload, which completes later without its parts sent again", async () => {
   const { jar, orgId } = await soloPerson();
   const bucket = await stack.bucket();
-  const stitched = async (place: object) => {
-    const opened = await stack.api(jar, "POST", "/uploads", { name: "x.bin", size: 100, ...place });
+  const stitched = async (place: object, bytes: Uint8Array) => {
+    const opened = await stack.api(jar, "POST", "/uploads", {
+      name: "x.bin",
+      size: bytes.length,
+      ...place,
+    });
     expect(opened.status).toBe(201);
     const id = opened.body.upload.id as string;
-    expect((await stack.putPart(jar, id, 1, randomBytes(100))).status).toBe(200);
+    expect((await stack.putPart(jar, id, 1, bytes)).status).toBe(200);
     return id;
   };
-  const nothingStored = async () => {
-    expect((await bucket.list({ prefix: `orgs/${orgId}/` })).objects).toEqual([]);
-    expect(
-      await stack.db
-        .select()
-        .from(schema.storageUploads)
-        .where(eq(schema.storageUploads.orgId, orgId)),
-    ).toEqual([]);
-    expect(
-      (
-        await stack.db
-          .select()
-          .from(schema.storageNodes)
-          .where(eq(schema.storageNodes.orgId, orgId))
-      ).filter((node) => node.kind === "file"),
-    ).toEqual([]);
-  };
+  const setUsed = (bytes: number) =>
+    stack.db.update(schema.storageUsage).set({ bytes }).where(eq(schema.storageUsage.orgId, orgId));
+  const objects = async () =>
+    (await bucket.list({ prefix: `orgs/${orgId}/` })).objects.map((object) => object.key);
 
-  const full = await stitched({ space: "personal" });
-  await stack.db
-    .update(schema.storageUsage)
-    .set({ bytes: PERSONAL_BYTES })
-    .where(eq(schema.storageUsage.orgId, orgId));
+  const bytes = randomBytes(100);
+  const full = await stitched({ space: "personal" }, bytes);
+  await setUsed(PERSONAL_BYTES);
   expect(await stack.api(jar, "POST", `/uploads/${full}/complete`)).toMatchObject({
     status: 402,
     body: { code: "STORAGE_FULL" },
   });
-  await nothingStored();
-  expect(await stack.usedBytes(orgId)).toBe(PERSONAL_BYTES);
-  await stack.db
-    .update(schema.storageUsage)
-    .set({ bytes: 0 })
-    .where(eq(schema.storageUsage.orgId, orgId));
+  expect((await stack.api(jar, "GET", `/uploads/${full}`)).body.upload.parts).toEqual([
+    { partNumber: 1, size: 100 },
+  ]);
+  await setUsed(0);
+  const done = await stack.api(jar, "POST", `/uploads/${full}/complete`);
+  expect(done.status).toBe(200);
+  expect(Buffer.from(await (await stack.download(jar, full)).arrayBuffer())).toEqual(bytes);
+  expect(await stack.usedBytes(orgId)).toBe(100);
 
   const folder = await stack.api(jar, "POST", "/folders", { name: "Gone", space: "personal" });
-  const orphan = await stitched({ parentId: folder.body.node.id });
+  const orphan = await stitched({ parentId: folder.body.node.id }, randomBytes(50));
   expect((await stack.api(jar, "DELETE", `/nodes/${folder.body.node.id}`)).status).toBe(200);
-  expect((await stack.api(jar, "POST", `/uploads/${orphan}/complete`)).status).toBe(404);
-  await nothingStored();
-  expect(await stack.usedBytes(orgId)).toBe(0);
+  expect(await stack.api(jar, "POST", `/uploads/${orphan}/complete`)).toMatchObject({
+    status: 409,
+    body: { code: "PARENT_TRASHED" },
+  });
+  const moved = await stack.api(jar, "PATCH", `/uploads/${orphan}`, {
+    space: "personal",
+    name: "rescued.bin",
+  });
+  expect(moved.body.upload).toMatchObject({ parentId: null, name: "rescued.bin" });
+  const rescued = await stack.api(jar, "POST", `/uploads/${orphan}/complete`);
+  expect(rescued.body.node).toMatchObject({ id: orphan, parentId: null, name: "rescued.bin" });
+  expect(await stack.usedBytes(orgId)).toBe(150);
+
+  const dropped = await stitched({ space: "personal" }, randomBytes(10));
+  await setUsed(PERSONAL_BYTES);
+  expect((await stack.api(jar, "POST", `/uploads/${dropped}/complete`)).status).toBe(402);
+  expect(await objects()).toContain(storageObjectKey(orgId, dropped));
+  expect((await stack.api(jar, "DELETE", `/uploads/${dropped}`)).status).toBe(204);
+  expect((await objects()).toSorted()).toEqual(
+    [storageObjectKey(orgId, full), storageObjectKey(orgId, orphan)].toSorted(),
+  );
 });

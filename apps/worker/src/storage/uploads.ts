@@ -1,14 +1,18 @@
 import {
   storageCompleteUploadQuerySchema,
   STORAGE_MAX_PARTS,
+  storageMoveUploadBodySchema,
   storageOpenUploadBodySchema,
   type StorageNodeResponse,
+  type StorageUploadPartResponse,
   type StorageUploadResponse,
 } from "@omni/contracts";
-import type { StorageUpload } from "@omni/db";
+import type { StorageUpload, UploadCaps } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
+import type { Config } from "../env.ts";
 import { apiError } from "../errors.ts";
+import type { Logger } from "../log.ts";
 import {
   abortMultipart,
   partCount,
@@ -25,15 +29,47 @@ const live = (upload: StorageUpload) => upload.expiresAt > new Date();
 const answer = (upload: StorageUpload) =>
   ({ upload: wireUpload(upload) }) satisfies StorageUploadResponse;
 
+/** The per-member ceilings on uploads in progress, from config. */
+export const uploadCaps = (config: Config) =>
+  ({
+    maxOpenUploads: config.STORAGE_MAX_OPEN_UPLOADS,
+    maxReservedBytes: config.STORAGE_MAX_RESERVED_BYTES,
+  }) satisfies UploadCaps;
+
+const isInvalidPart = (error: unknown) =>
+  error instanceof Error && /InvalidPart|10025|parts could not be found/i.test(error.message);
+
 async function finishObject(bucket: R2Bucket, upload: StorageUpload) {
-  if (!upload.r2UploadId) return bucket.put(upload.r2Key, new Uint8Array(0));
+  if (!upload.r2UploadId) {
+    await bucket.put(upload.r2Key, new Uint8Array(0));
+    return "ok" as const;
+  }
   try {
     const parts = upload.parts.map(({ partNumber, etag }) => ({ partNumber, etag }));
     await bucket.resumeMultipartUpload(upload.r2Key, upload.r2UploadId).complete(parts);
+    return "ok" as const;
   } catch (error) {
     const object = await bucket.head(upload.r2Key);
-    if (object?.size !== upload.size) throw error;
+    if (object?.size === upload.size) return "ok" as const;
+    if (isInvalidPart(error)) return "invalid_part" as const;
+    throw error;
   }
+}
+
+async function objectSha256(bucket: R2Bucket, key: string) {
+  const object = await bucket.get(key);
+  if (!object) return null;
+  const digest = new crypto.DigestStream("SHA-256");
+  await object.body.pipeTo(digest);
+  return [...new Uint8Array(await digest.digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function deleteObject(bucket: R2Bucket, key: string, log: Logger) {
+  await bucket.delete(key).catch((error: unknown) => {
+    log.error("storage.objects_left", { count: 1, error });
+  });
 }
 
 async function findUpload(c: Context<AppEnv>, id: string) {
@@ -42,10 +78,16 @@ async function findUpload(c: Context<AppEnv>, id: string) {
   return upload?.orgId === orgId ? upload : null;
 }
 
+async function findUploadRow(c: Context<AppEnv>, id: string) {
+  const { files, orgId } = writeDoor(c);
+  const upload = await files.uploadRow(id);
+  return upload?.orgId === orgId ? upload : null;
+}
+
 async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
   const n = Number(c.req.param("n"));
   const { files } = writeDoor(c);
-  const upload = await findUpload(c, c.req.param("id") ?? "");
+  const upload = await findUploadRow(c, c.req.param("id") ?? "");
   if (!upload || (!upload.nodeId && !live(upload))) return refused(c, "not_found");
   if (upload.nodeId) return apiError(c, "upload_complete", "the upload is already a file");
   if (n < 1 || n > partCount(upload.size) || !upload.r2UploadId) {
@@ -60,7 +102,7 @@ async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
   try {
     ({ etag } = await multipart.uploadPart(n, body));
   } catch (error) {
-    const now = await files.upload(upload.id);
+    const now = await files.uploadRow(upload.id);
     if (!now || now.nodeId) return refused(c, "not_found");
     throw error;
   }
@@ -70,7 +112,35 @@ async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
     size: expected,
   });
   if (recorded.status !== "ok") return refused(c, recorded.status);
-  return c.json(answer(recorded.upload));
+  return c.json({
+    part: { partNumber: n, size: expected },
+    expiresAt: recorded.expiresAt.toISOString(),
+  } satisfies StorageUploadPartResponse);
+}
+
+async function prepareObject(c: Context<AppEnv>, upload: StorageUpload) {
+  const { files } = writeDoor(c);
+  const bucket = c.env.STORAGE_BUCKET;
+  if (upload.parts.reduce((sum, part) => sum + part.size, 0) !== upload.size) {
+    return refused(c, "incomplete");
+  }
+  if ((await finishObject(bucket, upload)) === "invalid_part") {
+    await files.clearUploadParts(upload.id);
+    c.var.log.warn("storage.upload_parts_refused", { uploadId: upload.id });
+    return apiError(c, "upload_incomplete", "the bucket refused the parts: send them all again");
+  }
+  const unchecked = upload.size > c.var.config.STORAGE_HASH_CHECK_MAX_BYTES;
+  if (!upload.sha256 || upload.sha256CheckedAt || unchecked) return null;
+  const started = Date.now();
+  const actual = await objectSha256(bucket, upload.r2Key);
+  c.var.log.info("storage.upload_hashed", { bytes: upload.size, ms: Date.now() - started });
+  if (actual === upload.sha256) {
+    await files.markUploadChecked(upload.id);
+    return null;
+  }
+  const aborted = await files.abortUpload(upload.id);
+  if (aborted.status === "ok") await deleteObject(bucket, aborted.r2Key, c.var.log);
+  return apiError(c, "checksum_mismatch", "the bytes stored do not match the sha256 sent");
 }
 
 export const storageUploads = new Hono<AppEnv>()
@@ -88,6 +158,7 @@ export const storageUploads = new Hono<AppEnv>()
       mimeType,
       limitBytes,
       sha256,
+      caps: uploadCaps(config),
     });
     if (opened.status !== "ok") return refused(c, opened.status);
     if (size === 0) return c.json(answer(opened.upload), 201);
@@ -108,6 +179,22 @@ export const storageUploads = new Hono<AppEnv>()
     return c.json(answer(upload));
   })
 
+  .patch("/uploads/:id", zValidator("json", storageMoveUploadBodySchema), async (c) => {
+    const { name, parentId, space } = c.req.valid("json");
+    const upload = await findUploadRow(c, c.req.param("id"));
+    if (!upload) return refused(c, "not_found");
+    const moved = await writeDoor(c).files.moveUpload(
+      upload.id,
+      placeOf({ parentId, space }),
+      name,
+    );
+    if (moved.status === "upload_complete") {
+      return apiError(c, "upload_complete", "the upload is already a file");
+    }
+    if (moved.status !== "ok") return refused(c, moved.status);
+    return c.json(answer(moved.upload));
+  })
+
   .put("/uploads/:id/parts/:n{[0-9]+}", async (c) => {
     const body = c.req.raw.body;
     const stored = await storePart(c, body);
@@ -125,15 +212,12 @@ export const storageUploads = new Hono<AppEnv>()
     const { ifContentVersion } = guard.data;
     const { db, config, log } = c.var;
     const { files } = writeDoor(c);
-    const bucket = c.env.STORAGE_BUCKET;
     const upload = await findUpload(c, c.req.param("id"));
     if (!upload) return refused(c, "not_found");
     if (!upload.nodeId) {
       if (!live(upload)) return refused(c, "not_found");
-      if (upload.parts.reduce((sum, part) => sum + part.size, 0) !== upload.size) {
-        return refused(c, "incomplete");
-      }
-      await finishObject(bucket, upload);
+      const unready = await prepareObject(c, upload);
+      if (unready) return unready;
     }
     const { limitBytes } = await storageLimit(db, config, upload.orgId);
     const done = await files.completeUpload(upload.id, { limitBytes, ifContentVersion });
@@ -141,11 +225,9 @@ export const storageUploads = new Hono<AppEnv>()
       announceDrives(c, [done.node]);
       return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
     }
-    const aborted = await files.abortUpload(upload.id);
-    if (aborted.status === "ok") {
-      await bucket.delete(aborted.r2Key).catch((error: unknown) => {
-        log.error("storage.objects_left", { count: 1, error });
-      });
+    if (done.status === "not_found") {
+      const aborted = await files.abortUpload(upload.id);
+      if (aborted.status === "ok") await deleteObject(c.env.STORAGE_BUCKET, aborted.r2Key, log);
     }
     if (done.status === "version_conflict") return staleSave(c, done.contentVersion);
     return refused(c, done.status);
@@ -155,5 +237,6 @@ export const storageUploads = new Hono<AppEnv>()
     const aborted = await writeDoor(c).files.abortUpload(c.req.param("id"));
     if (aborted.status !== "ok") return refused(c, aborted.status);
     await abortMultipart(c.env.STORAGE_BUCKET, aborted.r2Key, aborted.r2UploadId);
+    await deleteObject(c.env.STORAGE_BUCKET, aborted.r2Key, c.var.log);
     return c.body(null, 204);
   });

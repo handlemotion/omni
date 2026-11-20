@@ -82,14 +82,18 @@ export {
 export {
   expiredStorageUploads,
   removeStorageUpload,
+  STORAGE_UPLOAD_MAX_AGE_MS,
   STORAGE_UPLOAD_TTL_MS,
   type AbortUploadResult,
   type CompleteUploadResult,
+  type MoveUploadResult,
   type OpenUploadResult,
   type OpenVersionUploadResult,
   type RecordPartResult,
   type StorageFull,
   type StorageUpload,
+  type TooManyUploads,
+  type UploadCaps,
 } from "./storage/uploads.ts";
 export type {
   PutGrantResult,

@@ -132,7 +132,7 @@ test("under a link an Editor saves and restores versions; a Viewer and an anonym
   expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "v1"]);
 });
 
-test("a locked file answers 409 locked to a new version and a restore, and the refused bytes leave the bucket", async () => {
+test("a locked file answers 409 locked to a new version and a restore, and the refused upload waits until it is cancelled", async () => {
   const org = await stack.company(`versions-locked-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
   const file = await stack.upload(ana.jar, { space: "shared" }, "contract.md", bytes("draft"));
@@ -156,6 +156,8 @@ test("a locked file answers 409 locked to a new version and a restore, and the r
   expect([restore.status, restore.body.code]).toEqual([409, "LOCKED"]);
 
   expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "signed"]);
+  expect(await objectCount(org.id)).toBe(3);
+  expect((await stack.api(ana.jar, "DELETE", `/uploads/${pending.uploadId}`)).status).toBe(204);
   expect(await objectCount(org.id)).toBe(2);
   expect(await stack.usedBytes(org.id)).toBe(11);
 });
@@ -187,7 +189,7 @@ test("the daily job deletes versions replaced more than 30 days ago, rows and ob
   expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "three"]);
 });
 
-test("a checked save on stale content answers 409 with the file's content version, and stores nothing", async () => {
+test("a checked save on stale content answers 409 with the file's content version, and changes nothing until retried", async () => {
   const org = await stack.company(`versions-checked-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
   const file = await stack.upload(ana.jar, { space: "shared" }, "doc.md", bytes("one"));
@@ -220,9 +222,12 @@ test("a checked save on stale content answers 409 with the file's content versio
   const stale = await open("mine again", 1);
   expect([stale.opened.status, stale.opened.body.details]).toEqual([409, { contentVersion: 2 }]);
   expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "theirs, saved first"]);
-  expect(await objectCount(org.id)).toBe(2);
 
   const merged = await open("theirs and mine", 2);
   const done = await stack.api(ana.jar, "POST", merged.complete);
   expect([done.status, done.body.node.contentVersion]).toEqual([200, 3]);
+  const kept = mine.complete.replace("ifContentVersion=1", "ifContentVersion=3");
+  const overwrite = await stack.api(ana.jar, "POST", kept);
+  expect([overwrite.status, overwrite.body.node.contentVersion]).toEqual([200, 4]);
+  expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "mine"]);
 });

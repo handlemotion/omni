@@ -354,10 +354,17 @@ export const storageUploads = pgTable(
     r2Key: text("r2_key").notNull(),
     /** The bucket's multipart upload id; null until the bucket has opened it. */
     r2UploadId: text("r2_upload_id"),
+    /**
+     * Parts recorded before `storage_upload_parts` existed. Read beside that table until no
+     * upload opened by an older Worker is still open; nothing writes here any more.
+     */
     parts: jsonb("parts").$type<StorageUploadPart[]>().notNull().default([]),
     nodeId: text("node_id"),
     /** Hex SHA-256 the client computed while reading the file; null when it sent none. */
     sha256: text("sha256"),
+    /** When the Worker hashed the stitched object and it matched `sha256`. */
+    sha256CheckedAt: timestamptz("sha256_checked_at"),
+    /** Moves forward with every part recorded: only a day with no parts closes an upload. */
     expiresAt: timestamptz("expires_at").notNull(),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
@@ -376,6 +383,25 @@ export const storageUploads = pgTable(
     index("storage_uploads_expires_at_idx").on(t.expiresAt),
     index("storage_uploads_member_id_idx").on(t.memberId),
   ],
+);
+
+/**
+ * One part of an upload, as the bucket acknowledged it: a row each, so recording a part writes
+ * one row however many came before. Sending a part again replaces its row.
+ */
+export const storageUploadParts = pgTable(
+  "storage_upload_parts",
+  {
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => storageUploads.id, { onDelete: "cascade" }),
+    orgId: orgId(),
+    partNumber: integer("part_number").notNull(),
+    etag: text("etag").notNull(),
+    size: bigint("size", { mode: "number" }).notNull(),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.uploadId, t.partNumber] })],
 );
 
 /**

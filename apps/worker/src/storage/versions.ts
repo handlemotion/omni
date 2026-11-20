@@ -13,6 +13,7 @@ import { zValidator } from "../validator.ts";
 import { announceDrives } from "./announce.ts";
 import { partCount, storageLimit, wireNode, wireUpload } from "./core.ts";
 import { download, refused, staleSave, writeDoor } from "./http.ts";
+import { uploadCaps } from "./uploads.ts";
 
 const wireContent = (content: StorageContent) => ({
   size: content.size,
@@ -36,6 +37,7 @@ export const storageVersions = new Hono<AppEnv>()
       sha256,
       ifContentVersion,
       limitBytes,
+      caps: uploadCaps(config),
     });
     if (opened.status === "version_conflict") return staleSave(c, opened.contentVersion);
     if (opened.status !== "ok") return refused(c, opened.status);

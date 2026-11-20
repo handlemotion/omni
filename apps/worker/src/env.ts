@@ -82,7 +82,24 @@ const configSchema = z
         .number<string | undefined>()
         .int()
         .positive()
-        .default(5 * 1024 ** 3),
+        .default(100 * 1024 ** 3),
+    ),
+    STORAGE_HASH_CHECK_MAX_BYTES: optionalText.pipe(
+      z.coerce
+        .number<string | undefined>()
+        .int()
+        .nonnegative()
+        .default(8 * 1024 ** 3),
+    ),
+    STORAGE_MAX_OPEN_UPLOADS: optionalText.pipe(
+      z.coerce.number<string | undefined>().int().positive().default(500),
+    ),
+    STORAGE_MAX_RESERVED_BYTES: optionalText.pipe(
+      z.coerce
+        .number<string | undefined>()
+        .int()
+        .positive()
+        .default(1024 ** 4),
     ),
     STORAGE_PERSONAL_GB: optionalText.pipe(optionalGb),
     STORAGE_MAX_GB: optionalText.pipe(optionalGb),

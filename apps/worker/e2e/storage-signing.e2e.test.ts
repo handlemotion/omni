@@ -264,13 +264,18 @@ test("the last signature seals: a locked signed copy beside the original with an
     200,
   );
   const forged = Buffer.from("%PDF-1.7 a different certificate");
-  const opened = await stack.api(ana.jar, "POST", `/files/${request.sealedNodeId}/versions`, {
-    size: forged.length,
-    mimeType: "application/pdf",
-    sha256: request.sealedSha256,
-  });
-  await (await stack.putPart(ana.jar, opened.body.upload.id, 1, forged)).body?.cancel();
-  const replaced = await stack.api(ana.jar, "POST", `/uploads/${opened.body.upload.id}/complete`);
+  const replace = async (sha256?: string) => {
+    const opened = await stack.api(ana.jar, "POST", `/files/${request.sealedNodeId}/versions`, {
+      size: forged.length,
+      mimeType: "application/pdf",
+      sha256,
+    });
+    await (await stack.putPart(ana.jar, opened.body.upload.id, 1, forged)).body?.cancel();
+    return stack.api(ana.jar, "POST", `/uploads/${opened.body.upload.id}/complete`);
+  };
+  const claimed = await replace(request.sealedSha256);
+  expect([claimed.status, claimed.body.code]).toEqual([422, "CHECKSUM_MISMATCH"]);
+  const replaced = await replace();
   expect(replaced.status).toBe(200);
   expect((await stack.get(jars[0]!, `/signing/${requestId}/sealed`)).status).toBe(404);
   expect((await stack.api(ana.jar, "DELETE", `/nodes/${request.sealedNodeId}`)).status).toBe(200);

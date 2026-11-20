@@ -88,6 +88,13 @@ export const ERROR_CODES = {
   upload_incomplete: spec(409, "conflict"),
   /** The upload already became a file. */
   upload_complete: spec(409, "conflict"),
+  /** The bytes stored do not hash to the `sha256` the upload declared: nothing was saved. */
+  checksum_mismatch: spec(422, "validation"),
+  /**
+   * The member already has as many uploads in progress, or as many bytes reserved by them, as
+   * one person may: finish or cancel some first.
+   */
+  too_many_uploads: spec(429, "rate_limit", true),
   /** A guarded write (`ifRevision`, `ifContentVersion`) read a node that has changed since. */
   version_conflict: spec(409, "conflict"),
   /** The file has no thumbnail (not an image the server can draw, or too large): show its icon. */

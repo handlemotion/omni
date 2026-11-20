@@ -1,7 +1,12 @@
-import { and, eq, gt, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, sql, TransactionRollbackError } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
-import { storageUploads, storageUploadTargets, type StorageUploadPart } from "../schema/storage.ts";
+import {
+  storageUploadParts,
+  storageUploads,
+  storageUploadTargets,
+  type StorageUploadPart,
+} from "../schema/storage.ts";
 import type { Door } from "./access.ts";
 import {
   addUsage,
@@ -22,28 +27,45 @@ import {
   type NotFound,
   type StoragePlace,
 } from "./tree.ts";
+import {
+  capped,
+  otherPartBytes,
+  partsOf,
+  withParts,
+  reservedBytes,
+  type StorageFull,
+  type TooManyUploads,
+  type UploadCaps,
+} from "./upload-rows.ts";
 import { mayReplace, replaceContent, staleFor, type StaleContent } from "./versions.ts";
 
-/** An upload nobody completes is aborted after this long. */
+export {
+  expiredStorageUploads,
+  removeStorageUpload,
+  reservedBytes,
+  type StorageFull,
+  type TooManyUploads,
+  type UploadCaps,
+} from "./upload-rows.ts";
+
+/** An upload that receives no part for this long is aborted. Each part recorded restarts it. */
 export const STORAGE_UPLOAD_TTL_MS = 24 * 60 * 60_000;
+/**
+ * However many parts keep arriving, an upload closes this long after it opened: R2 aborts a
+ * multipart upload nobody completed after 7 days, and the parts would be gone before the row.
+ */
+export const STORAGE_UPLOAD_MAX_AGE_MS = 6 * 24 * 60 * 60_000;
 
+/** An upload with every part recorded so far, in part order. */
 export type StorageUpload = typeof storageUploads.$inferSelect;
-
-/** The workspace has no room for the file. Trashed files and uploads in progress count. */
-export interface StorageFull {
-  status: "full";
-  usedBytes: number;
-  /** Declared sizes of the other uploads in progress. */
-  reservedBytes: number;
-  limitBytes: number;
-}
 
 export type OpenUploadResult =
   | { status: "ok"; upload: StorageUpload }
   | NotFound
   | Forbidden
   | InvalidName
-  | StorageFull;
+  | StorageFull
+  | TooManyUploads;
 
 export type OpenVersionUploadResult =
   | { status: "ok"; upload: StorageUpload }
@@ -51,18 +73,27 @@ export type OpenVersionUploadResult =
   | Forbidden
   | Locked
   | StaleContent
-  | StorageFull;
+  | StorageFull
+  | TooManyUploads;
 
 export type RecordPartResult =
-  | { status: "ok"; upload: StorageUpload }
+  | { status: "ok"; part: StorageUploadPart; expiresAt: Date }
   | NotFound
   | { status: "too_large" };
+
+export type MoveUploadResult =
+  | { status: "ok"; upload: StorageUpload }
+  | NotFound
+  | Forbidden
+  | InvalidName
+  | { status: "upload_complete" };
 
 export type CompleteUploadResult =
   | { status: "ok"; node: StorageNode; r2Key: string; created: boolean }
   | NotFound
   | Forbidden
   | { status: "incomplete" }
+  | { status: "parent_trashed" }
   | Locked
   | StaleContent
   | StorageFull;
@@ -74,22 +105,6 @@ export type AbortUploadResult =
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
 
-/** Declared bytes of a workspace's uploads in progress, optionally leaving one out. */
-export async function reservedBytes(ex: Db, orgId: string, exceptUploadId?: string) {
-  const [row] = await ex
-    .select({ bytes: sql<string>`coalesce(sum(${storageUploads.size}), 0)` })
-    .from(storageUploads)
-    .where(
-      and(
-        eq(storageUploads.orgId, orgId),
-        isNull(storageUploads.nodeId),
-        gt(storageUploads.expiresAt, new Date()),
-        exceptUploadId ? sql`${storageUploads.id} <> ${exceptUploadId}` : undefined,
-      ),
-    );
-  return Number(row?.bytes ?? 0);
-}
-
 async function targetOf(ex: Db, uploadId: string) {
   const [row] = await ex
     .select({
@@ -99,6 +114,13 @@ async function targetOf(ex: Db, uploadId: string) {
     .where(eq(storageUploadTargets.uploadId, uploadId));
   return row ?? null;
 }
+
+const slidExpiry = (createdAt: Date) =>
+  new Date(
+    Math.min(Date.now() + STORAGE_UPLOAD_TTL_MS, createdAt.getTime() + STORAGE_UPLOAD_MAX_AGE_MS),
+  );
+
+const isRollback = (error: unknown) => error instanceof TransactionRollbackError;
 
 const live = (upload: StorageUpload) => !upload.nodeId && upload.expiresAt > new Date();
 
@@ -143,6 +165,7 @@ export function uploadOperations(db: Db, door: Door) {
         mimeType?: string | null;
         limitBytes: number | null;
         sha256?: string | null;
+        caps?: UploadCaps;
       },
     ) {
       const name = cleanName(file.name);
@@ -167,6 +190,11 @@ export function uploadOperations(db: Db, door: Door) {
         const full = await fullFor(tx, orgId, usedBytes, file.size, file.limitBytes);
         if (full) {
           const result: OpenUploadResult = full;
+          return result;
+        }
+        const tooMany = await capped(tx, orgId, actor, file.size, file.caps ?? {});
+        if (tooMany) {
+          const result: OpenUploadResult = tooMany;
           return result;
         }
         const id = uuidv7();
@@ -199,6 +227,7 @@ export function uploadOperations(db: Db, door: Door) {
         limitBytes: number | null;
         sha256?: string | null;
         ifContentVersion?: number | null;
+        caps?: UploadCaps;
       },
     ) {
       return db.transaction<OpenVersionUploadResult>(async (tx) => {
@@ -212,6 +241,8 @@ export function uploadOperations(db: Db, door: Door) {
         const usedBytes = await lockUsage(tx, node.orgId);
         const full = await fullFor(tx, node.orgId, usedBytes, file.size, file.limitBytes);
         if (full) return full satisfies OpenVersionUploadResult;
+        const tooMany = await capped(tx, node.orgId, actor, file.size, file.caps ?? {});
+        if (tooMany) return tooMany satisfies OpenVersionUploadResult;
         const id = uuidv7();
         const [upload] = await tx
           .insert(storageUploads)
@@ -236,8 +267,13 @@ export function uploadOperations(db: Db, door: Door) {
       });
     },
 
-    async upload(uploadId: string) {
+    async uploadRow(uploadId: string) {
       return mine(db, uploadId) satisfies Promise<StorageUpload | null>;
+    },
+
+    async upload(uploadId: string) {
+      const upload = await mine(db, uploadId);
+      return (upload ? await withParts(db, upload) : null) satisfies StorageUpload | null;
     },
 
     async startUpload(uploadId: string, r2UploadId: string) {
@@ -252,23 +288,80 @@ export function uploadOperations(db: Db, door: Door) {
         (upload.r2UploadId === r2UploadId ? upload : null)) satisfies StorageUpload | null;
     },
 
-    recordUploadPart(uploadId: string, part: StorageUploadPart) {
-      return db.transaction<RecordPartResult>(async (tx) => {
+    async recordUploadPart(uploadId: string, part: StorageUploadPart) {
+      const seen = await mine(db, uploadId);
+      if (!seen) return NOT_FOUND satisfies RecordPartResult;
+      return db
+        .transaction<RecordPartResult>(async (tx) => {
+          const [upload] = await tx
+            .update(storageUploads)
+            .set({ expiresAt: slidExpiry(seen.createdAt) })
+            .where(
+              and(
+                eq(storageUploads.id, uploadId),
+                isNull(storageUploads.nodeId),
+                gt(storageUploads.expiresAt, new Date()),
+              ),
+            )
+            .returning();
+          if (!upload) return NOT_FOUND satisfies RecordPartResult;
+          if ((await otherPartBytes(tx, upload, part.partNumber)) + part.size > upload.size) {
+            tx.rollback();
+          }
+          await tx
+            .insert(storageUploadParts)
+            .values({ uploadId, orgId: upload.orgId, ...part })
+            .onConflictDoUpdate({
+              target: [storageUploadParts.uploadId, storageUploadParts.partNumber],
+              set: { etag: part.etag, size: part.size, createdAt: sql`now()` },
+            });
+          return { status: "ok", part, expiresAt: upload.expiresAt } satisfies RecordPartResult;
+        })
+        .catch((error: unknown) => {
+          if (isRollback(error)) return { status: "too_large" } satisfies RecordPartResult;
+          throw error;
+        });
+    },
+
+    async clearUploadParts(uploadId: string) {
+      const upload = await mine(db, uploadId);
+      if (!upload || upload.nodeId) return false;
+      await db.transaction(async (tx) => {
+        await tx.delete(storageUploadParts).where(eq(storageUploadParts.uploadId, uploadId));
+        await tx
+          .update(storageUploads)
+          .set({ parts: [], sha256CheckedAt: null })
+          .where(and(eq(storageUploads.id, uploadId), isNull(storageUploads.nodeId)));
+      });
+      return true;
+    },
+
+    async markUploadChecked(uploadId: string) {
+      await db
+        .update(storageUploads)
+        .set({ sha256CheckedAt: new Date() })
+        .where(and(eq(storageUploads.id, uploadId), isNull(storageUploads.nodeId)));
+    },
+
+    async moveUpload(uploadId: string, place: StoragePlace, rename?: string) {
+      const name = rename === undefined ? undefined : cleanName(rename);
+      if (name === null) return { status: "invalid_name" } satisfies MoveUploadResult;
+      return db.transaction<MoveUploadResult>(async (tx) => {
         const upload = await mine(tx, uploadId, true);
-        if (!upload || !live(upload)) return NOT_FOUND satisfies RecordPartResult;
-        const parts = [
-          ...upload.parts.filter((other) => other.partNumber !== part.partNumber),
-          part,
-        ].toSorted((a, b) => a.partNumber - b.partNumber);
-        if (parts.reduce((sum, each) => sum + each.size, 0) > upload.size) {
-          return { status: "too_large" } satisfies RecordPartResult;
+        if (!upload) return NOT_FOUND satisfies MoveUploadResult;
+        if (upload.nodeId) return { status: "upload_complete" } satisfies MoveUploadResult;
+        if (!live(upload) || (await targetOf(tx, upload.id))) {
+          return NOT_FOUND satisfies MoveUploadResult;
         }
+        const at = await resolvePlace(tx, door, place);
+        if (!at || at.drive.orgId !== upload.orgId) return NOT_FOUND satisfies MoveUploadResult;
+        if (!at.writable) return FORBIDDEN satisfies MoveUploadResult;
         const [row] = await tx
           .update(storageUploads)
-          .set({ parts })
+          .set({ space: at.drive.space, parentId: at.parentId, ...(name ? { name } : {}) })
           .where(eq(storageUploads.id, uploadId))
           .returning();
-        return { status: "ok", upload: row! } satisfies RecordPartResult;
+        return { status: "ok", upload: await withParts(tx, row!) } satisfies MoveUploadResult;
       });
     },
 
@@ -295,7 +388,8 @@ export function uploadOperations(db: Db, door: Door) {
           ) satisfies CompleteUploadResult;
         }
         if (!live(upload)) return NOT_FOUND satisfies CompleteUploadResult;
-        if (upload.parts.reduce((sum, part) => sum + part.size, 0) !== upload.size) {
+        const parts = await partsOf(tx, upload);
+        if (parts.reduce((sum, part) => sum + part.size, 0) !== upload.size) {
           return { status: "incomplete" } satisfies CompleteUploadResult;
         }
         const { limitBytes } = options;
@@ -334,7 +428,11 @@ export function uploadOperations(db: Db, door: Door) {
           door,
           upload.parentId ? { parentId: upload.parentId } : { space: upload.space },
         );
-        if (!at) return NOT_FOUND satisfies CompleteUploadResult;
+        if (!at) {
+          return (
+            upload.parentId ? { status: "parent_trashed" } : NOT_FOUND
+          ) satisfies CompleteUploadResult;
+        }
         if (!at.writable) return FORBIDDEN satisfies CompleteUploadResult;
         const refusal = await full();
         if (refusal) return refusal satisfies CompleteUploadResult;
@@ -374,39 +472,4 @@ export function uploadOperations(db: Db, door: Door) {
       return (row ? { status: "ok", ...row } : NOT_FOUND) satisfies AbortUploadResult;
     },
   };
-}
-
-/**
- * For the cron: forgets completed uploads past their time (the file stays) and returns those
- * nobody completed, oldest first. The caller aborts each in the bucket, then calls
- * `removeStorageUpload`.
- */
-export async function expiredStorageUploads(db: Db, options: { now?: Date; limit?: number } = {}) {
-  const now = options.now ?? new Date();
-  await db
-    .delete(storageUploads)
-    .where(and(lt(storageUploads.expiresAt, now), isNotNull(storageUploads.nodeId)));
-  return db
-    .select({
-      id: storageUploads.id,
-      orgId: storageUploads.orgId,
-      r2Key: storageUploads.r2Key,
-      r2UploadId: storageUploads.r2UploadId,
-    })
-    .from(storageUploads)
-    .where(and(lt(storageUploads.expiresAt, now), isNull(storageUploads.nodeId)))
-    .orderBy(storageUploads.expiresAt)
-    .limit(options.limit ?? 100);
-}
-
-/**
- * Deletes an upload nobody completed, and says whether it did. False when it is gone or was
- * completed after all: only a true answer means no file owns the object at its key.
- */
-export async function removeStorageUpload(db: Db, uploadId: string) {
-  const removed = await db
-    .delete(storageUploads)
-    .where(and(eq(storageUploads.id, uploadId), isNull(storageUploads.nodeId)))
-    .returning({ id: storageUploads.id });
-  return removed.length > 0;
 }

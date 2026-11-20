@@ -49,8 +49,14 @@ SYSTEM_MAIL_FROM=
 UPLOAD_MAX_BYTES=
 
 # --- Storage (ADR 0034; the STORAGE_BUCKET binding in wrangler.jsonc) ---
-# Optional. Largest file Storage accepts, in bytes. Empty: 5368709120 (5 GB).
+# Optional. Largest file Storage accepts, in bytes. Empty: 107374182400 (100 GB).
 STORAGE_MAX_FILE_BYTES=
+# Optional. Largest upload whose declared sha256 is checked against the bytes. Empty: 8 GB.
+STORAGE_HASH_CHECK_MAX_BYTES=
+# Optional. Uploads one person may have in progress in a workspace. Empty: 500.
+STORAGE_MAX_OPEN_UPLOADS=
+# Optional. Bytes one person's uploads in progress may hold in a workspace. Empty: 1 TB.
+STORAGE_MAX_RESERVED_BYTES=
 # Optional. Most a Personal space may store, in GB (decimals allowed). Empty: no cap.
 STORAGE_PERSONAL_GB=
 # Optional. Ceiling on what any one workspace may store, in GB. Empty: none.

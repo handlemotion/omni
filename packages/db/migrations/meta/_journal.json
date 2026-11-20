@@ -358,6 +358,13 @@
       "when": 1795069490429,
       "tag": "0050_normal_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795145278373,
+      "tag": "0051_numerous_deathbird",
+      "breakpoints": true
     }
   ]
 }
