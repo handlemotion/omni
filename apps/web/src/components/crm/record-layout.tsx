@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { StorageFrame } from "@/components/storage/storage-frame";
@@ -26,9 +26,9 @@ export interface RecordTab {
   panel: ReactNode;
 }
 
-const DETAILS_WIDTH = 384;
+const DETAILS_THIRD = "clamp(360px, 33.333%, 560px)";
 const DETAILS_MIN = 300;
-const DETAILS_MAX = 600;
+const DETAILS_MAX = 720;
 
 export function RecordLayout(props: {
   list: keyof typeof CRM_LISTS;
@@ -49,16 +49,22 @@ export function RecordLayout(props: {
   details: ReactNode;
   tabs: RecordTab[];
 }) {
-  const details = useStoredWidth("omni:crm-details-width", DETAILS_WIDTH, DETAILS_MIN, DETAILS_MAX);
+  const aside = useRef<HTMLElement>(null);
+  const details = useStoredWidth("omni:crm-details-width", 0, DETAILS_MIN, DETAILS_MAX);
   const [resizing, setResizing] = useState(false);
   return (
     <TrailProvider here={props.here}>
       <RecordFrame list={props.list} name={props.name} actions={props.actions}>
         <div
           className={`flex min-h-0 flex-1 overflow-y-auto max-lg:flex-col lg:overflow-hidden ${resizing ? "cursor-ew-resize select-none" : ""}`}
-          style={{ "--details-width": `${details.width}px` } as React.CSSProperties}
+          style={
+            {
+              "--details-width": details.isSet ? `${details.width}px` : DETAILS_THIRD,
+            } as React.CSSProperties
+          }
         >
           <aside
+            ref={aside}
             aria-label="Details"
             className="flex shrink-0 flex-col gap-6 px-5 py-5 lg:w-(--details-width) lg:overflow-y-auto lg:border-e"
           >
@@ -89,14 +95,17 @@ export function RecordLayout(props: {
             <ResizeGrip
               label="Resize details"
               className="max-lg:hidden"
-              width={() => details.width}
+              width={() => aside.current?.offsetWidth ?? details.width}
               onResize={details.set}
               onReset={details.reset}
               onResizingChange={setResizing}
             />
             <main className="flex min-h-0 min-w-0 flex-1 flex-col pb-4 lg:overflow-y-auto">
               <Tabs className="w-full flex-1">
-                <TabList aria-label="Record" className="px-5 pt-1.5 [--tab-list-pb:--spacing(1.5)]">
+                <TabList
+                  aria-label="Record"
+                  className="sticky top-0 z-10 bg-background px-5 pt-1.5 [--tab-list-pb:--spacing(1.5)]"
+                >
                   {props.tabs.map((tab) => (
                     <Tab key={tab.id} id={tab.id}>
                       {tab.label}
@@ -230,7 +239,7 @@ export function RecordState(props: {
 function RecordBones() {
   return (
     <div className="flex gap-0 max-lg:flex-col">
-      <div className="flex flex-col gap-4 px-5 py-5 lg:w-(--details-width,384px)">
+      <div className="flex flex-col gap-4 px-5 py-5 lg:w-(--details-width,clamp(360px,33.333%,560px))">
         <div className="flex items-center gap-3">
           <SkeletonBox width={40} height={40} radius="999px" />
           <SkeletonBox width={140} height={12} />
