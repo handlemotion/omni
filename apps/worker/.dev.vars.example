@@ -79,6 +79,11 @@ S2_ACCESS_TOKEN=
 # Secret. Triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
 # unsorted (only a wordless reply from you files itself, as FYI).
 ANTHROPIC_API_KEY=
+# Optional. Model API base URL, for a proxy or gateway. Defaults to Anthropic's.
+ANTHROPIC_BASE_URL=
+# Optional. "off" stops Drive reading text in pictures and scanned PDFs with the model. With
+# ANTHROPIC_API_KEY set it is on: up to 8 files a minute on Claude Haiku, 1-2k tokens a page or picture.
+DRIVE_OCR=
 # Secret. TypeSafe key: triage runs on Jev when set, and search
 # results are reordered by Jev's relevance judgment. Empty: search keeps full-text order.
 TYPESAFE_API_KEY=

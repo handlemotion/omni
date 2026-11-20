@@ -12,7 +12,7 @@ const inputSchema = z.object({
     .min(1)
     .max(500)
     .describe(
-      'Words to find in file names and in the text inside files (PDFs, Word, PowerPoint, Excel, text and code). Web search syntax: "exact phrase", -exclude, or.',
+      'Words to find in file names and in the text inside files (PDFs, Word, PowerPoint, Excel, text and code, and the words in pictures and scans). Web search syntax: "exact phrase", -exclude, or.',
     ),
   workspace: z.string().min(1).optional().describe("One workspace id."),
   limit: z.number().int().min(1).max(STORAGE_CONTEXT_SEARCH_MAX).default(10),

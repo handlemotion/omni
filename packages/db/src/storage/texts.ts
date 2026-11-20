@@ -1,10 +1,11 @@
-import { and, desc, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, like, lt, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageNodes, storageTexts } from "../schema/storage.ts";
 
 /** Failed reads of one content version before the indexer gives up on it. */
 export const STORAGE_TEXT_MAX_ATTEMPTS = 3;
 const RETRY_AFTER = "10 minutes";
+const PICTURE_NAME = "\\.(avif|gif|heic|heif|jpe?g|png|webp)$";
 
 export type StorageTextStatus = (typeof storageTexts.status.enumValues)[number];
 
@@ -22,9 +23,10 @@ export interface StorageFileToRead {
 /**
  * Up to `limit` live files whose text was never read, is from an older content version, or
  * failed and may be tried again: new uploads, replaced files, and every file from before the
- * indexer existed. Newest first, so what people just added is searchable soonest.
+ * indexer existed. With `ocr`, also pictures and PDFs that came to no text before OCR was set
+ * up. Newest first, so what people just added is searchable soonest.
  */
-export async function storageFilesToRead(db: Db, limit: number) {
+export async function storageFilesToRead(db: Db, limit: number, options: { ocr: boolean }) {
   const rows = await db
     .select({
       id: storageNodes.id,
@@ -50,6 +52,21 @@ export async function storageFilesToRead(db: Db, limit: number) {
             lt(storageTexts.attempts, STORAGE_TEXT_MAX_ATTEMPTS),
             sql`${storageTexts.readAt} < now() - interval '${sql.raw(RETRY_AFTER)}'`,
           ),
+          options.ocr
+            ? and(
+                eq(storageTexts.ocr, false),
+                inArray(storageTexts.status, ["unsupported", "empty"]),
+                or(
+                  like(storageNodes.mimeType, "image/%"),
+                  eq(storageNodes.mimeType, "application/pdf"),
+                  ilike(storageNodes.name, "%.pdf"),
+                  and(
+                    or(isNull(storageNodes.mimeType), eq(storageNodes.mimeType, "")),
+                    sql`${storageNodes.name} ~* ${PICTURE_NAME}`,
+                  ),
+                ),
+              )
+            : undefined,
         ),
       ),
     )
@@ -65,6 +82,8 @@ export interface StorageTextInput {
   status: StorageTextStatus;
   text?: string;
   truncated?: boolean;
+  /** Read with OCR set up, whether or not the file needed it. */
+  ocr: boolean;
 }
 
 /**
@@ -75,15 +94,16 @@ export interface StorageTextInput {
 export async function saveStorageText(db: Db, input: StorageTextInput) {
   const failed = input.status === "failed";
   await db.execute(sql`
-    insert into ${storageTexts} (node_id, org_id, content_version, status, text, truncated, attempts, read_at)
+    insert into ${storageTexts} (node_id, org_id, content_version, status, text, truncated, ocr, attempts, read_at)
     select n.id, n.org_id, ${input.contentVersion}, ${input.status}::storage_text_status,
-      ${input.text ?? ""}, ${input.truncated ?? false}, ${failed ? 1 : 0}, now()
+      ${input.text ?? ""}, ${input.truncated ?? false}, ${input.ocr}, ${failed ? 1 : 0}, now()
     from ${storageNodes} n where n.id = ${input.nodeId} and n.org_id = ${input.orgId}
     on conflict (node_id) do update set
       content_version = excluded.content_version,
       status = excluded.status,
       text = excluded.text,
       truncated = excluded.truncated,
+      ocr = excluded.ocr,
       attempts = ${
         failed
           ? sql`case when ${storageTexts}.content_version = excluded.content_version then ${storageTexts}.attempts + 1 else 1 end`

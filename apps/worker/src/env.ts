@@ -51,6 +51,8 @@ const configSchema = z
     SYSTEM_MAIL_FROM: optionalText.pipe(z.email().optional()),
     SENTRY_DSN: optionalText.pipe(z.url().optional()),
     ANTHROPIC_API_KEY: optionalText,
+    ANTHROPIC_BASE_URL: optionalText.pipe(z.url().optional()),
+    DRIVE_OCR: optionalText.pipe(z.enum(["on", "off"]).default("on")),
     TYPESAFE_API_KEY: optionalText,
     TRIAGE_PROVIDER: optionalText.pipe(z.enum(["jev", "claude"]).optional()),
     JEV_MODEL: optionalText,

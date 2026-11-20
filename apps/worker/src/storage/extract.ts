@@ -277,29 +277,59 @@ function xlsx(bytes: Uint8Array) {
 }
 
 async function pdf(bytes: Uint8Array) {
-  const { text } = await extractText(bytes, { mergePages: false });
-  return text
+  const { text, totalPages } = await extractText(bytes, { mergePages: false });
+  const marked = text
     .map((page, i) => ({ page: i + 1, text: page.trim() }))
     .filter((page) => page.text.length > 0)
     .map((page) => `--- Page ${page.page} ---\n${page.text}`)
     .join("\n\n");
+  return { text: marked, pages: totalPages };
 }
 
-/** The file's text, tidied and cut at `TEXT_MAX_CHARS`. Throws when the file is not what it says. */
+/** `text` tidied and cut at `TEXT_MAX_CHARS`. */
+export const finish = (text: string) => {
+  const tidied = tidy(text.replaceAll("\u0000", ""));
+  const truncated = tidied.length > TEXT_MAX_CHARS;
+  return { text: truncated ? tidied.slice(0, TEXT_MAX_CHARS) : tidied, truncated };
+};
+
+/**
+ * The file's text, tidied and cut at `TEXT_MAX_CHARS`, and a PDF's page count. Throws when the
+ * file is not what it says.
+ */
 export async function extract(reader: Reader, bytes: Uint8Array) {
+  if (reader === "pdf") {
+    const { text, pages } = await pdf(bytes);
+    return { ...finish(text), pages };
+  }
   const raw =
-    reader === "pdf"
-      ? await pdf(bytes)
-      : reader === "docx"
-        ? docx(bytes)
-        : reader === "pptx"
-          ? pptx(bytes)
-          : reader === "xlsx"
-            ? xlsx(bytes)
-            : reader === "html"
-              ? html(new TextDecoder().decode(bytes))
-              : new TextDecoder().decode(bytes);
-  const text = tidy(raw.replaceAll("\u0000", ""));
-  const truncated = text.length > TEXT_MAX_CHARS;
-  return { text: truncated ? text.slice(0, TEXT_MAX_CHARS) : text, truncated };
+    reader === "docx"
+      ? docx(bytes)
+      : reader === "pptx"
+        ? pptx(bytes)
+        : reader === "xlsx"
+          ? xlsx(bytes)
+          : reader === "html"
+            ? html(new TextDecoder().decode(bytes))
+            : new TextDecoder().decode(bytes);
+  return { ...finish(raw), pages: null };
 }
+
+const PICTURE_TYPES = new Set([
+  "image/avif",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+const PICTURE_EXTENSIONS = new Set(["avif", "gif", "heic", "heif", "jpg", "jpeg", "png", "webp"]);
+
+/** A picture whose words only OCR reads, by type first and name second. */
+export const isPicture = (name: string, mimeType: string | null) => {
+  const type = mimeType?.split(";")[0]!.trim().toLowerCase() ?? "";
+  if (type) return PICTURE_TYPES.has(type);
+  const dot = name.lastIndexOf(".");
+  return dot > 0 && PICTURE_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+};

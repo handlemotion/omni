@@ -421,6 +421,13 @@
       "when": 1795187850025,
       "tag": "0059_crm_contract_signed_by",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795189056633,
+      "tag": "0060_storage_text_ocr",
+      "breakpoints": true
     }
   ]
 }

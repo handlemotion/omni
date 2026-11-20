@@ -1,0 +1,1 @@
+ALTER TABLE "storage_texts" ADD COLUMN "ocr" boolean DEFAULT false NOT NULL;

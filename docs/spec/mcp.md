@@ -280,8 +280,14 @@ read files the way they find and read mail.
   (`unpdf`), Word, PowerPoint and Excel (their XML, through `fflate`), HTML, and text, Markdown,
   CSV and code are read in the Worker; nothing else is a dependency. A file over 25 MB (10 MB for
   plain text) is `too_large`; text stops at 400k characters. PDFs mark pages (`--- Page 3 ---`),
-  decks slides and workbooks sheets, so answers can cite them. Scanned PDFs and pictures have no
-  text until OCR lands.
+  decks slides and workbooks sheets, so answers can cite them.
+- **Pictures and scans.** With `ANTHROPIC_API_KEY` set (and `DRIVE_OCR` not `off`), pictures and
+  PDFs with no text layer are transcribed by Claude Haiku: pictures drawn at 1568 px through
+  Cloudflare Images first, PDFs (up to 20 MB and 100 pages) sent whole, with pages marked. A
+  picture with little text gets one `Picture:` line saying what it shows, so it can be found by
+  what is in it. At most 8 model calls a run, so a backfill spreads out. Files read before OCR
+  was set up (`storage_texts.ocr` false, `unsupported` or `empty`) are read once more. Recordings
+  are in `fixtures/drive/` (`pnpm --filter @omni/ai record:ocr`).
 - **Search.** `drive_search { query, workspace?, limit? }` matches names and text with Postgres
   full text (`simple` config: Spanish and English sit side by side and an English stemmer would
   mangle Spanish), names first, then `ts_rank`, with a `ts_headline` snippet. It returns the

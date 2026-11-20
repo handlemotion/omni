@@ -32,6 +32,11 @@ export const storageTexts = pgTable(
     text: text("text").notNull().default(""),
     /** The text stops at the cap; the file holds more. */
     truncated: boolean("truncated").notNull().default(false),
+    /**
+     * Read with pictures and scanned PDFs transcribed by the model. A picture or a PDF read
+     * without it, before OCR was set up, is read once more when it is.
+     */
+    ocr: boolean("ocr").notNull().default(false),
     /** Failed reads of this `content_version`; the indexer stops trying after a few. */
     attempts: integer("attempts").notNull().default(0),
     /**

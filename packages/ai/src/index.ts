@@ -77,3 +77,11 @@ export {
   type SuggestedReply,
   type SuggestReplyInput,
 } from "./reply.ts";
+export {
+  OCR_MAX_TOKENS,
+  OCR_SYSTEM,
+  ocrRequest,
+  transcribe,
+  type OcrSource,
+  type Transcript,
+} from "./ocr.ts";
