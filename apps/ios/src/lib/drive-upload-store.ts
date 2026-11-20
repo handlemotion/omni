@@ -1,4 +1,5 @@
 import { Directory, File, Paths } from "expo-file-system";
+import { Platform } from "react-native";
 import type { DrivePlace } from "./drive-actions.ts";
 
 /** Where an upload goes, kept with it so a relaunch sends it to the same place. */
@@ -37,6 +38,7 @@ interface Saved {
   jobs: SavedJob[];
 }
 
+const ON_DEVICE = Platform.OS !== "web";
 const queueFile = () => new File(Paths.document, "drive-uploads.json");
 const sourcesDir = () => new Directory(Paths.cache, "drive-uploads", "sources");
 /** Part files staged for the system's upload tasks, one folder per server upload. */
@@ -44,6 +46,7 @@ export const partsDir = () => new Directory(Paths.cache, "drive-uploads", "parts
 
 /** The jobs `owner` left unfinished, or none (nothing kept, another owner, or a corrupt file). */
 export function loadJobs(owner: string) {
+  if (!ON_DEVICE) return [];
   const file = queueFile();
   if (!file.exists) return [];
   try {
@@ -58,6 +61,7 @@ export function loadJobs(owner: string) {
 
 /** Keeps `jobs` for the next launch; none left removes the file. */
 export function saveJobs(owner: string, jobs: SavedJob[]) {
+  if (!ON_DEVICE) return;
   const file = queueFile();
   if (!jobs.length) {
     if (file.exists) file.delete();
@@ -89,6 +93,7 @@ export function dropSource(id: number) {
 
 /** Deletes every copy and staged part not in `keep` (left by a killed run, or a signed-out user). */
 export function sweep(keep: { ids: number[]; uploadIds: string[] }) {
+  if (!ON_DEVICE) return;
   const ids = new Set(keep.ids.map(String));
   const uploads = new Set(keep.uploadIds);
   for (const [dir, live] of [

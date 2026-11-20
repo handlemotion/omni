@@ -2,7 +2,7 @@ import { QueryClient, focusManager, onlineManager, type Query } from "@tanstack/
 import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
 import { File, Paths } from "expo-file-system";
 import * as Network from "expo-network";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import { isAuthError } from "./api.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
 
@@ -80,6 +80,12 @@ function fileListingPersister() {
   } satisfies Persister;
 }
 
+const keepNothing = {
+  persistClient: () => undefined,
+  restoreClient: () => undefined,
+  removeClient: () => undefined,
+} satisfies Persister;
+
 /**
  * `PersistQueryClientProvider`'s options: Drive's listings only, for a week, in a file in the
  * app's documents written at most once a second. The file names the workspace its listings came
@@ -87,7 +93,7 @@ function fileListingPersister() {
  * show in another.
  */
 export const persistOptions = {
-  persister: fileListingPersister(),
+  persister: Platform.OS === "web" ? keepNothing : fileListingPersister(),
   maxAge: OFFLINE_MAX_AGE_MS,
   dehydrateOptions: { shouldDehydrateQuery: isOfflineListing },
 };

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import { Directory, DownloadTask, File, Paths, type DownloadPauseState } from "expo-file-system";
 import { config } from "./config.ts";
 import { storageHeaders } from "./drive.ts";
@@ -12,9 +12,13 @@ const IN_USE_MS = 10 * 60_000;
 const SAVE_INDEX_MS = 1_000;
 const PROGRESS_MS = 250;
 
-const CACHE = new Directory(Paths.cache, "drive-files");
-const OFFLINE = new Directory(Paths.document, "drive-offline");
-const LEGACY = [new Directory(Paths.cache, "drive"), new Directory(Paths.cache, "drive-preview")];
+const ON_DEVICE = Platform.OS !== "web";
+const cacheDir = () => new Directory(Paths.cache, "drive-files");
+const offlineDir = () => new Directory(Paths.document, "drive-offline");
+const legacyDirs = () => [
+  new Directory(Paths.cache, "drive"),
+  new Directory(Paths.cache, "drive-preview"),
+];
 
 /** A file's bytes as one download names them: the file at a version, or one kept version. */
 export interface FileSource {
@@ -101,18 +105,19 @@ function writeJson(file: File, value: unknown) {
   file.write(JSON.stringify(value));
 }
 
-const indexFile = () => new File(CACHE, "index.json");
-const pinsFile = () => new File(OFFLINE, "pins.json");
+const indexFile = () => new File(cacheDir(), "index.json");
+const pinsFile = () => new File(offlineDir(), "pins.json");
 
 function loadIndex() {
   if (index) return index;
-  for (const old of LEGACY) if (old.exists) old.delete();
+  if (!ON_DEVICE) return (index = {});
+  for (const old of legacyDirs()) if (old.exists) old.delete();
   index = readJson<Record<string, Entry>>(indexFile(), {});
   return index;
 }
 
 function loadPins() {
-  pins ??= readJson<Record<string, Pin>>(pinsFile(), {});
+  pins ??= ON_DEVICE ? readJson<Record<string, Pin>>(pinsFile(), {}) : {};
   return pins;
 }
 
@@ -130,7 +135,7 @@ function evict(keep: string) {
   for (const [key, entry] of oldest) {
     if (total <= CACHE_CAP_BYTES) break;
     if (key === keep || transfers.has(key) || now - entry.usedAt < IN_USE_MS) continue;
-    const folder = new Directory(CACHE, ...key.split("/"));
+    const folder = new Directory(cacheDir(), ...key.split("/"));
     if (folder.exists) folder.delete();
     delete entries[key];
     total -= entry.bytes;
@@ -248,10 +253,10 @@ export function localFile(source: FileSource & { size?: number }, shown = false)
   const key = keyOf(source);
   const existing = existingCopy(source);
   if (existing) {
-    if (existing.parentDirectory.uri.startsWith(CACHE.uri)) used(key, bytesOf(existing));
+    if (existing.parentDirectory.uri.startsWith(cacheDir().uri)) used(key, bytesOf(existing));
     return Promise.resolve(existing);
   }
-  const file = new File(folderOf(CACHE, source), safeName(source.name));
+  const file = new File(folderOf(cacheDir(), source), safeName(source.name));
   const running = transfers.get(key);
   if (running) {
     if (shown && !running.item.shown) {
@@ -277,12 +282,13 @@ export function localFile(source: FileSource & { size?: number }, shown = false)
 
 /** The phone's finished copy of `source` (pinned or cached), or null without downloading it. */
 export function existingCopy(source: FileSource) {
+  if (!ON_DEVICE) return null;
   const pin = loadPins()[source.id];
   if (pin && !source.versionId && pin.version === source.version) {
-    const pinned = new File(folderOf(OFFLINE, source), safeName(pin.name));
+    const pinned = new File(folderOf(offlineDir(), source), safeName(pin.name));
     if (pinned.exists) return pinned;
   }
-  const file = new File(folderOf(CACHE, source), safeName(source.name));
+  const file = new File(folderOf(cacheDir(), source), safeName(source.name));
   return file.exists && !resumeFile(file).exists ? file : null;
 }
 
@@ -322,8 +328,8 @@ export const usePinned = (fileId: string) =>
 export async function pinFile(source: FileSource & { size?: number }) {
   const all = loadPins();
   const cached = await localFile(source, true);
-  const folder = folderOf(OFFLINE, source);
-  const old = new Directory(OFFLINE, source.id);
+  const folder = folderOf(offlineDir(), source);
+  const old = new Directory(offlineDir(), source.id);
   if (old.exists) old.delete();
   folder.create({ intermediates: true, idempotent: true });
   cached.copy(new File(folder, safeName(source.name)));
@@ -336,7 +342,7 @@ export async function pinFile(source: FileSource & { size?: number }) {
 export function unpinFile(fileId: string) {
   const all = loadPins();
   delete all[fileId];
-  const folder = new Directory(OFFLINE, fileId);
+  const folder = new Directory(offlineDir(), fileId);
   if (folder.exists) folder.delete();
   writeJson(pinsFile(), all);
   announce();
@@ -363,7 +369,11 @@ export function refreshPins(nodes: readonly (FileSource & { size?: number })[]) 
 export function forgetDriveFiles() {
   for (const one of transfers.values()) one.abort.abort();
   clearTimeout(indexTimer);
-  for (const folder of [CACHE, OFFLINE, ...LEGACY]) if (folder.exists) folder.delete();
+  if (ON_DEVICE) {
+    for (const folder of [cacheDir(), offlineDir(), ...legacyDirs()]) {
+      if (folder.exists) folder.delete();
+    }
+  }
   index = {};
   pins = {};
   announce();
