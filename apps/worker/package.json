@@ -14,7 +14,7 @@
     "test:e2e": "vitest run --config vitest.e2e.mts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.8.0",
+    "@anthropic-ai/sdk": "^1.10.0",
     "@hono/zod-validator": "^0.9.1",
     "@modelcontextprotocol/server": "2.4.0",
     "@omni/ai": "workspace:*",
@@ -23,28 +23,28 @@
     "@omni/crypto": "workspace:*",
     "@omni/db": "workspace:*",
     "@omni/mail-core": "workspace:*",
-    "@sentry/cloudflare": "^11.12.0",
+    "@sentry/cloudflare": "^11.14.0",
     "drizzle-orm": "^0.45.4",
     "effect": "4.1.4",
-    "hono": "^4.13.18",
-    "jose": "6.2.14",
+    "hono": "^4.13.19",
+    "jose": "6.2.18",
     "pdf-lib": "1.17.1",
     "postgres": "^4.1.1",
     "stripe": "^22.6.2",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261110.1",
-    "@hono/node-server": "^2.1.7",
+    "@cloudflare/workers-types": "^5.20261118.1",
+    "@hono/node-server": "^2.1.9",
     "@modelcontextprotocol/client": "2.4.0",
     "@omni/mail": "workspace:*",
     "@types/dns-packet": "^5.6.5",
     "@types/nodemailer": "^8.0.2",
     "aws4fetch": "1.0.20",
-    "better-auth": "^1.7.22",
+    "better-auth": "^1.7.26",
     "dns-packet": "5.6.1",
-    "imapflow": "^2.11.0",
-    "nodemailer": "^10.5.0",
-    "wrangler": "^4.160.1"
+    "imapflow": "^2.12.1",
+    "nodemailer": "^10.6.0",
+    "wrangler": "^4.164.0"
   }
 }

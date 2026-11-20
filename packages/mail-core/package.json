@@ -29,10 +29,10 @@
     "bench": "vitest bench --run"
   },
   "dependencies": {
-    "dompurify": "^3.4.17",
+    "dompurify": "^3.4.18",
     "html-to-text": "^10.0.1",
-    "jsdom": "^31.0.0",
-    "mailparser": "^3.14.3",
+    "jsdom": "^31.0.1",
+    "mailparser": "^3.14.5",
     "parse5": "^8.1.1"
   },
   "devDependencies": {
