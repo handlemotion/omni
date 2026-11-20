@@ -35,7 +35,7 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-test("a verification email offers Copy code, with Reply and Forward under Respond", async () => {
+test("a verification email offers Copy code beside its own Reply and Forward", async () => {
   const email = "ana@codes.test";
   const system = await createOrg(db, "codes-system");
   await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
@@ -78,16 +78,13 @@ test("a verification email offers Copy code, with Reply and Forward under Respon
   await page.getByRole("button", { name: "Copy code" }).click();
   await expect.poll(() => page.evaluate("navigator.clipboard.readText()")).toBe("654705");
 
-  await page.getByRole("button", { name: "Respond" }).click();
-  await page.getByRole("menuitem", { name: "Forward" }).waitFor();
-  await page.getByRole("menuitem", { name: "Reply" }).click();
+  await page.getByRole("button", { name: "Forward", exact: true }).first().waitFor();
+  await page.getByRole("button", { name: "Reply", exact: true }).first().click();
   await page.getByRole("button", { name: "Send" }).waitFor();
+  expect(await page.getByRole("button", { name: "Copy code" }).count()).toBe(0);
 
   await page.goto(new URL(`/inbox/${plain.threadId}`, origin).toString());
-  await page
-    .getByRole("button", { name: "Reply", exact: true })
-    .filter({ hasText: "Reply" })
-    .waitFor();
+  await page.getByRole("button", { name: "Reply", exact: true }).first().waitFor();
   expect(await page.getByRole("button", { name: "Copy code" }).count()).toBe(0);
   await context.close();
 });

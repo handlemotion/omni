@@ -72,7 +72,7 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   the gap scale, floating rows, one card, and the layout traps it lists.
 - **Tactility.** Depth, press and motion follow the `tactile-design` skill
   (`.claude/skills/tactile-design`), layered on the Figma look without restyling it: cards keep
-  their border and add the crisp `--shadow-raised` drop; buttons get their depth from a darker
+  their subtle border and never take a drop shadow; buttons get their depth from a darker
   edge and an inset top highlight (`--shadow-button`), with no outer drop; overlays use
   `--shadow-overlay`, never a big soft blur; buttons squeeze to `scale(.97)` on native `:active`
   (not React Aria's `pressed`), except menu triggers; menus

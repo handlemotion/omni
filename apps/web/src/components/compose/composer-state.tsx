@@ -50,6 +50,7 @@ interface ComposerState {
   handBack: (content: HandBack) => boolean;
   takeHandBack: () => HandBack | undefined;
   generation: number;
+  asked: number;
 }
 
 /**
@@ -104,6 +105,7 @@ export function ComposerProvider({
   const [email, setEmail] = useState(false);
   const [replyKind, setReplyKind] = useState<ReplyKind>(chat ? "replyAll" : "reply");
   const [generation, setGeneration] = useState(0);
+  const [asked, setAsked] = useState(0);
   const showing = email && (!chat || mode === "public");
   const showingNow = useRef(showing);
   showingNow.current = showing;
@@ -112,6 +114,7 @@ export function ComposerProvider({
     resumed.current = true;
     setEmail(true);
     setMode("public");
+    setAsked((n) => n + 1);
   };
   const latestMessageId = messages.at(-1)?.id;
   const request = useSyncExternalStore(subscribeRequests, () => requested);
@@ -198,6 +201,7 @@ export function ComposerProvider({
       return handed;
     },
     generation,
+    asked,
   };
   return <Context value={value}>{children}</Context>;
 }

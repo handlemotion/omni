@@ -68,11 +68,11 @@ export function AddedLine({ message }: { message: Message }) {
 }
 
 /**
- * One message in the conversation. Short ones are chat bubbles (the team's on the right: yours
- * blue, a teammate's grey), long or
- * formal ones are cards (`display`, decided by the Worker). Either can open the full message: the
- * sender's HTML in a sandboxed frame, for when reply stripping got it wrong. A message with no
- * text of its own (an HTML-only mail the stripper emptied) opens that way.
+ * One message in the conversation, as a full-width row: the sender's avatar, name and address, who
+ * it went to and its subject, the time at the end, then what they newly wrote, with a divider
+ * under it. A single email (`flat`) is the page itself instead. Either can open the full message: the sender's
+ * HTML in a sandboxed frame, for when reply stripping got it wrong. A message with no text of its
+ * own (an HTML-only mail the stripper emptied) opens that way.
  */
 export function MessageItem(props: {
   threadId: string;
@@ -89,9 +89,6 @@ export function MessageItem(props: {
   const { threadId, message } = props;
   const [full, setFull] = useState(opensFull(message));
   const sender = personName({ name: message.fromName, address: message.fromAddress });
-  const card = message.display === "card" || full || !!props.flat;
-  const ours = message.fromTeam && !card;
-  const inline = !!props.flat || !message.fromTeam;
 
   const toggle = message.hasHtml && (
     <HtmlMenuItems full={full} onToggle={() => setFull((open) => !open)} />
@@ -99,65 +96,80 @@ export function MessageItem(props: {
 
   const menu = (
     <MessageMenu
-      start={ours}
       label="Message actions"
       from={sender}
       text={message.cleanText}
       messageId={message.id}
       extra={toggle}
-      inline={inline}
+      inline
       visible={!!props.flat}
-      island={!props.flat && !message.fromTeam}
+      island={!props.flat}
     />
   );
+  const unsubscribe = <Unsubscribe threadId={threadId} message={message} />;
+  const attachments = <AttachmentChips threadId={threadId} attachments={message.attachments} />;
+  const label = `${message.fromMe ? "You" : sender}, ${messageTime(message.sentAt)}`;
+
+  if (props.flat)
+    return (
+      <article
+        id={messageAnchor(message.id)}
+        aria-label={label}
+        className="group/item relative flex flex-col gap-4"
+      >
+        <EmailHeader
+          message={message}
+          sender={sender}
+          self={props.self}
+          menu={menu}
+          unsubscribe={unsubscribe}
+        />
+        <div {...{ [REPLY_SOURCE]: sender }} className="flex w-full flex-col gap-3">
+          {full ? (
+            <FullMessage threadId={threadId} messageId={message.id} flat />
+          ) : (
+            <Body text={message.cleanText} />
+          )}
+        </div>
+        {attachments}
+      </article>
+    );
 
   return (
     <article
       id={messageAnchor(message.id)}
-      aria-label={`${message.fromMe ? "You" : sender}, ${messageTime(message.sentAt)}`}
-      className={`group/item relative flex flex-col ${props.flat ? "gap-4" : "gap-3"} ${ours ? "items-end" : "items-start"}`}
+      aria-label={label}
+      className="group/item relative flex flex-col border-b"
     >
-      <MessageHeader
-        flat={!!props.flat}
-        message={message}
-        sender={sender}
-        self={props.self}
-        menu={menu}
-        unsubscribe={<Unsubscribe threadId={threadId} message={message} />}
-      />
-
-      {card ? (
-        <div
-          {...{ [REPLY_SOURCE]: sender }}
-          className={`flex w-full flex-col gap-3 bg-background ${props.flat ? "" : `rounded-xl border shadow-(--shadow-raised) ${full ? "overflow-hidden" : "p-4"}`}`}
-        >
-          {!full && <Body loose text={message.cleanText} />}
-          {full && <FullMessage threadId={threadId} messageId={message.id} flat={props.flat} />}
-        </div>
-      ) : (
-        <>
-          <div
-            {...{ [REPLY_SOURCE]: sender }}
-            className={`max-w-[80%] rounded-xl px-3 py-2 ${
-              ours && message.fromMe
-                ? "bg-primary-subtle text-foreground"
-                : "bg-accent text-foreground"
-            }`}
-          >
+      <div className="flex w-full flex-col">
+        <CardHeader
+          message={message}
+          sender={sender}
+          self={props.self}
+          menu={menu}
+          unsubscribe={unsubscribe}
+        />
+        {full ? (
+          <div {...{ [REPLY_SOURCE]: sender }}>
+            <FullMessage threadId={threadId} messageId={message.id} />
+          </div>
+        ) : (
+          <div {...{ [REPLY_SOURCE]: sender }} className={CARD_BODY}>
             <Body text={message.cleanText} />
           </div>
-        </>
-      )}
-
-      <AttachmentChips
-        threadId={threadId}
-        attachments={message.attachments}
-        align={ours ? "end" : "start"}
-      />
-      {message.fromTeam && <RepliedTo message={props.repliedTo} onShow={props.onShow} />}
+        )}
+        {message.attachments.length > 0 && <div className={CARD_BODY}>{attachments}</div>}
+        {message.fromTeam && props.repliedTo && (
+          <div className={CARD_BODY}>
+            <RepliedTo message={props.repliedTo} onShow={props.onShow} />
+          </div>
+        )}
+      </div>
     </article>
   );
 }
+
+const CARD_BODY = "pr-5 pb-4 pl-17 last:pb-5";
 
 function HtmlMenuItems(props: { full: boolean; onToggle: () => void }) {
   const label = props.full ? "Show text" : "Show full message";
@@ -166,36 +178,6 @@ function HtmlMenuItems(props: { full: boolean; onToggle: () => void }) {
       {props.full ? <IconNote data-slot="icon" /> : <IconMail data-slot="icon" />}
       <MenuLabel>{label}</MenuLabel>
     </MenuItem>
-  );
-}
-
-function MessageHeader(props: {
-  flat: boolean;
-  message: Message;
-  sender: string;
-  self: string;
-  menu: ReactNode;
-  unsubscribe: ReactNode;
-}) {
-  const { message, sender, menu, unsubscribe } = props;
-  if (props.flat)
-    return (
-      <EmailHeader
-        message={message}
-        sender={sender}
-        self={props.self}
-        menu={menu}
-        unsubscribe={unsubscribe}
-      />
-    );
-  return (
-    <ChatHeader
-      message={message}
-      sender={sender}
-      menu={menu}
-      actions={!message.fromTeam}
-      unsubscribe={unsubscribe}
-    />
   );
 }
 
@@ -230,45 +212,61 @@ function RepliedTo(props: {
   );
 }
 
-function ChatHeader(props: {
+function CardHeader(props: {
   message: Message;
   sender: string;
+  self: string;
   menu: ReactNode;
-  actions: boolean;
   unsubscribe: ReactNode;
 }) {
   const { message, sender } = props;
+  const name = useRecipientName(props.self);
+  const lines = [
+    message.fromName ? message.fromAddress : undefined,
+    `To: ${list(message.to.map(name)) || "undisclosed recipients"}`,
+    message.cc.length ? `Cc: ${list(message.cc.map(name))}` : undefined,
+    message.subject ? `Subject: ${message.subject}` : undefined,
+  ].filter((line): line is string => !!line);
   return (
-    <header className="flex items-center gap-2">
-      {!message.fromMe && (
-        <SenderAvatar
-          isSquare
-          size="xs"
-          who={byAddress(message.fromAddress)}
-          name={sender}
-          className="bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.5)]"
-        />
-      )}
-      <span className="text-sm">{message.fromMe ? "You" : sender}</span>
-      <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
-        {messageTime(message.sentAt)}
-      </time>
-      {props.unsubscribe}
-      {props.actions ? <ActionIsland message={message} menu={props.menu} /> : props.menu}
+    <header className="flex w-full items-start gap-4 px-5 pt-5 pb-3">
+      <SenderAvatar
+        isSquare
+        size="md"
+        who={byAddress(message.fromAddress)}
+        name={sender}
+        className="bg-accent text-foreground outline-0"
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-sm">{sender}</span>
+          {props.unsubscribe}
+        </div>
+        {lines.map((line) => (
+          <span key={line} className="truncate text-xs/4.5 text-muted-foreground">
+            {line}
+          </span>
+        ))}
+      </div>
+      <div className="flex h-5 shrink-0 items-center gap-2">
+        <Toolbar
+          aria-label="Message actions"
+          className="gap-0.5 bg-transparent p-0 inset-ring-0 opacity-0 transition-opacity duration-150 ease-out group-focus-within/item:opacity-100 group-hover/item:opacity-100 has-aria-expanded:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+        >
+          <ReplyActions message={message} small />
+          {props.menu}
+        </Toolbar>
+        <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
+          {messageTime(message.sentAt)}
+        </time>
+      </div>
     </header>
   );
 }
 
-function ActionIsland({ message, menu }: { message: Message; menu: ReactNode }) {
-  return (
-    <Toolbar
-      aria-label="Message actions"
-      className="absolute -top-0.5 end-0 z-10 gap-0.5 rounded-md bg-surface p-px opacity-0 transition-opacity duration-150 ease-out group-focus-within/item:opacity-100 group-hover/item:opacity-100 has-aria-expanded:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
-    >
-      <ReplyActions message={message} small />
-      {menu}
-    </Toolbar>
-  );
+function useRecipientName(self: string) {
+  const you = useYourMailbox({ address: self })?.label ?? "You";
+  return (a: { name?: string | null; address: string }) =>
+    a.address.toLowerCase() === self.toLowerCase() ? you : personName(a);
 }
 
 function ReplyActions({ message, small = false }: { message: Message; small?: boolean }) {
@@ -298,9 +296,7 @@ function EmailHeader(props: {
 }) {
   const { message, sender } = props;
   const [open, setOpen] = useState(false);
-  const you = useYourMailbox({ address: props.self })?.label ?? "You";
-  const name = (a: { name?: string | null; address: string }) =>
-    a.address.toLowerCase() === props.self.toLowerCase() ? you : personName(a);
+  const name = useRecipientName(props.self);
   const recipients = [...message.to, ...message.cc].map(name);
   return (
     <div className="flex w-full flex-col gap-4">
@@ -433,31 +429,34 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** A reply sent from here that has not come back as a message yet. */
+/** A reply sent from here that has not come back as a message yet: a row, dimmed. */
 export function PendingItem({ send }: { send: PendingSend }) {
-  const label =
-    send.status === "failed"
-      ? `Not sent${send.error ? `: ${send.error}` : ""}`
-      : send.status === "queued"
-        ? "Queued"
-        : "Sending…";
+  const failed = send.status === "failed";
+  const label = failed
+    ? `Not sent${send.error ? `: ${send.error}` : ""}`
+    : send.status === "queued"
+      ? "Queued"
+      : "Sending…";
   return (
-    <article aria-label="You, sending" className="flex flex-col items-end gap-2">
-      <div className="max-w-[80%] rounded-xl bg-primary-subtle px-3 py-2 text-foreground opacity-70">
+    <article aria-label="You, sending" className="border-b">
+      <header className="flex items-baseline gap-3 px-5 pt-5 pb-3">
+        <span className="flex-1 text-sm">You</span>
+        <span
+          className={`text-xs ${failed ? "text-danger-subtle-foreground" : "text-subtle-foreground"}`}
+        >
+          {label}
+        </span>
+      </header>
+      <div className={`px-5 pb-5 ${failed ? "" : "opacity-70"}`}>
         <Body text={send.text} />
       </div>
-      <span
-        className={`text-xs ${send.status === "failed" ? "text-danger-subtle-foreground" : "text-subtle-foreground"}`}
-      >
-        {label}
-      </span>
     </article>
   );
 }
 
-function Body({ text, loose }: { text: string; loose?: boolean }) {
+function Body({ text }: { text: string }) {
   return (
-    <p className={`${loose ? "text-sm/6" : "text-sm/5"} break-words whitespace-pre-wrap`}>
+    <p className="text-sm/6 break-words whitespace-pre-wrap">
       {linkSegments(text).map((segment, index) =>
         segment.href ? (
           <Link

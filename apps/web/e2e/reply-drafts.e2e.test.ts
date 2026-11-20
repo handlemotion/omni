@@ -93,3 +93,73 @@ test("a reply draft comes back where it was left, in the thread and from Drafts"
   await body.waitFor({ state: "detached" });
   await context.close();
 });
+
+test("in a shared inbox, Reply or Forward on an earlier message brings the composer into view and focus, also after a send", async () => {
+  const email = "bea@reopen.test";
+  const system = await createOrg(db, "reopen-system");
+  await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
+  const org = await createOrgWithOwner(db, { name: "Acme", slug: "reopen", ownerEmail: email });
+  const box = await createMailbox(db, org.orgId, "team@reopen.test", "shared");
+  await grant(db, org.orgId, box.id, org.memberId);
+  const long = "A long paragraph about the project schedule. ".repeat(40);
+  let threadId: string | undefined;
+  for (let uid = 1; uid <= 5; uid++) {
+    const seeded = await seedMessage(db, box, {
+      subject: "Project schedule",
+      fromAddress: "paola@school.test",
+      to: ["team@reopen.test"],
+      uid,
+      ...(threadId ? { threadId } : {}),
+      sentAt: new Date(Date.now() - (6 - uid) * 3_600_000),
+      text: `Part ${uid}. ${long}`,
+    });
+    threadId = seeded.threadId;
+  }
+
+  const origin = String(worker.url);
+  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await context.newPage();
+  const body = page.getByRole("textbox", { name: "Reply" });
+  const first = page.getByRole("article").first();
+  const inView = async () => {
+    const rect = await body.boundingBox();
+    return !!rect && rect.y >= 0 && rect.y + rect.height <= 800;
+  };
+  const focused = () => body.evaluate((el) => el === document.activeElement);
+  await page.goto(new URL(`/inbox/${threadId}`, origin).toString());
+
+  await first.hover();
+  await first.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect.poll(inView).toBe(true);
+  await expect.poll(focused).toBe(true);
+
+  await body.fill("Thanks, noted.");
+  await first.scrollIntoViewIfNeeded();
+  await expect.poll(inView).toBe(false);
+  await first.hover();
+  await first.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect.poll(inView).toBe(true);
+  await expect.poll(() => body.inputValue()).toBe("Thanks, noted.");
+
+  await page.getByRole("button", { name: "Send" }).click();
+  await body.waitFor({ state: "hidden" });
+  await first.scrollIntoViewIfNeeded();
+  await first.hover();
+  await first.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect.poll(inView).toBe(true);
+  await expect.poll(focused).toBe(true);
+
+  await first.scrollIntoViewIfNeeded();
+  await first.hover();
+  await first.getByRole("button", { name: "Forward", exact: true }).click();
+  const to = page.getByRole("combobox", { name: "To" });
+  await expect.poll(() => to.evaluate((el) => el === document.activeElement)).toBe(true);
+  await context.close();
+});

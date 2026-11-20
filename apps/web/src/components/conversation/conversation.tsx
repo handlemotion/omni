@@ -38,7 +38,7 @@ import type { Conversation as HelpdeskState, Message, Thread } from "@/lib/types
 import { ChatDock } from "../compose/chat-composer.tsx";
 import { ReplyComposer } from "../compose/composer.tsx";
 import { ComposerProvider, useComposerState } from "../compose/composer-state.tsx";
-import { FloatingReply } from "../compose/floating-actions.tsx";
+import { FloatingCopyCode } from "../compose/floating-actions.tsx";
 import { SelectionReply } from "../compose/selection-reply.tsx";
 import { EventLine, NoteItem, useEventLines } from "./activity.tsx";
 import { FloatingPager, useReaderView, ViewToggle, type ReaderView } from "./email-view.tsx";
@@ -52,7 +52,8 @@ const KEEP_LAST = 8;
 
 /**
  * The open conversation beside the list: its actions and subject, then the messages
- * oldest first, ending at the newest, with the reply box docked at the bottom.
+ * oldest first, ending at the newest. The reply box is a card after the newest message, or docked
+ * at the bottom of a single email.
  */
 export function Conversation({ threadId }: { threadId: string }) {
   const { thread, pending, error, fetchStatus } = useThread(threadId);
@@ -112,7 +113,7 @@ export function Conversation({ threadId }: { threadId: string }) {
           onScroll={onScroll}
           className={`${SCROLLER} overflow-y-auto overscroll-none ${fullScreen ? "" : "border-s"}`}
         >
-          <div className={columnClass(single)}>
+          <Column single={single}>
             <Timeline
               key={threadId}
               threadId={threadId}
@@ -125,7 +126,7 @@ export function Conversation({ threadId }: { threadId: string }) {
             {pending.map((send) => (
               <PendingItem key={send.key} send={send} />
             ))}
-          </div>
+          </Column>
           <Foot thread={thread} reader={single ? reader : undefined} />
         </div>
       </ComposerProvider>
@@ -158,15 +159,15 @@ function Foot({
   thread: Thread;
   reader: { index: number; email: Message | undefined; move: (step: number) => void } | undefined;
 }) {
+  const composer = useComposerState();
+  const inFlow = !reader && composer.email && composer.mode === "public";
   return (
-    <div className="sticky bottom-0 w-full shrink-0">
+    <div className={`${inFlow ? "" : "sticky bottom-0"} w-full shrink-0`}>
       {reader && (
         <FloatingPager index={reader.index} count={thread.messages.length} onMove={reader.move} />
       )}
-      <FloatingReply thread={thread} messageId={reader?.email?.id} />
-      <div className={reader ? undefined : "mx-auto w-full max-w-3xl"}>
-        <ReplyComposer thread={thread} />
-      </div>
+      <FloatingCopyCode thread={thread} messageId={reader?.email?.id} />
+      <ReplyComposer thread={thread} row={!reader} />
       <ChatDock thread={thread} />
     </div>
   );
@@ -182,11 +183,13 @@ function isSingleEmail(
 
 const SECTION = "flex min-w-0 flex-1 flex-col";
 const SCROLLER = "flex min-h-0 flex-1 flex-col";
-const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-10";
-const PAGE = "flex w-full grow flex-col gap-6 px-5 pt-5 pb-6";
+const COLUMN = "flex w-full grow flex-col";
+const PAGE = "flex w-full grow flex-col gap-6 px-5 pt-5";
 
-function columnClass(single: boolean) {
-  return `${single ? PAGE : COLUMN} pb-20`;
+function Column({ single, children }: { single: boolean; children: ReactNode }) {
+  const composer = useComposerState();
+  const replying = !single && composer.email && composer.mode === "public";
+  return <div className={`${single ? PAGE : COLUMN} ${replying ? "" : "pb-20"}`}>{children}</div>;
 }
 
 function ConversationPlaceholder(props: { fetchStatus: FetchStatus; error: unknown }) {
@@ -226,7 +229,7 @@ function ConversationSkeleton() {
             <div className={`${SCROLLER} overflow-hidden`}>
               <div className={COLUMN}>
                 <MessageBones width="55%" />
-                <MessageBones width="25%" ours />
+                <MessageBones width="25%" />
                 <MessageBones width="40%" />
               </div>
             </div>
@@ -239,15 +242,15 @@ function ConversationSkeleton() {
   );
 }
 
-function MessageBones({ width, ours = false }: { width: string; ours?: boolean }) {
+function MessageBones({ width }: { width: string }) {
   return (
-    <div className={`flex flex-col gap-3 ${ours ? "items-end" : "items-start"}`}>
-      <div className="flex items-center gap-2">
-        {!ours && <SkeletonBox width={18} height={18} radius={4} />}
-        <SkeletonBox width={56} height={10} />
-        <SkeletonBox width={72} height={10} />
+    <div className="flex gap-3 border-b px-5 py-5">
+      <SkeletonBox width={32} height={32} radius={6} />
+      <div className="flex flex-1 flex-col gap-2">
+        <SkeletonBox width={120} height={10} />
+        <SkeletonBox width={180} height={10} />
+        <SkeletonBox width={width} height={36} radius={8} />
       </div>
-      <SkeletonBox width={width} height={36} radius={12} />
     </div>
   );
 }
@@ -269,10 +272,11 @@ function Timeline(props: {
   };
   const lines = useEventLines(mailboxId, helpdesk?.events ?? []);
   const byHeader = new Map(messages.map((m) => [m.messageIdHeader, m]));
-  const entries: { at: string; key: string; node: ReactNode }[] = [
+  const entries: { at: string; key: string; row?: boolean; node: ReactNode }[] = [
     ...messages.map((message) => ({
       at: message.sentAt,
       key: message.id,
+      row: true,
       node: (
         <>
           <AddedLine message={message} />
@@ -305,23 +309,33 @@ function Timeline(props: {
   const tail = fold ? entries.slice(-KEEP_LAST) : [];
   const hidden = entries.length - head.length - tail.length;
 
-  const render = (entry: (typeof entries)[number]) => <Entry key={entry.key}>{entry.node}</Entry>;
+  const render = (entry: (typeof entries)[number]) => (
+    <Entry key={entry.key} kind={flat ? "page" : entry.row ? "row" : "line"}>
+      {entry.node}
+    </Entry>
+  );
   return (
     <>
       {head.map(render)}
       {fold && (
-        <ShowMore isSelected={false} onChange={() => setUnfolded(true)}>
-          {hidden} earlier
-        </ShowMore>
+        <div className={flat ? undefined : "border-b px-5 py-3"}>
+          <ShowMore isSelected={false} onChange={() => setUnfolded(true)}>
+            {hidden} earlier
+          </ShowMore>
+        </div>
       )}
       {tail.map(render)}
     </>
   );
 }
 
-function Entry({ children }: { children: ReactNode }) {
+const ENTRY = { page: "-m-1.5 gap-3 p-1.5", row: "", line: "gap-3 px-5 py-3" };
+
+function Entry({ kind, children }: { kind: keyof typeof ENTRY; children: ReactNode }) {
   return (
-    <div className="-m-1.5 flex flex-col gap-3 p-1.5 [contain-intrinsic-size:auto_160px] [content-visibility:auto]">
+    <div
+      className={`flex flex-col [contain-intrinsic-size:auto_160px] [content-visibility:auto] ${ENTRY[kind]}`}
+    >
       {children}
     </div>
   );

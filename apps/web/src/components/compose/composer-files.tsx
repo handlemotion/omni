@@ -34,7 +34,10 @@ export function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }) 
 export function ComposerFiles(props: { files: ComposerFile[]; onRemove: (id: string) => void }) {
   if (!props.files.length) return null;
   return (
-    <ul aria-label="Attachments" className="flex flex-wrap gap-2 px-3 pb-2">
+    <ul
+      aria-label="Attachments"
+      className="flex flex-wrap gap-2 px-[var(--composer-x,--spacing(3))] pb-2"
+    >
       {props.files.map((file) => (
         <li
           key={file.id}

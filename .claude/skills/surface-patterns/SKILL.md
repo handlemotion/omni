@@ -52,7 +52,7 @@ follows. Items that are links (folders) stay out of selection with `disabledKeys
 
 ## Cards
 
-One card for every kind: a square (`aspect-square rounded-lg border bg-surface shadow-raised`)
+One card for every kind: a square (`aspect-square rounded-lg border bg-surface`, border only, no drop shadow)
 holding the thumbnail or the kind's glyph (32px, muted) centred, then the caption: name with the
 menu beside it, meta under it. The item itself is the hit area: `rounded-xl p-1.5`, hover
 `bg-hover`, open `selected:bg-accent`, press `active:scale-[.99]`. Grid:

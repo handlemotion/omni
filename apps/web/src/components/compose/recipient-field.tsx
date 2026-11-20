@@ -54,7 +54,7 @@ export function RecipientField(props: {
   };
 
   return (
-    <div className="flex min-h-(--composer-row) items-center gap-2.5 border-b px-3 py-1">
+    <div className="flex min-h-(--composer-row) items-center gap-2.5 border-b px-[var(--composer-x,--spacing(3))] py-1">
       <span className="flex w-8 shrink-0 text-sm text-muted-foreground">{props.label}</span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {value.length > 0 && (
@@ -91,6 +91,7 @@ export function RecipientField(props: {
             size="sm"
             className={value.length ? "" : "ps-2"}
             autoFocus={props.autoFocus}
+            data-autofocus={props.autoFocus || undefined}
             onKeyDown={(event) => {
               if ([",", ";", " "].includes(event.key) || (event.key === "Enter" && text)) {
                 if (commit()) event.preventDefault();
