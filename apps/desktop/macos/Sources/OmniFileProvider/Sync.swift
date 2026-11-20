@@ -43,6 +43,11 @@ struct Sync {
 
 /// The error the system hears for anything a call threw (docs/spec/desktop.md "Errors").
 func systemError(_ error: Error) -> Error {
+    // Cancelled by the system (Finder's cancel, an eviction): it hears that, not a failure, so
+    // it does not retry what nobody wants any more.
+    if error is CancellationError || (error as? URLError)?.code == .cancelled {
+        return CocoaError(.userCancelled)
+    }
     switch error {
     case let error as SyncHTTPError:
         switch error.failure {
@@ -52,6 +57,8 @@ func systemError(_ error: Error) -> Error {
         }
     case is URLError: return NSFileProviderError(.serverUnreachable)
     case TokenError.signedOut: return NSFileProviderError(.notAuthenticated)
+    // The grant is still good; the token endpoint could not answer now.
+    case TokenError.unavailable: return NSFileProviderError(.serverUnreachable)
     case is TokenError: return NSFileProviderError(.notAuthenticated)
     default: return error
     }

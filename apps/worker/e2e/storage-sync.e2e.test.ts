@@ -370,3 +370,109 @@ test("a new version and a restore reach the provider as new bytes", async () => 
 
   hears.socket.close();
 });
+
+const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
+
+async function syncPart(token: string, orgId: string, uploadId: string, data: Uint8Array) {
+  const response = await fetch(at(`/api/storage/sync/${orgId}/uploads/${uploadId}/parts/1`), {
+    method: "PUT",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" },
+    body: new Blob([new Uint8Array(data)]),
+  });
+  await response.body?.cancel();
+  return response.status;
+}
+
+async function saveFromSync(
+  token: string,
+  orgId: string,
+  fileId: string,
+  base: number,
+  data: Uint8Array,
+) {
+  const opened = await sync(token, "POST", `/${orgId}/files/${fileId}/versions`, {
+    size: data.length,
+    sha256: sha256(data),
+    ifContentVersion: base,
+  });
+  if (opened.status !== 201) return { opened, completed: null };
+  const uploadId = opened.body.upload.id as string;
+  expect(await syncPart(token, orgId, uploadId, data)).toBe(200);
+  const completed = await sync(
+    token,
+    "POST",
+    `/${orgId}/uploads/${uploadId}/complete?ifContentVersion=${base}`,
+  );
+  return { opened, completed };
+}
+
+test("an edit from the Mac replaces the file in place, and a stale one keeps both", async () => {
+  const acme = await stack.company(`replace-${randomUUID().slice(0, 6)}`);
+  const ana = await stack.member(acme.id);
+  const file = await stack.upload(ana.jar, { space: "personal" }, "plan.md", bytes("first"));
+  const token = await connect(ana);
+  const read = await sync(token, "GET", `/${acme.id}/nodes/${file.id}`);
+  const base = read.body.node.contentVersion as number;
+
+  const edit = bytes("second");
+  const saved = await saveFromSync(token, acme.id, file.id, base, edit);
+  expect(saved.completed?.status).toBe(200);
+  expect(saved.completed?.body.node).toMatchObject({
+    id: file.id,
+    name: "plan.md",
+    contentVersion: base + 1,
+    contentSha256: sha256(edit),
+    size: edit.length,
+  });
+
+  const other = bytes("from the other mac");
+  const opened = await sync(token, "POST", `/${acme.id}/files/${file.id}/versions`, {
+    size: other.length,
+    sha256: sha256(other),
+    ifContentVersion: base + 1,
+  });
+  expect(opened.status).toBe(201);
+  const uploadId = opened.body.upload.id as string;
+  expect(await syncPart(token, acme.id, uploadId, other)).toBe(200);
+  const web = bytes("third, from the web");
+  const fromWeb = await stack.api(ana.jar, "POST", `/files/${file.id}/versions`, {
+    size: web.length,
+  });
+  const webPart = await stack.putPart(ana.jar, fromWeb.body.upload.id as string, 1, web);
+  await webPart.body?.cancel();
+  const webDone = await stack.api(ana.jar, "POST", `/uploads/${fromWeb.body.upload.id}/complete`);
+  expect(webDone.status).toBe(200);
+
+  const stale = await sync(
+    token,
+    "POST",
+    `/${acme.id}/uploads/${uploadId}/complete?ifContentVersion=${base + 1}`,
+  );
+  expect(stale.status).toBe(409);
+  expect(stale.body.error.code).toBe("version_conflict");
+  const now = await sync(token, "GET", `/${acme.id}/nodes/${file.id}`);
+  expect(now.body.node.contentVersion).toBe(base + 2);
+  expect(now.body.node.contentSha256).not.toBe(sha256(other));
+  const late = await saveFromSync(token, acme.id, file.id, base + 1, other);
+  expect(late.opened.status).toBe(409);
+  expect(late.opened.body.error.code).toBe("version_conflict");
+
+  const copies: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    const copy = await sync(token, "POST", `/${acme.id}/uploads`, {
+      name: "plan (conflicted copy, Mac 2026-11-20).md",
+      size: other.length,
+      sha256: sha256(other),
+      space: "personal",
+    });
+    expect(copy.status).toBe(201);
+    expect(await syncPart(token, acme.id, copy.body.upload.id as string, other)).toBe(200);
+    const made = await sync(token, "POST", `/${acme.id}/uploads/${copy.body.upload.id}/complete`);
+    expect(made.status).toBe(200);
+    expect(made.body.node.id).not.toBe(file.id);
+    copies.push(made.body.node.name as string);
+  }
+  expect(new Set(copies).size).toBe(2);
+  const kept = await stack.download(ana.jar, file.id);
+  expect(await kept.text()).toBe("third, from the web");
+});

@@ -161,7 +161,7 @@ Existing rows get `revision` in a backfill migration step that is safe to run tw
 | `GET /sync/drives`                            | Every workspace the person belongs to, with its name and its drives: `personal`, and `shared` in a company, each with its current revision.                                                                                                       |
 | `GET /sync/:orgId/changes?space=&cursor=&limit=`     | Nodes of that drive with `revision > cursor`, in order, live and trashed, plus tombstones as `{ id, deleted: true }`. Answers `nextCursor` and `more`. No cursor: the whole drive, paged. A cursor older than tombstone retention: `410 cursor_expired`, and the provider re-enumerates. |
 | `GET /sync/:orgId/nodes/:id`                       | One node, for the provider's item lookup.                                                                                                                                                                                                         |
-| `POST /uploads` gains `replaces`, `ifContentVersion`, `sha256` | Replaces a file's bytes in place: on complete, the node keeps its id, name and sharing, takes the new object, and its `content_version` goes up; the old object is deleted after the row commits. A stale `ifContentVersion` answers `409 version_conflict` and stores nothing. |
+| `POST /files/:id/versions` (`ifContentVersion`, `sha256`), then `POST /uploads/:id/complete?ifContentVersion=` | Replaces a file's bytes in place: on complete, the node keeps its id, name and sharing, takes the new object, and its `content_version` goes up; the old object is deleted after the row commits. A stale `ifContentVersion` answers `409 version_conflict` and stores nothing. |
 | `PATCH /nodes/:id`, `DELETE /nodes/:id` gain `ifRevision` (optional) | The same guard for rename, move and trash. Without it they behave as today.                                                                                                                                             |
 | `GET /files/:id/content`                      | Unchanged: its `ETag` is the stored object's (R2), which changes whenever the bytes do, and `If-Range` resumes against it. A provider that needs the version it downloaded reads the node before and after. |
 
@@ -413,16 +413,20 @@ edges. Schema changes go through `db:generate`, never a hand-written migration.
   extension's container, report progress, honour cancellation, and resume with `Range` after a
   dropped connection. Return the item built from the response's version, not the one asked for.
 - **Upload** (`createItem`, `modifyItem` with new contents): hash the file (sha256) while
-  reading, open the upload (`replaces` and `ifContentVersion` when modifying), send 16 MiB parts
+  reading, open the upload (`POST /files/:id/versions` with `ifContentVersion` when modifying, sent
+  again on complete), send 16 MiB parts
   four at a time, complete. Keep the upload id in a small file in the app group container,
   keyed by item identifier, so an extension that is killed
-  resumes from `GET /uploads/:id` instead of starting over. A `409` follows "Conflicts".
+  resumes from `GET /uploads/:id` instead of starting over. The record keeps the sha256 and the file
+  replaced, and an upload for other bytes is never resumed. A `409` follows "Conflicts".
 - **Errors.** Map them, do not invent: `401` after one refresh attempt is `.notAuthenticated`
   (the app shows "Sign in again"); `402` is `.insufficientQuota`; `404` is `.noSuchItem`;
   offline is `.serverUnreachable`; a refused move between workspaces is `.cannotSynchronize`
   with a failure reason. Never return success for something the server refused.
 - **Token refresh** happens in the extension and in the app, so guard it: refresh under a file
-  lock in the app group container and re-read the keychain after taking the lock.
+  lock in the app group container and re-read the keychain after taking the lock. Only a `400 invalid_grant`
+  or a `401` from the token endpoint signs out; a `429`, a `5xx` or a dropped answer keeps the grant
+  and the call is tried again.
 - **No logic in two places.** The extension never decides access, names or conflicts beyond what
   this document says; when in doubt it asks the server and reports what it said.
 - **Development.** Use the File Provider testing-mode entitlement to drive sync by hand, and

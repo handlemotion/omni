@@ -11,7 +11,7 @@
 //   let storageCreateFolderBody = try StorageCreateFolderBody(json)
 //   let storageChangeNodeBody = try StorageChangeNodeBody(json)
 //   let storageOpenUploadBody = try StorageOpenUploadBody(json)
-//   let storageReplaceUploadBody = try StorageReplaceUploadBody(json)
+//   let storageOpenVersionBody = try StorageOpenVersionBody(json)
 //   let storageUploadResponse = try StorageUploadResponse(json)
 //   let storageUsage = try StorageUsage(json)
 //   let storageSyncDrive = try StorageSyncDrive(json)
@@ -662,36 +662,33 @@ public extension StorageOpenUploadBody {
 // for types that require the use of JSONAny, nor will the implementation of Hashable be
 // synthesized for types that have collections (such as arrays or dictionaries).
 
-// MARK: - StorageReplaceUploadBody
-public struct StorageReplaceUploadBody: Codable, Equatable {
-    public let ifContentVersion: Int
+// MARK: - StorageOpenVersionBody
+public struct StorageOpenVersionBody: Codable, Equatable {
+    public let ifContentVersion: Int?
     public let mimeType: String?
-    public let replaces: String
     public let sha256: String?
     public let size: Int
 
     public enum CodingKeys: String, CodingKey {
         case ifContentVersion = "ifContentVersion"
         case mimeType = "mimeType"
-        case replaces = "replaces"
         case sha256 = "sha256"
         case size = "size"
     }
 
-    public init(ifContentVersion: Int, mimeType: String?, replaces: String, sha256: String?, size: Int) {
+    public init(ifContentVersion: Int?, mimeType: String?, sha256: String?, size: Int) {
         self.ifContentVersion = ifContentVersion
         self.mimeType = mimeType
-        self.replaces = replaces
         self.sha256 = sha256
         self.size = size
     }
 }
 
-// MARK: StorageReplaceUploadBody convenience initializers and mutators
+// MARK: StorageOpenVersionBody convenience initializers and mutators
 
-public extension StorageReplaceUploadBody {
+public extension StorageOpenVersionBody {
     init(data: Data) throws {
-        self = try newJSONDecoder().decode(StorageReplaceUploadBody.self, from: data)
+        self = try newJSONDecoder().decode(StorageOpenVersionBody.self, from: data)
     }
 
     init(_ json: String, using encoding: String.Encoding = .utf8) throws {
@@ -706,16 +703,14 @@ public extension StorageReplaceUploadBody {
     }
 
     func with(
-        ifContentVersion: Int? = nil,
+        ifContentVersion: Int?? = nil,
         mimeType: String?? = nil,
-        replaces: String? = nil,
         sha256: String?? = nil,
         size: Int? = nil
-    ) -> StorageReplaceUploadBody {
-        return StorageReplaceUploadBody(
+    ) -> StorageOpenVersionBody {
+        return StorageOpenVersionBody(
             ifContentVersion: ifContentVersion ?? self.ifContentVersion,
             mimeType: mimeType ?? self.mimeType,
-            replaces: replaces ?? self.replaces,
             sha256: sha256 ?? self.sha256,
             size: size ?? self.size
         )

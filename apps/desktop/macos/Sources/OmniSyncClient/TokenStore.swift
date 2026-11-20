@@ -1,4 +1,5 @@
 import Foundation
+import OmniSyncCore
 import Security
 @preconcurrency import StorageSync
 
@@ -15,6 +16,9 @@ extension DesktopSyncTokens {
 public enum TokenError: Error, Equatable {
     /// No grant in the keychain, or the server refused the refresh: sign in again in the app.
     case signedOut
+    /// The token endpoint could not refresh now (rate limited, failing, or the lock stayed
+    /// taken): the grant stays, and the call is tried again later.
+    case unavailable(status: Int)
     case keychain(OSStatus)
 }
 
@@ -28,7 +32,9 @@ public protocol AccessTokenSource: Sendable {
 
 /// The tokens in the data protection keychain, in the access group the app and the extension
 /// share. Both refresh, so a refresh holds a lock file in the App Group container and reads the
-/// keychain again once it has it: whoever got there first already wrote a new pair.
+/// keychain again once it has it: whoever got there first already wrote a new pair. Inside one
+/// process, refreshes queue on `RefreshQueue` first, so only one thread ever waits on the lock,
+/// and it waits on a thread of its own, never one of Swift concurrency's few.
 public final class TokenStore: AccessTokenSource {
     private let identity: SharedIdentity
     private let settings: @Sendable () -> SyncSettings?
@@ -47,16 +53,23 @@ public final class TokenStore: AccessTokenSource {
         return try await refresh(rejected: tokens.accessToken)
     }
 
-    /// A new access token after the server refused `rejected` with `401`. If another process
-    /// already replaced it, that one is used and no refresh is sent.
+    /// A new access token after the server refused `rejected` with `401`. If another call or
+    /// process already replaced it, that one is used and no refresh is sent.
     public func refresh(rejected: String) async throws -> String {
+        try await RefreshQueue.shared.run { try await self.refreshLocked(rejected: rejected) }
+    }
+
+    private func refreshLocked(rejected: String) async throws -> String {
         guard let lockURL = identity.container?.appendingPathComponent("token.lock") else {
             throw TokenError.signedOut
         }
-        let lock = try FileLock(url: lockURL)
+        let lock = try await FileLock.acquire(lockURL)
         defer { lock.unlock() }
         guard let tokens = try read() else { throw TokenError.signedOut }
         if tokens.accessToken != rejected, !tokens.expiresSoon { return tokens.accessToken }
+        // Only a refusal of the grant itself signs out. Anything else (no connection, a timeout,
+        // a refresh whose answer never came back, a 429 or a 5xx) keeps the grant here, and the
+        // next call tries again.
         do {
             let fresh = try await exchange(tokens.refreshToken)
             try write(fresh)
@@ -82,9 +95,12 @@ public final class TokenStore: AccessTokenSource {
         ])
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        // 400 invalid_grant: the grant was revoked or the refresh token reused. Sign in again.
-        if (400..<500).contains(status) { throw TokenError.signedOut }
-        guard status == 200 else { throw URLError(.badServerResponse) }
+        guard status == 200 else {
+            switch TokenRefusal(status: status, body: data) {
+            case .signedOut: throw TokenError.signedOut
+            case .tryLater: throw TokenError.unavailable(status: status)
+            }
+        }
         return try Self.tokens(from: data, keeping: refreshToken)
     }
 
@@ -147,18 +163,54 @@ public final class TokenStore: AccessTokenSource {
     }
 }
 
-/// An exclusive `flock` on a file, held until `unlock`. Blocks the calling thread while another
-/// process holds it, which a refresh does for one request at most.
-struct FileLock {
+/// Runs refreshes one after another inside this process. An actor alone would not do: it lets
+/// the next call in while the current one waits on the network.
+actor RefreshQueue {
+    static let shared = RefreshQueue()
+    private var last: Task<Void, Never>?
+
+    func run<T: Sendable>(_ work: @escaping @Sendable () async throws -> T) async throws -> T {
+        let previous = last
+        let next = Task { () async throws -> T in
+            await previous?.value
+            return try await work()
+        }
+        last = Task { _ = try? await next.value }
+        return try await next.value
+    }
+}
+
+/// An exclusive `flock` on a file, held until `unlock`, shared with the app's process.
+struct FileLock: Sendable {
     private let descriptor: Int32
 
-    init(url: URL) throws {
-        descriptor = open(url.path, O_CREAT | O_RDWR, 0o600)
-        guard descriptor >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
-        guard flock(descriptor, LOCK_EX) == 0 else {
-            close(descriptor)
-            throw POSIXError(.init(rawValue: errno) ?? .EIO)
+    /// Most a refresh waits for the other process: one token request, with room to spare.
+    static let patience: TimeInterval = 30
+
+    /// Takes the lock on a thread of its own, polling, so a wait never holds one of the
+    /// cooperative pool's threads. Gives up after `patience` as `unavailable`.
+    static func acquire(_ url: URL) async throws -> FileLock {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(with: Result { try FileLock(url: url, patience: patience) })
+            }
         }
+    }
+
+    private init(url: URL, patience: TimeInterval) throws {
+        let descriptor = open(url.path, O_CREAT | O_RDWR, 0o600)
+        guard descriptor >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
+        let deadline = Date().addingTimeInterval(patience)
+        while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+            let failure = errno
+            guard failure == EWOULDBLOCK, Date() < deadline else {
+                close(descriptor)
+                if failure == EWOULDBLOCK { throw TokenError.unavailable(status: 0) }
+                throw POSIXError(.init(rawValue: failure) ?? .EIO)
+            }
+            usleep(50_000)
+        }
+        self.descriptor = descriptor
     }
 
     func unlock() {

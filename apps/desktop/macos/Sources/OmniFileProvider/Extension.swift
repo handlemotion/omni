@@ -2,17 +2,13 @@ import FileProvider
 import OmniSyncClient
 import OmniSyncCore
 @preconcurrency import StorageSync
+import SystemConfiguration
 import UniformTypeIdentifiers
 
 /// The Omni File Provider (ADR 0043 decision 3): one domain, a folder per synced workspace. It
 /// answers the system's four questions (what is here, what changed, give me the bytes, here is a
 /// change) from the Storage sync API and decides nothing the server decides.
 final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
-    /// Replacing a file's bytes in place (`replaces` on `POST /uploads`) is not on the server
-    /// yet. Until it is, an edit stays local with an error badge: sent today, the server would
-    /// ignore `replaces` and store a second file.
-    static let replaceInPlace = false
-
     private let domain: NSFileProviderDomain
 
     required init(domain: NSFileProviderDomain) {
@@ -55,13 +51,18 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                 // of the download: if it changed in between, the system asks again.
                 let before = try await sync.client.node(orgId: orgId, id: nodeId)
                 let (downloaded, _) = try await sync.client.download(orgId: orgId, id: nodeId, progress: progress)
-                let url = try Self.keep(downloaded, domain: domain)
-                let node = try await sync.client.node(orgId: orgId, id: nodeId)
-                if node.contentVersion != before.contentVersion {
-                    try? FileManager.default.removeItem(at: url)
-                    throw NSFileProviderError(.serverUnreachable)
+                // Whatever fails or is cancelled from here on, the bytes are not left behind.
+                var file = downloaded
+                do {
+                    file = try Self.keep(downloaded, domain: domain)
+                    let node = try await sync.client.node(orgId: orgId, id: nodeId)
+                    if node.contentVersion != before.contentVersion { throw NSFileProviderError(.serverUnreachable) }
+                    try Task.checkCancellation()
+                    completionHandler(file, Item(node: node), nil)
+                } catch {
+                    try? FileManager.default.removeItem(at: file)
+                    throw error
                 }
-                completionHandler(url, Item(node: node), nil)
             } catch {
                 completionHandler(nil, nil, systemError(error))
             }
@@ -107,10 +108,15 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         request _: NSFileProviderRequest,
         completionHandler: @escaping (NSFileProviderItem?, NSFileProviderItemFields, Bool, Error?) -> Void
     ) -> Progress {
-        task {
+        let progress = Progress(totalUnitCount: 1)
+        let domain = domain
+        return task(progress) {
             do {
-                let node = try await Self.modify(item, base: baseVersion, fields: changedFields, contents: newContents)
-                completionHandler(Item(node: node), [], false, nil)
+                let (node, conflicted) = try await Self.modify(item, base: baseVersion, fields: changedFields, contents: newContents, progress: progress)
+                // After a conflict the item is the server's version: the system fetches its
+                // bytes, and the conflicted copy arrives with the next change of the working set.
+                completionHandler(Item(node: node), [], conflicted, nil)
+                if conflicted { NSFileProviderManager(for: domain)?.signalEnumerator(for: .workingSet) { _ in } }
             } catch {
                 completionHandler(nil, [], false, systemError(error))
             }
@@ -179,7 +185,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         guard let contents else { throw NSFileProviderError(.cannotSynchronize) }
         let mime = UTType(filenameExtension: (name as NSString).pathExtension)?.preferredMIMEType
         let uploader = Uploader(sync: sync, orgId: place.orgId, key: template.itemIdentifier.rawValue)
-        return try await uploader.send(contents, open: { size, sha256 in
+        return try await uploader.send(try Uploader.measure(contents), open: { size, sha256 in
             let body = StorageOpenUploadBody(mimeType: mime, name: name, parentId: place.parentId, sha256: sha256, size: size, space: place.space)
             return try await sync.client.openUpload(orgId: place.orgId, body)
         }, progress: progress)
@@ -199,7 +205,15 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         return nil
     }
 
-    private static func modify(_ item: NSFileProviderItem, base: NSFileProviderItemVersion, fields: NSFileProviderItemFields, contents: URL?) async throws -> StorageNode {
+    /// Applies a change from Finder: a move, a rename, new bytes. Answers the node as the server
+    /// has it now, and whether that is the server's version after a conflict.
+    private static func modify(
+        _ item: NSFileProviderItem,
+        base: NSFileProviderItemVersion,
+        fields: NSFileProviderItemFields,
+        contents: URL?,
+        progress: Progress
+    ) async throws -> (StorageNode, conflicted: Bool) {
         guard case let .node(orgId, nodeId)? = ItemID(item.itemIdentifier) else { throw NSFileProviderError(.cannotSynchronize) }
         let sync = try Sync.load()
         var node = try await sync.client.node(orgId: orgId, id: nodeId)
@@ -217,12 +231,63 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         }
         // The system reports new contents for a move or a download too; only bytes that differ
         // from the server's are an edit.
-        if fields.contains(.contents), let contents,
-           try Uploader.measure(contents).1 != node.contentSha256 {
-            guard replaceInPlace else { throw NSFileProviderError(.cannotSynchronize) }
+        if fields.contains(.contents), let contents, node.kind == .file {
+            let bytes = try Uploader.measure(contents)
+            if bytes.sha256 != node.contentSha256 {
+                return try await save(bytes, over: node, base: base, key: item.itemIdentifier.rawValue, sync: sync, progress: progress)
+            }
         }
         // Tags, ranks, last used dates and extended attributes stay on this computer.
-        return node
+        return (node, false)
+    }
+
+    /// Saves an edit as a new version of the file, in place: same id, name and sharing. The
+    /// server is the judge (spec "Conflicts"): if someone saved since the version this edit was
+    /// based on, the edit is kept as `name (conflicted copy, <computer> <date>).ext` beside it,
+    /// and the item becomes the server's version. Nothing is overwritten or lost.
+    private static func save(
+        _ bytes: Uploader.Bytes,
+        over node: StorageNode,
+        base: NSFileProviderItemVersion,
+        key: String,
+        sync: Sync,
+        progress: Progress
+    ) async throws -> (StorageNode, conflicted: Bool) {
+        // A version this provider did not write is no guard: refuse rather than save unguarded.
+        guard let based = contentVersion(of: base) else { throw NSFileProviderError(.cannotSynchronize) }
+        let orgId = node.orgId
+        do {
+            let saved = try await Uploader(sync: sync, orgId: orgId, key: key).send(
+                bytes, replaces: node.id, ifContentVersion: based,
+                open: { size, sha256 in
+                    let body = StorageOpenVersionBody(ifContentVersion: based, mimeType: node.mimeType, sha256: sha256, size: size)
+                    return try await sync.client.openVersion(orgId: orgId, fileId: node.id, body)
+                },
+                progress: progress
+            )
+            return (saved, false)
+        } catch let error as SyncHTTPError where error.failure == .versionConflict {
+            // The server numbers a name already taken, so the copy always lands.
+            let name = conflictedCopyName(of: node.name, computer: computerName(), date: Date())
+            _ = try await Uploader(sync: sync, orgId: orgId, key: key + "#conflicted").send(
+                bytes,
+                open: { size, sha256 in
+                    let body = StorageOpenUploadBody(
+                        mimeType: node.mimeType, name: name, parentId: node.parentId, sha256: sha256, size: size,
+                        space: node.parentId == nil ? node.space : nil
+                    )
+                    return try await sync.client.openUpload(orgId: orgId, body)
+                },
+                progress: progress
+            )
+            return (try await sync.client.node(orgId: orgId, id: node.id), true)
+        }
+    }
+
+    /// The computer's name as the person set it in System Settings, for conflicted copies.
+    private static func computerName() -> String {
+        if let name = SCDynamicStoreCopyComputerName(nil, nil) as String?, !name.isEmpty { return name }
+        return "Mac"
     }
 
     private static func revision(of version: NSFileProviderItemVersion) -> Int? {

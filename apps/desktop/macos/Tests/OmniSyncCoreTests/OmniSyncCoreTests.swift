@@ -171,3 +171,28 @@ private func node(
     #expect(conflictedCopyName(of: "README", computer: "Mac", date: date, timeZone: utc)
         == "README (conflicted copy, Mac 2026-11-16)")
 }
+
+@Test func aResumeNeedsTheSameBytesNotJustTheSameSize() {
+    let record = UploadRecord(id: "u1", size: 10, sha256: "aaaa", replaces: nodeId)
+    #expect(record.resumes(size: 10, sha256: "aaaa", replaces: nodeId))
+    // Edited back to the same size: resuming would store a file made of parts of both.
+    #expect(!record.resumes(size: 10, sha256: "bbbb", replaces: nodeId))
+    // The same bytes saved as a new file are not this version upload, nor the other way round.
+    #expect(!record.resumes(size: 10, sha256: "aaaa", replaces: nil))
+    #expect(!UploadRecord(id: "u1", size: 10, sha256: "aaaa", replaces: nil).resumes(size: 10, sha256: "aaaa", replaces: nodeId))
+    #expect(UploadRecord(record.data) == record)
+    // A record written before hashes were kept is the bare upload id: never resumed.
+    #expect(UploadRecord(Data("0193a0b2-0000-7000-8000-0000000000ff".utf8)) == nil)
+}
+
+@Test func onlyARefusedGrantSignsThePersonOut() {
+    let body = { (json: String) in Data(json.utf8) }
+    #expect(TokenRefusal(status: 400, body: body(#"{"error":"invalid_grant"}"#)) == .signedOut)
+    #expect(TokenRefusal(status: 401, body: body(#"{"error":"invalid_client"}"#)) == .signedOut)
+    // A busy or failing token endpoint keeps the grant: sync waits and tries again.
+    for status in [408, 429, 500, 502, 503] {
+        #expect(TokenRefusal(status: status, body: nil) == .tryLater, "\(status)")
+    }
+    #expect(TokenRefusal(status: 400, body: body(#"{"error":"invalid_request"}"#)) == .tryLater)
+    #expect(TokenRefusal(status: 400, body: body("<html>Bad Gateway</html>")) == .tryLater)
+}

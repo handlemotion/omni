@@ -1,36 +1,60 @@
 import CryptoKit
 import FileProvider
 import OmniSyncClient
+import OmniSyncCore
 @preconcurrency import StorageSync
 
-/// Sends a local file as an upload (docs/spec/desktop.md "Upload"): hashes it, opens the upload,
-/// sends its parts four at a time, completes. The upload's id is kept in the App Group container
-/// under the item's identifier, so an extension stopped halfway resumes from the parts the
-/// server already has (`GET /uploads/:id`) instead of starting over.
+/// Sends a local file as an upload (docs/spec/desktop.md "Upload"): opens the upload, sends its
+/// parts four at a time, completes. What it opened is kept in the App Group container under the
+/// item's identifier (`UploadRecord`), so an extension stopped halfway resumes from the parts the
+/// server already has (`GET /uploads/:id`) instead of starting over, but only for the same bytes.
 struct Uploader {
     let sync: Sync
     let orgId: String
-    /// Where the open upload's id is kept while it runs.
+    /// Where the open upload's record is kept while it runs.
     let key: String
 
     private static let parallelParts = 4
 
-    func send(_ file: URL, open: (_ size: Int, _ sha256: String) async throws -> Upload, progress: Progress) async throws -> StorageNode {
-        let (size, sha256) = try Self.measure(file)
+    /// The bytes to send, measured once by the caller (`measure`).
+    struct Bytes {
+        let file: URL
+        let size: Int
+        let sha256: String
+    }
+
+    /// Uploads `bytes`. With `replaces`, as a new version of that file based on content version
+    /// `ifContentVersion`, checked again on complete; `open` opens the matching upload.
+    func send(
+        _ bytes: Bytes,
+        replaces: String? = nil,
+        ifContentVersion: Int? = nil,
+        open: (_ size: Int, _ sha256: String) async throws -> Upload,
+        progress: Progress
+    ) async throws -> StorageNode {
         var upload: Upload
-        if let resumed = try await resume(size: size) {
+        if let resumed = try await resume(bytes, replaces: replaces) {
             upload = resumed
         } else {
-            upload = try await open(size, sha256)
+            upload = try await open(bytes.size, bytes.sha256)
         }
         // Kept until the file exists: a dropped connection or a stopped extension resumes.
-        remember(upload.id)
+        remember(UploadRecord(id: upload.id, size: bytes.size, sha256: bytes.sha256, replaces: replaces))
         if upload.nodeId == nil {
-            upload = try await sendParts(of: file, upload: upload, progress: progress)
+            upload = try await sendParts(of: bytes.file, upload: upload, progress: progress)
         }
-        let node = try await sync.client.complete(orgId: orgId, uploadId: upload.id)
-        forget()
-        return node
+        do {
+            let node = try await sync.client.complete(orgId: orgId, uploadId: upload.id, ifContentVersion: ifContentVersion)
+            forget()
+            return node
+        } catch let error as SyncHTTPError where error.failure == .versionConflict || error.status == 404 {
+            // A newer version on the server, or the upload is gone: this one will never complete.
+            // Give its space back now rather than when it expires. Any other refusal (full,
+            // parts missing) keeps it, and the next try resumes it.
+            forget()
+            if error.status != 404 { try? await sync.client.abortUpload(orgId: orgId, uploadId: upload.id) }
+            throw error
+        }
     }
 
     private func sendParts(of file: URL, upload: Upload, progress: Progress) async throws -> Upload {
@@ -60,8 +84,8 @@ struct Uploader {
         return upload
     }
 
-    /// The size and sha256 of the bytes, read once in 1 MiB chunks.
-    static func measure(_ file: URL) throws -> (Int, String) {
+    /// The file's size and sha256, read once in 1 MiB chunks.
+    static func measure(_ file: URL) throws -> Bytes {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
         var hash = SHA256()
@@ -70,7 +94,7 @@ struct Uploader {
             hash.update(data: chunk)
             size += chunk.count
         }
-        return (size, hash.finalize().map { String(format: "%02x", $0) }.joined())
+        return Bytes(file: file, size: size, sha256: hash.finalize().map { String(format: "%02x", $0) }.joined())
     }
 
     private static func part(_ number: Int, of file: URL, partSize: Int, size: Int) throws -> Data {
@@ -83,33 +107,39 @@ struct Uploader {
 
     // MARK: Resume
 
-    private var record: URL? {
+    private var recordURL: URL? {
         sync.identity.container?.appendingPathComponent("uploads", isDirectory: true)
             .appendingPathComponent(Data(key.utf8).base64EncodedString().replacingOccurrences(of: "/", with: "_"))
     }
 
-    /// The upload this item had open, if the server still has it and it is for bytes of this
-    /// size. A file edited since gets a new upload; the old one expires on the server.
-    private func resume(size: Int) async throws -> Upload? {
-        guard let record, let id = try? String(contentsOf: record, encoding: .utf8) else { return nil }
-        do {
-            let upload = try await sync.client.upload(orgId: orgId, id: id)
-            if upload.size == size { return upload }
+    /// The upload this item had open, if the server still has it and it is for these very bytes
+    /// going to the same place. Any other is given up, so its parts never mix with these.
+    private func resume(_ bytes: Bytes, replaces: String?) async throws -> Upload? {
+        guard let recordURL, let data = try? Data(contentsOf: recordURL) else { return nil }
+        guard let record = UploadRecord(data) else {
             forget()
             return nil
+        }
+        guard record.resumes(size: bytes.size, sha256: bytes.sha256, replaces: replaces) else {
+            forget()
+            try? await sync.client.abortUpload(orgId: orgId, uploadId: record.id)
+            return nil
+        }
+        do {
+            return try await sync.client.upload(orgId: orgId, id: record.id)
         } catch let error as SyncHTTPError where error.status == 404 {
             forget()
             return nil
         }
     }
 
-    private func remember(_ id: String) {
-        guard let record else { return }
-        try? FileManager.default.createDirectory(at: record.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? id.write(to: record, atomically: true, encoding: .utf8)
+    private func remember(_ record: UploadRecord) {
+        guard let recordURL else { return }
+        try? FileManager.default.createDirectory(at: recordURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? record.data.write(to: recordURL, options: .atomic)
     }
 
     private func forget() {
-        if let record { try? FileManager.default.removeItem(at: record) }
+        if let recordURL { try? FileManager.default.removeItem(at: recordURL) }
     }
 }

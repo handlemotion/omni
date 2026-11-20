@@ -206,13 +206,12 @@ pub struct StorageOpenUploadBody {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StorageReplaceUploadBody {
-    pub if_content_version: i64,
+pub struct StorageOpenVersionBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub if_content_version: Option<i64>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
-
-    pub replaces: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,

@@ -78,8 +78,10 @@ public final class SyncClient: Sendable {
         return answer.upload
     }
 
-    public func openReplace(orgId: String, _ body: StorageReplaceUploadBody) async throws -> Upload {
-        let answer: StorageUploadResponse = try await json(send("POST", "\(orgId)/uploads", body: body))
+    /// An upload of new bytes for file `id`, guarded by the content version the edit was based
+    /// on: a newer one on the server answers `409 version_conflict` and opens nothing.
+    public func openVersion(orgId: String, fileId: String, _ body: StorageOpenVersionBody) async throws -> Upload {
+        let answer: StorageUploadResponse = try await json(send("POST", "\(orgId)/files/\(fileId)/versions", body: body))
         return answer.upload
     }
 
@@ -96,16 +98,24 @@ public final class SyncClient: Sendable {
         _ = try await perform(request, upload: bytes)
     }
 
-    public func complete(orgId: String, uploadId: String) async throws -> StorageNode {
-        let answer: StorageNodeResponse = try await json(send("POST", "\(orgId)/uploads/\(uploadId)/complete"))
+    /// Makes the upload a file. For a new version, `ifContentVersion` checks the base once more:
+    /// someone may have saved while the parts were on their way.
+    public func complete(orgId: String, uploadId: String, ifContentVersion: Int? = nil) async throws -> StorageNode {
+        let query = ["ifContentVersion": ifContentVersion.map(String.init)]
+        let answer: StorageNodeResponse = try await json(send("POST", "\(orgId)/uploads/\(uploadId)/complete", query: query))
         return answer.node
+    }
+
+    /// Gives up an open upload and the space it held.
+    public func abortUpload(orgId: String, uploadId: String) async throws {
+        _ = try await perform(send("DELETE", "\(orgId)/uploads/\(uploadId)"), upload: nil)
     }
 
     // MARK: Download
 
     /// A file's bytes, into a temporary file the caller moves, and the `ETag` they were served
-    /// with (the stored object's, not the content version). `progress` follows the transfer and
-    /// cancels it.
+    /// with (the stored object's, not the content version). `progress` follows the transfer;
+    /// cancelling the calling task cancels it.
     public func download(orgId: String, id: String, progress: Progress) async throws -> (URL, String?) {
         let request = try get("\(orgId)/files/\(id)/content")
         let (url, response) = try await authorized(request) { request in
@@ -165,11 +175,14 @@ public final class SyncClient: Sendable {
             let (value, response) = try await send(request)
             guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
             if (200..<300).contains(http.statusCode) { return (value, http) }
+            // A refused download's body is an error, written to a file nobody else will remove.
+            let code = Self.code(of: value)
+            if let file = value as? URL { try? FileManager.default.removeItem(at: file) }
             if http.statusCode == 401, attempt == 0 {
                 token = try await tokens.refresh(rejected: token)
                 continue
             }
-            throw SyncHTTPError(status: http.statusCode, code: Self.code(of: value))
+            throw SyncHTTPError(status: http.statusCode, code: code)
         }
         throw SyncHTTPError(status: 401, code: "unauthorized")
     }
@@ -186,15 +199,14 @@ public final class SyncClient: Sendable {
     }
 }
 
-/// Keeps a `Progress` in step with a download and cancels the task when it is cancelled.
+/// Keeps a `Progress` in step with a download. It leaves the progress's cancellation handler
+/// alone: that one cancels the whole call (reads, download, move), and the async download stops
+/// with its task. Replacing it with the transfer's own made cancel stop working once the bytes
+/// were in.
 private final class ProgressDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private let progress: Progress
 
     init(_ progress: Progress) { self.progress = progress }
-
-    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
-        progress.cancellationHandler = { task.cancel() }
-    }
 
     func urlSession(
         _ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData _: Int64,
