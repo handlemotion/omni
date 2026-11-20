@@ -31,6 +31,8 @@ import {
 import { storageLive } from "./live.ts";
 import { storageSharing } from "./sharing.ts";
 import { storageSigningMember } from "./signing.ts";
+import { thumbnail } from "./thumbnails.ts";
+import { zip } from "./zip.ts";
 
 const trashCursor = z.object({ trashedAt: z.coerce.date(), id: z.string().min(1) });
 
@@ -55,6 +57,10 @@ export const storageReads = new Hono<AppEnv>()
 
   .get("/files/:id/content", async (c) => {
     return download(c, await memberStorage(c).file(c.req.param("id")));
+  })
+
+  .get("/files/:id/thumbnail", async (c) => {
+    return thumbnail(c, await memberStorage(c).file(c.req.param("id")));
   })
 
   .get("/usage", async (c) => {
@@ -115,6 +121,8 @@ export const storage = new Hono<AppEnv>()
       nextCursor: encodeCursor(page.nextCursor),
     } satisfies StorageTrashResponse);
   })
+
+  .on(["GET", "POST"], "/zip", (c) => zip(c, memberStorage(c).archive))
 
   .get("/search", zValidator("query", storageSearchQuerySchema), async (c) => {
     const nodes = await memberStorage(c).search(c.req.valid("query").q);

@@ -78,7 +78,14 @@ export type RenameResult =
   | VersionConflict
   | { status: "name_taken" };
 export type MoveResult =
-  | { status: "ok"; node: StorageNode; left: Drive | null }
+  | {
+      status: "ok";
+      node: StorageNode;
+      /** The drive it left, when it changed drives. */
+      left: Drive | null;
+      /** The folder it was in before (`null` for its drive's top). */
+      fromParentId: string | null;
+    }
   | NotFound
   | Forbidden
   | TooDeep
@@ -187,7 +194,7 @@ const moveInto: (
     if (refusal) return refusal;
   }
   if (node.parentId === dest.parentId && !crossing) {
-    return { status: "ok", node: toNode(node), left: null };
+    return { status: "ok", node: toNode(node), left: null, fromParentId: node.parentId };
   }
   if (
     node.kind === "folder" &&
@@ -219,7 +226,14 @@ const moveInto: (
     })
     .where(eq(storageNodes.id, node.id))
     .returning();
-  return moved ? { status: "ok", node: toNode(moved), left: crossing ? from : null } : NOT_FOUND;
+  return moved
+    ? {
+        status: "ok",
+        node: toNode(moved),
+        left: crossing ? from : null,
+        fromParentId: node.parentId,
+      }
+    : NOT_FOUND;
 };
 
 /** What a member and a grantee can both do, each bounded by their door. */

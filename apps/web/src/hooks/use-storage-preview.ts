@@ -5,7 +5,6 @@ import {
   pdfThumbnailQuery,
   previewTextQuery,
   revokePreviewUrls,
-  thumbnailQuery,
   type PreviewSource,
 } from "../lib/storage-preview.ts";
 
@@ -24,23 +23,6 @@ export function useFileSheets(source: PreviewSource) {
 export function useFileImage(source: PreviewSource, raster: string) {
   revokePreviewUrls(useQueryClient());
   return useQuery(previewImageQuery(source, raster));
-}
-
-/**
- * A grid tile's picture, once `enabled` (the tile is on screen): an image downscaled, or a PDF's
- * first page.
- */
-export function useThumbnail(
-  source: PreviewSource,
-  of: { raster: string } | "pdf",
-  enabled: boolean,
-) {
-  revokePreviewUrls(useQueryClient());
-  const options =
-    of === "pdf"
-      ? (pdfThumbnailQuery(source) as unknown as ReturnType<typeof thumbnailQuery>)
-      : thumbnailQuery(source, of.raster);
-  return useQuery({ ...options, enabled: enabled && options.enabled !== false });
 }
 
 /** A PDF's tile: its first pages and its shape, once `enabled` (the tile is on screen). */

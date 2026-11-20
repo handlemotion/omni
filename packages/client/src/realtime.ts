@@ -339,10 +339,11 @@ const parseStorageEvent: (
 ) => StorageFilePresenceEvent | StorageDocEvent | StorageChangedEvent | undefined = (event) => {
   const { nodeId, ref, seqNum } = event;
   if (event.type === "storage.changed") {
-    const { space } = event;
-    return space === "personal" || space === "shared"
-      ? { type: "storage.changed", space }
-      : undefined;
+    const { space, parentIds } = event;
+    if (space !== "personal" && space !== "shared") return undefined;
+    if (!Array.isArray(parentIds)) return { type: "storage.changed", space };
+    const named = parentIds.filter((p): p is string | null => p === null || isId(p));
+    return { type: "storage.changed", space, parentIds: named };
   }
   if (!isId(nodeId)) return undefined;
   switch (event.type) {

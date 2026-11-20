@@ -38,6 +38,7 @@ import { canEditFile, DocumentEditor, useEditSession } from "../editor/document-
 import { PreviewBody } from "./preview-body.tsx";
 import { PreviewRail } from "./preview-rail.tsx";
 import { usePreviewTools } from "./preview-tools.tsx";
+import { downloadFile } from "@/lib/download.ts";
 
 export function PreviewPanel(props: {
   node: StorageNode;
@@ -63,7 +64,7 @@ export function PreviewPanel(props: {
   const { node } = props;
   const tools = usePreviewTools(node, props.shareId);
   const shown = tools.shown;
-  const download = shown ? () => window.location.assign(shown.url) : props.onDownload;
+  const download = shown ? () => downloadFile(shown.url) : props.onDownload;
   const session = useEditSession(node, props.url, props.shareId);
   const canEdit = props.canWrite && canEditFile(node) && !shown;
   return (

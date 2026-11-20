@@ -53,7 +53,11 @@ export const storageChanges = new Hono<AppEnv>()
     }
     const changed = await files.move(id, placeOf(body), guard);
     if (changed.status !== "ok") return refused(c, changed.status);
-    announceDrives(c, [changed.node, changed.left]);
+    const { orgId, space, ownerMemberId } = changed.left ?? changed.node;
+    announceDrives(c, [
+      changed.node,
+      { orgId, space, ownerMemberId, parentId: changed.fromParentId },
+    ]);
     return c.json({ node: wireNode(changed.node) } satisfies StorageNodeResponse);
   })
 

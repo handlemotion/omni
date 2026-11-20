@@ -90,6 +90,10 @@ export const ERROR_CODES = {
   upload_complete: spec(409, "conflict"),
   /** A guarded write (`ifRevision`, `ifContentVersion`) read a node that has changed since. */
   version_conflict: spec(409, "conflict"),
+  /** The file has no thumbnail (not an image the server can draw, or too large): show its icon. */
+  no_thumbnail: spec(415, "validation"),
+  /** The selection holds more files or bytes than one zip carries: zip less at a time. */
+  zip_too_large: spec(413, "payload_too_large"),
   /** Only a PDF is sent for signature (ADR 0043 decision 6). */
   not_a_pdf: spec(415, "validation"),
   /** The file is already out for signature: void that request before sending it again. */

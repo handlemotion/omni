@@ -20,6 +20,7 @@ import { applyFilePresence, clearFilePresence } from "./file-presence.ts";
 import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
+import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
 
 const FLUSH_MS = 150;
 const MAX_HOLD_MS = 3_000;
@@ -33,11 +34,15 @@ type DocEvent = Extract<RealtimeEvent, { type: "doc.record" | "doc.appended" | "
 const docListeners = new Set<(event: DocEvent) => void>();
 const listeners = new Set<() => void>();
 
-type StorageEvent = DocEvent | Extract<RealtimeEvent, { type: "file.presence" }>;
+type DriveEvent = Extract<RealtimeEvent, { type: "storage.changed" }>;
+type FileEvent = DocEvent | Extract<RealtimeEvent, { type: "file.presence" }>;
+type StorageEvent = FileEvent | DriveEvent;
 const isStorageEvent = (event: RealtimeEvent): event is StorageEvent =>
-  event.type === "file.presence" || event.type.startsWith("doc.");
+  event.type === "file.presence" ||
+  event.type === "storage.changed" ||
+  event.type.startsWith("doc.");
 
-function onStorageEvent(orgId: string, event: StorageEvent) {
+function onFileEvent(orgId: string, event: FileEvent) {
   if (event.type === "file.presence") return applyFilePresence(orgId, event);
   for (const listener of docListeners) listener(event);
 }
@@ -106,6 +111,22 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     void client.invalidateQueries({ queryKey: keys.conversationCounts() });
   };
 
+  let driveChanges: StorageDriveChange[] = [];
+  let driveTimer: ReturnType<typeof setTimeout> | undefined;
+  const driveChanged = (orgId: string, change: StorageDriveChange) => {
+    if (orgId !== activeOrgId) return;
+    driveChanges.push(change);
+    driveTimer ??= setTimeout(() => {
+      driveTimer = undefined;
+      const batch = driveChanges;
+      driveChanges = [];
+      void storageDrivesChanged(client, batch);
+    }, FLUSH_MS);
+  };
+
+  const onStorage = (orgId: string, event: StorageEvent) =>
+    event.type === "storage.changed" ? driveChanged(orgId, event) : onFileEvent(orgId, event);
+
   const changed = (mailboxId: string, threadIds: readonly string[]) => {
     changedMailboxes.add(mailboxId);
     for (const id of threadIds) changedThreads.add(id);
@@ -113,7 +134,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
   };
 
   const onEvent = (orgId: string, event: RealtimeEvent) => {
-    if (isStorageEvent(event)) return onStorageEvent(orgId, event);
+    if (isStorageEvent(event)) return onStorage(orgId, event);
     switch (event.type) {
       case "changed":
       case "thread.changed":
@@ -170,6 +191,9 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     if (reconnected) {
       void client.invalidateQueries({ queryKey: keys.mail() }, { cancelRefetch: false });
       void client.invalidateQueries({ queryKey: keys.crm() }, { cancelRefetch: false });
+      if (orgId === activeOrgId) {
+        void client.invalidateQueries({ queryKey: keys.storage() }, { cancelRefetch: false });
+      }
       void recheckPendingSends(client);
     }
   };
@@ -193,6 +217,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     },
     stop() {
       clearTimeout(timer);
+      clearTimeout(driveTimer);
       stopWaking();
       if (sockets === connections) sockets = new Map();
       for (const connection of connections.values()) connection.close();

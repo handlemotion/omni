@@ -497,11 +497,15 @@ export const storageRevisionGuardQuerySchema = z.object({
 
 /**
  * On the workspace's realtime socket (`GET /sync/:orgId/realtime` for a provider): something in
- * this drive changed, so read its changes. Sent after the change commits; it names no node.
+ * this drive changed, so read its changes. Sent after the change commits; it names no file.
+ * `parentIds` are the folders whose listing changed, `null` for the drive's top; a folder listed
+ * there may also have been renamed or moved, so a listing under it is stale too. Without it (an
+ * older Worker), any listing in the drive may have changed.
  */
 export const storageChangedEventSchema = z.object({
   type: z.literal("storage.changed"),
   space: storageSpaceSchema,
+  parentIds: z.array(id.nullable()).optional(),
 });
 
 /**
@@ -662,6 +666,49 @@ export const STORAGE_SYNC_NATIVE_TYPES = {
   DesktopSyncDone: desktopSyncDoneSchema,
   DesktopSyncTokens: desktopSyncTokensSchema,
 } as const;
+
+/** Longest edge of a thumbnail, in pixels: the only sizes drawn, so each is drawn once. */
+export const STORAGE_THUMBNAIL_SIZES = [256, 640, 1280] as const;
+/** The largest original a thumbnail is drawn from; a larger one answers `415 no_thumbnail`. */
+export const STORAGE_THUMBNAIL_MAX_SOURCE_BYTES = 20_000_000;
+/** The most entries (files and folders) one zip carries; more answers `413 zip_too_large`. */
+export const STORAGE_ZIP_MAX_ENTRIES = 5_000;
+
+/**
+ * `GET /files/:id/thumbnail?size=&v=`: a WebP no wider or taller than `size` (default 640), for
+ * a JPEG, PNG, GIF, WebP, AVIF or HEIC up to 20 MB. Anything else is `415 no_thumbnail`. With
+ * `v` equal to the file's `contentVersion` the answer is cacheable for a year (a new version has
+ * a new `v`); without it, the client revalidates with `If-None-Match`. Also under
+ * `/shared/:shareId/files/:id/thumbnail`.
+ */
+export const storageThumbnailQuerySchema = z.object({
+  size: z.coerce
+    .number()
+    .refine((size) => (STORAGE_THUMBNAIL_SIZES as readonly number[]).includes(size), {
+      message: `size is one of ${STORAGE_THUMBNAIL_SIZES.join(", ")}`,
+    })
+    .default(640),
+  v: z.coerce.number().int().nonnegative().optional(),
+});
+
+/**
+ * `GET /zip?ids=a,b` or `POST /zip` with a form or JSON body `{ ids }`: the selected files and
+ * folders (with everything live inside them) as one streamed zip, an attachment with a known
+ * `content-length`. Paths start at each selected item's own name. Under
+ * `/shared/:shareId/zip` the ids default to the shared node itself. Something the caller cannot
+ * reach is `404`; more than `STORAGE_ZIP_MAX_ENTRIES` entries is `413 zip_too_large`.
+ */
+export const storageZipQuerySchema = z.object({
+  ids: z
+    .union([z.string(), z.array(z.string())])
+    .transform((value) =>
+      (Array.isArray(value) ? value : [value])
+        .flatMap((part) => part.split(","))
+        .map((part) => part.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(id).max(STORAGE_ZIP_MAX_ENTRIES)),
+});
 
 export type StorageSpace = z.infer<typeof storageSpaceSchema>;
 export type StorageChangedEvent = z.infer<typeof storageChangedEventSchema>;

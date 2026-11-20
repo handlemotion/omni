@@ -15,6 +15,7 @@ import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { usePrefetchFolder } from "@/hooks/use-storage.ts";
 import type { FolderDraft } from "@/hooks/use-folder-drafts.ts";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
+import type { NodeSelection } from "@/hooks/use-node-selection.ts";
 import { useStorageView, type StorageSection, type StorageView } from "@/hooks/use-storage-view.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
@@ -45,6 +46,8 @@ export interface FileSectionsProps {
   peek?: boolean | undefined;
   /** Dragging items onto folders (`node-drag.tsx`); off without it. */
   drag?: NodeDrag | undefined;
+  /** Picking several items for a bulk action; off without it. */
+  selection?: NodeSelection | undefined;
 }
 
 /** New folders not yet in the list, and their fields' handlers. */
@@ -61,9 +64,17 @@ export const FileSections = memo(function FileSections(props: FileSectionsProps)
   const folderGap = useGapAt(here, folders, "folder");
   const fileGap = useGapAt(here, files, "file");
   const folderCount = folders.length + (props.drafts?.list.length ?? 0);
-  const { open } = props;
+  const { open, selection } = props;
+  const picking = !!selection?.active;
+  const pickIn = (section: StorageNode[]) =>
+    selection && {
+      selectionMode: "multiple" as const,
+      selectionBehavior: "toggle" as const,
+      selectedKeys: section.filter((n) => selection.ids.has(n.id)).map((n) => n.id),
+      onSelectionChange: (keys: Selection) => selection.changeIn(section, keys),
+    };
   return (
-    <div className="flex w-full flex-col pb-6">
+    <div className="flex w-full flex-col pb-6" {...selection?.start}>
       {(folderCount > 0 || folderGap !== null) && (
         <Section section="folders" label="Folders" count={folderCount} first>
           {(view) => (
@@ -79,6 +90,8 @@ export const FileSections = memo(function FileSections(props: FileSectionsProps)
               peek={props.peek}
               drag={props.drag}
               gap={folderGap}
+              picking={picking}
+              selection={picking ? pickIn(folders) : undefined}
             />
           )}
         </Section>
@@ -96,15 +109,20 @@ export const FileSections = memo(function FileSections(props: FileSectionsProps)
               menu={props.menu}
               drag={props.drag}
               gap={fileGap}
-              selection={{
-                selectionMode: "single",
-                selectionBehavior: "replace",
-                selectedKeys: open.id ? [open.id] : [],
-                onSelectionChange: (keys: Selection) => {
-                  const [id] = keys === "all" ? [] : [...keys];
-                  open.onChange(id === undefined ? null : String(id));
-                },
-              }}
+              picking={picking}
+              selection={
+                picking
+                  ? pickIn(files)
+                  : {
+                      selectionMode: "single",
+                      selectionBehavior: "replace",
+                      selectedKeys: open.id ? [open.id] : [],
+                      onSelectionChange: (keys: Selection) => {
+                        const [id] = keys === "all" ? [] : [...keys];
+                        open.onChange(id === undefined ? null : String(id));
+                      },
+                    }
+              }
             />
           )}
         </Section>
@@ -195,12 +213,14 @@ function Items(props: {
   href: (node: StorageNode) => string;
   fileUrl: (node: StorageNode) => string;
   menu: (node: StorageNode) => SettingsRowMenuItem[];
-  selection?: SelectionProps;
+  selection?: SelectionProps | undefined;
   peek?: boolean | undefined;
   drag?: NodeDrag | undefined;
   gap?: number | null;
+  picking?: boolean;
 }) {
-  const href = (node: StorageNode) => (node.kind === "folder" ? props.href(node) : undefined);
+  const href = (node: StorageNode) =>
+    node.kind === "folder" && !props.picking ? props.href(node) : undefined;
   const drafts = props.drafts?.list ?? [];
   const handlers = props.drafts?.handlers;
   const listed: (StorageNode | GapItem)[] = props.nodes;
@@ -226,7 +246,7 @@ function Items(props: {
     items,
     disabledKeys: [GAP_KEY],
     shouldSelectOnPressUp: true,
-    dependencies: [named],
+    dependencies: [named, props.picking],
     ...props.selection,
     ...(typing ? { keyboardNavigationBehavior: "tab" as const } : {}),
   };

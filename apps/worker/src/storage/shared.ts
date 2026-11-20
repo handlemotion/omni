@@ -24,6 +24,8 @@ import {
   wireView,
   type SharedAccess,
 } from "./http.ts";
+import { thumbnail } from "./thumbnails.ts";
+import { zip } from "./zip.ts";
 
 const through: (root: SharedAccess["root"], door: MemberStorage | SharedStorage) => SharedAccess = (
   root,
@@ -34,6 +36,7 @@ const through: (root: SharedAccess["root"], door: MemberStorage | SharedStorage)
     node: door.node,
     list: (parentId, page) => door.list({ parentId }, page),
     file: door.file,
+    archive: door.archive,
     writer: door,
   };
 };
@@ -63,6 +66,7 @@ const openShared: (c: Context<AppEnv>, shareId: string) => Promise<SharedAccess 
     node: (nodeId) => link.node(nodeId),
     list: (parentId, page) => link.list({ parentId, ...page }),
     file: link.file,
+    archive: link.archive,
     writer: null,
   };
 };
@@ -116,5 +120,14 @@ export const storageShared = new Hono<AppEnv>()
   .get("/:shareId/files/:id/content", async (c) =>
     download(c, await c.var.shared!.file(c.req.param("id"))),
   )
+
+  .get("/:shareId/files/:id/thumbnail", async (c) =>
+    thumbnail(c, await c.var.shared!.file(c.req.param("id"))),
+  )
+
+  .get("/:shareId/zip", (c) => {
+    const shared = c.var.shared!;
+    return zip(c, shared.archive, shared.root.node.id);
+  })
 
   .route("/:shareId", storageChanges);

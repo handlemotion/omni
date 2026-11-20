@@ -154,3 +154,49 @@ export async function storageNodeRemoved(client: QueryClient, id: string) {
     showing.map(([key]) => key),
   );
 }
+
+/** What `storage.changed` said: a drive, and the folders whose listing changed (all, absent). */
+export interface StorageDriveChange {
+  space: string;
+  parentIds?: (string | null)[] | undefined;
+}
+
+const LIVE_BRANCHES = new Set(["trash", "search", "usage", "icons", "shared-with-me", "node"]);
+
+const spaceOf = (key: QueryKey, data: ListData | undefined) => {
+  const place = placeIn(key);
+  return "space" in place ? place.space : data?.pages[0]?.folder?.node.space;
+};
+
+const staleFor = (change: StorageDriveChange) => {
+  const named = change.parentIds && new Set(change.parentIds);
+  return (key: QueryKey, data: ListData | undefined) => {
+    const space = spaceOf(key, data);
+    if (space !== undefined && space !== change.space) return false;
+    if (!named) return true;
+    const place = placeIn(key);
+    if ("space" in place) return named.has(null);
+    return (
+      named.has(place.parentId) || !!data?.pages[0]?.folder?.path.some((step) => named.has(step.id))
+    );
+  };
+};
+
+/**
+ * Someone changed a drive (`storage.changed`): the listings it names, and those under a folder it
+ * names, are fetched again, and Trash, Search and usage with them. Other listings are kept, so a
+ * busy drive does not refetch every folder ever opened.
+ */
+export function storageDrivesChanged(client: QueryClient, changes: StorageDriveChange[]) {
+  const checks = changes.map(staleFor);
+  const stale = lists(client).flatMap(([key, data]) =>
+    checks.some((check) => check(key, data)) ? [key] : [],
+  );
+  return Promise.all([
+    ...stale.map((queryKey) => client.invalidateQueries({ queryKey, exact: true })),
+    client.invalidateQueries({
+      queryKey: keys.storage(),
+      predicate: (query) => LIVE_BRANCHES.has(String(query.queryKey[BRANCH])),
+    }),
+  ]);
+}

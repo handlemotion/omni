@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import { SkeletonBox } from "skullet/react";
 import {
   SettingsRowMenu,
   type SettingsRowMenuItem,
 } from "@/components/settings/kit/settings-row-menu";
 import { GridListItem } from "@/components/ui/grid-list";
-import { useThumbnail } from "@/hooks/use-storage-preview.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { FileGlyph } from "./file-glyph.tsx";
@@ -13,6 +12,7 @@ import { FolderArt } from "./folder-art.tsx";
 import { CARD_DROP_TARGET, LIFTED, useSurfaceDrag, type NodeDrag } from "./node-drag.tsx";
 import { NodeName, type ItemName } from "./name-field.tsx";
 import { PdfStack } from "./pdf-stack.tsx";
+import { cardThumbnailSize, hasThumbnail, ThumbnailImage } from "./thumbnail-image.tsx";
 
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
 /**
@@ -52,14 +52,14 @@ export function FileCard(props: {
       id={node.id}
       href={props.href}
       textValue={node.name}
-      className={`flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none ${CARD_DROP_TARGET} ${LIFTED}`}
+      className={`flex-col items-stretch gap-2 rounded-xl p-1.5 *:*:data-[slot=control]:absolute *:*:data-[slot=control]:start-3 *:*:data-[slot=control]:top-3 *:*:data-[slot=control]:z-10 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none ${CARD_DROP_TARGET} ${LIFTED}`}
     >
       {node.kind === "folder" ? (
         <FolderArt node={node} peek={props.peek} fileUrl={props.fileUrl} />
       ) : (
         <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
-          {type?.preview === "image" && type.raster ? (
-            <Thumbnail node={node} url={props.url} raster={type.raster} />
+          {hasThumbnail(node) ? (
+            <Thumbnail node={node} url={props.url} />
           ) : type?.preview === "pdf" ? (
             <PdfStack node={node} url={props.url} />
           ) : (
@@ -80,29 +80,16 @@ export function FileCard(props: {
   );
 }
 
-function Thumbnail(props: { node: StorageNode; url: string; raster: string }) {
-  const anchor = useRef<HTMLSpanElement>(null);
-  const near = useSeen(anchor);
-  const thumb = useThumbnail(
-    { url: props.url, version: props.node.updatedAt, size: props.node.size },
-    { raster: props.raster },
-    near,
-  );
-  const [shown, setShown] = useState(false);
+function Thumbnail(props: { node: StorageNode; url: string }) {
   return (
     <>
-      <span ref={anchor} aria-hidden className="absolute inset-0" />
-      {!shown && <FileGlyph kind="image" className="size-8 text-muted-foreground" />}
-      {thumb.data && (
-        <img
-          src={thumb.data.url}
-          alt=""
-          decoding="async"
-          draggable={false}
-          onLoad={() => setShown(true)}
-          className={`absolute inset-0 size-full object-cover transition-opacity duration-200 ease-out motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`}
-        />
-      )}
+      <FileGlyph kind="image" className="size-8 text-muted-foreground" />
+      <ThumbnailImage
+        node={props.node}
+        url={props.url}
+        size={cardThumbnailSize()}
+        className="absolute inset-0 size-full object-cover"
+      />
     </>
   );
 }

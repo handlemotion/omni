@@ -141,5 +141,3 @@ export const IMAGE_PREVIEW_MAX_BYTES = 40 * 1024 * 1024;
 export const TEXT_PREVIEW_BYTES = 512 * 1024;
 /** XLSX is a zip read whole to preview; over this, its tile and Download stand in. */
 export const SHEET_PREVIEW_MAX_BYTES = 20 * 1024 * 1024;
-/** Grid thumbnails come from originals up to this size. */
-export const THUMBNAIL_MAX_BYTES = 20 * 1024 * 1024;

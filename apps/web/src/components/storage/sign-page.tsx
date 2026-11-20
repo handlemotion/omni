@@ -15,6 +15,7 @@ import {
 } from "@/lib/storage-signing.ts";
 import { StageLoading } from "./preview/shared.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
+import { downloadFile } from "@/lib/download.ts";
 
 const PdfPreview = lazy(() => import("./preview/pdf-preview.tsx"));
 
@@ -28,7 +29,7 @@ export function SignPage({ requestId }: { requestId: string }) {
     <div className="flex min-h-0 flex-1 max-md:flex-col">
       <div className="flex min-h-0 flex-1 flex-col max-md:min-h-[60svh]">
         <Suspense fallback={<StageLoading label="Loading the document" />}>
-          <PdfPreview url={documentUrl} onDownload={() => window.location.assign(documentUrl)} />
+          <PdfPreview url={documentUrl} onDownload={() => downloadFile(documentUrl)} />
         </Suspense>
       </div>
       <aside className="flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-s p-5 max-md:w-full max-md:border-s-0 max-md:border-t">
@@ -66,7 +67,7 @@ function Action(props: {
   if (item.status === "voided") return <Badge intent="secondary">Voided</Badge>;
   if (item.sealed) {
     return (
-      <Button intent="outline" onPress={() => window.location.assign(signingSealedUrl(requestId))}>
+      <Button intent="outline" onPress={() => downloadFile(signingSealedUrl(requestId))}>
         <IconDownload data-slot="icon" />
         Download signed copy
       </Button>

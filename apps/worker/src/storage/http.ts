@@ -105,8 +105,13 @@ export async function download(c: Context<AppEnv>, found: FileResult) {
   if (found.status !== "ok") return refused(c, found.status);
   const response = await fileResponse(
     c.env.STORAGE_BUCKET,
-    { name: found.file.name, size: found.file.size, r2Key: found.r2Key },
-    { range: c.req.header("range"), ifRange: c.req.header("if-range") },
+    {
+      name: found.file.name,
+      size: found.file.size,
+      r2Key: found.r2Key,
+      mimeType: found.file.mimeType,
+    },
+    c.req.raw.headers,
   );
   if (response) return response;
   c.var.log.error("storage.object_missing", { orgId: found.file.orgId, nodeId: found.file.id });

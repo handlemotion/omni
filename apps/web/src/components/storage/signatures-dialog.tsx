@@ -22,6 +22,7 @@ import type { StorageNode } from "@/lib/storage.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import type { StorageSignatureRequest } from "@/lib/storage-signing.ts";
 import { storageErrorToast } from "./storage-errors.ts";
+import { downloadFile } from "@/lib/download.ts";
 
 const WHEN = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -186,7 +187,7 @@ function RequestGroup({ request }: { request: StorageSignatureRequest }) {
           <Button
             intent="outline"
             size="sm"
-            onPress={() => window.location.assign(storageFileUrl(request.sealedNodeId!))}
+            onPress={() => downloadFile(storageFileUrl(request.sealedNodeId!))}
           >
             <IconDownload data-slot="icon" />
             Signed copy

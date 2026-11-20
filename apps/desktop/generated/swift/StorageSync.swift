@@ -1403,15 +1403,18 @@ public extension StorageSyncChange {
 
 // MARK: - StorageChangedEvent
 public struct StorageChangedEvent: Codable, Equatable {
+    public let parentIds: [String?]?
     public let space: Space
     public let type: TypeEnum
 
     public enum CodingKeys: String, CodingKey {
+        case parentIds = "parentIds"
         case space = "space"
         case type = "type"
     }
 
-    public init(space: Space, type: TypeEnum) {
+    public init(parentIds: [String?]?, space: Space, type: TypeEnum) {
+        self.parentIds = parentIds
         self.space = space
         self.type = type
     }
@@ -1436,10 +1439,12 @@ public extension StorageChangedEvent {
     }
 
     func with(
+        parentIds: [String?]?? = nil,
         space: Space? = nil,
         type: TypeEnum? = nil
     ) -> StorageChangedEvent {
         return StorageChangedEvent(
+            parentIds: parentIds ?? self.parentIds,
             space: space ?? self.space,
             type: type ?? self.type
         )

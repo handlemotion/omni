@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, type KeyboardEvent, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { ListFailed } from "@/components/inbox/thread-list";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
 import { FileTrigger } from "@/components/ui/file-trigger";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
+import type { NodeSelection } from "@/hooks/use-node-selection.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { FileSections, FileSectionsBones, type Drafts } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
@@ -25,6 +26,8 @@ export function FolderBody(
     open: OpenFile;
     drafts: Drafts;
     rename: InlineRename;
+    selection: NodeSelection;
+    onKeyDown: (event: KeyboardEvent) => void;
   },
 ) {
   const { source } = props;
@@ -42,7 +45,7 @@ export function FolderBody(
         if (drag.here) void into(drag.here, event.items);
       }}
     >
-      <div ref={room} className="flex min-h-full flex-col">
+      <div ref={room} className="flex min-h-full flex-col" onKeyDownCapture={props.onKeyDown}>
         <Content {...props} drag={drag} />
       </div>
     </DropZone>
@@ -101,6 +104,7 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
         menu={props.menu}
         drafts={props.drafts}
         rename={props.rename}
+        selection={props.selection}
         drag={props.drag}
         loadMore={list.hasNextPage && !list.isFetchingNextPage ? fetchNext(list) : undefined}
       />

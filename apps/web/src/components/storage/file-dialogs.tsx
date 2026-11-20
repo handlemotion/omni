@@ -21,6 +21,7 @@ import {
   useStorageList,
 } from "@/hooks/use-storage.ts";
 import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
+import { eachAtMost } from "@/lib/each-at-most.ts";
 import { storageErrorToast } from "./storage-errors.ts";
 import { SPACE_LABEL } from "./storage-nav.tsx";
 
@@ -78,7 +79,7 @@ const SPACES = ["personal", "shared"] as const;
 
 type Crumb = { id: string; name: string; go: () => void };
 
-function useMoveBrowser(scope: MoveScope, node: StorageNode) {
+function useMoveBrowser(scope: MoveScope, moving: StorageNode[]) {
   const link = scope.kind === "link" ? scope : null;
   const hasShared = useHasSharedFiles();
   const [at, setAt] = useState<Browse>({
@@ -89,11 +90,15 @@ function useMoveBrowser(scope: MoveScope, node: StorageNode) {
   const place = placeAt(at, folder);
   const member = useStorageList(place ?? { space: "personal" }, { enabled: !link && !!place });
   const shared = useStorageLink(...linkArgs(link, folder));
+  const movingIds = new Set(moving.map((n) => n.id));
   const folders = (link ? shared.nodes : member.nodes).filter(
-    (n) => n.kind === "folder" && n.id !== node.id,
+    (n) => n.kind === "folder" && !movingIds.has(n.id),
   );
   const here =
-    !!at && (folder?.id ?? null) === node.parentId && (!!link || at.space === node.space);
+    !!at &&
+    moving.every(
+      (node) => (folder?.id ?? null) === node.parentId && (!!link || at.space === node.space),
+    );
   const crumbs = crumbsFor({ link, at, setAt, hasShared });
   const { rows, enter } = rowsAt(at, folders, setAt);
   const listing = link ? shared : member;
@@ -172,16 +177,21 @@ const placeAt: (at: Browse, folder: { id: string } | undefined) => StoragePlace 
   return { space: at.space ?? "personal" };
 };
 
-/** Picks the folder to move `node` into, one level at a time, then Move here. */
-export function MoveDialog(props: { node: StorageNode; scope: MoveScope; onClose: () => void }) {
-  const move = useChangeNode();
-  const browse = useMoveBrowser(props.scope, props.node);
+/** Picks the folder to move `nodes` into, one level at a time, then Move here. */
+export function MoveDialog(props: { nodes: StorageNode[]; scope: MoveScope; onClose: () => void }) {
+  const move = useMoveAll();
+  const browse = useMoveBrowser(props.scope, props.nodes);
+  const [only] = props.nodes;
   const { place, shareId } = browse;
   const crumbs = browse.crumbs;
   return (
     <Dialog size="sm" isOpen onOpenChange={(open) => !open && !move.isPending && props.onClose()}>
       <DialogHeader>
-        <DialogTitle className="truncate">Move “{props.node.name}”</DialogTitle>
+        <DialogTitle className="truncate">
+          {props.nodes.length === 1 && only
+            ? `Move “${only.name}”`
+            : `Move ${props.nodes.length} items`}
+        </DialogTitle>
       </DialogHeader>
       <DialogBody className="gap-2">
         <Breadcrumbs aria-label="Folder" className="min-h-5 flex-wrap gap-y-1 px-2">
@@ -219,20 +229,33 @@ export function MoveDialog(props: { node: StorageNode; scope: MoveScope; onClose
         <Button
           isDisabled={!place || browse.here}
           isPending={move.isPending}
-          onPress={() =>
-            place &&
-            move.mutate(
-              { id: props.node.id, place, ...(shareId ? { shareId } : {}) },
-              {
-                onSuccess: props.onClose,
-                onError: (error) => storageErrorToast(error, "It was not moved"),
-              },
-            )
-          }
+          onPress={() => place && void move.run(props.nodes, place, shareId).then(props.onClose)}
         >
           Move here
         </Button>
       </DialogFooter>
     </Dialog>
   );
+}
+
+const BULK_AT_ONCE = 6;
+
+function useMoveAll() {
+  const change = useChangeNode();
+  const [isPending, setPending] = useState(false);
+  const run = async (nodes: StorageNode[], place: StoragePlace, shareId: string | undefined) => {
+    setPending(true);
+    const failed = await eachAtMost(nodes, BULK_AT_ONCE, (node) =>
+      change.mutateAsync({ id: node.id, place, ...(shareId ? { shareId } : {}) }),
+    );
+    setPending(false);
+    const [first] = failed;
+    if (first) storageErrorToast(first.error, bulkFailure("moved", failed.length, nodes.length));
+  };
+  return { run, isPending };
+}
+
+/** "It was not moved", or "3 of 10 items were not moved". */
+export function bulkFailure(verb: string, failed: number, of: number) {
+  return of === 1 ? `It was not ${verb}` : `${failed} of ${of} items were not ${verb}`;
 }

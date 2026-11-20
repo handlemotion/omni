@@ -1,17 +1,29 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useFolderDrafts } from "@/hooks/use-folder-drafts.ts";
 import { useInlineRename, type RenameAt } from "@/hooks/use-inline-rename.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
+import { useNodeSelection, type NodeSelection } from "@/hooks/use-node-selection.ts";
 import { useUploads } from "@/hooks/use-storage.ts";
+import { storageNodeQuery } from "@/lib/storage-comments.ts";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
 import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderIconDialog } from "./folder-icons.tsx";
 import { FolderBody, HeaderActions } from "./folder-body.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
+import { SelectionBar, useBulkTrash } from "./selection-bar.tsx";
 import { ShareDialog } from "./share-dialog.tsx";
 import { SignaturesDialog } from "./signatures-dialog.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
@@ -49,6 +61,8 @@ export interface FolderSource {
   download: (node: StorageNode) => void;
   /** The rows' actions, given the way to open this page's dialogs. */
   menu: (node: StorageNode, open: (dialog: FolderDialog) => void) => SettingsRowMenuItem[];
+  /** Whether Move to trash is offered for it, alone or in a selection. */
+  canTrash: (node: StorageNode) => boolean;
   move: MoveScope;
   empty: { title: string; description?: string };
 }
@@ -75,7 +89,10 @@ export function FolderView(props: {
     upload(files, { place: source.place, shareId: source.shareId }, (name, error) =>
       storageErrorToast(error, `“${name}” was not uploaded`),
     );
-  const open = useOpenFile(source.list);
+  const open = useOpenFile(source.list, source.shareId ? undefined : source.place);
+  const selection = useNodeSelection(source.list.nodes, placeKeyOf(source), open.id);
+  const [movingSelection, setMovingSelection] = useState(false);
+  const selectionKeys = useSelectionKeys(selection, source);
   const comments = useCommentsPanel(source.list);
   const folders = useFolderDrafts({
     place: source.place,
@@ -131,11 +148,19 @@ export function FolderView(props: {
           title={props.title}
           sidebar={props.sidebar}
           actions={
-            <HeaderActions canWrite={source.canWrite} onNewFolder={folders.start} onFiles={send} />
+            <FolderActions
+              selection={selection}
+              source={source}
+              onNewFolder={folders.start}
+              onFiles={send}
+              onMove={() => setMovingSelection(true)}
+            />
           }
         >
           <FolderBody
             source={source}
+            selection={selection}
+            onKeyDown={selectionKeys}
             menu={menu}
             open={open}
             drafts={drafts}
@@ -202,6 +227,12 @@ export function FolderView(props: {
         </div>
       )}
       <FolderDialogs dialog={dialog} source={source} onClose={close} />
+      <MoveSelection
+        open={movingSelection}
+        selection={selection}
+        scope={source.move}
+        onClose={() => setMovingSelection(false)}
+      />
     </div>
   );
 }
@@ -212,7 +243,7 @@ function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onCl
   const { node } = dialog;
   switch (dialog.dialog) {
     case "move":
-      return <MoveDialog node={node} scope={source.move} onClose={onClose} />;
+      return <MoveDialog nodes={[node]} scope={source.move} onClose={onClose} />;
     case "share":
       return <ShareDialog node={node} onClose={onClose} />;
     case "versions":
@@ -236,10 +267,14 @@ export interface OpenFile {
   select: (id: string | null, replace?: boolean) => void;
 }
 
-const useOpenFile: (list: FolderSource["list"]) => OpenFile = (list) => {
+const useOpenFile: (list: FolderSource["list"], place: StoragePlace | undefined) => OpenFile = (
+  list,
+  place,
+) => {
   const { nodes } = list;
   const { file } = useSearch({ strict: false }) as { file?: string };
   useLoadUntilFound(list, file);
+  const direct = useDeepLinkedFile(nodes, file, place);
   const navigate = useNavigate();
   const select = useCallback(
     (id: string | null, replace = false) =>
@@ -259,13 +294,29 @@ const useOpenFile: (list: FolderSource["list"]) => OpenFile = (list) => {
     const at = file ? files.findIndex((n) => n.id === file) : -1;
     return {
       id: file,
-      node: files[at],
+      node: files[at] ?? direct,
       previous: at > 0 ? files[at - 1] : undefined,
       next: at >= 0 ? files[at + 1] : undefined,
       select,
     };
-  }, [nodes, file, select]);
+  }, [nodes, file, select, direct]);
 };
+
+function useDeepLinkedFile(
+  nodes: StorageNode[],
+  id: string | undefined,
+  place: StoragePlace | undefined,
+) {
+  const listed = !id || nodes.some((n) => n.id === id);
+  const read = useQuery({ ...storageNodeQuery(id ?? ""), enabled: !listed && !!place });
+  const node = read.data?.node;
+  if (listed || !node || !place || node.kind !== "file") return undefined;
+  const here =
+    "parentId" in place
+      ? node.parentId === place.parentId
+      : node.parentId === null && node.space === place.space;
+  return here ? node : undefined;
+}
 
 function useLoadUntilFound(list: FolderSource["list"], id: string | undefined) {
   const { nodes, hasNextPage, isFetchingNextPage, fetchNextPage } = list;
@@ -302,5 +353,79 @@ function isControl(target: EventTarget) {
     !!target.closest(
       "input, textarea, select, [contenteditable=true], video, audio, [role=menu], [role=slider]",
     )
+  );
+}
+
+const placeKeyOf = (source: FolderSource) =>
+  `${source.shareId ?? ""}:${"parentId" in source.place ? source.place.parentId : source.place.space}`;
+
+function useSelectionKeys(selection: NodeSelection, source: FolderSource) {
+  const trash = useBulkTrash(source.shareId);
+  return (event: KeyboardEvent) => {
+    if (event.defaultPrevented || isControl(event.target)) return;
+    const mod = event.metaKey || event.ctrlKey;
+    if (mod && event.key.toLowerCase() === "a") {
+      event.stopPropagation();
+      selection.selectAll();
+    } else if (event.key === "Escape" && selection.active) {
+      selection.clear();
+    } else if (
+      selection.active &&
+      ((mod && event.key === "Backspace") || event.key === "Delete") &&
+      selection.nodes.every(source.canTrash)
+    ) {
+      void trash.run(selection.nodes).then(selection.clear);
+    } else {
+      return;
+    }
+    event.preventDefault();
+  };
+}
+
+function FolderActions(props: {
+  selection: NodeSelection;
+  source: FolderSource;
+  onNewFolder: () => void;
+  onFiles: (files: File[]) => void;
+  onMove: () => void;
+}) {
+  const { selection, source } = props;
+  if (!selection.active) {
+    return (
+      <HeaderActions
+        canWrite={source.canWrite}
+        onNewFolder={props.onNewFolder}
+        onFiles={props.onFiles}
+      />
+    );
+  }
+  return (
+    <SelectionBar
+      selection={selection}
+      shareId={source.shareId}
+      canMove={source.canWrite}
+      canTrash={source.canTrash}
+      onMove={props.onMove}
+    />
+  );
+}
+
+function MoveSelection(props: {
+  open: boolean;
+  selection: NodeSelection;
+  scope: MoveScope;
+  onClose: () => void;
+}) {
+  const { selection } = props;
+  if (!props.open || !selection.active) return null;
+  return (
+    <MoveDialog
+      nodes={selection.nodes}
+      scope={props.scope}
+      onClose={() => {
+        props.onClose();
+        selection.clear();
+      }}
+    />
   );
 }

@@ -15,6 +15,7 @@ import { useRestoreVersion, useStorageVersions, useUploads } from "@/hooks/use-s
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { storageVersionUrl, type StorageVersions } from "@/lib/storage-versions.ts";
 import { storageErrorToast } from "./storage-errors.ts";
+import { downloadFile } from "@/lib/download.ts";
 
 const WHEN = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -83,7 +84,7 @@ export function VersionsDialog(props: {
                           icon: IconDownload,
                           label: "Download",
                           onAction: () =>
-                            window.location.assign(storageVersionUrl(node.id, version.id, shareId)),
+                            downloadFile(storageVersionUrl(node.id, version.id, shareId)),
                         },
                         {
                           icon: IconRestore,

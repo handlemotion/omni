@@ -124,6 +124,9 @@
       "preview_bucket_name": "omni-desktop-dev",
     },
   ],
+  // Storage thumbnails (ADR 0053): images are resized and re-encoded as WebP by Cloudflare
+  // Images, part of any Cloudflare account; `wrangler dev` and the e2e suites resize locally.
+  "images": { "binding": "IMAGES" },
   // AI jobs: the Worker produces them on new mail and consumes them itself. Jobs that use up
   // their retries go to the DLQ, whose consumer (also this Worker) records them in
   // `dead_letters`. `max_retries` must match AI_QUEUE_MAX_RETRIES in src/queue.ts.

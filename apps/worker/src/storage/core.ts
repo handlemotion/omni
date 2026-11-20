@@ -1,4 +1,9 @@
-import { STORAGE_PART_BYTES, type StorageNode, type StorageUpload } from "@omni/contracts";
+import {
+  STORAGE_PART_BYTES,
+  STORAGE_THUMBNAIL_SIZES,
+  type StorageNode,
+  type StorageUpload,
+} from "@omni/contracts";
 import {
   storageOverageOf,
   workspaceKind,
@@ -123,10 +128,22 @@ export function wireUpload(upload: UploadRow) {
 }
 
 /**
- * Deletes objects whose rows are already gone, 1000 keys a call. A failure is logged with the
+ * Where a file's thumbnail of `size` is kept (`thumbnails.ts`): beside its object, under the
+ * workspace's prefix, so a new version (a new object) gets new thumbnails and the workspace sweep
+ * takes them with it.
+ */
+export const thumbnailKey = (r2Key: string, size: number) => `${r2Key}.thumbnail-${size}.webp`;
+
+/**
+ * Deletes objects whose rows are already gone, with any thumbnails drawn from them, 1000 keys a
+ * call. A failure is logged with the
  * count and not thrown: the rows are the truth, and the caller's work is done either way.
  */
-export async function deleteStorageObjects(bucket: R2Bucket, keys: string[], log: Logger) {
+export async function deleteStorageObjects(bucket: R2Bucket, objects: string[], log: Logger) {
+  const keys = objects.flatMap((key) => [
+    key,
+    ...STORAGE_THUMBNAIL_SIZES.map((size) => thumbnailKey(key, size)),
+  ]);
   for (let at = 0; at < keys.length; at += 1000) {
     const batch = keys.slice(at, at + 1000);
     await bucket.delete(batch).catch((error: unknown) => {
@@ -184,35 +201,89 @@ export function attachmentDisposition(name: string) {
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
+const PLAYABLE_TYPES = new Set([
+  "audio/aac",
+  "audio/flac",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/ogg",
+  "audio/wav",
+  "audio/webm",
+  "audio/x-m4a",
+  "video/mp4",
+  "video/ogg",
+  "video/quicktime",
+  "video/webm",
+  "video/x-m4v",
+]);
+
+/** The type a file leaves with: its own for playable media, `application/octet-stream` else. */
+export function servedType(mimeType: string | null) {
+  const type = mimeType?.split(";")[0]!.trim().toLowerCase();
+  return type && PLAYABLE_TYPES.has(type) ? type : "application/octet-stream";
+}
+
+const CONDITIONS = ["if-match", "if-none-match", "if-modified-since", "if-unmodified-since"];
+
+/** The request's preconditions, for `R2Bucket.get`'s `onlyIf`. */
+export function conditionsOf(request: Headers) {
+  const conditions = new Headers();
+  for (const name of CONDITIONS) {
+    const value = request.get(name);
+    if (value !== null) conditions.set(name, value);
+  }
+  return conditions;
+}
+
 /**
- * Streams a file out of the bucket, honouring one `Range`. Whatever was uploaded, it leaves as
- * `application/octet-stream`, as an attachment, with `nosniff`: nothing a person uploaded ever
- * renders on our origin. Null when the object is not in the bucket.
+ * What an object R2 held back answers: a failed `If-Match` or `If-Unmodified-Since` is `412`,
+ * a met `If-None-Match` or `If-Modified-Since` (nothing changed) is `304`.
+ */
+export const unchangedStatus = (conditions: Headers) =>
+  conditions.has("if-none-match") || conditions.has("if-modified-since") ? 304 : 412;
+
+/**
+ * Streams a file out of the bucket, honouring one `Range`, `If-Range` and the conditional
+ * headers (`304` when the client's copy is current). It leaves as an attachment with `nosniff`,
+ * as `application/octet-stream` unless it is playable audio or video (`servedType`): nothing a
+ * person uploaded ever renders on our origin. The browser may keep it, but revalidates before
+ * each use (`no-cache`). Null when the object is not in the bucket.
  */
 export const fileResponse: (
   bucket: R2Bucket,
-  file: { name: string; size: number; r2Key: string },
-  request: { range?: string; ifRange?: string },
+  file: { name: string; size: number; r2Key: string; mimeType: string | null },
+  request: Headers,
 ) => Promise<Response | null> = async (bucket, file, request) => {
   const headers = new Headers({
-    "content-type": "application/octet-stream",
+    "content-type": servedType(file.mimeType),
     "content-disposition": attachmentDisposition(file.name),
     "x-content-type-options": "nosniff",
     "accept-ranges": "bytes",
-    "cache-control": "private, no-store",
+    "cache-control": "private, no-cache",
   });
-  let range = parseRange(request.range, file.size);
-  if (range && request.ifRange !== undefined) {
-    const head = await bucket.head(file.r2Key);
-    if (head?.httpEtag !== request.ifRange) range = null;
-  }
+  let range = parseRange(request.get("range") ?? undefined, file.size);
   if (range === "unsatisfiable") {
     headers.set("content-range", `bytes */${file.size}`);
     return new Response(null, { status: 416, headers });
   }
-  const object = await bucket.get(file.r2Key, range ? { range } : undefined);
+  const conditions = conditionsOf(request);
+  const onlyIf = new Headers(conditions);
+  const ifRange = request.get("if-range");
+  if (range && ifRange !== null && !/^(W\/)?"/.test(ifRange)) range = null;
+  const guarded = range !== null && ifRange !== null && !onlyIf.has("if-match");
+  if (guarded) onlyIf.set("if-match", ifRange);
+  let object = await bucket.get(file.r2Key, { onlyIf, ...(range ? { range } : {}) });
+  if (guarded && object && !("body" in object)) {
+    onlyIf.delete("if-match");
+    range = null;
+    object = await bucket.get(file.r2Key, { onlyIf });
+  }
   if (!object) return null;
   headers.set("etag", object.httpEtag);
+  headers.set("last-modified", object.uploaded.toUTCString());
+  if (!("body" in object)) {
+    return new Response(null, { status: unchangedStatus(conditions), headers });
+  }
   headers.set("content-length", String(range ? range.length : object.size));
   if (!range) return new Response(object.body, { headers });
   const last = range.offset + range.length - 1;

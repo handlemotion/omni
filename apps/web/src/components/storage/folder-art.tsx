@@ -1,11 +1,12 @@
 import { useRef, useState, type CSSProperties } from "react";
 import { IconFolderFilled, IconFolderOpenFilled } from "@/components/icons/central";
 import { useStorageList } from "@/hooks/use-storage.ts";
-import { useThumbnail } from "@/hooks/use-storage-preview.ts";
+import { usePdfPages } from "@/hooks/use-storage-preview.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { useSeen } from "./file-card.tsx";
 import { FileGlyph } from "./file-glyph.tsx";
+import { hasThumbnail, ThumbnailImage } from "./thumbnail-image.tsx";
 
 type Spot = readonly [left: number, top: number, width: number, height: number];
 
@@ -85,19 +86,23 @@ function Card(props: { node: StorageNode; url: string; style: CSSProperties }) {
       ) : (
         <IconFolderFilled className="size-6 text-primary" />
       )}
-      {type?.preview === "image" && type.raster ? (
-        <CardImage node={node} url={props.url} of={{ raster: type.raster }} />
+      {hasThumbnail(node) ? (
+        <ThumbnailImage
+          node={node}
+          url={props.url}
+          size={256}
+          className="absolute inset-0 size-full object-cover"
+        />
       ) : type?.preview === "pdf" ? (
-        <CardImage node={node} url={props.url} of="pdf" />
+        <PdfImage node={node} url={props.url} />
       ) : null}
     </div>
   );
 }
 
-function CardImage(props: { node: StorageNode; url: string; of: { raster: string } | "pdf" }) {
-  const thumb = useThumbnail(
+function PdfImage(props: { node: StorageNode; url: string }) {
+  const thumb = usePdfPages(
     { url: props.url, version: props.node.updatedAt, size: props.node.size },
-    props.of,
     true,
   );
   const [shown, setShown] = useState(false);

@@ -244,7 +244,7 @@ async function listen(token: string, orgId: string) {
   const socket = new WebSocket(url, {
     headers: { authorization: `Bearer ${token}` },
   } as unknown as string[]);
-  const received: { type: string; space: string }[] = [];
+  const received: { type: string; space: string; parentIds?: (string | null)[] }[] = [];
   const waiters = new Set<() => void>();
   socket.addEventListener("message", (e) => {
     received.push(JSON.parse(String(e.data)));
@@ -289,13 +289,43 @@ test("a change pings the drives it touched, on the sockets of those who sync the
     forAna.push(...(await anaHears.until("shared")));
   expect(new Set(forAna.map((event) => event.space))).toEqual(new Set(["personal", "shared"]));
   expect(forAna.every((event) => event.type === "storage.changed")).toBe(true);
-  expect(await boHears.until("shared")).toEqual([{ type: "storage.changed", space: "shared" }]);
+  expect(await boHears.until("shared")).toEqual([
+    { type: "storage.changed", space: "shared", parentIds: [null] },
+  ]);
 
   expect(
     (await sync(boToken, "PATCH", `/${acme.id}/nodes/${bos.id}`, { name: "b.txt" })).status,
   ).toBe(200);
-  expect(await boHears.until("personal")).toEqual([{ type: "storage.changed", space: "personal" }]);
+  expect(await boHears.until("personal")).toEqual([
+    { type: "storage.changed", space: "personal", parentIds: [null] },
+  ]);
   expect(anaHears.received).toEqual([]);
+
+  anaHears.socket.close();
+  boHears.socket.close();
+});
+
+test("a move names the folders it left and entered, so apps refetch only those", async () => {
+  const acme = await stack.company(`folders-${randomUUID().slice(0, 6)}`);
+  const ana = await stack.member(acme.id);
+  const bo = await stack.member(acme.id);
+  const token = await connect(ana);
+  const folder = async (name: string) =>
+    (await stack.api(ana.jar, "POST", "/folders", { name, space: "personal" })).body.node
+      .id as string;
+  const [fromId, intoId] = [await folder("From"), await folder("Into")];
+  const file = await stack.upload(ana.jar, { parentId: fromId }, "plan.txt", bytes("plan"));
+  const [anaHears, boHears] = await Promise.all([
+    listen(token, acme.id),
+    listen(await connect(bo), acme.id),
+  ]);
+
+  const moved = await sync(token, "PATCH", `/${acme.id}/nodes/${file.id}`, { parentId: intoId });
+  expect(moved.status).toBe(200);
+  const [event, ...rest] = await anaHears.until("personal");
+  expect(rest).toEqual([]);
+  expect(new Set(event?.parentIds)).toEqual(new Set([fromId, intoId]));
+  expect(boHears.received).toEqual([]);
 
   anaHears.socket.close();
   boHears.socket.close();
@@ -318,7 +348,9 @@ test("a new version and a restore reach the provider as new bytes", async () => 
   const sent = await stack.putPart(ana.jar, uploadId, 1, body);
   await sent.body?.cancel();
   expect((await stack.api(ana.jar, "POST", `/uploads/${uploadId}/complete`)).status).toBe(200);
-  expect(await hears.until("personal")).toEqual([{ type: "storage.changed", space: "personal" }]);
+  expect(await hears.until("personal")).toEqual([
+    { type: "storage.changed", space: "personal", parentIds: [null] },
+  ]);
   const saved = await drain(token, acme.id, "personal", cursor);
   expect(saved.changes.map((change) => [change.id, change.node.contentVersion])).toEqual([
     [file.id, 2],
@@ -328,7 +360,9 @@ test("a new version and a restore reach the provider as new bytes", async () => 
   const old = listed.body.versions[0].id as string;
   const restored = await stack.api(ana.jar, "POST", `/files/${file.id}/versions/${old}/restore`);
   expect(restored.status).toBe(200);
-  expect(await hears.until("personal")).toEqual([{ type: "storage.changed", space: "personal" }]);
+  expect(await hears.until("personal")).toEqual([
+    { type: "storage.changed", space: "personal", parentIds: [null] },
+  ]);
   const back = await drain(token, acme.id, "personal", saved.cursor);
   expect(back.changes.map((change) => [change.id, change.node.size])).toEqual([[file.id, 5]]);
   expect(back.changes[0].node.contentVersion).toBe(3);

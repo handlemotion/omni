@@ -114,9 +114,14 @@ export class Realtime extends DurableObject<Env> {
 
   /**
    * Tells whoever sees the drive that it changed: its owner for a My files drive, everyone in the
-   * workspace for Shared. App sockets and sync sockets alike.
+   * workspace for Shared. App sockets and sync sockets alike. `parentIds` are the folders whose
+   * listing changed (`null` for the drive's top), so an app refetches only those.
    */
-  async storageChanged(space: StorageSpace, ownerMemberId: string | null) {
+  async storageChanged(
+    space: StorageSpace,
+    ownerMemberId: string | null,
+    parentIds: (string | null)[] = [],
+  ) {
     const sockets =
       ownerMemberId === null
         ? this.ctx.getWebSockets()
@@ -124,7 +129,11 @@ export class Realtime extends DurableObject<Env> {
             ...this.ctx.getWebSockets(ownerMemberId),
             ...this.ctx.getWebSockets(syncTag(ownerMemberId)),
           ];
-    const message = JSON.stringify({ type: "storage.changed", space } satisfies OutboundEvent);
+    const message = JSON.stringify({
+      type: "storage.changed",
+      space,
+      parentIds,
+    } satisfies OutboundEvent);
     for (const socket of sockets) {
       try {
         socket.send(message);

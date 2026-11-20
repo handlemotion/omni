@@ -1,5 +1,5 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { THUMBNAIL_MAX_BYTES, TEXT_PREVIEW_BYTES } from "./file-kind.ts";
+import { TEXT_PREVIEW_BYTES } from "./file-kind.ts";
 import { keys } from "./query-keys.ts";
 import { workspaceHeaders } from "./current-workspace.ts";
 
@@ -144,41 +144,6 @@ async function slot<T>(work: () => Promise<T>) {
     waiting.shift()?.();
   }
 }
-
-async function downscale(blob: Blob, raster: string) {
-  const full = await createImageBitmap(new Blob([blob], { type: raster }));
-  const scale = Math.min(1, THUMBNAIL_WIDTH / full.width);
-  const width = Math.max(1, Math.round(full.width * scale));
-  const height = Math.max(1, Math.round(full.height * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  canvas.getContext("2d")?.drawImage(full, 0, 0, width, height);
-  full.close();
-  return new Promise((done, fail) =>
-    canvas.toBlob(
-      (out) => (out ? done(out) : fail(new Error("encode failed"))),
-      "image/webp",
-      0.82,
-    ),
-  ) satisfies Promise<Blob>;
-}
-
-/** A small copy of an image for a grid tile; originals over 20 MB get none. */
-export const thumbnailQuery = (source: PreviewSource, raster: string) =>
-  queryOptions({
-    queryKey: keys.storagePreview("thumbnail", source.url, source.version),
-    queryFn: ({ signal }) =>
-      slot(async () => {
-        signal.throwIfAborted();
-        const blob = await (await bytes(source.url, signal)).blob();
-        return { url: URL.createObjectURL(await downscale(blob, raster)) };
-      }),
-    enabled: source.size > 0 && source.size <= THUMBNAIL_MAX_BYTES,
-    staleTime: Infinity,
-    gcTime: 30 * 60_000,
-    retry: false,
-  });
 
 /**
  * A PDF's tile: its first page as `url` (what a folder's stack shows), the next two as `more`,

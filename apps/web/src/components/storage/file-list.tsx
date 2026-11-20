@@ -21,6 +21,7 @@ import { FolderView, type FolderDialog } from "./folder-view.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
+import { downloadFile, downloadZip } from "@/lib/download.ts";
 
 const EMPTY = {
   personal: { title: "No files yet", description: "Files you add here are yours alone." },
@@ -45,7 +46,8 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
   const place: StoragePlace = folderId ? { parentId: folderId } : { space };
   const list = useStorageList(place);
   const href = useStorageHref();
-  const menu = useRowMenu();
+  const canTrash = useCanTrash();
+  const menu = useRowMenu(canTrash);
   const path = list.folder?.path ?? [];
   const folderHref = useMemo(() => (node: StorageNode) => href(node.space, node.id), [href]);
   return (
@@ -66,6 +68,7 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
         fileUrl,
         download,
         menu,
+        canTrash,
         move: { kind: "member", space, path },
         empty: folderId ? EMPTY.folder : EMPTY[space],
       }}
@@ -74,19 +77,29 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
 }
 
 const fileUrl = (node: StorageNode) => storageFileUrl(node.id);
-const download = (node: StorageNode) => window.location.assign(fileUrl(node));
+const download = (node: StorageNode) => downloadFile(fileUrl(node));
 
-function useRowMenu() {
+function useCanTrash() {
   const { member } = useMember();
-  const trash = useTrashNode();
   const manager = /\b(owner|admin)\b/.test(member.role);
+  return useCallback(
+    (node: StorageNode) =>
+      node.space === "personal" || manager || node.createdByMemberId === member.id,
+    [manager, member.id],
+  );
+}
+
+function useRowMenu(canTrash: (node: StorageNode) => boolean) {
+  const trash = useTrashNode();
   const trashNode = trash.mutate;
   return useCallback(
     (node: StorageNode, open: (dialog: FolderDialog) => void) => {
       const result: SettingsRowMenuItem[] = [
-        ...(node.kind === "file"
-          ? [{ icon: IconDownload, label: "Download", onAction: () => download(node) }]
-          : []),
+        {
+          icon: IconDownload,
+          label: "Download",
+          onAction: () => (node.kind === "file" ? download(node) : downloadZip([node.id])),
+        },
         { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
         { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
         ...(node.kind === "folder" && node.parentId === null
@@ -122,7 +135,7 @@ function useRowMenu() {
               },
             ]
           : []),
-        ...(node.space === "personal" || manager || node.createdByMemberId === member.id
+        ...(canTrash(node)
           ? [
               {
                 icon: IconTrash,
@@ -139,6 +152,6 @@ function useRowMenu() {
       ];
       return result;
     },
-    [manager, member.id, trashNode],
+    [canTrash, trashNode],
   );
 }

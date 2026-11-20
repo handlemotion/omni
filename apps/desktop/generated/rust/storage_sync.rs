@@ -344,7 +344,11 @@ pub struct StorageSyncChange {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StorageChangedEvent {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_ids: Option<Vec<Option<String>>>,
+
     pub space: Space,
 
     #[serde(rename = "type")]
