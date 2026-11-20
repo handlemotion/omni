@@ -1,3 +1,4 @@
+import { useSearch } from "@tanstack/react-router";
 import { useRef, useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -52,6 +53,8 @@ export function RecordLayout(props: {
   const aside = useRef<HTMLElement>(null);
   const details = useStoredWidth("omni:crm-details-width", 0, DETAILS_MIN, DETAILS_MAX);
   const [resizing, setResizing] = useState(false);
+  const { task } = useSearch({ strict: false }) as { task?: string };
+  const opening = task && props.tabs.some((tab) => tab.id === "tasks") ? "tasks" : undefined;
   return (
     <TrailProvider here={props.here}>
       <RecordFrame list={props.list} name={props.name} actions={props.actions}>
@@ -101,7 +104,7 @@ export function RecordLayout(props: {
               onResizingChange={setResizing}
             />
             <main className="flex min-h-0 min-w-0 flex-1 flex-col pb-4 lg:overflow-y-auto">
-              <Tabs className="w-full flex-1">
+              <Tabs className="w-full flex-1" defaultSelectedKey={opening}>
                 <TabList
                   aria-label="Record"
                   className="sticky top-0 z-10 bg-background px-5 pt-1.5 [--tab-list-pb:--spacing(1.5)]"

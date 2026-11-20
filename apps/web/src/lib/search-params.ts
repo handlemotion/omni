@@ -32,7 +32,12 @@ export const inboxSearch = z.object({
 export const listSearch = z.object({ mailbox: optionalId });
 
 /** A person's page: the records passed through to reach it, as `crmRecordSearch` has. */
-export const crmPersonSearch = z.object({ mailbox: optionalId, via: optional(z.string()) });
+export const crmPersonSearch = z.object({
+  mailbox: optionalId,
+  via: optional(z.string()),
+  /** The task open beside the page. */
+  task: optionalId,
+});
 
 /** Drive's Search: `q` matches file and folder names on the server. */
 export const fileSearchSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
@@ -119,6 +124,8 @@ export const crmRecordSearch = z.object({
   comments: optionalId,
   /** The milestone or deliverable open beside a project's Plan tab. */
   plan: optionalId,
+  /** The task open beside the page. */
+  task: optionalId,
 });
 
 export const draftsSearch = z.object({

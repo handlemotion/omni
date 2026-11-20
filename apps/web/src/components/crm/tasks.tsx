@@ -43,7 +43,14 @@ import type { FilterKind } from "./list-filters.tsx";
 import { ListFilter } from "./list-toolbar.tsx";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { NewTaskDialog, useMemberNames } from "./task-dialog.tsx";
-import { TaskPanel, useOpenTask } from "./task-panel.tsx";
+import {
+  TASK_PANEL_KEY,
+  TASK_PANEL_MAX,
+  TASK_PANEL_MIN,
+  TASK_PANEL_WIDTH,
+  TaskPanel,
+  useOpenTask,
+} from "./task-panel.tsx";
 import { TaskRail } from "./task-rail.tsx";
 
 /** Every task in the workspace: mine, everyone's (by assignee and due), or done. */
@@ -56,24 +63,13 @@ export function TasksPage(props: {
   task?: string;
 }) {
   const open = useOpenTask();
-  const panel = useStoredWidth("omni:task-panel-width", PANEL_WIDTH, PANEL_MIN, PANEL_MAX);
+  const panel = useStoredWidth(TASK_PANEL_KEY, TASK_PANEL_WIDTH, TASK_PANEL_MIN, TASK_PANEL_MAX);
   const rowRef = useRef<HTMLDivElement>(null);
   const room = useRoom(rowRef);
-  const phone = useIsMobile() || room < LIST_BESIDE + PANEL_MIN;
+  const phone = useIsMobile() || room < LIST_BESIDE + TASK_PANEL_MIN;
   const width = Math.min(panel.width, room - LIST_MIN);
   const listRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
-  const { close } = open;
-  useEffect(() => {
-    if (!props.task) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented || isControl(event.target)) return;
-      event.preventDefault();
-      close();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [props.task, close]);
   const opened = useMemo(
     () => ({ id: props.task ?? null, href: open.href }),
     [props.task, open.href],
@@ -151,9 +147,6 @@ export function TasksPage(props: {
 
 const TASK_FILTERS: FilterKind[] = ["assignee", "status"];
 
-const PANEL_WIDTH = 480;
-const PANEL_MIN = 360;
-const PANEL_MAX = 4096;
 const LIST_MIN = 320;
 const LIST_BESIDE = 480;
 
@@ -172,10 +165,6 @@ function useRoom(ref: React.RefObject<HTMLElement | null>) {
   return room;
 }
 
-const isControl = (target: EventTarget | null) =>
-  target instanceof HTMLElement &&
-  !!target.closest("input, textarea, select, [contenteditable], [role=listbox], [role=dialog]");
-
 const OpenTaskContext = createContext<{
   id: string | null;
   href: (id: string) => string;
@@ -185,6 +174,8 @@ const OpenTaskContext = createContext<{
 export function RecordTasks(props: { kind: CrmRecordKind; id: string }) {
   const [adding, setAdding] = useState(false);
   const filter = recordFilter(props.kind, props.id);
+  const open = useOpenTask();
+  if (open.id) return <TaskPanel key={open.id} id={open.id} onClose={open.close} inPlace />;
   return (
     <div className="flex flex-col gap-6 lg:min-h-[calc(100dvh-8rem)]">
       <TaskRail filter={filter} onNew={() => setAdding(true)} />

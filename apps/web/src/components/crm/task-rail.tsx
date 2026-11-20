@@ -5,12 +5,12 @@ import { IconPlus } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
-import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
-import { dueLabel, taskPath, type CrmTask, type TaskFilter } from "@/lib/crm-tasks.ts";
+import { dueLabel, type CrmTask, type TaskFilter } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { RailRow, railPlace, type RailPlace } from "./rail-row.tsx";
 import { useMemberNames } from "./task-dialog.tsx";
+import { useOpenTask } from "./task-panel.tsx";
 
 type RailItem = { kind: "task"; task: CrmTask } | { kind: "done" };
 
@@ -85,7 +85,7 @@ export function TaskRail({ filter, onNew }: { filter: TaskFilter; onNew: () => v
 
 function TaskRailRow(props: { task: CrmTask; place: RailPlace }) {
   const { task } = props;
-  const { href } = useWorkspacePaths();
+  const opened = useOpenTask();
   const update = useUpdateTask();
   const assignee = useMemberNames().find((member) => member.id === task.assigneeMemberId);
   const done = !!task.completedAt;
@@ -98,7 +98,8 @@ function TaskRailRow(props: { task: CrmTask; place: RailPlace }) {
   return (
     <RailRow
       place={props.place}
-      href={href(taskPath(task.id))}
+      href={opened.href(task.id)}
+      current={opened.id === task.id}
       label={task.title}
       date={
         <span className={overdue ? "text-danger" : "text-muted-foreground"}>
