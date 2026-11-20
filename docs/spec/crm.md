@@ -272,6 +272,8 @@ One list, newest first, of four kinds of item:
 - On the web a task opens in a panel beside the task list (`/crm/tasks?task=<id>`), like an
   email; `/crm/tasks/<id>` stays its full page.
 - The command menu (⌘K) finds open tasks by title, so the task list has no search of its own.
+- New, in every CRM header, makes a task, company, person or deal. A task first asks which record
+  it is on, unless the page is that record's, which it starts on and can change.
 - Writes publish `crm.changed` with kind `task`, plus the record's kind. Tasks write no timeline
   events yet. Not yet: reminders, recurring tasks, subtasks, several records per task, MCP tools.
 

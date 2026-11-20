@@ -227,6 +227,56 @@ test("a task dragged onto Today is due today, and onto No due date has no due da
   await context.close();
 });
 
+test("New › Task starts on the record whose page it is, and from the task list asks for the record first", async () => {
+  const origin = String(worker.url);
+  const org = await createOrg(db, "create-task");
+  await db.insert(schema.orgSetup).values({ orgId: org.id, step: "complete" });
+  const email = `create-${Date.now()}@studio.test`;
+  const member = await createMember(db, org.id, email);
+  await db.update(schema.members).set({ role: "owner" }).where(eq(schema.members.id, member.id));
+  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const made = await fetch(new URL("/api/crm/deals", origin), {
+    method: "POST",
+    headers: { cookie, origin, "content-type": "application/json", "omni-workspace": org.id },
+    body: JSON.stringify({ name: "Rooftop shoot" }),
+  });
+  const { deal } = (await made.json()) as { deal: { id: string } };
+
+  const context = await browser.newContext();
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await context.newPage();
+  const create = async (title: string) => {
+    const dialog = page.getByRole("dialog", { name: "New task" });
+    await dialog.getByRole("textbox", { name: "Title" }).fill(title);
+    await dialog.getByRole("button", { name: "Create" }).click();
+    await expect.poll(async () => (await taskTitled(title))?.dealId ?? null).toBe(deal.id);
+  };
+
+  await page.goto(new URL(`/${org.slug}/crm/deals/${deal.id}`, origin).toString());
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Task" }).click();
+  await page.getByRole("dialog", { name: "New task" }).getByText("Rooftop shoot").waitFor();
+  await create("Scout the roof");
+
+  await page.goto(new URL(`/${org.slug}/crm/tasks`, origin).toString());
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Task" }).click();
+  const picker = page.getByRole("dialog", { name: "Choose a record" });
+  await picker.getByRole("option", { name: "Rooftop shoot" }).click();
+  await create("Book the drone");
+  await context.close();
+});
+
+async function taskTitled(title: string) {
+  const [found] = await db.select().from(schema.crmTasks).where(eq(schema.crmTasks.title, title));
+  return found;
+}
+
 async function row(id: string) {
   const [found] = await db.select().from(schema.crmTasks).where(eq(schema.crmTasks.id, id));
   return found;

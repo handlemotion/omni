@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { CreateMenu } from "./create-menu.tsx";
 import { createContext, use, useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -94,14 +95,7 @@ export function TasksPage(props: {
             search={{ assignee: props.assignee, status: props.status }}
             filters={TASK_FILTERS}
           />
-          <Button
-            size={phone ? "sq-sm" : "sm"}
-            aria-label={phone ? "New task" : undefined}
-            onPress={() => setAdding(true)}
-          >
-            <IconPlus />
-            {!phone && "New task"}
-          </Button>
+          <CreateMenu />
         </>
       }
     >

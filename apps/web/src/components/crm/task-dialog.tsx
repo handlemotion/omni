@@ -1,6 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { IconX } from "@/components/icons/central";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { ComboBox, ComboBoxContent, ComboBoxInput, ComboBoxItem } from "@/components/ui/combo-box";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -18,6 +21,7 @@ import { dueAtOf, onRecord } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
 import { NAME_MAX } from "./new-records.tsx";
+import { RecordTargetDialog } from "./record-target.tsx";
 
 /** The workspace's members as `{ id, name }`, for assignee pickers. */
 export function useMemberNames() {
@@ -137,9 +141,13 @@ export function RecordPicker(props: {
   );
 }
 
-/** Mount it while open, so the fields start empty. On a record, the task is on it. */
+/**
+ * Mount it while open, so the fields start empty. On a record, the task is on it; `initial` is
+ * the record it starts on, which can be changed.
+ */
 export function NewTaskDialog(props: {
   record?: { kind: CrmRecordKind; id: string };
+  initial?: PickedRecord | null;
   onClose: () => void;
 }) {
   const create = useCreateTask();
@@ -149,7 +157,8 @@ export function NewTaskDialog(props: {
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
   const [assignee, setAssignee] = useState<string | null | undefined>(undefined);
-  const [record, setRecord] = useState<PickedRecord | null>(null);
+  const [record, setRecord] = useState<PickedRecord | null>(props.initial ?? null);
+  const [choosing, setChoosing] = useState(false);
   const on = props.record ?? record;
   return (
     <SettingsFormDialog
@@ -168,13 +177,15 @@ export function NewTaskDialog(props: {
             ...(on ? onRecord(on.kind, on.id) : {}),
           },
           {
-            onSuccess: ({ task }) =>
-              props.record
-                ? props.onClose()
-                : void navigate({
-                    to: "/$workspace/crm/tasks/$id",
-                    params: { workspace, id: task.id },
-                  }),
+            onSuccess: ({ task }) => {
+              props.onClose();
+              if (props.record) return;
+              void navigate({
+                to: "/$workspace/crm/tasks",
+                params: { workspace },
+                search: { assignee: "anyone", task: task.id },
+              });
+            },
             onError: (error) => crmErrorToast(error, "The task was not created"),
           },
         )
@@ -191,7 +202,40 @@ export function NewTaskDialog(props: {
           <Input />
         </TextField>
       </div>
-      {!props.record && <RecordPicker value={record} onChange={setRecord} />}
+      {!props.record && (
+        <TargetField
+          record={record}
+          onChoose={() => setChoosing(true)}
+          onClear={() => setRecord(null)}
+        />
+      )}
+      {choosing && <RecordTargetDialog onPick={setRecord} onClose={() => setChoosing(false)} />}
     </SettingsFormDialog>
+  );
+}
+
+function TargetField(props: {
+  record: PickedRecord | null;
+  onChoose: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label>Record</Label>
+      <ButtonGroup className="w-full">
+        <Button intent="outline" className="min-w-0 flex-1 justify-start" onPress={props.onChoose}>
+          {props.record ? (
+            <span className="truncate">{props.record.name}</span>
+          ) : (
+            <span className="text-muted-foreground">Choose a record</span>
+          )}
+        </Button>
+        {props.record && (
+          <Button intent="outline" size="sq-md" aria-label="Clear record" onPress={props.onClear}>
+            <IconX />
+          </Button>
+        )}
+      </ButtonGroup>
+    </div>
   );
 }

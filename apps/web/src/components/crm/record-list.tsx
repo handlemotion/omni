@@ -1,9 +1,9 @@
+import { CreateMenu } from "./create-menu.tsx";
 import type { ReactNode } from "react";
 import type { Selection } from "react-aria-components";
 import { TableLoadMoreItem } from "react-aria-components/Table";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
-import { IconPlus } from "@/components/icons/central";
 import { ListFailed } from "@/components/inbox/thread-list";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { Avatar } from "@/components/ui/avatar";
@@ -21,7 +21,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { descriptorOf, fromDescriptor, type SortState } from "./list-sort.tsx";
 import { withWorkspace } from "@/lib/current-workspace.ts";
 
@@ -152,8 +151,6 @@ export function RecordList<T extends { id: string; name: string }>(props: Record
 }
 
 function HeaderActions<T>(props: RecordListProps<T>) {
-  const phone = useIsMobile();
-  const { onNew } = props;
   return (
     <>
       {props.extra}
@@ -166,16 +163,7 @@ function HeaderActions<T>(props: RecordListProps<T>) {
       >
         <SearchInput size="sm" />
       </SearchField>
-      {onNew && (
-        <Button
-          size={phone ? "sq-sm" : "sm"}
-          aria-label={phone ? `New ${props.noun}` : undefined}
-          onPress={onNew}
-        >
-          <IconPlus />
-          {!phone && `New ${props.noun}`}
-        </Button>
-      )}
+      <CreateMenu />
     </>
   );
 }

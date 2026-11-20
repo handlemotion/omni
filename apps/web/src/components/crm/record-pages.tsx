@@ -1,4 +1,5 @@
 import { useFreelancer } from "@/hooks/use-freelancer.ts";
+import { CreateMenu } from "./create-menu.tsx";
 import { useState } from "react";
 import {
   useCrmCompany,
@@ -89,7 +90,12 @@ export function CompanyPage({ id }: { id: string }) {
         who={domains[0] ? { domain: domains[0] } : null}
         subtitle={domains[0]}
         badge={archived && <ArchivedBadge />}
-        actions={<RecordActions kind="companies" id={id} name={company.name} archived={archived} />}
+        actions={
+          <>
+            <CreateMenu record={{ kind: "companies", id, name: company.name }} />
+            <RecordActions kind="companies" id={id} name={company.name} archived={archived} />
+          </>
+        }
         details={
           <>
             <DetailSection>
@@ -179,7 +185,12 @@ export function PersonPage({ id }: { id: string }) {
         who={byAddress(primary)}
         subtitle={person.jobTitle ?? primary}
         badge={archived && <ArchivedBadge />}
-        actions={<RecordActions kind="people" id={id} name={person.name} archived={archived} />}
+        actions={
+          <>
+            <CreateMenu record={{ kind: "people", id, name: person.name }} />
+            <RecordActions kind="people" id={id} name={person.name} archived={archived} />
+          </>
+        }
         details={
           <>
             <DetailSection>
@@ -253,7 +264,12 @@ export function DealPage({ id }: { id: string }) {
             {archived && <ArchivedBadge />}
           </>
         }
-        actions={<RecordActions kind="deals" id={id} name={deal.name} archived={archived} />}
+        actions={
+          <>
+            <CreateMenu record={{ kind: "deals", id, name: deal.name }} />
+            <RecordActions kind="deals" id={id} name={deal.name} archived={archived} />
+          </>
+        }
         details={
           <>
             <DetailSection>
