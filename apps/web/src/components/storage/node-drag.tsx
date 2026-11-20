@@ -1,9 +1,9 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DropItem, DropOperation } from "react-aria-components";
-import { isFileDropItem } from "react-aria-components/useDrop";
 import { useUploads } from "@/hooks/use-storage.ts";
 import { compareNodes } from "@/lib/storage-cache.ts";
+import { pickedFromDropItems, pickedFromTransfer } from "@/lib/storage-upload-tree.ts";
 import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
 import { useDriveDrag } from "./drive-drag-state.ts";
 import { storageErrorToast } from "./storage-errors.ts";
@@ -184,12 +184,11 @@ function useFilesDropOn(to: DropPlace | null) {
       event.stopPropagation();
       depth = 0;
       setOver(false);
-      const list = [...(event.dataTransfer?.files ?? [])];
-      if (list.length) {
-        upload(list, { place: to.place, shareId: to.shareId }, (name, error) =>
+      void pickedFromTransfer(event.dataTransfer).then((picked) =>
+        upload(picked, { place: to.place, shareId: to.shareId }, (name, error) =>
           storageErrorToast(error, `“${name}” was not uploaded`),
-        );
-      }
+        ),
+      );
     };
     element.addEventListener("dragenter", enter);
     element.addEventListener("dragleave", leave);
@@ -217,18 +216,16 @@ export const dropOperation = (to: DropPlace) => {
   return result;
 };
 
-/** Drops of the computer's files at a place: they upload there. */
+/** Drops of the computer's files and folders at a place: they upload there, folders and all. */
 export function useDropInto() {
   const { upload } = useUploads();
   return useMemo(
     () => async (to: DropPlace, items: DropItem[]) => {
       if (!to.canWrite) return;
-      const files = await Promise.all(items.filter(isFileDropItem).map((item) => item.getFile()));
-      if (files.length) {
-        upload(files, { place: to.place, shareId: to.shareId }, (name, error) =>
-          storageErrorToast(error, `“${name}” was not uploaded`),
-        );
-      }
+      const picked = await pickedFromDropItems(items);
+      upload(picked, { place: to.place, shareId: to.shareId }, (name, error) =>
+        storageErrorToast(error, `“${name}” was not uploaded`),
+      );
     },
     [upload],
   );

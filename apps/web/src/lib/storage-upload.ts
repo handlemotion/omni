@@ -2,9 +2,11 @@ import { ERROR_FORMAT_HEADER, ERROR_FORMAT_VERSION, toApiError } from "@omni/cli
 import { api, ApiError, call } from "./api.ts";
 import type { StorageNode, StoragePlace } from "./storage.ts";
 import { workspaceHeaders } from "./current-workspace.ts";
+import { online, Slots, withRetry } from "./storage-upload-net.ts";
 
-const PARALLEL_PARTS = 3;
-const PART_TRIES = 3;
+const PARALLEL_PARTS = 6;
+const TRIES = 8;
+const STALL_MS = 60_000;
 
 export interface UploadRequest {
   file: File;
@@ -32,58 +34,91 @@ export interface UploadRequest {
   guard: () => void;
   /** Like `guard`, but asks the server who the session is now: before a file is opened. */
   confirm: () => Promise<void>;
+  /** The tab's budget of upload requests in flight, shared with the other files; else its own. */
+  slots?: Slots | undefined;
 }
 
 /** Uploads `file` and answers the file it became. Rejects with `ApiError`, or `AbortError`. */
 export async function uploadFile(request: UploadRequest) {
   const { file, signal } = request;
+  const slots = request.slots ?? new Slots(PARALLEL_PARTS);
   const door = uploadDoor(request.shareId);
+  const once = <T>(send: () => Promise<T>) => slots.run(send, signal);
+  const retried = <T>(send: () => Promise<T>) =>
+    withRetry(() => once(send), { signal, tries: TRIES });
   await request.confirm();
+  await online(signal);
   const upload =
-    (await resumable(door, request.resumeId)) ??
-    (request.replaces
-      ? await door.openVersion(file, request.replaces, request.ifContentVersion)
-      : await door.open(file, request.place));
+    (await retried(() => resumable(door, request.resumeId))) ??
+    (await withRetry(
+      () =>
+        once(() =>
+          request.replaces
+            ? door.openVersion(file, request.replaces, request.ifContentVersion)
+            : door.open(file, request.place),
+        ),
+      {
+        signal,
+        tries: TRIES,
+        transient: (error) => error instanceof ApiError && error.status === 429,
+      },
+    ));
   request.onOpened(upload.id);
   signal.throwIfAborted();
-  if (!upload.nodeId) {
-    const stored = new Map(upload.parts.map((part) => [part.partNumber, part.size]));
-    const missing = Array.from({ length: upload.partCount }, (_, i) => i + 1).filter(
-      (n) => !stored.has(n),
-    );
-    const report = () => request.onProgress([...stored.values()].reduce((sum, n) => sum + n, 0));
-    report();
-    const parts = new AbortController();
-    const stop = () => parts.abort();
-    signal.addEventListener("abort", stop);
-    const next = async () => {
-      const n = missing.shift();
-      if (n === undefined) return;
-      const start = (n - 1) * upload.partSize;
-      const part = file.slice(start, Math.min(start + upload.partSize, file.size));
-      request.guard();
-      await sendPart(door.partUrl(upload.id, n), part, parts.signal, (sent) => {
-        stored.set(n, sent);
-        report();
-      });
-      stored.set(n, part.size);
-      report();
-      return next();
-    };
-    try {
-      if (signal.aborted) stop();
-      await Promise.all(Array.from({ length: PARALLEL_PARTS }, next));
-    } catch (error) {
-      stop();
-      throw error;
-    } finally {
-      signal.removeEventListener("abort", stop);
-    }
-  }
+  if (!upload.nodeId) await sendParts({ ...request, slots }, door, upload);
   signal.throwIfAborted();
   request.guard();
-  const { node } = await door.complete(upload.id, request.ifContentVersion);
+  const { node } = await retried(() => door.complete(upload.id, request.ifContentVersion));
   return node satisfies StorageNode;
+}
+
+type Opened = Awaited<ReturnType<UploadDoor["open"]>>;
+
+async function sendParts(
+  request: UploadRequest & { slots: Slots },
+  door: UploadDoor,
+  upload: Opened,
+) {
+  const { file, signal } = request;
+  const stored = new Map(upload.parts.map((part) => [part.partNumber, part.size]));
+  const missing = Array.from({ length: upload.partCount }, (_, i) => i + 1).filter(
+    (n) => !stored.has(n),
+  );
+  const report = () => request.onProgress([...stored.values()].reduce((sum, n) => sum + n, 0));
+  report();
+  const parts = new AbortController();
+  const stop = () => parts.abort();
+  signal.addEventListener("abort", stop);
+  const worker = async () => {
+    for (let n = missing.shift(); n !== undefined; n = missing.shift()) {
+      const start = (n - 1) * upload.partSize;
+      const part = file.slice(start, Math.min(start + upload.partSize, file.size));
+      const url = door.partUrl(upload.id, n);
+      const onSent = (sent: number) => {
+        stored.set(n, sent);
+        report();
+      };
+      await withRetry(
+        () =>
+          request.slots.run(() => {
+            request.guard();
+            return putPart(url, part, parts.signal, onSent);
+          }, parts.signal),
+        { signal: parts.signal, tries: TRIES, onRetry: () => onSent(0) },
+      );
+      stored.set(n, part.size);
+      report();
+    }
+  };
+  try {
+    if (signal.aborted) stop();
+    await Promise.all(Array.from({ length: Math.min(PARALLEL_PARTS, missing.length) }, worker));
+  } catch (error) {
+    stop();
+    throw error;
+  } finally {
+    signal.removeEventListener("abort", stop);
+  }
 }
 
 /** Frees what an unfinished upload holds (its parts, and its room against the limit). */
@@ -167,30 +202,21 @@ async function resumable(door: UploadDoor, uploadId: string | undefined) {
   }
 }
 
-async function sendPart(
-  url: string,
-  part: Blob,
-  signal: AbortSignal,
-  onSent: (bytes: number) => void,
-) {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await putPart(url, part, signal, onSent);
-    } catch (error) {
-      const retryable = error instanceof ApiError && (error.status === 0 || error.status >= 500);
-      if (!retryable || attempt === PART_TRIES) throw error;
-      onSent(0);
-      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
-      signal.throwIfAborted();
-    }
-  }
-}
-
 function putPart(url: string, part: Blob, signal: AbortSignal, onSent: (bytes: number) => void) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    let stalled: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
+    const watch = () => {
+      clearTimeout(stalled);
+      stalled = setTimeout(() => {
+        timedOut = true;
+        xhr.abort();
+      }, STALL_MS);
+    };
     const abort = () => xhr.abort();
     const settle = (run: () => void) => {
+      clearTimeout(stalled);
       signal.removeEventListener("abort", abort);
       run();
     };
@@ -199,22 +225,34 @@ function putPart(url: string, part: Blob, signal: AbortSignal, onSent: (bytes: n
     for (const [name, value] of Object.entries(workspaceHeaders()))
       xhr.setRequestHeader(name, value);
     xhr.responseType = "json";
-    xhr.upload.addEventListener("progress", (event) => onSent(Math.min(event.loaded, part.size)));
+    xhr.upload.addEventListener("progress", (event) => {
+      watch();
+      onSent(Math.min(event.loaded, part.size));
+    });
     xhr.addEventListener("load", () =>
       settle(() => {
         if (xhr.status >= 200 && xhr.status < 300) return resolve();
         const { message, ...info } = toApiError(xhr.response, `part ${xhr.status}`);
-        reject(new ApiError(xhr.status, message, info));
+        const retryAfter = Number(xhr.getResponseHeader("retry-after"));
+        const details = retryAfter > 0 ? { ...info.details, retryAfter } : info.details;
+        reject(new ApiError(xhr.status, message, { ...info, details }));
       }),
     );
     xhr.addEventListener("error", () =>
       settle(() => reject(new ApiError(0, "the part got no answer"))),
     );
     xhr.addEventListener("abort", () =>
-      settle(() => reject(new DOMException("upload cancelled", "AbortError"))),
+      settle(() =>
+        reject(
+          timedOut
+            ? new ApiError(408, "the part stopped sending")
+            : new DOMException("upload cancelled", "AbortError"),
+        ),
+      ),
     );
     signal.addEventListener("abort", abort);
     if (signal.aborted) return abort();
+    watch();
     xhr.send(part);
   });
 }

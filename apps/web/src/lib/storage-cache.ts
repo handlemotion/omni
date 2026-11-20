@@ -91,23 +91,59 @@ const settle = (client: QueryClient, queryKeys: QueryKey[]) =>
 
 /**
  * `node` as the Worker now has it (made, renamed, moved, restored, uploaded): in the listing of
- * its place, out of every other, and its own listing's title and path renamed.
+ * its place, out of every other, and its own listing's title and path renamed. Then the listings
+ * it touched are asked again.
  */
 export async function storageNodeChanged(client: QueryClient, node: StorageNode) {
-  if (node.orgId !== currentWorkspaceId()) {
-    return client.invalidateQueries({ queryKey: [...keys.root, node.orgId, "storage"] });
+  await storageNodesChanged(client, [node]);
+}
+
+/**
+ * `storageNodeChanged` for many nodes at once, each listing written once for all of them. With
+ * `refresh: false` nothing is asked again: a batch (uploads) patches as files land and asks once
+ * at the end, through `storageListsRefresh` with the keys this answers.
+ */
+export async function storageNodesChanged(
+  client: QueryClient,
+  nodes: StorageNode[],
+  options: { refresh?: boolean } = {},
+) {
+  const workspace = currentWorkspaceId();
+  const elsewhere = new Set(
+    nodes.flatMap((node) => (node.orgId === workspace ? [] : [node.orgId])),
+  );
+  await Promise.all(
+    [...elsewhere].map((orgId) =>
+      client.invalidateQueries({ queryKey: [...keys.root, orgId, "storage"] }),
+    ),
+  );
+  const mine = nodes.filter((node) => node.orgId === workspace);
+  const found = new Map<string, QueryKey>();
+  for (const node of mine) {
+    for (const key of [keys.storageList(placeOf(node)), ...touching(client, node.id)])
+      found.set(JSON.stringify(key), key);
   }
-  const here = keys.storageList(placeOf(node));
-  const touched = [here, ...touching(client, node.id)];
+  const touched = [...found.values()];
+  if (!mine.length) return touched;
   await settle(client, touched);
   for (const [key, data] of lists(client)) {
     if (!data) continue;
-    const next = holds(placeIn(key), node)
-      ? withNode(data, node)
-      : withFolder(without(data, node.id), node);
+    const place = placeIn(key);
+    const next = mine.reduce(
+      (list, node) =>
+        holds(place, node) ? withNode(list, node) : withFolder(without(list, node.id), node),
+      data,
+    );
     if (next !== data) client.setQueryData<ListData>(key, next);
   }
-  void refresh(client, touched);
+  if (options.refresh !== false) void refresh(client, touched);
+  return touched;
+}
+
+/** Asks the listings `touched` again, once each, and every other Drive query but listings. */
+export function storageListsRefresh(client: QueryClient, touched: QueryKey[]) {
+  const unique = new Map(touched.map((key) => [JSON.stringify(key), key]));
+  return refresh(client, [...unique.values()]);
 }
 
 /**

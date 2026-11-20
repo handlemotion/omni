@@ -36,6 +36,7 @@ import {
   storageNodeQuery,
 } from "../lib/storage-comments.ts";
 import { storageFolderIconsQuery } from "../lib/storage-find.ts";
+import type { Picked } from "../lib/storage-upload-tree.ts";
 import { restoreVersionMutation, storageVersionsQuery } from "../lib/storage-versions.ts";
 import { useSession } from "./use-session.ts";
 import { useCurrentWorkspace } from "./use-workspaces.ts";
@@ -111,19 +112,27 @@ export function useDeleteForever() {
 }
 
 /**
- * The uploads in progress and what to do with them. `upload(files, { place, shareId? }, onFailed)` queues
- * files; a failed one stays in `uploads` until `retry(id)` (it resumes) or `remove(id)`.
+ * What to do with uploads: `upload(files, { place, shareId? }, onFailed)` queues files (or a
+ * dropped or picked folder's `Picked`); a failed one stays listed until `retry(id)` (it resumes)
+ * or `remove(id)`. It doesn't re-render with their progress: `useUploadItems` does.
  */
 export function useUploads() {
   const client = useQueryClient();
   useSession();
-  const uploads = useSyncExternalStore(uploadsStore.subscribe, uploadsStore.get);
   const upload = useCallback(
-    (files: File[], target: UploadTarget, onFailed: (name: string, error: unknown) => void) =>
-      addUploads(client, files, target, onFailed),
+    (
+      files: File[] | Picked,
+      target: UploadTarget,
+      onFailed: (name: string, error: unknown) => void,
+    ) => addUploads(client, files, target, onFailed),
     [client],
   );
-  return { uploads, upload, retry: retryUpload, remove: removeUpload };
+  return { upload, retry: retryUpload, remove: removeUpload };
+}
+
+/** The uploads in progress or failed, re-rendered about four times a second while they move. */
+export function useUploadItems() {
+  return useSyncExternalStore(uploadsStore.subscribe, uploadsStore.get);
 }
 
 /** A file's current content and the versions it replaced (whoever may edit the file only). */

@@ -1,4 +1,8 @@
+import { randomBytes } from "node:crypto";
+import { link, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
 import {
   signIn,
@@ -14,6 +18,9 @@ import { sql } from "drizzle-orm";
 await buildWorker();
 
 const RUNS = Number(process.env.BENCH_RUNS ?? 5);
+const UPLOAD_MB = Number(process.env.BENCH_UPLOAD_MB ?? 256);
+const SMALL_FILES = Number(process.env.BENCH_SMALL_FILES ?? 200);
+const UPLOADS_ONLY = process.env.BENCH_ONLY === "uploads";
 const LATENCY = Number(process.env.BENCH_LATENCY ?? 0);
 const EMAIL = "member-org1-1@seed.test";
 const admin = process.env.DATABASE_URL;
@@ -53,6 +60,9 @@ const h2 = process.env.BENCH_H2 ? await startHttp2Proxy(new URL(workerOrigin)) :
 const origin = h2?.origin ?? workerOrigin;
 
 const browser = await chromium.launch();
+const scratch = await mkdtemp(join(tmpdir(), "bench-drive-"));
+const bigSource = join(scratch, "source.bin");
+await writeFile(bigSource, randomBytes(UPLOAD_MB * 1024 * 1024));
 
 async function newContext() {
   const context = await browser.newContext({
@@ -147,6 +157,61 @@ async function startup(context: BrowserContext) {
   return { ms, bytes };
 }
 
+const uploadInput = (page: Page) => page.locator("input[type=file]:not([webkitdirectory])").first();
+
+const uploadsDone = (page: Page, prefix: string) =>
+  page.waitForFunction(
+    (prefix) =>
+      ![...document.querySelectorAll("[aria-label]")].some((el) =>
+        (el.getAttribute("aria-label") ?? "").startsWith(`Cancel ${prefix}`),
+      ),
+    prefix,
+    { timeout: 600_000, polling: 100 },
+  );
+
+async function uploads(context: BrowserContext, run: number) {
+  const page = await context.newPage();
+  await page.goto(`${origin}/files/my`);
+  await page.evaluate(
+    () => (window as unknown as { benchFirstRow: Promise<number> }).benchFirstRow,
+  );
+  await page.waitForLoadState("networkidle");
+
+  const big = join(scratch, `bench-big-${run}-${Date.now()}.bin`);
+  await link(bigSource, big);
+  let started = performance.now();
+  await uploadInput(page).setInputFiles(big);
+  await page.waitForFunction(
+    () => !!document.querySelector("[aria-label^='Cancel bench-big']"),
+    undefined,
+    { timeout: 60_000, polling: 50 },
+  );
+  await uploadsDone(page, "bench-big");
+  record("upload: one large file MiB/s", UPLOAD_MB / ((performance.now() - started) / 1000));
+
+  const tag = `bench-small-${run}-${Date.now()}`;
+  let lists = 0;
+  const onRequest = (req: { url(): string; method(): string }) => {
+    const u = new URL(req.url());
+    if (u.pathname === "/api/storage/nodes" && req.method() === "GET") lists += 1;
+  };
+  page.on("request", onRequest);
+  started = performance.now();
+  await uploadInput(page).setInputFiles(
+    Array.from({ length: SMALL_FILES }, (_, i) => ({
+      name: `${tag}-${i}.txt`,
+      mimeType: "text/plain",
+      buffer: Buffer.from(`${tag}-${i}`),
+    })),
+  );
+  await uploadsDone(page, tag);
+  record(`upload: ${SMALL_FILES} small files ms`, performance.now() - started);
+  await page.waitForLoadState("networkidle");
+  page.off("request", onRequest);
+  record(`upload: listing GETs for ${SMALL_FILES} files`, lists);
+  await page.close();
+}
+
 const median = (xs: number[]) => xs.toSorted((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
 const results = new Map<string, number[]>();
 const record = (name: string, value: number) => {
@@ -158,6 +223,11 @@ const scroller = (page: Page) => page.locator(".overflow-y-auto:has([role='grid'
 
 for (let run = 0; run < RUNS; run++) {
   const context = await newContext();
+  if (UPLOADS_ONLY) {
+    await uploads(context, run);
+    await context.close();
+    continue;
+  }
   const cold = await startup(context);
   record("startup ms", cold.ms);
   record("startup JS+CSS kB", cold.bytes / 1024);
@@ -351,6 +421,7 @@ for (let run = 0; run < RUNS; run++) {
       }),
   );
   for (const [route, ms] of api) record(`api ${route} ms`, ms);
+  await uploads(context, run);
   await context.close();
 }
 
@@ -361,6 +432,7 @@ for (const [name, values] of results) {
   console.log(`${name.padEnd(34)} ${median(values).toFixed(0).padStart(8)}   ${shown}`);
 }
 await browser.close();
+await rm(scratch, { recursive: true, force: true });
 await h2?.close();
 await worker.close();
 await mailService.close();

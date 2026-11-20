@@ -1,26 +1,48 @@
+import { memo, useState } from "react";
 import { IconArrowRotateClockwise, IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { ProgressBar, ProgressBarTrack } from "@/components/ui/progress-bar";
-import { useUploads } from "@/hooks/use-storage.ts";
+import { useUploadItems, useUploads } from "@/hooks/use-storage.ts";
 import type { UploadItem } from "@/lib/storage-uploads.ts";
 import { canRetryUpload, storageErrorText } from "./storage-errors.ts";
 
+const ROW_PX = 48;
+const PANEL_PX = 288;
+const OVERSCAN = 4;
+
 export function UploadsPanel() {
-  const { uploads, retry, remove } = useUploads();
+  const uploads = useUploadItems();
+  const { retry, remove } = useUploads();
+  const [top, setTop] = useState(0);
   if (!uploads.length) return null;
+  const first = Math.max(0, Math.floor(top / ROW_PX) - OVERSCAN);
+  const last = Math.min(uploads.length, Math.ceil((top + PANEL_PX) / ROW_PX) + OVERSCAN);
   return (
     <div className="pointer-events-none absolute inset-x-4 bottom-4 z-20 flex justify-end">
-      <ul className="pointer-events-auto flex max-h-72 w-80 max-w-full flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-3 shadow-(--shadow-overlay)">
-        {uploads.map((item) => (
-          <Row key={item.id} item={item} retry={retry} remove={remove} />
-        ))}
-      </ul>
+      <div
+        className="pointer-events-auto w-80 max-w-full overflow-y-auto rounded-lg border bg-background px-3 py-1.5 shadow-(--shadow-overlay)"
+        style={{ maxHeight: PANEL_PX }}
+        onScroll={(event) => setTop(event.currentTarget.scrollTop)}
+      >
+        <ul className="relative" style={{ height: uploads.length * ROW_PX }}>
+          {uploads.slice(first, last).map((item, i) => (
+            <Row
+              key={item.id}
+              item={item}
+              at={(first + i) * ROW_PX}
+              retry={retry}
+              remove={remove}
+            />
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
 
-function Row(props: {
+const Row = memo(function Row(props: {
   item: UploadItem;
+  at: number;
   retry: (id: number) => void;
   remove: (id: number) => void;
 }) {
@@ -28,7 +50,10 @@ function Row(props: {
   const failed = item.status === "failed";
   const percent = item.size ? Math.floor((item.sent / item.size) * 100) : 0;
   return (
-    <li className="flex flex-col gap-1.5">
+    <li
+      className="absolute inset-x-0 flex flex-col justify-center gap-1.5"
+      style={{ top: props.at, height: ROW_PX }}
+    >
       <div className="flex h-6 items-center gap-2 text-sm">
         <span className="min-w-0 flex-1 truncate">{item.name}</span>
         {!failed && <span className="shrink-0 text-muted-foreground tabular-nums">{percent}%</span>}
@@ -62,4 +87,4 @@ function Row(props: {
       )}
     </li>
   );
-}
+});
