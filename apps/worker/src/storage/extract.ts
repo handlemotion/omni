@@ -200,29 +200,64 @@ function cellText(cell: string, strings: string[]) {
   return type === "s" ? (strings[Number(value)] ?? "") : decodeEntities(value);
 }
 
+function columnOf(cell: string) {
+  const letters = /\br="([A-Z]+)\d+"/.exec(cell)?.[1];
+  if (!letters) return null;
+  return [...letters].reduce((n, letter) => n * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+}
+
+function sheetRow(row: string, strings: string[]) {
+  const values: string[] = [];
+  for (const [cell] of row.matchAll(/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g)) {
+    const column = columnOf(cell) ?? values.length;
+    while (values.length < column) values.push("");
+    values[column] = cellText(cell, strings);
+  }
+  return values.join("\t").trimEnd();
+}
+
+function sheetsInOrder(parts: Map<string, string>, sheet: RegExp) {
+  const targets = new Map(
+    [...(parts.get("xl/_rels/workbook.xml.rels") ?? "").matchAll(/<Relationship\b[^>]*>/g)].map(
+      ([tag]) => [
+        /\bId="([^"]+)"/.exec(tag)?.[1] ?? "",
+        (/\bTarget="([^"]+)"/.exec(tag)?.[1] ?? "").replace(/^\/?(xl\/)?/, "xl/"),
+      ],
+    ),
+  );
+  const listed = [...(parts.get("xl/workbook.xml") ?? "").matchAll(/<sheet\b[^>]*>/g)].map(
+    ([tag]) => ({
+      name: decodeEntities(/\bname="([^"]*)"/.exec(tag)?.[1] ?? ""),
+      part: targets.get(/\br:id="([^"]+)"/.exec(tag)?.[1] ?? ""),
+    }),
+  );
+  const found = listed.filter(
+    (entry): entry is { name: string; part: string } => !!entry.part && parts.has(entry.part),
+  );
+  if (found.length) return found;
+  return [...parts.keys()]
+    .filter((name) => sheet.test(name))
+    .toSorted(numbered(sheet))
+    .map((part, i) => ({ name: listed[i]?.name || String(i + 1), part }));
+}
+
 function xlsx(bytes: Uint8Array) {
   const sheet = /^xl\/worksheets\/sheet(\d+)\.xml$/;
   const parts = unzip(
     bytes,
-    (name) => sheet.test(name) || name === "xl/sharedStrings.xml" || name === "xl/workbook.xml",
+    (name) =>
+      sheet.test(name) ||
+      name === "xl/sharedStrings.xml" ||
+      name === "xl/workbook.xml" ||
+      name === "xl/_rels/workbook.xml.rels",
   );
   const strings = sharedStrings(parts.get("xl/sharedStrings.xml"));
-  const names = [
-    ...(parts.get("xl/workbook.xml") ?? "").matchAll(/<sheet\b[^>]*\bname="([^"]*)"/g),
-  ].map((m) => decodeEntities(m[1]!));
-  return [...parts.keys()]
-    .filter((name) => sheet.test(name))
-    .toSorted(numbered(sheet))
-    .map((name, i) => {
-      const rows = [...parts.get(name)!.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)]
-        .map((row) =>
-          [...row[1]!.matchAll(/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g)]
-            .map((cell) => cellText(cell[0], strings))
-            .join("\t")
-            .trimEnd(),
-        )
+  return sheetsInOrder(parts, sheet)
+    .map(({ name, part }) => {
+      const rows = [...parts.get(part)!.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)]
+        .map((row) => sheetRow(row[1]!, strings))
         .filter((row) => row.length > 0);
-      return `--- Sheet: ${names[i] ?? i + 1} ---\n${rows.join("\n")}`;
+      return `--- Sheet: ${name} ---\n${rows.join("\n")}`;
     })
     .join("\n\n");
 }
