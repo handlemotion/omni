@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Pressable, StyleSheet, type PressableProps } from "react-native";
-import { colors, radius, space } from "@/theme/tokens.ts";
+import type { SvgProps } from "react-native-svg";
+import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
 
 /** A chip's height: a recipient, an attachment. */
@@ -10,6 +11,8 @@ export interface ChipButtonProps extends Omit<PressableProps, "children" | "styl
   label: string;
   /** Before the label: a 24pt circle (an avatar) in a chip, anything round. */
   lead?: ReactNode;
+  /** Before the label in place of `lead`: a small muted glyph (a list's sort or filter). */
+  icon?: ComponentType<SvgProps & { size?: number }>;
   /** After the label: a chevron for a picker. */
   trailing?: ReactNode;
   /**
@@ -21,6 +24,8 @@ export interface ChipButtonProps extends Omit<PressableProps, "children" | "styl
   tone?: "foreground" | "mutedForeground";
   /** Working on it (an upload): dimmed until it settles. */
   isPending?: boolean;
+  /** The chip picked among its row (a list's filter, a board's stage): the accent fill. */
+  isSelected?: boolean;
 }
 
 /**
@@ -30,25 +35,30 @@ export interface ChipButtonProps extends Omit<PressableProps, "children" | "styl
 export function ChipButton({
   label,
   lead,
+  icon: Icon,
   trailing,
   variant = "inline",
   tone = "foreground",
   isPending = false,
+  isSelected = false,
   ...props
 }: ChipButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
       {...props}
       style={({ pressed }) => [
         styles.base,
         variant === "chip" ? styles.chip : styles.inline,
         variant === "chip" && !lead && styles.chipNoLead,
+        variant === "chip" && Icon && styles.chipGlyph,
+        isSelected && styles.selected,
         isPending && styles.dimmed,
         pressed && styles.pressed,
       ]}
     >
-      {lead}
+      {Icon ? <Icon size={iconSize.sm} color={colors.mutedForeground} /> : lead}
       <Text size="subhead" tone={tone} numberOfLines={1} style={styles.label}>
         {label}
       </Text>
@@ -69,8 +79,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipNoLead: { paddingLeft: space(3) },
+  chipGlyph: { gap: space(1.5), paddingLeft: space(2.5) },
   inline: { gap: space(1.5), minHeight: space(11) },
   label: { flexShrink: 1, minWidth: 0 },
+  selected: { backgroundColor: colors.accent, borderColor: colors.accent },
   dimmed: { opacity: 0.5 },
   pressed: { transform: [{ scale: 0.97 }] },
 });

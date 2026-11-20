@@ -2,15 +2,24 @@ import type { ComponentType, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import type { SvgProps } from "react-native-svg";
 import { colors, iconSize, radius, rowLead, space } from "@/theme/tokens.ts";
-import { PressableRow } from "./pressable-row.tsx";
+import { PressableRow, type PressableRowProps } from "./pressable-row.tsx";
 import { Text } from "./text.tsx";
 
 /**
  * A list row: a lead (an avatar, or a glyph on a tile), a title, a muted detail under it, and a
  * trailing note that never gives up its room. A title truncates at its end, or in its middle
- * (`middle`) for file names, whose extension is the part people read.
+ * (`middle`) for file names, whose extension is the part people read. Takes the rest of
+ * `Pressable`'s props, so a native `Link` can wrap it for its menu.
  */
-export function ItemRow(props: {
+export function ItemRow({
+  icon,
+  lead,
+  title,
+  detail,
+  trailing,
+  ellipsize,
+  ...rest
+}: Omit<PressableRowProps, "children" | "style"> & {
   icon?: ComponentType<SvgProps & { size?: number }>;
   /** Drawn instead of the glyph tile: an avatar. */
   lead?: ReactNode;
@@ -18,11 +27,11 @@ export function ItemRow(props: {
   detail?: string | null;
   trailing?: string | null;
   ellipsize?: "tail" | "middle";
-  onPress?: () => void;
 }) {
+  const props = { icon, lead, title, detail, trailing, ellipsize };
   const Icon = props.icon;
   return (
-    <PressableRow onPress={props.onPress} style={styles.row}>
+    <PressableRow {...rest} style={styles.row}>
       {props.lead ??
         (Icon ? (
           <View style={styles.tile}>

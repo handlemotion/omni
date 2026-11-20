@@ -20,6 +20,7 @@ const NEW_RECORD: Record<CrmPage, { kind: string; label: string }> = {
   companies: { kind: "company", label: "New company" },
   people: { kind: "person", label: "New person" },
   deals: { kind: "deal", label: "New deal" },
+  projects: { kind: "deal", label: "New deal" },
 };
 
 /**

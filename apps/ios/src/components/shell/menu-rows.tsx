@@ -12,6 +12,7 @@ import {
   IconFolder,
   IconFolderShared,
   IconHandshake,
+  IconProjects,
   IconInbox,
   IconMail,
   IconSend,
@@ -61,6 +62,7 @@ const CRM_ICONS: Record<CrmPage, Glyph> = {
   companies: IconBuildings,
   people: IconUsers,
   deals: IconHandshake,
+  projects: IconProjects,
 };
 
 /**

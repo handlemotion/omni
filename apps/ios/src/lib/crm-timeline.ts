@@ -91,6 +91,8 @@ export function eventText(event: EventItem, stages: CrmStage[] | undefined) {
       return "edited the details";
     case "archived":
       return "archived this";
+    case "restored":
+      return "restored this";
     case "stage_moved": {
       const stage = stages?.find((s) => s.id === text("to"));
       return stage ? `moved it to ${stage.name}` : "moved its stage";

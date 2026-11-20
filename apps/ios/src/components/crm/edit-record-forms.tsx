@@ -2,7 +2,8 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet } from "react-native";
 import { TextField } from "@/components/ui/text-field.tsx";
-import type { CrmDeal, CrmPerson } from "@/lib/crm.ts";
+import type { CrmCompany, CrmDeal, CrmPerson } from "@/lib/crm.ts";
+import { isCurrencyCode, useDealCurrency } from "@/lib/crm-currency.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
 import {
   parseMoney,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/crm-mutations.ts";
 import { space } from "@/theme/tokens.ts";
 import { CompanyField, type CompanyChoice } from "./company-field.tsx";
+import { CloseDateField, OwnerField, ValueField } from "./form-fields.tsx";
 import { NAME_MAX } from "./new-record-forms.tsx";
 import { SheetForm } from "./sheet-form.tsx";
 
@@ -30,13 +32,12 @@ const done = (fallback: string) => ({
   onError: (error: unknown) => crmErrorAlert(error, fallback),
 });
 
-export function EditCompanyForm(props: {
-  company: { id: string; name: string; description: string | null };
-}) {
+export function EditCompanyForm(props: { company: CrmCompany }) {
   const update = useUpdateCompany();
   const { company } = props;
   const [name, setName] = useState(company.name);
   const [description, setDescription] = useState(company.description ?? "");
+  const [owner, setOwner] = useState(company.ownerMemberId ?? null);
   return (
     <SheetForm
       title="Edit company"
@@ -45,8 +46,12 @@ export function EditCompanyForm(props: {
       saving={update.isPending}
       onSubmit={() => {
         const change = changed(
-          { name: name.trim(), description: orNull(description) },
-          { name: company.name, description: company.description },
+          { name: name.trim(), description: orNull(description), ownerMemberId: owner },
+          {
+            name: company.name,
+            description: company.description,
+            ownerMemberId: company.ownerMemberId ?? null,
+          },
         );
         if (!Object.keys(change).length) return router.back();
         update.mutate({ id: company.id, ...change }, done("The company was not changed"));
@@ -69,6 +74,7 @@ export function EditCompanyForm(props: {
         onChangeText={setDescription}
         style={styles.multiline}
       />
+      <OwnerField value={owner} onChange={setOwner} />
     </SheetForm>
   );
 }
@@ -80,6 +86,7 @@ export function EditPersonForm(props: { person: CrmPerson; company: CompanyChoic
   const [jobTitle, setJobTitle] = useState(person.jobTitle ?? "");
   const [phone, setPhone] = useState(person.phone ?? "");
   const [company, setCompany] = useState(props.company);
+  const [owner, setOwner] = useState(person.ownerMemberId ?? null);
   return (
     <SheetForm
       title="Edit person"
@@ -93,8 +100,9 @@ export function EditPersonForm(props: { person: CrmPerson; company: CompanyChoic
             jobTitle: orNull(jobTitle),
             phone: orNull(phone),
             companyId: company?.id ?? null,
+            ownerMemberId: owner,
           },
-          person,
+          { ...person, ownerMemberId: person.ownerMemberId ?? null },
         );
         if (!Object.keys(change).length) return router.back();
         update.mutate({ id: person.id, ...change }, done("The person was not changed"));
@@ -125,28 +133,52 @@ export function EditPersonForm(props: { person: CrmPerson; company: CompanyChoic
         onChangeText={setPhone}
       />
       <CompanyField value={company} onChange={setCompany} />
+      <OwnerField value={owner} onChange={setOwner} />
     </SheetForm>
   );
 }
 
+function valueChange(deal: CrmDeal, minor: number | null, currency: string) {
+  const same = minor === deal.valueMinor && (minor === null || currency === deal.valueCurrency);
+  return same ? {} : { valueMinor: minor, currency };
+}
+
+/**
+ * A deal's value goes with its currency, every time (ADR 0054 decision 7): changing either
+ * sends both, so a value saves in a workspace with no default currency.
+ */
 export function EditDealForm(props: { deal: CrmDeal; company: CompanyChoice | null }) {
   const update = useUpdateDeal();
   const { deal } = props;
   const [name, setName] = useState(deal.name);
   const [value, setValue] = useState(deal.valueMinor === null ? "" : String(deal.valueMinor / 100));
+  const [code, setCode] = useState<string | null>(null);
+  const fallback = useDealCurrency(deal.valueCurrency).currency;
+  const currency = code ?? fallback;
   const [company, setCompany] = useState(props.company);
+  const [owner, setOwner] = useState(deal.ownerMemberId);
+  const [closeOn, setCloseOn] = useState(deal.expectedCloseOn ?? null);
   const minor = parseMoney(value);
+  const badValue = value.trim() !== "" && (minor === null || !isCurrencyCode(currency));
   return (
     <SheetForm
       title="Edit deal"
       action="Save"
-      disabled={!name.trim() || (value.trim() !== "" && minor === null)}
+      disabled={!name.trim() || badValue}
       saving={update.isPending}
       onSubmit={() => {
-        const change = changed(
-          { name: name.trim(), valueMinor: minor, companyId: company?.id ?? null },
-          deal,
-        );
+        const change = {
+          ...changed(
+            {
+              name: name.trim(),
+              companyId: company?.id ?? null,
+              ownerMemberId: owner,
+              expectedCloseOn: closeOn,
+            },
+            { ...deal, expectedCloseOn: deal.expectedCloseOn ?? null },
+          ),
+          ...valueChange(deal, minor, currency),
+        };
         if (!Object.keys(change).length) return router.back();
         update.mutate({ id: deal.id, ...change }, done("The deal was not changed"));
       }}
@@ -158,14 +190,10 @@ export function EditDealForm(props: { deal: CrmDeal; company: CompanyChoice | nu
         value={name}
         onChangeText={setName}
       />
-      <TextField
-        label="Value"
-        placeholder="Value"
-        keyboardType="decimal-pad"
-        value={value}
-        onChangeText={setValue}
-      />
+      <ValueField value={value} onValue={setValue} currency={currency} onCurrency={setCode} />
       <CompanyField value={company} onChange={setCompany} />
+      <CloseDateField value={closeOn} onChange={setCloseOn} />
+      <OwnerField value={owner} onChange={setOwner} />
     </SheetForm>
   );
 }

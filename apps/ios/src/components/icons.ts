@@ -67,3 +67,13 @@ export { IconHistory } from "@central-icons-react-native/round-outlined-radius-3
 export { IconCirclePlaceholderOn as IconCircle } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCirclePlaceholderOn";
 export { IconCircleDashed } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCircleDashed";
 export { IconCloudDownload as IconOffline } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCloudDownload";
+export { IconSortArrowUpDown as IconSort } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconSortArrowUpDown";
+export { IconFilter1 as IconFilter } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconFilter1";
+export { IconKanbanView as IconBoard } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconKanbanView";
+export { IconArrowDown } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconArrowDown";
+export { IconUserRemove as IconNoOwner } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconUserRemove";
+export { IconFlag1 as IconFlag } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconFlag1";
+export { IconProjects } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconProjects";
+export { IconCalendar1 as IconCalendar } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCalendar1";
+export { IconCoins } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCoins";
+export { IconText1 as IconName } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconText1";

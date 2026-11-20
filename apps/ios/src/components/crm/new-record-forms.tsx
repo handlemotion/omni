@@ -8,7 +8,9 @@ import {
   useCreateDeal,
   useCreatePerson,
 } from "@/lib/crm-mutations.ts";
+import { isCurrencyCode, useDealCurrency } from "@/lib/crm-currency.ts";
 import { CompanyField, type CompanyChoice } from "./company-field.tsx";
+import { CloseDateField, ValueField } from "./form-fields.tsx";
 import { SheetForm } from "./sheet-form.tsx";
 
 /** The longest name the API takes. */
@@ -109,24 +111,31 @@ export function NewPersonForm(props: { company: CompanyChoice | null }) {
   );
 }
 
+/** A new deal; a value is always sent with its currency (ADR 0054 decision 7). */
 export function NewDealForm(props: { company: CompanyChoice | null }) {
   const create = useCreateDeal();
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
+  const [code, setCode] = useState<string | null>(null);
+  const fallback = useDealCurrency(null).currency;
+  const currency = code ?? fallback;
   const [company, setCompany] = useState(props.company);
+  const [closeOn, setCloseOn] = useState<string | null>(null);
   const minor = parseMoney(value);
+  const badValue = value.trim() !== "" && (minor === null || !isCurrencyCode(currency));
   return (
     <SheetForm
       title="New deal"
       action="Create"
-      disabled={!name.trim() || (value.trim() !== "" && minor === null)}
+      disabled={!name.trim() || badValue}
       saving={create.isPending}
       onSubmit={() =>
         create.mutate(
           {
             name: name.trim(),
             ...(company ? { companyId: company.id } : {}),
-            ...(minor !== null ? { valueMinor: minor } : {}),
+            ...(minor !== null ? { valueMinor: minor, currency } : {}),
+            ...(closeOn ? { expectedCloseOn: closeOn } : {}),
           },
           {
             onSuccess: ({ deal }) =>
@@ -145,13 +154,8 @@ export function NewDealForm(props: { company: CompanyChoice | null }) {
         onChangeText={setName}
       />
       {props.company ? null : <CompanyField value={company} onChange={setCompany} />}
-      <TextField
-        label="Value"
-        placeholder="Value"
-        keyboardType="decimal-pad"
-        value={value}
-        onChangeText={setValue}
-      />
+      <ValueField value={value} onValue={setValue} currency={currency} onCurrency={setCode} />
+      <CloseDateField value={closeOn} onChange={setCloseOn} />
     </SheetForm>
   );
 }

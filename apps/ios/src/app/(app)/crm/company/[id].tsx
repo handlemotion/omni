@@ -5,11 +5,13 @@ import { RecordActions } from "@/components/crm/record-actions.tsx";
 import { RecordFilesSection } from "@/components/crm/record-files.tsx";
 import { TimelineSection } from "@/components/crm/timeline-section.tsx";
 import { useCompany, useStageNames } from "@/lib/crm.ts";
+import { useMemberNames } from "@/lib/crm-timeline.ts";
 
-/** A company: what it does, its domains, its people and its deals. */
+/** A company: what it does, who owns it, its domains, its people and its deals. */
 export default function Company() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const stages = useStageNames().data;
+  const members = useMemberNames().data;
   return (
     <>
       <Stack.Screen options={{ title: "" }} />
@@ -18,14 +20,21 @@ export default function Company() {
         head={(data) => ({
           name: data.company.name,
           logo: data.domains[0] ? { domain: data.domains[0] } : null,
+          archived: !!data.company.archivedAt,
         })}
       >
         {(data) => (
           <>
-            <RecordActions kind="companies" id={id} />
+            <RecordActions
+              kind="companies"
+              id={id}
+              name={data.company.name}
+              archived={!!data.company.archivedAt}
+            />
             <Fields
               fields={[
                 ["Description", data.company.description],
+                ["Owner", members?.get(data.company.ownerMemberId ?? "")],
                 ["Domains", data.domains.map((d) => ({ text: d, href: `https://${d}` }))],
               ]}
             />

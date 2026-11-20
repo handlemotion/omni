@@ -1,5 +1,6 @@
 import { Stack, router } from "expo-router";
 import { Alert } from "react-native";
+import { confirmDeleteForever, useIsAdmin, useRecordMove } from "@/lib/crm-actions.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
 import { useAddDomain, useMoveDeal, type CrmRecordKind } from "@/lib/crm-mutations.ts";
 import { useStages, type CrmStage } from "@/lib/crm-timeline.ts";
@@ -19,12 +20,25 @@ export const openNote = (record: CrmRecordKind, id: string, noteId?: string) =>
 
 /**
  * A record screen's header buttons: Edit, then a menu of what else the web's record page does
- * there (a note; a company's domain, people and deals; a deal's stage). The native menu reads
+ * there (a note; a company's domain, people and deals; a deal's stage; Archive or Restore, and
+ * for owners and admins Delete forever after a question). The native menu reads
  * its items straight from its children, so they are all built here.
  */
-export function RecordActions(props: { kind: CrmRecordKind; id: string; stageId?: string }) {
+export function RecordActions(props: {
+  kind: CrmRecordKind;
+  id: string;
+  name: string;
+  archived: boolean;
+  stageId?: string;
+}) {
   const { kind, id } = props;
   const stages = useStages().data ?? [];
+  const archive = useRecordMove(kind, "archive").mutate;
+  const restore = useRecordMove(kind, "restore").mutate;
+  const remove = useRecordMove(kind, "deleteForever").mutate;
+  const admin = useIsAdmin();
+  const deleteForever = () =>
+    confirmDeleteForever(props.name, () => remove(id, { onSuccess: () => router.back() }));
   const move = useMoveDeal();
   const addDomain = useAddDomain();
   const moveTo = (stage: CrmStage) =>
@@ -100,6 +114,22 @@ export function RecordActions(props: { kind: CrmRecordKind; id: string; stageId?
             Add deal
           </Stack.Toolbar.MenuAction>
         ) : null}
+        <Stack.Toolbar.Menu inline>
+          {props.archived ? (
+            <Stack.Toolbar.MenuAction icon="arrow.uturn.backward" onPress={() => restore(id)}>
+              Restore
+            </Stack.Toolbar.MenuAction>
+          ) : (
+            <Stack.Toolbar.MenuAction icon="archivebox" onPress={() => archive(id)}>
+              Archive
+            </Stack.Toolbar.MenuAction>
+          )}
+          {admin ? (
+            <Stack.Toolbar.MenuAction icon="trash" destructive onPress={deleteForever}>
+              Delete forever
+            </Stack.Toolbar.MenuAction>
+          ) : null}
+        </Stack.Toolbar.Menu>
       </Stack.Toolbar.Menu>
     </Stack.Toolbar>
   );

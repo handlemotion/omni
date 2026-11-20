@@ -18,7 +18,10 @@ export const keys = {
   fileCopy: (fileId: string, version: string) => ["drive-file", "copy", fileId, version] as const,
   fileText: (fileId: string, version: string) => ["drive-file", "text", fileId, version] as const,
   storageHeaders: () => ["storage-headers"] as const,
-  crmList: (page: string) => ["crm", page] as const,
+  /** One kind's lists (`companies`, `people`, `deals`), each order and filter apart. */
+  crmList: (records: string, query?: Record<string, string>) =>
+    query ? (["crm", records, query] as const) : (["crm", records] as const),
+  crmSettings: () => ["crm", "settings"] as const,
   crmRecord: (kind: string, id: string) => ["crm", kind, id] as const,
   crmStages: () => ["crm", "stages"] as const,
   crmTimeline: (kind: string, id: string) => ["crm", "timeline", kind, id] as const,

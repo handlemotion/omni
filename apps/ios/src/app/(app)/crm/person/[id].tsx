@@ -1,13 +1,17 @@
 import { Stack, useLocalSearchParams } from "expo-router";
-import { Fields, RecordView } from "@/components/crm/record-view.tsx";
+import { DealRow } from "@/components/crm/record-rows.tsx";
+import { Fields, RecordView, Section } from "@/components/crm/record-view.tsx";
 import { RecordActions } from "@/components/crm/record-actions.tsx";
 import { TimelineSection } from "@/components/crm/timeline-section.tsx";
-import { usePerson } from "@/lib/crm.ts";
+import { usePerson, useStageNames } from "@/lib/crm.ts";
+import { useMemberNames } from "@/lib/crm-timeline.ts";
 import { listTime } from "@/lib/mail.ts";
 
-/** A person: their role, how to reach them, and when you last wrote. */
+/** A person: their role, how to reach them, who owns them, their deals, and when you last wrote. */
 export default function Person() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const stages = useStageNames().data;
+  const members = useMemberNames().data;
   return (
     <>
       <Stack.Screen options={{ title: "" }} />
@@ -17,11 +21,17 @@ export default function Person() {
           name: data.person.name,
           detail: data.person.jobTitle,
           logo: data.person.addresses[0] ? { address: data.person.addresses[0].address } : null,
+          archived: !!data.person.archivedAt,
         })}
       >
         {(data) => (
           <>
-            <RecordActions kind="people" id={id} />
+            <RecordActions
+              kind="people"
+              id={id}
+              name={data.person.name}
+              archived={!!data.person.archivedAt}
+            />
             <Fields
               fields={[
                 [
@@ -40,8 +50,14 @@ export default function Person() {
                       }
                     : null,
                 ],
+                ["Owner", members?.get(data.person.ownerMemberId ?? "")],
                 ["Last contacted", data.lastContactedAt ? listTime(data.lastContactedAt) : null],
               ]}
+            />
+            <Section
+              title="Deals"
+              items={data.deals ?? []}
+              render={(d) => <DealRow deal={d} stage={stages?.get(d.stageId)} />}
             />
             <TimelineSection kind="people" id={id} />
           </>

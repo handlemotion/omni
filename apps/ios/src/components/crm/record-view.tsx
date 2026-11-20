@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Linking, ScrollView, StyleSheet, View } from "react-native";
 import { IconBuildings } from "@/components/icons.ts";
 import { Avatar } from "@/components/ui/avatar.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { LoadingPage } from "@/components/ui/loading-page.tsx";
@@ -18,6 +19,8 @@ export interface RecordHead {
   name: string;
   detail?: string | null;
   logo?: LogoFor | null;
+  /** It is archived: a badge says so under its name. */
+  archived?: boolean;
 }
 
 /**
@@ -63,6 +66,7 @@ export function RecordView<T>(props: {
             {head.detail}
           </Text>
         ) : null}
+        {head.archived ? <Badge label="Archived" /> : null}
       </View>
       {props.children(query.data)}
     </ScrollView>

@@ -155,8 +155,10 @@ const SCREENS: {
     name: "CRM person",
     path: (s) => `/crm/person/${s.personId}`,
     shows: LONG.personAddress,
+    clamped: [[LONG.deal, 2]],
     inFull: [LONG.person, LONG.personAddress],
   },
+  { name: "CRM projects, empty", path: () => "/crm?page=projects", shows: "No projects yet" },
   {
     name: "CRM deal",
     path: (s) => `/crm/deal/${s.dealId}`,

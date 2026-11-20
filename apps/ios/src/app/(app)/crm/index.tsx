@@ -1,80 +1,56 @@
 import { Redirect, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
+import { StyleSheet, View } from "react-native";
 import { CrmSearch } from "@/components/crm/crm-search.tsx";
-import { CompanyRow, DealRow, PersonRow } from "@/components/crm/record-rows.tsx";
-import { IconBuildings, IconHandshake, IconUsers } from "@/components/icons.ts";
+import { DealBoard } from "@/components/crm/deal-board.tsx";
+import { ListControls } from "@/components/crm/list-controls.tsx";
+import { CompanyList, DealList, PersonList } from "@/components/crm/record-lists.tsx";
 import { FLOATING_BAR_SPACE } from "@/components/shell/floating-bar.tsx";
 import { useMenu } from "@/components/shell/menu-context.tsx";
 import { ModuleRoot } from "@/components/shell/module-root.tsx";
-import { InfiniteList } from "@/components/ui/infinite-list.tsx";
-import {
-  CRM_PAGES,
-  isCrmPage,
-  useCompanies,
-  useDeals,
-  usePeople,
-  useStageNames,
-} from "@/lib/crm.ts";
+import { DEFAULT_VIEW, isCrmPage, type CrmPage, type ListView } from "@/lib/crm-lists.ts";
 import { useDebounced } from "@/lib/use-debounced.ts";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 
-/** A CRM list: Companies, People or Deals. A Personal space has no CRM: it goes to Mail. */
+/**
+ * A CRM list: Companies, People, Deals (as a list or a board) or Projects, each with its own
+ * order and filters, kept while you move between them. A Personal space has no CRM: it goes to
+ * Mail.
+ */
 export default function CrmHome() {
   const params = useLocalSearchParams<{ page?: string }>();
   const page = isCrmPage(params.page) ? params.page : "companies";
   const typed = useMenu().query.trim();
   const q = useDebounced(typed);
-  if (!hasCrm(useWorkspace().active)) return <Redirect href="/mail" />;
+  const [views, setViews] = useState<Partial<Record<CrmPage, ListView>>>({});
+  const [board, setBoard] = useState(false);
+  const view = views[page] ?? DEFAULT_VIEW;
+  const crm = hasCrm(useWorkspace().active);
+  if (!crm) return <Redirect href="/mail" />;
   return (
     <ModuleRoot module="crm">
       {typed ? (
         <CrmSearch q={q} footerSpace={FLOATING_BAR_SPACE} />
-      ) : page === "people" ? (
-        <People />
-      ) : page === "deals" ? (
-        <Deals />
       ) : (
-        <Companies />
+        <View style={styles.page}>
+          <ListControls
+            page={page}
+            view={view}
+            onChange={(next) => setViews((all) => ({ ...all, [page]: next }))}
+            board={page === "deals" ? { on: board, toggle: () => setBoard(!board) } : undefined}
+          />
+          <PageList page={page} view={view} board={board} />
+        </View>
       )}
     </ModuleRoot>
   );
 }
 
-function Companies() {
-  return (
-    <InfiniteList
-      query={useCompanies()}
-      keyOf={(company) => company.id}
-      renderItem={(company) => <CompanyRow company={company} />}
-      icon={IconBuildings}
-      empty={CRM_PAGES.companies.empty}
-      footerSpace={FLOATING_BAR_SPACE}
-    />
-  );
+function PageList({ page, view, board }: { page: CrmPage; view: ListView; board: boolean }) {
+  if (page === "people") return <PersonList view={view} />;
+  if (page === "projects") return <DealList view={view} projects />;
+  if (page === "deals") return board ? <DealBoard view={view} /> : <DealList view={view} />;
+  return <CompanyList view={view} />;
 }
 
-function People() {
-  return (
-    <InfiniteList
-      query={usePeople()}
-      keyOf={(person) => person.id}
-      renderItem={(person) => <PersonRow person={person} />}
-      icon={IconUsers}
-      empty={CRM_PAGES.people.empty}
-      footerSpace={FLOATING_BAR_SPACE}
-    />
-  );
-}
-
-function Deals() {
-  const stages = useStageNames().data;
-  return (
-    <InfiniteList
-      query={useDeals()}
-      keyOf={(deal) => deal.id}
-      renderItem={(deal) => <DealRow deal={deal} stage={stages?.get(deal.stageId)} />}
-      icon={IconHandshake}
-      empty={CRM_PAGES.deals.empty}
-      footerSpace={FLOATING_BAR_SPACE}
-    />
-  );
-}
+const styles = StyleSheet.create({ page: { flex: 1 } });
