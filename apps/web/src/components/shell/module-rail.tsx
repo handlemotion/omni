@@ -22,7 +22,7 @@ import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { isSettingsPath, useOpenSettings } from "@/hooks/use-settings.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { useCurrentModule, useModules, type ModuleId } from "./module-switcher";
-import { UpdateRow } from "./update-row";
+import { UpdateRow, UpdateTile } from "./update-row";
 
 type Icon = ComponentType<{ className?: string }>;
 
@@ -70,7 +70,8 @@ function useRailPeek() {
   );
 }
 
-const TILE = "size-8 justify-center rounded-[9px] px-0 hover:bg-secondary *:[svg]:size-4.5";
+const TILE_SHAPE = "size-8 justify-center rounded-[9px] px-0 *:[svg]:size-4.5";
+const TILE = `${TILE_SHAPE} hover:bg-secondary`;
 
 /**
  * The modules as a column of icon tiles on the window's grey, the current one on a
@@ -131,6 +132,7 @@ const PANEL =
   "mt-12 rounded-tl-xl border-s border-t border-e border-sidebar-border bg-background px-3 pt-0.5 *:shrink-0";
 
 function ModuleRail() {
+  const { open } = useSidebar();
   const modules = useModules();
   const inSettings = isSettingsPath(useLocation().pathname);
   const module = useCurrentModule();
@@ -161,7 +163,8 @@ function ModuleRail() {
           </RailTip>
         );
       })}
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col items-center gap-1.75">
+        {!open && <UpdateTile className={TILE_SHAPE} />}
         <RailTip label="Settings">
           <SidebarItem
             aria-label="Settings"

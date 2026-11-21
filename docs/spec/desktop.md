@@ -243,7 +243,8 @@ after a spike. Swift side: Foundation and FileProvider only.
   Because the UI comes from the server, a shell update is rare: native code, the extension,
   Tauri itself.
   Once one is downloaded the shell tells the page (`update-ready`, `update_ready`), and the
-  sidebar shows "Restart to update" above the module switcher; pressing it restarts into the
+  nav panel shows a blue "Restart to update" row, a nav row's height, at its foot; with the
+  sidebar closed the rail shows a blue tile above Settings instead. Either restarts into the
   update with the window shown (`update_install`). "Check for Updates…" in the tray and the app
   menu checks at once: a download brings the window forward to that row, otherwise a
   notification says Omni is up to date or that the check failed.
