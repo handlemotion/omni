@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { acceptJoinRequest, createOrgWithOwner, schema } from "@omni/db";
+import { acceptJoinRequest, createOrgWithOwner, ensurePersonalSpace, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
@@ -52,9 +52,16 @@ afterEach(async () => {
   context = undefined;
 });
 
-async function signedIn(email: string, path: string) {
+async function signedIn(email: string, path: string, { personal = true } = {}) {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
+  if (personal) {
+    const [user] = await db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(eq(schema.users.email, email));
+    await ensurePersonalSpace(db, user!.id);
+  }
   context = await browser.newContext();
   await context.addCookies(
     cookie.split("; ").map((pair) => {
@@ -78,8 +85,25 @@ async function settingsPages(page: Page) {
   return shown;
 }
 
-test("someone in no company lands in their Personal space's inbox, not in company setup", async () => {
-  const page = await signedIn(`solo-${Date.now()}@gmail.test`, "/");
+test("someone in no workspace chooses Just me and lands in their Personal space's inbox", async () => {
+  const email = `solo-${Date.now()}@gmail.test`;
+  const page = await signedIn(email, "/", { personal: false });
+  await page.getByRole("heading", { name: "Welcome to Omni" }).waitFor({ timeout: 15_000 });
+  expect(new URL(page.url()).pathname).toBe("/welcome");
+  expect(await page.getByRole("button", { name: "Create a workspace" }).count()).toBe(1);
+  await page.getByRole("button", { name: "Just me" }).click();
+  await page.getByRole("button", { name: /^Switch mailbox/ }).waitFor({ timeout: 15_000 });
+  expect(place(page.url())).toBe("/mail/inbox");
+  const spaces = await db
+    .select({ orgId: schema.personalSpaces.orgId })
+    .from(schema.personalSpaces)
+    .innerJoin(schema.users, eq(schema.users.id, schema.personalSpaces.userId))
+    .where(eq(schema.users.email, email));
+  expect(spaces).toHaveLength(1);
+});
+
+test("someone with a Personal space from before still lands in its inbox, not in company setup", async () => {
+  const page = await signedIn(`before-${Date.now()}@gmail.test`, "/");
   await page.getByRole("button", { name: /^Switch mailbox/ }).waitFor({ timeout: 15_000 });
   expect(place(page.url())).toBe("/mail/inbox");
 });

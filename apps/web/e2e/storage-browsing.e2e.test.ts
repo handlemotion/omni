@@ -9,7 +9,7 @@ import {
   createMailbox,
   createOrg,
   createTestDatabase,
-  signIn,
+  signInWithPersonalSpace,
   startMailServiceEndpoint,
   startWorkerWithNetwork,
   SYSTEM_MAIL_FROM,
@@ -135,7 +135,7 @@ test("a file added from elsewhere shows in an open folder within 2 s, refetching
 
 async function account(email: string) {
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, email);
   const api = async (method: string, path: string, body?: unknown, raw?: Uint8Array) => {
     const response = await fetch(new URL(`/api/storage${path}`, origin), {
       method,

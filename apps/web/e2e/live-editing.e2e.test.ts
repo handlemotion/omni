@@ -11,7 +11,7 @@ import {
   createMember,
   createOrg,
   createTestDatabase,
-  signIn,
+  signInWithPersonalSpace,
   startMailServiceEndpoint,
   startWorkerWithNetwork,
   SYSTEM_MAIL_FROM,
@@ -56,7 +56,11 @@ afterAll(async () => {
 
 test("two editors on one Markdown file see each other's typing, and the page is saved", async () => {
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, db, `live-${Date.now()}@gmail.test`);
+  const cookie = await signInWithPersonalSpace(
+    { url: new URL(origin) },
+    db,
+    `live-${Date.now()}@gmail.test`,
+  );
   context = await browser.newContext();
   await context.addCookies(
     cookie.split("; ").map((pair) => {
@@ -116,7 +120,11 @@ const pageText = (page: Page) => page.locator("[contenteditable=true]").innerTex
 
 test("New doc opens an empty page, and blocks picked from / are saved as Markdown", async () => {
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, db, `doc-${Date.now()}@gmail.test`);
+  const cookie = await signInWithPersonalSpace(
+    { url: new URL(origin) },
+    db,
+    `doc-${Date.now()}@gmail.test`,
+  );
   const own = await browser.newContext();
   await own.addCookies(
     cookie.split("; ").map((pair) => {
@@ -178,7 +186,11 @@ const DOT_PNG = Buffer.from(
 
 test("an image picked from / goes into the doc, and @ links another file", async () => {
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, db, `pics-${Date.now()}@gmail.test`);
+  const cookie = await signInWithPersonalSpace(
+    { url: new URL(origin) },
+    db,
+    `pics-${Date.now()}@gmail.test`,
+  );
   const own = await browser.newContext();
   await own.addCookies(
     cookie.split("; ").map((pair) => {
@@ -289,7 +301,11 @@ function freePort() {
 
 test("a comment on selected text is marked for every editor, follows its words, and clears when resolved", async () => {
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, db, `remark-${Date.now()}@gmail.test`);
+  const cookie = await signInWithPersonalSpace(
+    { url: new URL(origin) },
+    db,
+    `remark-${Date.now()}@gmail.test`,
+  );
   const own = await browser.newContext();
   await own.addCookies(
     cookie.split("; ").map((pair) => {
@@ -366,7 +382,12 @@ test("a comment on selected text is marked for every editor, follows its words, 
 test("an assistant's edit lands live in an open doc, merged with what the person types", async () => {
   const origin = String(worker.url);
   const jar = new CookieJar();
-  const cookie = await signIn({ url: new URL(origin) }, db, `agent-${Date.now()}@gmail.test`, jar);
+  const cookie = await signInWithPersonalSpace(
+    { url: new URL(origin) },
+    db,
+    `agent-${Date.now()}@gmail.test`,
+    jar,
+  );
   const own = await browser.newContext();
   await own.addCookies(
     cookie.split("; ").map((pair) => {
@@ -427,7 +448,7 @@ test("an assistant whose person may only view a doc changes nothing in it, even 
   await createMember(db, acme.id, anaEmail);
   const fred = await createMember(db, acme.id, fredEmail);
   await db.update(schema.members).set({ role: "freelancer" }).where(eq(schema.members.id, fred.id));
-  const cookie = await signIn({ url: new URL(origin) }, db, anaEmail);
+  const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, anaEmail);
   const own = await browser.newContext();
   await own.addCookies(
     cookie.split("; ").map((pair) => {
@@ -472,7 +493,7 @@ test("an assistant whose person may only view a doc changes nothing in it, even 
   expect(shared).toBe(200);
 
   const jar = new CookieJar();
-  await signIn({ url: new URL(origin) }, db, fredEmail, jar);
+  await signInWithPersonalSpace({ url: new URL(origin) }, db, fredEmail, jar);
   const agent = await connectAgent(origin, jar, {
     scope: "openid mail:read drive:read drive:write",
     authURL: origin.replace(/\/$/, ""),
@@ -496,7 +517,7 @@ test("an assistant's edit to an open doc in a full workspace changes nothing", a
   const origin = String(worker.url);
   const jar = new CookieJar();
   const email = `full-${Date.now()}@gmail.test`;
-  const cookie = await signIn({ url: new URL(origin) }, db, email, jar);
+  const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, email, jar);
   const own = await browser.newContext();
   await own.addCookies(
     cookie.split("; ").map((pair) => {

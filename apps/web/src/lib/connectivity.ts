@@ -105,7 +105,7 @@ async function probe() {
 
 async function workerAnswers() {
   try {
-    const response = await fetch("/api/me", { cache: "no-store" });
+    const response = await fetch("/api/me?personal=on-demand", { cache: "no-store" });
     return response.status < 500;
   } catch {
     return false;

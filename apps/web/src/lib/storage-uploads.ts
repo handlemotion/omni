@@ -66,12 +66,12 @@ export function identityChecks(
   return {
     guard,
     confirm: async () => {
-      const me = await call(api.me.$get(undefined, { init: { signal } })).catch(
-        (error: unknown) => {
-          if (signal.aborted) throw error;
-          return null;
-        },
-      );
+      const me = await call(
+        api.me.$get({ query: { personal: "on-demand" } }, { init: { signal } }),
+      ).catch((error: unknown) => {
+        if (signal.aborted) throw error;
+        return null;
+      });
       if (!me) return guard();
       const place = shareId ? `link:${shareId}` : `org:${me.orgId}`;
       if (`${me.userId}|${place}` !== identity) throw new UploadIdentityChanged();

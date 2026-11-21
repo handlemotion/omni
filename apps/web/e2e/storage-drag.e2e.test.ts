@@ -12,7 +12,7 @@ import {
   createMailbox,
   createOrg,
   createTestDatabase,
-  signIn,
+  signInWithPersonalSpace,
   startMailServiceEndpoint,
   startWorkerWithNetwork,
   SYSTEM_MAIL_FROM,
@@ -142,7 +142,7 @@ async function names(page: Page, where: { space: string } | { parent: string }) 
 
 async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, database.db, email);
+  const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, database.db, email);
   await context?.close();
   context = await browser.newContext({ baseURL: origin, viewport: { width: 1400, height: 900 } });
   await context.addCookies(

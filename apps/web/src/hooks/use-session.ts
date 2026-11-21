@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { invitationQuery, organizationsQuery } from "../lib/org-queries.ts";
+import { organizationsQuery } from "../lib/org-queries.ts";
 import {
   acceptInvitation,
   deviceSessionsQuery,
@@ -89,11 +89,6 @@ export function useSignOut() {
 /** Organizations the user belongs to. */
 export function useOrganizations() {
   return useQuery(organizationsQuery());
-}
-
-/** The invitation shown on `/invite/$invitationId`. */
-export function useInvitation(invitationId: string) {
-  return useQuery(invitationQuery(invitationId));
 }
 
 /** `mutate(invitationId)` joins the organization and switches into it. */

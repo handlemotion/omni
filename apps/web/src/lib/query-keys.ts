@@ -34,6 +34,10 @@ export const keys = {
   signInEmails: () => [...root, "sign-in-emails"] as const,
   /** The company a scoped sign-in may ask to join. */
   join: () => [...root, "join"] as const,
+  /** Invitations waiting for the signed-in person, to any of their sign-in emails. */
+  pendingInvitations: () => [...root, "pending-invitations"] as const,
+  /** One invitation as its `/invite/<id>` link shows it to the signed-in person. */
+  invitationStatus: (id: string) => [...root, "invitation-status", id] as const,
   /** Drive sync on this computer, as the desktop shell reports it. */
   desktopSync: () => [...root, "desktop-sync"] as const,
   /** A sender's avatar picture and its edge, by address or company domain. The same everywhere. */
@@ -46,7 +50,6 @@ export const keys = {
   members: () => [...org(), "members"] as const,
   invitations: () => [...org(), "invitations"] as const,
   joinRequests: () => [...org(), "join-requests"] as const,
-  invitation: (id: string) => [...org(), "invitation", id] as const,
   passkeys: () => [...org(), "passkeys"] as const,
   billing: () => [...org(), "billing"] as const,
   /** The workspace's saved cards in Stripe (owners and admins). */

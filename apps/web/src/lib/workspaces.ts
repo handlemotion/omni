@@ -15,7 +15,12 @@ export const workspacesQuery = () =>
   queryOptions({
     queryKey: keys.workspaces(),
     queryFn: ({ signal }) =>
-      call(api.workspaces.$get({ query: { include: "personal" } }, { init: { signal } })),
+      call(
+        api.workspaces.$get(
+          { query: { include: "personal", personal: "on-demand" } },
+          { init: { signal } },
+        ),
+      ),
   });
 
 /**

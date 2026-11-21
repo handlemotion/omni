@@ -3,8 +3,17 @@ import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { signRequest, verifyRequest, type VerifyResult } from "@omni/crypto";
-import { addLocation, createDb, createThread, schema, upsertFolder, upsertMessage } from "@omni/db";
+import {
+  addLocation,
+  createDb,
+  createThread,
+  ensurePersonalSpace,
+  schema,
+  upsertFolder,
+  upsertMessage,
+} from "@omni/db";
 import { MAIL_EVENTS_PATH, type MailEventsBody } from "@omni/contracts";
+import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createTestHarness, unstable_startWorker } from "wrangler";
@@ -279,6 +288,26 @@ export async function invite(
     headers: { "content-type": "application/json", origin: WEB_ORIGIN, cookie: jar.header },
     body: JSON.stringify(body),
   });
+}
+
+/**
+ * `signIn` for someone who already has a Personal space, as every account made before Personal
+ * spaces were made on demand does.
+ */
+export async function signInWithPersonalSpace(
+  worker: Worker,
+  db: TestDb,
+  email: string,
+  jar?: CookieJar,
+) {
+  const cookie = await signIn(worker, db, email, jar);
+  const [user] = await db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(eq(sql`lower(${schema.users.email})`, email.toLowerCase()));
+  if (!user) throw new Error(`no user signed in as ${email}`);
+  await ensurePersonalSpace(db, user.id);
+  return cookie;
 }
 
 /** Chooses "Just me", as onboarding does: makes the person's Personal space. Its id. */

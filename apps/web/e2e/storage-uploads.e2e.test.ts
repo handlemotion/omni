@@ -12,7 +12,7 @@ import {
   createMailbox,
   createOrg,
   createTestDatabase,
-  signIn,
+  signInWithPersonalSpace,
   startMailServiceEndpoint,
   startWorkerWithNetwork,
   SYSTEM_MAIL_FROM,
@@ -293,7 +293,7 @@ async function treeUnder(top: string) {
 
 async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, email);
   await context?.close();
   context = await browser.newContext();
   await context.addInitScript(() => performance.setResourceTimingBufferSize(10_000));

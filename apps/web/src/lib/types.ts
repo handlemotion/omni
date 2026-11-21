@@ -3,12 +3,14 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 
 export type {
   DnsRecord,
+  InvitationStatus,
   Mailbox,
   Member,
   Onboarding,
   OnboardingDomain,
   OrgMailbox,
   Message,
+  PendingInvitation,
   SearchResult,
   Thread,
   ThreadPage,

@@ -12,7 +12,7 @@ import {
   createMailbox,
   createOrg,
   createTestDatabase,
-  signIn,
+  signInWithPersonalSpace,
   startMailServiceEndpoint,
   startWorkerWithNetwork,
   SYSTEM_MAIL_FROM,
@@ -493,7 +493,7 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
 
 async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, email);
   await context?.close();
   context = await browser.newContext({ acceptDownloads: true });
   await context.addCookies(

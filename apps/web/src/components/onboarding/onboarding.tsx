@@ -90,7 +90,13 @@ export function Onboarding() {
     else finish.run();
   };
   const previous = pages[index - 1];
-  const back = previous ? () => setPage(previous) : undefined;
+  const navigate = useNavigate();
+  const inWorkspace = !!useSession().data?.member;
+  const back = previous
+    ? () => setPage(previous)
+    : inWorkspace
+      ? undefined
+      : () => void navigate({ to: "/welcome" });
   const chooseDomain = (id: string) => {
     setDomainId(id);
     next();

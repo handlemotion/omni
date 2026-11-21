@@ -13,7 +13,12 @@
          scripts, instead of after them (a round trip or two saved). The app's own `fetch` takes
          these answers (same URL and credentials mode); signed out they are quick 401s. -->
     <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/auth/get-session" />
-    <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/me" />
+    <link
+      rel="preload"
+      as="fetch"
+      crossorigin="use-credentials"
+      href="/api/me?personal=on-demand"
+    />
     <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/mailboxes" />
     <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/mailboxes?scope=all" />
     <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/counts?scope=all" />
@@ -21,7 +26,7 @@
       rel="preload"
       as="fetch"
       crossorigin="use-credentials"
-      href="/api/workspaces?include=personal"
+      href="/api/workspaces?include=personal&amp;personal=on-demand"
     />
     <!-- The Inbox's first page: where `/` and almost every visit land. Elsewhere it goes unused. -->
     <link

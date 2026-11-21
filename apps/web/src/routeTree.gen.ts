@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from "./routes/login";
 import { Route as AuthedWorkspaceRouteImport } from "./routes/_authed/$workspace";
 import { Route as AuthedJoinRouteImport } from "./routes/_authed/join";
 import { Route as AuthedOnboardingRouteImport } from "./routes/_authed/onboarding";
+import { Route as AuthedWelcomeRouteImport } from "./routes/_authed/welcome";
 import { Route as SShareIdRouteImport } from "./routes/s.$shareId";
 import { Route as SignRequestIdRouteImport } from "./routes/sign.$requestId";
 import { Route as AuthedWorkspaceSplatRouteImport } from "./routes/_authed/$workspace/$";
@@ -92,6 +93,11 @@ const AuthedJoinRoute = AuthedJoinRouteImport.update({
 const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
   id: "/onboarding",
   path: "/onboarding",
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedWelcomeRoute = AuthedWelcomeRouteImport.update({
+  id: "/welcome",
+  path: "/welcome",
   getParentRoute: () => AuthedRoute,
 } as any);
 const SShareIdRoute = SShareIdRouteImport.update({
@@ -383,6 +389,7 @@ export interface FileRoutesByFullPath {
   "/$workspace": typeof AuthedWorkspaceRouteWithChildren;
   "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
+  "/welcome": typeof AuthedWelcomeRoute;
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
@@ -439,6 +446,7 @@ export interface FileRoutesByTo {
   "/$workspace": typeof AuthedWorkspaceRouteWithChildren;
   "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
+  "/welcome": typeof AuthedWelcomeRoute;
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
@@ -496,6 +504,7 @@ export interface FileRoutesById {
   "/_authed/$workspace": typeof AuthedWorkspaceRouteWithChildren;
   "/_authed/join": typeof AuthedJoinRoute;
   "/_authed/onboarding": typeof AuthedOnboardingRoute;
+  "/_authed/welcome": typeof AuthedWelcomeRoute;
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/_authed/$workspace/$": typeof AuthedWorkspaceSplatRoute;
@@ -554,6 +563,7 @@ export interface FileRouteTypes {
     | "/$workspace"
     | "/join"
     | "/onboarding"
+    | "/welcome"
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/$workspace/$"
@@ -610,6 +620,7 @@ export interface FileRouteTypes {
     | "/$workspace"
     | "/join"
     | "/onboarding"
+    | "/welcome"
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/$workspace/$"
@@ -666,6 +677,7 @@ export interface FileRouteTypes {
     | "/_authed/$workspace"
     | "/_authed/join"
     | "/_authed/onboarding"
+    | "/_authed/welcome"
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/_authed/$workspace/$"
@@ -767,6 +779,13 @@ declare module "@tanstack/react-router" {
       path: "/onboarding";
       fullPath: "/onboarding";
       preLoaderRoute: typeof AuthedOnboardingRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    "/_authed/welcome": {
+      id: "/_authed/welcome";
+      path: "/welcome";
+      fullPath: "/welcome";
+      preLoaderRoute: typeof AuthedWelcomeRouteImport;
       parentRoute: typeof AuthedRoute;
     };
     "/s/$shareId": {
@@ -1349,6 +1368,7 @@ interface AuthedRouteChildren {
   AuthedWorkspaceRoute: typeof AuthedWorkspaceRouteWithChildren;
   AuthedJoinRoute: typeof AuthedJoinRoute;
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute;
+  AuthedWelcomeRoute: typeof AuthedWelcomeRoute;
   AuthedInviteInvitationIdRoute: typeof AuthedInviteInvitationIdRoute;
   AuthedOauthConsentRoute: typeof AuthedOauthConsentRoute;
   AuthedPortalIdRoute: typeof AuthedPortalIdRoute;
@@ -1360,6 +1380,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedWorkspaceRoute: AuthedWorkspaceRouteWithChildren,
   AuthedJoinRoute: AuthedJoinRoute,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
+  AuthedWelcomeRoute: AuthedWelcomeRoute,
   AuthedInviteInvitationIdRoute: AuthedInviteInvitationIdRoute,
   AuthedOauthConsentRoute: AuthedOauthConsentRoute,
   AuthedPortalIdRoute: AuthedPortalIdRoute,

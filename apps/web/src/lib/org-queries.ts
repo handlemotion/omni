@@ -40,15 +40,6 @@ export const invitationsQuery = () =>
       ),
   });
 
-/** One invitation addressed to the signed-in user, for the accept page. */
-export const invitationQuery = (id: string) =>
-  queryOptions({
-    queryKey: keys.invitation(id),
-    queryFn: ({ signal }) =>
-      authCall(auth.organization.getInvitation({ query: { id }, fetchOptions: { signal } })),
-    retry: false,
-  });
-
 export const passkeysQuery = () =>
   queryOptions({
     queryKey: keys.passkeys(),

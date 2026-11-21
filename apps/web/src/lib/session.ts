@@ -35,7 +35,7 @@ export const sessionQuery = () =>
   queryOptions({
     queryKey: keys.session(),
     queryFn: async ({ signal }) => {
-      const me = call(api.me.$get(undefined, { init: { signal } })).then(
+      const me = call(api.me.$get({ query: { personal: "on-demand" } }, { init: { signal } })).then(
         (member) => ({ member }),
         (error: unknown) => ({ error }),
       );

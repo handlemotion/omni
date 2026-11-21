@@ -6,7 +6,8 @@ import { signInMethodsQuery } from "../lib/session.ts";
 
 export const Route = createFileRoute("/login")({
   validateSearch: loginSearch,
-  beforeLoad: ({ context, search }) => redirectIfMember(context.queryClient, search.redirect),
+  beforeLoad: ({ context, search }) =>
+    redirectIfMember(context.queryClient, search.redirect, search.callback),
   loader: ({ context }) => context.queryClient.prefetchQuery(signInMethodsQuery()),
   component: Login,
 });

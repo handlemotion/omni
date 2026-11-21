@@ -5,7 +5,7 @@ import {
   createMailbox,
   createTestDatabase,
   grant,
-  signIn,
+  signInWithPersonalSpace,
   startMailServiceEndpoint,
   startWorker,
   type TestDb,
@@ -39,7 +39,7 @@ test("Mail's compose key works in Mail only, and ⌘K offers it there only", asy
   await grant(db, org.orgId, box.id, org.memberId);
 
   const origin = String(worker.url);
-  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, email);
   const context = await browser.newContext();
   await context.addCookies(
     cookie.split("; ").map((pair) => {

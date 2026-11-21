@@ -1,40 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  useAcceptInvitation,
-  useInvitation,
-  useRejectInvitation,
-} from "../../hooks/use-session.ts";
+import { Invite } from "../../components/invitations/invite.tsx";
 import { leaveWorkspace } from "../../lib/current-workspace.ts";
-import { invitationQuery } from "../../lib/org-queries.ts";
+import { invitationStatusQuery } from "../../lib/invitations.ts";
 
 export const Route = createFileRoute("/_authed/invite/$invitationId")({
   beforeLoad: ({ preload }) => leaveWorkspace(preload),
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(invitationQuery(params.invitationId)),
-  component: Invite,
+    context.queryClient.ensureQueryData(invitationStatusQuery(params.invitationId)).catch(() => {}),
+  component: InvitePage,
 });
 
-function Invite() {
+function InvitePage() {
   const { invitationId } = Route.useParams();
-  const navigate = Route.useNavigate();
-  const invitation = useInvitation(invitationId);
-  const accept = useAcceptInvitation();
-  const reject = useRejectInvitation();
-
-  if (!invitation.data) return null;
-  return (
-    <main>
-      <pre>{JSON.stringify(invitation.data, null, 2)}</pre>
-      <button
-        type="button"
-        onClick={() => accept.mutate(invitationId, { onSuccess: () => void navigate({ to: "/" }) })}
-      >
-        Accept
-      </button>
-      <button type="button" onClick={() => reject.mutate(invitationId)}>
-        Decline
-      </button>
-      {(accept.error ?? reject.error) && <p>{(accept.error ?? reject.error)?.message}</p>}
-    </main>
-  );
+  return <Invite invitationId={invitationId} />;
 }
