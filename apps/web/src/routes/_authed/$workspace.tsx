@@ -96,13 +96,13 @@ function Shell() {
   const settings = useSettingsLocation();
   useShortcut("settings", useToggleSettings());
   return (
-    <ResizableSidebarProvider className="h-svh overflow-hidden">
+    <ResizableSidebarProvider className="h-svh overflow-hidden bg-shell">
       <ListSweepProvider>
         <DriveDragProvider>
           {settings ? <SettingsNav /> : <AppSidebar />}
           <NotificationsPanel />
           <CommandMenu />
-          <SidebarInset className="ps-(--sidebar-island-width)">
+          <SidebarInset className="md:mt-12 md:border-t md:border-sidebar-border md:peer-data-[state=collapsed]:rounded-tl-xl md:peer-data-[state=collapsed]:border-s">
             <SidebarResizeGrip />
             <ModuleBoundary>
               <Outlet />

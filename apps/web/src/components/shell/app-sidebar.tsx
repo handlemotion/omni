@@ -11,16 +11,15 @@ import {
   IconWarning,
   IconWrite,
 } from "@/components/icons/sidebar";
-import { CrmLists, CrmNav } from "@/components/crm/crm-nav";
-import { StorageNav, StoragePlaces } from "@/components/storage/storage-nav";
+import { CrmNav } from "@/components/crm/crm-nav";
+import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import { ModulePager } from "./module-pager";
+import { RailSidebar } from "./module-rail";
 import { ModuleSwitcher, useCurrentModule, WorkspaceSwitcher } from "./module-switcher";
 import { CountBadge } from "./count-badge";
-import { TitleBarRow, useTitleBar } from "./title-bar";
 import { NotificationsButton } from "./notifications";
-import { SidebarIsland } from "./sidebar-island";
 import { UpdateRow } from "./update-row";
 import {
   Sidebar,
@@ -78,39 +77,29 @@ const folders: NavItem[] = [
   { label: "Spam", icon: <IconWarning />, href: "/mail/spam", current: { path: "/mail/spam" } },
 ];
 
+const MODULE_LABELS = { mail: "Mail", files: "Drive", crm: "CRM" } as const;
+
 export function AppSidebar() {
   const module = useCurrentModule();
-  const titleBar = useTitleBar();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  const { open, isMobile } = useSidebar();
-  if (!open && !isMobile) {
+  const { isMobile } = useSidebar();
+  const pages = {
+    mail: <MailNav mailbox={mailbox} />,
+    files: <StorageNav mailbox={mailbox} />,
+    crm: <CrmNav mailbox={mailbox} />,
+  };
+  if (!isMobile) {
     return (
-      <SidebarIsland
-        sections={
-          module === "files"
-            ? [<StoragePlaces key="places" mailbox={mailbox} />]
-            : module === "crm"
-              ? [<CrmLists key="lists" mailbox={mailbox} />]
-              : [
-                  <MailItems key="mail" mailbox={mailbox} />,
-                  <Items key="folders" items={folders} mailbox={mailbox} />,
-                ]
-        }
-      />
+      <RailSidebar title={MODULE_LABELS[module]}>
+        <ModulePager pages={pages} />
+      </RailSidebar>
     );
   }
   return (
     <Sidebar closeButton={false}>
       <SidebarContent className="*:shrink-0">
-        <TitleBarRow />
-        {!titleBar && <WorkspaceSwitcher end={<NotificationsButton />} />}
-        <ModulePager
-          pages={{
-            mail: <MailNav mailbox={mailbox} />,
-            files: <StorageNav mailbox={mailbox} />,
-            crm: <CrmNav mailbox={mailbox} />,
-          }}
-        />
+        <WorkspaceSwitcher end={<NotificationsButton />} />
+        <ModulePager pages={pages} />
       </SidebarContent>
 
       <SidebarFooter className="flex-col items-stretch gap-2">

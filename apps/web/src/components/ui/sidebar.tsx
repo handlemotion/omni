@@ -54,6 +54,13 @@ export type SidebarContextProps = {
 
 const SidebarContext = createContext<SidebarContextProps | null>(null);
 
+/** Its children draw as in an open sidebar while the sidebar is closed (a hover preview). */
+export function SidebarExpanded({ children }: { children: React.ReactNode }) {
+  const context = useSidebar();
+  const value = useMemo(() => ({ ...context, state: "expanded" as const }), [context]);
+  return <SidebarContext value={value}>{children}</SidebarContext>;
+}
+
 export function useSidebar() {
   const context = use(SidebarContext);
   if (!context) {

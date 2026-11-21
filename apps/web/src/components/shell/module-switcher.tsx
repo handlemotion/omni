@@ -2,6 +2,7 @@ import { useLocation, useNavigate, useRouter, useSearch } from "@tanstack/react-
 import { cn } from "cn";
 import { useMemo, useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconChevronsUpDown,
@@ -117,8 +118,7 @@ function WorkspaceMark({ workspace, size }: { workspace: Workspace; size: number
   );
 }
 
-function TriggerMark(props: { workspace: Workspace; busy: boolean; large: boolean }) {
-  if (props.large && !props.busy) return <WorkspaceMark workspace={props.workspace} size={22} />;
+function TriggerMark(props: { workspace: Workspace; busy: boolean }) {
   return (
     <span className="grid size-icon shrink-0 place-items-center">
       {props.busy ? (
@@ -256,14 +256,14 @@ export function workspaceLabel(workspace: Workspace, userName: string | null | u
 export function WorkspaceSwitcher({
   end,
   workspacesOnly = false,
-  iconOnly = false,
+  chevron = false,
   onChoose,
   pending = false,
 }: {
   end?: ReactNode;
   workspacesOnly?: boolean;
-  /** Its mark alone, as the desktop app's title bar draws it; the menu is the same. */
-  iconOnly?: boolean;
+  /** A chevron after the name, as the title bar draws it. */
+  chevron?: boolean;
   onChoose?: (workspace: Workspace) => void;
   pending?: boolean;
 }) {
@@ -296,20 +296,11 @@ export function WorkspaceSwitcher({
       <MenuTrigger>
         <SidebarItemTrigger
           aria-label={`Switch workspace, currently ${label(active)}`}
-          className={
-            iconOnly
-              ? "size-7 shrink-0 justify-center px-0"
-              : workspacesOnly
-                ? undefined
-                : "w-auto max-w-full shrink pe-2.25"
-          }
+          className={workspacesOnly ? undefined : "w-auto max-w-full shrink pe-2.25"}
         >
-          <TriggerMark
-            workspace={active}
-            busy={openWorkspace.isPending || pending}
-            large={iconOnly}
-          />
-          {!iconOnly && <span className="min-w-0 truncate">{label(active)}</span>}
+          <TriggerMark workspace={active} busy={openWorkspace.isPending || pending} />
+          <span className="min-w-0 truncate">{label(active)}</span>
+          {chevron && <IconChevronDown className="size-3.5 shrink-0 text-muted-foreground" />}
           {workspacesOnly && (
             <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
           )}

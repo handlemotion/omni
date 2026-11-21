@@ -9,12 +9,13 @@ import {
   SidebarItem,
   SidebarLabel,
   SidebarSection,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { appToast } from "@/components/ui/toast";
 import { useMember } from "@/hooks/use-session.ts";
 import { rememberAppHref, settingsBackHref } from "@/hooks/use-settings.ts";
 import { useOpenWorkspace, useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
-import { TitleBarRow } from "@/components/shell/title-bar";
+import { RailSidebar } from "@/components/shell/module-rail";
 import { workspaceHref } from "@/lib/workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 import { matches, type PageDefinition, useAccountPages, useWorkspacePages } from "./settings-pages";
@@ -23,22 +24,31 @@ export function SettingsNav() {
   const account = useAccountPages();
   const workspace = useWorkspacePages();
   const [query, setQuery] = useState("");
+  const { isMobile } = useSidebar();
   const shownAccount = account.filter((p) => matches(p, query));
   const shownWorkspace = workspace.filter((p) => matches(p, query));
 
+  const back = (
+    <SidebarItem href={settingsBackHref()} aria-label="Back to the app">
+      <IconChevronLeft className="size-icon" />
+      <SidebarLabel>Settings</SidebarLabel>
+    </SidebarItem>
+  );
+  const items = (
+    <>
+      <SearchField aria-label="Search settings" value={query} onChange={setQuery}>
+        <SearchInput placeholder="Search settings" />
+      </SearchField>
+      {shownAccount.length > 0 && <Group label="Personal" pages={shownAccount} />}
+      <Group label="Workspace" pages={shownWorkspace} switcher={<SettingsWorkspaceSwitcher />} />
+    </>
+  );
+  if (!isMobile) return <RailSidebar title="Settings">{items}</RailSidebar>;
   return (
     <Sidebar closeButton={false}>
       <SidebarContent className="*:shrink-0">
-        <TitleBarRow />
-        <SidebarItem href={settingsBackHref()} aria-label="Back to the app">
-          <IconChevronLeft className="size-icon" />
-          <SidebarLabel>Settings</SidebarLabel>
-        </SidebarItem>
-        <SearchField aria-label="Search settings" value={query} onChange={setQuery}>
-          <SearchInput placeholder="Search settings" />
-        </SearchField>
-        {shownAccount.length > 0 && <Group label="Personal" pages={shownAccount} />}
-        <Group label="Workspace" pages={shownWorkspace} switcher={<SettingsWorkspaceSwitcher />} />
+        {back}
+        {items}
       </SidebarContent>
     </Sidebar>
   );

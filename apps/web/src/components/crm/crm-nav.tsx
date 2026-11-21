@@ -45,8 +45,7 @@ export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
   );
 }
 
-/** The lists, one row each; the closed sidebar's island shows them too. */
-export function CrmLists({ mailbox }: { mailbox: string | undefined }) {
+function CrmLists({ mailbox }: { mailbox: string | undefined }) {
   const { place: pathname, href: inWorkspace } = useWorkspacePaths();
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
   return ROWS.map(({ list, icon }) => {

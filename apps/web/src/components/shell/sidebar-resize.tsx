@@ -2,6 +2,8 @@ import { createContext, use, useState, type ReactNode } from "react";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
+const RAIL_WIDTH = 58;
+
 const SIDEBAR_WIDTH = 275;
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 420;
@@ -25,7 +27,11 @@ export function ResizableSidebarProvider({
   const [resizing, setResizing] = useState(false);
   return (
     <SidebarProvider
-      style={{ "--sidebar-width": `${sidebar.width}px` } as React.CSSProperties}
+      style={
+        {
+          "--sidebar-width": `${sidebar.width + RAIL_WIDTH}px`,
+        } as React.CSSProperties
+      }
       className={`${className ?? ""} ${resizing ? "cursor-ew-resize select-none" : ""}`}
     >
       <WidthContext value={{ ...sidebar, setResizing }}>{children}</WidthContext>

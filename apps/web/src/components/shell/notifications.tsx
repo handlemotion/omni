@@ -41,7 +41,6 @@ import {
 import type { Notification } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { CountBadge } from "./count-badge";
-import { TitleBarSpace } from "./title-bar";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 /** Notifications, drawn as an inbox: opens and closes the panel, and wears your unread count. */
@@ -78,7 +77,6 @@ type View = "all" | "unread";
 export function NotificationsPanel() {
   const open = useNotificationsPanel();
   const { open: sidebarOpen, isMobile } = useSidebar();
-  const titleBarOver = !sidebarOpen && !isMobile;
   const { unread } = useNotifications();
   const markRead = useMarkNotificationsRead();
   const openSettings = useOpenSettings();
@@ -111,8 +109,12 @@ export function NotificationsPanel() {
 
   return (
     <div
-      className={`pointer-events-none fixed inset-y-0 end-0 z-30 overflow-hidden ${
-        sidebarOpen && !isMobile ? "start-(--sidebar-width)" : "start-0"
+      className={`pointer-events-none fixed bottom-0 end-0 z-30 overflow-hidden ${
+        isMobile
+          ? "start-0 top-0"
+          : sidebarOpen
+            ? "start-(--sidebar-width) top-12"
+            : "start-14.5 top-12"
       }`}
     >
       <aside
@@ -121,14 +123,13 @@ export function NotificationsPanel() {
         aria-label="Notifications"
         tabIndex={-1}
         inert={!open}
-        className={`pointer-events-auto flex h-full w-108 max-w-full flex-col border-e bg-background shadow-overlay outline-hidden transition-[translate,opacity,visibility] duration-200 ease-out motion-reduce:transition-[opacity,visibility] ${
+        className={`pointer-events-auto flex h-full w-108 max-w-full flex-col border-e ${isMobile ? "" : "border-t"} bg-background shadow-overlay outline-hidden transition-[translate,opacity,visibility] duration-200 ease-out motion-reduce:transition-[opacity,visibility] ${
           open
             ? "visible translate-x-0 opacity-100"
             : "invisible -translate-x-full opacity-0 motion-reduce:translate-x-0"
         }`}
       >
         <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
-          {titleBarOver && <TitleBarSpace inset={20} afterIsland={false} />}
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium">Notifications</h2>
           <div className="flex items-center gap-1">
             <HeaderAction

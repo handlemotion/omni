@@ -43,11 +43,6 @@ const PLACES: Row[] = [
   },
 ];
 
-const SPACES: Row[] = [
-  { label: SPACE_LABEL.shared, path: SPACE_PATH.shared, icon: SPACE_ICON.shared, company: true },
-  { label: SPACE_LABEL.personal, path: SPACE_PATH.personal, icon: SPACE_ICON.personal },
-];
-
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
   const hasShared = useHasSharedFiles();
@@ -64,11 +59,6 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
       </SidebarSection>
     </>
   );
-}
-
-/** The places and the groups' pages, one row each: the closed sidebar's island. */
-export function StoragePlaces({ mailbox }: { mailbox: string | undefined }) {
-  return <Rows rows={[...PLACES, ...SPACES]} mailbox={mailbox} />;
 }
 
 function Rows(props: { rows: Row[]; mailbox: string | undefined }) {

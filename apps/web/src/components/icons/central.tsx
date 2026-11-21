@@ -107,6 +107,7 @@ export { IconSlidesWide as IconSlides } from "central-icons-outlined/IconSlidesW
 export { IconAlignmentJustify as IconRows } from "central-icons-outlined/IconAlignmentJustify";
 export { IconGrid as IconCards } from "central-icons-outlined/IconGrid";
 export { IconEmail1 as IconMailFilled } from "central-icons-filled/IconEmail1";
+export { IconSettingsGear2 as IconSettingsFilled } from "central-icons-filled/IconSettingsGear2";
 export { IconFolder1 as IconFolderFilled } from "central-icons-filled/IconFolder1";
 export { IconFolderOpen as IconFolderOpenFilled } from "central-icons-filled/IconFolderOpen";
 export { IconHandshake as IconHandshakeFilled } from "central-icons-filled/IconHandshake";

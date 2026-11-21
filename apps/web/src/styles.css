@@ -65,6 +65,9 @@
   /* A grey fill a hair under the page's white (a step subtler than `surface`), so the sidebar
      reads apart from the content beside its hairline border. */
   --sidebar: #fefefe;
+  /* The window around the content card (title bar and module rail): hover fills on it use
+     `secondary`. */
+  --shell: #f5f5f5;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);
@@ -177,6 +180,7 @@
   --color-navbar: var(--navbar);
   --color-navbar-foreground: var(--navbar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-shell: var(--shell);
   --color-module-mail: var(--module-mail);
   --color-module-drive: var(--module-drive);
   --color-module-crm: var(--module-crm);

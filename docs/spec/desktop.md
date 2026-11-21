@@ -255,16 +255,22 @@ is loaded by dynamic import, so the browser bundle does not carry it). These are
 `apps/web`, asked for by the founder; they follow `DESIGN.md`, use existing `components/ui`
 primitives, and add no text.
 
-- A **title-bar group** at the top left, beside the traffic lights, on every screen: the
-  workspace switcher as its icon only (the menu is unchanged), back and forward arrows (router
-  history; disabled at either end), and the sidebar toggle. The whole row is a drag region
-  except its controls.
-- In the sidebar's top row the workspace switcher and the page headers' sidebar toggle are not
-  drawn on desktop, since the title bar has them. Notifications stays where it is.
+- **The shell** (every viewport wider than a phone, in the browser too): a grey window
+  (`--shell`) holding a white content card.
+  - A **title bar** across the top, 48px: the workspace switcher (mark, name, chevron) past the
+    traffic lights, then the sidebar toggle; notifications at the far end. The whole row is a
+    drag region except its controls. Without traffic lights the workspace mark centres on the
+    module rail.
+  - A **module rail** down the left edge: Mail, Drive and (in a company) CRM as icon tiles, the
+    current one on a white tile with its filled glyph; Settings at the foot. It never moves.
+  - The **nav panel** beside it, titled with the module (or Settings), lines up with the page
+    headers. The sidebar toggle hides only the panel; while it is hidden, resting on the toggle
+    previews the panel over the page.
+  - Notifications open inside the card, under the title bar.
+- On a phone the sidebar is the sheet it was, with the workspace switcher in its top row and the
+  module switcher at its foot.
 - `⌘[` / `⌘]` (`Alt+←` / `Alt+→` on Windows) go back and forward; `⌘,` opens Settings; `⌘N`
   compose; `⌘R` reloads. The app menu lists them.
-- Exact placement of the sidebar toggle (title bar vs page header when the sidebar is closed) is
-  settled in the layer that builds it, from a screenshot of both.
 
 ## Build, signing, release
 
