@@ -1,9 +1,11 @@
 name: Desktop release
 
-# Builds, signs, notarizes and publishes one macOS release of the desktop app from its tag:
-# apps/desktop/scripts/release-macos.sh, the same script a Mac runs. release.yml calls
-# it when a release pull request raises the desktop version; run it by hand (Actions, Desktop
-# release, Run workflow) to retry a tag. About 25 minutes of macOS, so only for a release.
+# Builds, signs and publishes one release of the desktop app from its tag, for macOS and Windows
+# side by side: apps/desktop/scripts/release-macos.sh and release-windows.sh, the same scripts a
+# Mac or a PC runs. Each system has its own update feed, so one failing leaves the other's
+# release live. release.yml calls it when a release pull request raises the desktop version; run
+# it by hand (Actions, Desktop release, Run workflow) to retry a tag. About 25 minutes of macOS
+# and 20 of Windows, so only for a release.
 #
 # Settings come from Doppler `prd_github`, which syncs to the GitHub environment `production`
 # (docs/operations/releases.md lists them). Secrets become files under $RUNNER_TEMP for the job only.
@@ -113,3 +115,79 @@ jobs:
         run: |
           .github/scripts/signing-keychain.sh delete
           rm -rf "$RUNNER_TEMP/keys"
+
+  windows:
+    name: Sign and publish (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 60
+    environment: production
+    env:
+      # Step conditions cannot read secrets: whether Windows signing is set up, for the one below.
+      WINDOWS_SIGNING: ${{ secrets.OMNI_WINDOWS_SIGNING_ACCOUNT != '' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^desktop-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::not a desktop tag: $TAG"; exit 1; }
+
+      # Full history and credentials: the script fetches main and the tags to check the commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: apps/desktop
+
+      # The desktop app's build, and wrangler (the Worker's) for the uploads to R2.
+      - run: pnpm install --frozen-lockfile --filter @omni/desktop... --filter @omni/worker
+
+      # Azure Trusted Signing, once its account is in Doppler; until then the build is unsigned.
+      - name: Signing tool
+        if: env.WINDOWS_SIGNING == 'true'
+        run: cargo install trusted-signing-cli --locked
+
+      - name: Keys
+        env:
+          UPDATER_KEY: ${{ secrets.OMNI_DESKTOP_UPDATER_KEY }}
+          UPDATER_PUBKEY: ${{ secrets.DESKTOP_UPDATER_PUBKEY }}
+        run: |
+          keys="$RUNNER_TEMP/keys"
+          mkdir -p "$keys"
+          printf '%s' "$UPDATER_KEY" >"$keys/updater.key"
+          printf '%s' "$UPDATER_PUBKEY" >"$keys/updater.key.pub"
+          echo "TAURI_SIGNING_PRIVATE_KEY_PATH=$keys/updater.key" >>"$GITHUB_ENV"
+
+      - name: Build, sign and publish
+        env:
+          OMNI_DESKTOP_ORIGIN: ${{ secrets.OMNI_DESKTOP_ORIGIN }}
+          OMNI_DESKTOP_RELEASE_BUCKET: ${{ secrets.OMNI_DESKTOP_RELEASE_BUCKET }}
+          OMNI_WINDOWS_SIGNING_ENDPOINT: ${{ secrets.OMNI_WINDOWS_SIGNING_ENDPOINT }}
+          OMNI_WINDOWS_SIGNING_ACCOUNT: ${{ secrets.OMNI_WINDOWS_SIGNING_ACCOUNT }}
+          OMNI_WINDOWS_SIGNING_PROFILE: ${{ secrets.OMNI_WINDOWS_SIGNING_PROFILE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.DESKTOP_UPDATER_KEY_PASSWORD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: apps/desktop/scripts/release-windows.sh
+
+      - name: Clean up
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"

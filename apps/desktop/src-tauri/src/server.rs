@@ -16,10 +16,11 @@ use crate::deep_link::{is_app_path, on_server};
 const STORE: &str = "shell.json";
 const SERVER_KEY: &str = "server";
 
-/// What the server origin may call: window dragging and controls, the
-/// badge, notifications (and showing the window when one is clicked), the launch-at-login switch, opening links outside, events, the magic-link callback
-/// (`deep_link.rs`) and the sync commands. No filesystem,
-/// no shell, no HTTP. A new command of ours is added here as well as in `build.rs`.
+/// What the server origin may call: window dragging and controls, the badge (on Windows the
+/// taskbar overlay icon, an image the page draws), notifications (and showing the window when one
+/// is clicked), the launch-at-login switch, opening links outside, events, the magic-link
+/// callback (`deep_link.rs`) and the sync commands. No filesystem, no shell, no HTTP. A new
+/// command of ours is added here as well as in `build.rs`.
 const REMOTE_PERMISSIONS: &[&str] = &[
     "core:event:default",
     "core:window:allow-start-dragging",
@@ -30,6 +31,9 @@ const REMOTE_PERMISSIONS: &[&str] = &[
     "core:window:allow-is-fullscreen",
     "core:window:allow-close",
     "core:window:allow-set-badge-count",
+    "core:window:allow-set-overlay-icon",
+    "core:image:allow-new",
+    "core:resources:allow-close",
     "core:window:allow-show",
     "core:window:allow-unminimize",
     "core:window:allow-set-focus",

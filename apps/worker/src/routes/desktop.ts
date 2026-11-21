@@ -1,8 +1,13 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 
 const INSTALLERS: Record<string, { key: string; filename: string; type: string }> = {
   macos: { key: "download/macos.dmg", filename: "Omni.dmg", type: "application/x-apple-diskimage" },
+  windows: {
+    key: "download/windows.exe",
+    filename: "Omni-Setup.exe",
+    type: "application/vnd.microsoft.portable-executable",
+  },
 };
 
 const RELEASE_FILE = /^[0-9A-Za-z.+-]+\/[0-9A-Za-z._-]+$/;
@@ -18,12 +23,15 @@ function serve(object: R2ObjectBody, type: string, cache: string, filename?: str
   return new Response(object.body, { headers });
 }
 
+async function feed(c: Context<AppEnv>, key: string) {
+  const object = await c.env.DESKTOP_BUCKET.get(key);
+  if (!object) return c.notFound();
+  return serve(object, "application/json", "public, max-age=60");
+}
+
 export const desktop = new Hono<AppEnv>()
-  .get("/latest.json", async (c) => {
-    const object = await c.env.DESKTOP_BUCKET.get("latest.json");
-    if (!object) return c.notFound();
-    return serve(object, "application/json", "public, max-age=60");
-  })
+  .get("/latest.json", (c) => feed(c, "latest.json"))
+  .get("/windows/latest.json", (c) => feed(c, "windows/latest.json"))
   .get("/download/:platform", async (c) => {
     const installer = INSTALLERS[c.req.param("platform")];
     const object = installer ? await c.env.DESKTOP_BUCKET.get(installer.key) : null;

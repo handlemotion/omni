@@ -77,9 +77,10 @@ export const desktop = {
     },
   },
 
-  /** The Dock badge: a count, or none at zero. macOS and Linux; Windows has no count badge. */
+  /** The Dock badge: a count, or none at zero. On Windows, the taskbar button's overlay icon. */
   setBadge(count: number) {
-    run("badge", (b) => b.setBadge(count));
+    if (desktop.platform === "windows") run("badge", (b) => b.setOverlayBadge(count));
+    else run("badge", (b) => b.setBadge(count));
   },
 };
 

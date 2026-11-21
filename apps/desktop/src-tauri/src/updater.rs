@@ -9,9 +9,12 @@
 //! sidebar offers a restart; `update_install` restarts now, window shown. "Check for Updates…" in
 //! the tray and app menu checks at once and says when there is nothing new.
 //!
-//! The manifest lives on the chosen Omni server (`/desktop/latest.json`, the release layer's
-//! route), so a self-hosted build updates from its own server; a build may name another feed.
-//! Both the feed and the signing key are build config: a build without the key never checks.
+//! The manifest lives on the chosen Omni server, so a self-hosted build updates from its own
+//! server; a build may name another feed. Each system has its own: macOS reads
+//! `/desktop/latest.json` (the path installed Macs already ask for), Windows
+//! `/desktop/windows/latest.json`, so the two release jobs publish apart and neither can offer
+//! the other's build. Both the feed and the signing key are build config: a build without the
+//! key never checks.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
@@ -66,11 +69,18 @@ impl Pending {
     }
 }
 
-/// The manifest URL: the build's feed if it names one, else the server's.
-pub fn endpoint(feed: Option<&str>, server: &Url) -> Option<Url> {
+/// The server's manifest for this system (`apps/worker/src/routes/desktop.ts`).
+const SERVER_FEED: &str = if cfg!(target_os = "windows") {
+    "desktop/windows/latest.json"
+} else {
+    "desktop/latest.json"
+};
+
+/// The manifest URL: the build's feed if it names one, else the server's `path`.
+pub fn endpoint(feed: Option<&str>, server: &Url, path: &str) -> Option<Url> {
     match feed.filter(|feed| !feed.is_empty()) {
         Some(feed) => Url::parse(feed).ok(),
-        None => server.join("desktop/latest.json").ok(),
+        None => server.join(path).ok(),
     }
 }
 
@@ -113,7 +123,7 @@ async fn download<R: Runtime>(app: &AppHandle<R>) -> Result<Checked, String> {
     let Some(server) = app.state::<Server>().current() else {
         return Ok(Checked::UpToDate);
     };
-    let url = endpoint(ENDPOINT, &server).ok_or("no update feed")?;
+    let url = endpoint(ENDPOINT, &server, SERVER_FEED).ok_or("no update feed")?;
     let updater = app
         .updater_builder()
         .endpoints(vec![url])
@@ -248,17 +258,36 @@ mod tests {
     #[test]
     fn the_feed_is_the_servers_unless_the_build_names_one() {
         let server = Url::parse("https://omni.example.com/").unwrap();
+        let path = "desktop/latest.json";
         assert_eq!(
-            endpoint(None, &server).map(String::from),
+            endpoint(None, &server, path).map(String::from),
             Some("https://omni.example.com/desktop/latest.json".into())
         );
         assert_eq!(
-            endpoint(Some(""), &server).map(String::from),
+            endpoint(Some(""), &server, path).map(String::from),
             Some("https://omni.example.com/desktop/latest.json".into())
         );
         assert_eq!(
-            endpoint(Some("https://downloads.example.com/latest.json"), &server).map(String::from),
+            endpoint(
+                Some("https://downloads.example.com/latest.json"),
+                &server,
+                path
+            )
+            .map(String::from),
             Some("https://downloads.example.com/latest.json".into())
         );
+    }
+
+    // Bug: macOS and Windows reading one manifest, each release job would overwrite the other's
+    // and a Mac would be offered the Windows installer (or a Windows app the version of a Mac
+    // release it has no file for, downloading the same old build forever). Installed Macs ask
+    // for `desktop/latest.json`, so that path must stay theirs.
+    #[test]
+    fn each_system_reads_its_own_manifest() {
+        if cfg!(target_os = "windows") {
+            assert_eq!(SERVER_FEED, "desktop/windows/latest.json");
+        } else {
+            assert_eq!(SERVER_FEED, "desktop/latest.json");
+        }
     }
 }

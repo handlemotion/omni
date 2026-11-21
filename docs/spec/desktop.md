@@ -226,8 +226,9 @@ after a spike. Swift side: Foundation and FileProvider only.
 - **First run.** A hosted build opens its configured origin directly. A build with no origin
   shows the server picker; the answer is stored and changeable from the app menu.
 - **Window.** macOS: `titleBarStyle: Overlay`, hidden title, traffic lights positioned to sit on
-  the navigation row's centre line. Windows: no native decorations, the web app draws minimize,
-  maximize and close at the end of the same row.
+  the navigation row's centre line. Windows: the native frame for now (snap layouts, and Change
+  Server and Check for Updates in the tray, as there is no app menu). Later, once the web app
+  draws minimize, maximize and close at the end of the same row: no native decorations.
 - **Stays running.** Closing the window keeps the app in the menu bar / tray so the realtime
   signal keeps reaching the provider. The tray menu: Open Omni, Open Drive folder, sync status,
   Pause sync, Quit. Launch at login is on by default and a setting.
@@ -282,17 +283,27 @@ primitives, and add no text.
   (`bundle.macOS.files`), signs the app last and notarizes. Entitlements:
   app sandbox and app group on the extension; the same app group and keychain access group on
   the app; associated domains on the app if passkeys are proven. Universal binary.
-- **Windows.** NSIS installer, signed with Azure Trusted Signing through `signCommand`. WebView2
-  bootstrapper for machines without it.
+- **Windows.** Windows 10 and 11, x64 (Windows on Arm runs it emulated). A per-user NSIS
+  installer (`tauri.windows.conf.json`): no administrator prompt, so updates install silently;
+  the WebView2 bootstrapper embedded for machines without it; `Omni.exe`; the installer stops on
+  anything older than Windows 10 (`src-tauri/windows/installer-hooks.nsh`). Signed with Azure
+  Trusted Signing through `signCommand` once its account is set up; until then unsigned, and
+  SmartScreen warns on first download. The window keeps the native frame until the web app
+  draws its own controls; the unread count is the taskbar button's overlay icon, which the page
+  draws (`desktop-bridge.ts`), since Windows has no count badge.
 - **CI.** A `Desktop` workflow, on pull requests touching `apps/desktop/**`: Rust fmt, clippy
-  and tests on Linux; unsigned compiles on macOS and Windows. `Checks` is unchanged for everyone
-  else.
-- **Releases.** Cut by release-please and run on GitHub's macOS runner
-  (`desktop-release.yml`), or by hand on a Mac: `apps/desktop/scripts/release-macos.sh` builds the version in `tauri.conf.json` (universal,
+  and tests on Linux, and Clippy for Windows cross-compiled on Linux (`cargo-xwin`); unsigned
+  native compiles on macOS and Windows by hand. `Checks` is unchanged for everyone else.
+- **Releases.** Cut by release-please and run on GitHub's macOS and Windows runners side by side
+  (`desktop-release.yml`). Windows: `apps/desktop/scripts/release-windows.sh` builds the installer,
+  uploads it with its updater signature and writes `/desktop/windows/latest.json` last, its own
+  manifest, so neither system's release can overwrite or wait on the other's. macOS, or by hand
+  on a Mac: `apps/desktop/scripts/release-macos.sh` builds the version in `tauri.conf.json` (universal,
   Developer ID, both profiles embedded, app and disk image notarized), signs the updater archive
   with the updater key, uploads it to the R2 bucket behind the Worker (`DESKTOP_BUCKET`), writes
   `/desktop/latest.json` last, checks the live feed and tags `desktop-v<version>`. The Worker
-  serves `/desktop/latest.json`, `/desktop/download/:platform` and `/desktop/releases/*` from it,
+  serves `/desktop/latest.json`, `/desktop/windows/latest.json`, `/desktop/download/:platform`
+  (`macos`, `windows`) and `/desktop/releases/*` from it,
   so a self-hoster publishes to their own. Every key is a file on that Mac, or a secret of the
   Doppler `prd_github` secret (synced to the GitHub environment `production`) written to a file for the job.
 - **Config.** `OMNI_DESKTOP_ORIGIN` (optional default server), `OMNI_DESKTOP_BUNDLE_ID`,

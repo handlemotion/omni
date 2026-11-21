@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Image } from "@tauri-apps/api/image";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { DesktopSyncStatus, DesktopWorkspaceSync } from "@omni/client";
@@ -9,6 +10,38 @@ export const openOutside = (url: string) => openUrl(url);
 
 export const setBadge = (count: number) =>
   getCurrentWindow().setBadgeCount(count > 0 ? count : undefined);
+
+const OVERLAY_PX = 32;
+
+/**
+ * Windows has no count badge: the count is drawn on the taskbar button's overlay icon instead, a
+ * red disc with the number (`9+` past nine), as Windows' own apps do.
+ */
+export async function setOverlayBadge(count: number) {
+  const window = getCurrentWindow();
+  if (count <= 0) return window.setOverlayIcon(undefined);
+  const canvas = new OffscreenCanvas(OVERLAY_PX, OVERLAY_PX);
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  const middle = OVERLAY_PX / 2;
+  context.fillStyle = "#c42b1c";
+  context.beginPath();
+  context.arc(middle, middle, middle, 0, Math.PI * 2);
+  context.fill();
+  const label = count > 9 ? "9+" : String(count);
+  context.fillStyle = "#ffffff";
+  context.font = `600 ${label.length > 1 ? 17 : 21}px "Segoe UI", system-ui, sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(label, middle, middle + 1);
+  const { data } = context.getImageData(0, 0, OVERLAY_PX, OVERLAY_PX);
+  const icon = await Image.new(new Uint8Array(data.buffer), OVERLAY_PX, OVERLAY_PX);
+  try {
+    await window.setOverlayIcon(icon);
+  } finally {
+    await icon.close();
+  }
+}
 
 /** `omni://auth?state=…`, issued once by the shell for this sign-in (`deep_link.rs`). */
 export const signInCallback = () => invoke<string>("sign_in_callback");
