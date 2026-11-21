@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.1](https://github.com/wokshop/omni/compare/desktop-v0.2.0...desktop-v0.2.1) (2026-11-21)
+
+
+### Fixes
+
+* **crm:** list leads and won deals on the Projects page, as the sidebar does ([#674](https://github.com/wokshop/omni/issues/674)) ([398ef01](https://github.com/wokshop/omni/commit/398ef01ce9e1dea6a3893e9a9db0dd43ad7bcdfc))
+* **desktop:** Drive sync sign-in finishes instead of a 403 on the token request ([#683](https://github.com/wokshop/omni/issues/683)) ([965a94e](https://github.com/wokshop/omni/commit/965a94eed76f432e1290b319cad4a71d8f9e7bba))
+* **web:** give company descriptions the room the name column took ([#675](https://github.com/wokshop/omni/issues/675)) ([7ad2b74](https://github.com/wokshop/omni/commit/7ad2b74836aa0f805a49ea9ac7b8850c6a1411b5))
+* **web:** space out CRM timeline events ([#672](https://github.com/wokshop/omni/issues/672)) ([05adbe6](https://github.com/wokshop/omni/commit/05adbe6aa0154615f4178c59c6270829834a8452))
+
 ## [0.2.0](https://github.com/wokshop/omni/compare/desktop-v0.1.4...desktop-v0.2.0) (2026-11-20)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/wokshop/omni/compare/ios-v0.2.0...ios-v0.2.1) (2026-11-21)
+
+
+### Fixes
+
+* **crm:** list leads and won deals on the Projects page, as the sidebar does ([#674](https://github.com/wokshop/omni/issues/674)) ([398ef01](https://github.com/wokshop/omni/commit/398ef01ce9e1dea6a3893e9a9db0dd43ad7bcdfc))
+* **ios:** opening the menu no longer crashes the app ([#685](https://github.com/wokshop/omni/issues/685)) ([33c2979](https://github.com/wokshop/omni/commit/33c297969471b9e6dead7110d007bf22dab57e6a))
+
 ## [0.2.0](https://github.com/wokshop/omni/compare/ios-v0.1.1...ios-v0.2.0) (2026-11-20)
 
 

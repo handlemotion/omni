@@ -1,6 +1,6 @@
 {
   "name": "@omni/ios",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "The iOS app: Expo, on the same typed client as the web app",
   "license": "AGPL-3.0-only",
