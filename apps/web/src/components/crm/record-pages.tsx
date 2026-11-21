@@ -9,7 +9,6 @@ import {
   useCrmStages,
   useMoveDeal,
   useOwners,
-  useUpdateCompany,
   useUpdateDeal,
   useUpdatePerson,
 } from "@/hooks/use-crm.ts";
@@ -20,9 +19,9 @@ import { AccessSection } from "./project-access.tsx";
 import { ProjectPlan } from "./project-plan.tsx";
 import { crmErrorToast } from "./crm-errors.ts";
 import { StageBadge } from "./list-pages.tsx";
-import { CompanyValue, NewDealDialog, NewPersonDialog } from "./new-records.tsx";
+import { CompanyValue } from "./new-records.tsx";
 import { ArchivedBadge, RecordActions } from "./record-actions.tsx";
-import { AddAddressDialog, AddDomainDialog } from "./record-dialogs.tsx";
+import { AddAddressDialog } from "./record-dialogs.tsx";
 import { ChoiceValue, DayValue, MoneyValue, PlainValue, TextValue } from "./record-fields.tsx";
 import { RecordFiles } from "./record-files.tsx";
 import { byAddress } from "@/components/avatar/sender-avatar";
@@ -30,12 +29,7 @@ import { MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
 import { DealMark } from "./deal-mark.tsx";
 import { DetailSection, RecordLayout, RecordState } from "./record-layout.tsx";
 import { DAY } from "./record-list.tsx";
-import {
-  AddressesSection,
-  DealsSection,
-  DomainsSection,
-  PeopleSection,
-} from "./record-sections.tsx";
+import { AddressesSection, DealsSection, PeopleSection } from "./record-sections.tsx";
 import { RecordTasks } from "./tasks.tsx";
 import { Timeline } from "./timeline.tsx";
 
@@ -46,7 +40,7 @@ const onFail = (fallback: string) => ({
 
 const NO_OWNER = "none";
 
-function OwnerValue(props: {
+export function OwnerValue(props: {
   value: string | null | undefined;
   onSave: (id: string | null) => void;
 }) {
@@ -65,91 +59,6 @@ function OwnerValue(props: {
         )
       }
     />
-  );
-}
-
-export function CompanyPage({ id }: { id: string }) {
-  const query = useCrmCompany(id);
-  const update = useUpdateCompany();
-  const [open, setOpen] = useState<"person" | "deal" | "domain" | null>(null);
-  const close = () => setOpen(null);
-  if (!query.data) return <RecordState list="companies" query={query} />;
-  const { company, domains, people, deals } = query.data;
-  const save = (change: {
-    name?: string;
-    description?: string | null;
-    ownerMemberId?: string | null;
-  }) => update.mutate({ id, ...change }, onFail("The company was not changed"));
-  const archived = !!company.archivedAt;
-  return (
-    <>
-      <RecordLayout
-        list="companies"
-        here={{ kind: "companies", id }}
-        name={company.name}
-        square
-        who={domains[0] ? { domain: domains[0] } : null}
-        subtitle={domains[0]}
-        badge={archived && <ArchivedBadge />}
-        actions={
-          <>
-            <CreateMenu record={{ kind: "companies", id, name: company.name }} />
-            <RecordActions kind="companies" id={id} name={company.name} archived={archived} />
-          </>
-        }
-        details={
-          <>
-            <DetailSection>
-              <TextValue
-                label="Name"
-                required
-                value={company.name}
-                onSave={(name) => name && save({ name })}
-              />
-              <TextValue
-                label="Description"
-                maxLength={2000}
-                value={company.description}
-                onSave={(description) => save({ description })}
-              />
-              <OwnerValue
-                value={company.ownerMemberId}
-                onSave={(ownerMemberId) => save({ ownerMemberId })}
-              />
-              <PlainValue label="Last contacted">{day(lastContactedAt(company))}</PlainValue>
-              <PlainValue label="Added">{day(company.createdAt)}</PlainValue>
-            </DetailSection>
-            <DomainsSection companyId={id} domains={domains} onAdd={() => setOpen("domain")} />
-            <PeopleSection people={people} onAdd={() => setOpen("person")} />
-            <DealsSection deals={deals} onAdd={() => setOpen("deal")} />
-          </>
-        }
-        tabs={[
-          { id: "timeline", label: "Timeline", panel: <Timeline kind="companies" id={id} /> },
-          { id: "tasks", label: "Tasks", panel: <RecordTasks kind="companies" id={id} /> },
-          {
-            id: "files",
-            label: "Files",
-            panel: (
-              <RecordFiles
-                kind="companies"
-                id={id}
-                name={company.name}
-                folderId={company.folderNodeId}
-              />
-            ),
-          },
-          {
-            id: "contracts",
-            label: "Contracts",
-            panel: <Contracts owner={{ companyId: id }} folderId={company.folderNodeId} />,
-          },
-        ]}
-      />
-      {open === "person" && <NewPersonDialog companyId={id} onClose={close} />}
-      {open === "deal" && <NewDealDialog companyId={id} onClose={close} />}
-      {open === "domain" && <AddDomainDialog companyId={id} onClose={close} />}
-    </>
   );
 }
 

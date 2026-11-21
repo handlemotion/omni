@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CompanyPage } from "../../../../components/crm/record-pages.tsx";
+import { CompanyPage } from "../../../../components/crm/client-page.tsx";
 import { crmCompanyQuery, crmTimelineQuery } from "../../../../lib/crm.ts";
 import { crmRecordSearch } from "../../../../lib/search-params.ts";
 
