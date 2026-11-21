@@ -26,9 +26,10 @@ public final class SyncClient: Sendable {
         self.session = session
     }
 
-    /// The session every sync call shares. No response cache: change pages and listings are
-    /// read once, and caching them only wrote each one to disk again. No cookies: the bearer
-    /// token is the only credential.
+    /// The session every sync call and token request shares. No response cache: change pages and
+    /// listings are read once, and caching them only wrote each one to disk again. No cookies:
+    /// the bearer token is the only credential, and a cookie on a token request (with no Origin,
+    /// as a native request has) is refused by the server's CSRF check.
     public static let session: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = nil

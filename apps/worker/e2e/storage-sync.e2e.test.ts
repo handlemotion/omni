@@ -25,7 +25,7 @@ async function nextStep(response: Response) {
   return new URL(((await response.json()) as { url: string }).url);
 }
 
-async function connect(person: Person) {
+async function connect(person: Person, tokenHeaders: Record<string, string> = {}) {
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   const start = at("/api/storage/sync/authorize");
@@ -43,7 +43,7 @@ async function connect(person: Person) {
 
   const token = await fetch(at("/api/auth/oauth2/token"), {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
+    headers: { "content-type": "application/x-www-form-urlencoded", ...tokenHeaders },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code: back.searchParams.get("code")!,
@@ -157,6 +157,13 @@ test("a sync token reaches the person's own drives and nothing else", async () =
     headers: { cookie: ana.jar.header },
   });
   expect(cookie.status).toBe(401);
+});
+
+test("sync sign-in finishes when the app's token request carries the person's cookies", async () => {
+  const acme = await stack.company(`jar-${randomUUID().slice(0, 6)}`);
+  const ana = await stack.member(acme.id);
+  const token = await connect(ana, { cookie: ana.jar.header });
+  expect((await sync(token, "GET", "/drives")).status).toBe(200);
 });
 
 test("a change with a stale ifRevision answers 409 and changes nothing", async () => {

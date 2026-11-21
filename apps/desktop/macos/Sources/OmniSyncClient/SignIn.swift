@@ -27,7 +27,7 @@ public struct SignIn: Codable, Equatable, Sendable {
 
     /// Trades the callback's code for tokens. A callback whose state is not the saved one is
     /// refused: it was not started here.
-    public static func finish(callback: URL, container: URL, session: URLSession = .shared) async throws -> (SignIn, SyncTokens) {
+    public static func finish(callback: URL, container: URL, session: URLSession = SyncClient.session) async throws -> (SignIn, SyncTokens) {
         let file = container.appendingPathComponent(fileName)
         guard let saved = try? JSONDecoder().decode(SignIn.self, from: Data(contentsOf: file)) else {
             throw SignInRefused(status: 0, error: "no sign-in was started here")

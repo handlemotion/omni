@@ -43,7 +43,7 @@ public final class TokenStore: AccessTokenSource {
     /// nothing. A refresh always reads the keychain again, under the lock.
     private let remembered = Remembered<SyncTokens>()
 
-    public init(identity: SharedIdentity, settings: @escaping @Sendable () -> SyncSettings?, session: URLSession = .shared) {
+    public init(identity: SharedIdentity, settings: @escaping @Sendable () -> SyncSettings?, session: URLSession = SyncClient.session) {
         self.identity = identity
         self.settings = settings
         self.session = session

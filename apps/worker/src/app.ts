@@ -63,6 +63,12 @@ function allowedOrigins(config: Config) {
   return new Set([new URL(config.auth.baseURL).origin, ...config.auth.trustedOrigins]);
 }
 
+function tokenRequestWithoutSessionCookies(request: Request) {
+  const headers = new Headers(request.headers);
+  headers.delete("cookie");
+  return new Request(request, { headers });
+}
+
 const trace = createMiddleware<AppEnv>(async (c, next) => {
   const requestId = requestIdFrom(
     c.req.header(REQUEST_ID_HEADER) ?? c.req.header(SIGNED_REQUEST_ID_HEADER),
@@ -180,6 +186,9 @@ export const app = new Hono<AppEnv>()
     if (await isPendingResend(c)) return withSignInRequest(() => c.var.auth.handler(c.req.raw));
     return apiError(c, "not_found", "use /api/workspace/invitations");
   })
+  .post("/api/auth/oauth2/token", limitAuth, (c) =>
+    withSignInRequest(() => c.var.auth.handler(tokenRequestWithoutSessionCookies(c.req.raw))),
+  )
   .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) =>
     withSignInRequest(() => c.var.auth.handler(c.req.raw)),
   )
