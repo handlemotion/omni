@@ -30,7 +30,6 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { useMember, useSignOut } from "@/hooks/use-session.ts";
 import { useOpenSettings } from "@/hooks/use-settings.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
-import { useSidewaysSwipe } from "./module-swipe";
 import { useOpenWorkspace, useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 
@@ -66,6 +65,7 @@ const CRM: Module = {
   fill: "bg-module-crm",
 };
 const MODULES = [MAIL, DRIVE, CRM];
+const MODULES_WITHOUT_CRM = [MAIL, DRIVE];
 const BY_ID = { mail: MAIL, files: DRIVE, crm: CRM } as const;
 
 const under = (pathname: string, root: string) =>
@@ -141,100 +141,78 @@ function Label({ name, current }: { name: string; current: boolean }) {
   );
 }
 
-const SHOWN_POLL_MS = 16;
-const SHOWN_WAIT_MS = 1000;
-
-const canSlide = () =>
-  typeof document.startViewTransition === "function" &&
-  !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-function switcherShows(id: ModuleId) {
-  return new Promise<void>((resolve) => {
-    const started = Date.now();
-    const check = () => {
-      const shown = document.querySelector(`[role="group"][data-module="${id}"]`);
-      if (shown || Date.now() - started > SHOWN_WAIT_MS) return resolve();
-      window.setTimeout(check, SHOWN_POLL_MS);
-    };
-    check();
-  });
-}
-
-let slideToken = 0;
-
-function slideNavigation(id: ModuleId, by: 1 | -1, navigate: () => Promise<void>) {
-  const root = document.documentElement;
-  const token = ++slideToken;
-  root.dataset.moduleSlide = by > 0 ? "next" : "previous";
-  const transition = document.startViewTransition(async () => {
-    await navigate();
-    await switcherShows(id);
-  });
-  void transition.finished.finally(() => {
-    if (token === slideToken) delete root.dataset.moduleSlide;
-  });
-}
-
 /**
  * `open(id)` goes to a module's home, keeping the workspace and the mailbox shown in mail: it
- * rides along both ways, so coming back to Mail shows the same one. The switcher and `g f` both
- * open modules through this; the switcher passes `slide`, the direction the sidebar moves. While
- * a page can block leaving (unsaved edits), it doesn't slide: a view transition freezes rendering
- * until navigation ends, which would hide the page's Save your changes? dialog.
+ * rides along both ways, so coming back to Mail shows the same one. The switcher, the sidebar's
+ * pages and `g f` all open modules through this; the sidebar's pages glide to follow.
  */
 export function useOpenModule() {
   const router = useRouter();
   const workspace = useWorkspaceSlug();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  return (id: ModuleId, slide?: 1 | -1) => {
-    const module = BY_ID[id];
-    const navigate = () =>
-      router.navigate({
-        to: module.home,
-        params: { workspace },
-        search: mailbox ? { mailbox } : {},
-      });
-    const mayBlock = router.history._getBlockers().length > 0;
-    if (slide && !mayBlock && canSlide()) slideNavigation(id, slide, navigate);
-    else void navigate();
-  };
+  return (id: ModuleId) =>
+    router.navigate({
+      to: BY_ID[id].home,
+      params: { workspace },
+      search: mailbox ? { mailbox } : {},
+    });
+}
+
+/** The modules in their sidebar order, the CRM only where the workspace has it. */
+export function useModules() {
+  const hasCrm = useHasCrm();
+  return hasCrm ? MODULES : MODULES_WITHOUT_CRM;
 }
 
 /**
  * The sidebar's foot, as on iOS: the module on screen in a pill, between a chevron each way to its
- * neighbour (disabled where there is none). A two-finger sideways swipe in the sidebar steps too.
- * Stepping slides the sidebar's nav and the pill's contents across like pages; with reduced motion
- * they change in place.
+ * neighbour (disabled where there is none). The pill's contents ride the sidebar's pages
+ * (`--module-at`, from `ModulePager`), so a swipe moves both under the fingers.
  */
 export function ModuleSwitcher() {
   const current = BY_ID[useCurrentModule()];
   const open = useOpenModule();
-  const modules = useHasCrm() ? MODULES : MODULES.filter((module) => module.id !== "crm");
+  const modules = useModules();
   const index = Math.max(0, modules.indexOf(current));
-  const row = useRef<HTMLDivElement>(null);
   const go = (by: 1 | -1) => {
     const module = modules[index + by];
-    if (module) open(module.id, by);
+    if (module) void open(module.id);
   };
-  useSidewaysSwipe(row, go);
 
   return (
     <div
-      ref={row}
       role="group"
       aria-label="Modules"
       data-module={current.id}
       className="flex h-8 items-center justify-center gap-1"
     >
       <Step module={modules[index - 1]} direction="previous" onPress={() => go(-1)} />
-      <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden rounded-full border border-border ps-1.5 pe-3">
-        <span className="flex min-w-0 items-center gap-2 [view-transition-name:module-pill]">
-          <ModuleMark module={current} className="size-5 rounded-[6px]" />
-          <span className="truncate text-sm font-medium">{current.label}</span>
-        </span>
+      <div className="relative grid h-8 min-w-0 overflow-hidden rounded-full border border-border">
+        <span className="sr-only">{current.label}</span>
+        {modules.map((module) => (
+          <Face key={module.id} module={module} className="invisible col-start-1 row-start-1" />
+        ))}
+        <div
+          aria-hidden
+          className="absolute inset-0 flex"
+          style={{ translate: `calc(var(--module-at, ${index}) * -100%) 0` }}
+        >
+          {modules.map((module) => (
+            <Face key={module.id} module={module} className="w-full flex-none" />
+          ))}
+        </div>
       </div>
       <Step module={modules[index + 1]} direction="next" onPress={() => go(1)} />
     </div>
+  );
+}
+
+function Face({ module, className }: { module: Module; className?: string }) {
+  return (
+    <span aria-hidden className={cn("flex min-w-0 items-center gap-2 ps-1.5 pe-3", className)}>
+      <ModuleMark module={module} className="size-5 rounded-[6px]" />
+      <span className="truncate text-sm font-medium">{module.label}</span>
+    </span>
   );
 }
 

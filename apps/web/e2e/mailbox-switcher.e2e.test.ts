@@ -288,7 +288,7 @@ test("switching workspace keeps the module; switching module keeps the workspace
   await page.getByRole("button", { name: /^Switch workspace, currently / }).click();
   await page.getByRole("menuitem", { name: other }).click();
   await page.getByRole("button", { name: `Switch workspace, currently ${other}` }).waitFor();
-  await page.getByRole("group", { name: "Modules" }).getByText("Drive").waitFor();
+  await page.locator('[role="group"][aria-label="Modules"][data-module="files"]').waitFor();
   expect(place(page.url())).toBe("/files/trash");
   await expect.poll(active).toBe(other === "Beta" ? beta.orgId : acme.orgId);
 });

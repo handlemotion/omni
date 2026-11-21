@@ -15,6 +15,7 @@ import { CrmLists, CrmNav } from "@/components/crm/crm-nav";
 import { StorageNav, StoragePlaces } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
+import { ModulePager } from "./module-pager";
 import { ModuleSwitcher, useCurrentModule, WorkspaceSwitcher } from "./module-switcher";
 import { CountBadge } from "./count-badge";
 import { TitleBarRow, useTitleBar } from "./title-bar";
@@ -102,15 +103,13 @@ export function AppSidebar() {
       <SidebarContent className="*:shrink-0">
         <TitleBarRow />
         {!titleBar && <WorkspaceSwitcher end={<NotificationsButton />} />}
-        <div className="flex flex-col gap-3 *:shrink-0 [view-transition-name:module-nav]">
-          {module === "files" ? (
-            <StorageNav mailbox={mailbox} />
-          ) : module === "crm" ? (
-            <CrmNav mailbox={mailbox} />
-          ) : (
-            <MailNav mailbox={mailbox} />
-          )}
-        </div>
+        <ModulePager
+          pages={{
+            mail: <MailNav mailbox={mailbox} />,
+            files: <StorageNav mailbox={mailbox} />,
+            crm: <CrmNav mailbox={mailbox} />,
+          }}
+        />
       </SidebarContent>
 
       <SidebarFooter className="flex-col items-stretch">
