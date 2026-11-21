@@ -40,8 +40,6 @@ it and wins where they differ. Explicit user instructions override every file he
   file: `pnpm --filter <pkg> test:e2e e2e/<file>`.
 - `pnpm stack:serve` serves the real Worker and built web app on `:8787`, detached, once
   `/health` answers; `pnpm stack:serve:stop` stops it. Use it instead of `cmd &`.
-- `pnpm share` (the stack) or `pnpm share <port>` prints a private HTTPS URL that opens on the
-  user's devices; send it whenever they should see what you built. `pnpm share stop` ends it.
 - `pnpm ios:dev` runs the iOS dev build in the booted Simulator (`--device` for a plugged-in
   iPhone); details in `apps/ios/README.md`. Keep one Simulator booted, and shut down any
   Simulator, Metro, server or container you started.

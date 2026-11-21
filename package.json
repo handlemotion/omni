@@ -28,7 +28,6 @@
     "stack:serve": "node scripts/serve.mjs start",
     "stack:serve:stop": "node scripts/serve.mjs stop",
     "ios:dev": "apps/ios/scripts/dev.sh",
-    "share": "node scripts/share.mjs",
     "prepare": "node scripts/install-git-hooks.mjs"
   },
   "devDependencies": {

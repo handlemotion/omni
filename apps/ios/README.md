@@ -11,8 +11,7 @@ cp apps/ios/.env.example apps/ios/.env   # EXPO_PUBLIC_OMNI_API_URL: the Worker'
 pnpm --filter @omni/ios dev              # Expo; open in Expo Go or a development build
 ```
 
-A phone can't reach `localhost`: point `EXPO_PUBLIC_OMNI_API_URL` at the HTTPS URL `pnpm share`
-prints. The Worker must trust the app's scheme for sign-in: add `omni://` (and `exp://` for Expo
+A phone can't reach `localhost`: point `EXPO_PUBLIC_OMNI_API_URL` at a URL it can reach. The Worker must trust the app's scheme for sign-in: add `omni://` (and `exp://` for Expo
 Go) to `AUTH_TRUSTED_ORIGINS`. Continue opens the server's `/login` in a browser sheet; Google
 returns to the app from the sheet, and a magic link opens in Safari and returns to the app.
 
@@ -33,7 +32,7 @@ The API is `EXPO_PUBLIC_OMNI_API_URL` from `.env`: `http://localhost:8787` for t
 
 On an iPhone: Developer Mode on, the phone on the Mac's Wi-Fi (Metro listens on every interface),
 and `OMNI_IOS_TEAM_ID` set so Xcode signs the dev build. A phone can't reach `localhost`, so
-point the API at production or a `pnpm share` URL.
+point the API at production.
 
 ## Check it without a Mac
 

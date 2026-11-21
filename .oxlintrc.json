@@ -118,8 +118,7 @@
         "packages/client/src/realtime.ts",
         "packages/db/src/mail/conversations.ts",
         "packages/mail-core/src/automated.ts",
-        "packages/mail-core/src/sanitize.test.ts",
-        "scripts/share.mjs"
+        "packages/mail-core/src/sanitize.test.ts"
       ],
       "rules": {
         "complexity": "off"
