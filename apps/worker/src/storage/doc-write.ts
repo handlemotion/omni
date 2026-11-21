@@ -38,6 +38,7 @@ export async function writeText(
   orgId: string,
   target: { place: StoragePlace; name: string } | { nodeId: string; ifContentVersion: number },
   text: string,
+  mimeType: string | null,
 ) {
   const bytes = new TextEncoder().encode(text);
   const { limitBytes } = await storageLimit(deps.db, deps.config, orgId);
@@ -47,13 +48,13 @@ export async function writeText(
       ? await files.openUpload(target.place, {
           name: target.name,
           size: bytes.byteLength,
-          mimeType: MARKDOWN,
+          mimeType: mimeType ?? MARKDOWN,
           limitBytes,
           caps,
         })
       : await files.openVersionUpload(target.nodeId, {
           size: bytes.byteLength,
-          mimeType: MARKDOWN,
+          mimeType: mimeType ?? MARKDOWN,
           limitBytes,
           ifContentVersion: target.ifContentVersion,
           caps,
@@ -89,11 +90,12 @@ export async function refusalFor(
   orgId: string,
   target: { nodeId: string; ifContentVersion: number },
   text: string,
+  mimeType: string | null,
 ) {
   const { limitBytes } = await storageLimit(deps.db, deps.config, orgId);
   const opened = await files.openVersionUpload(target.nodeId, {
     size: new TextEncoder().encode(text).byteLength,
-    mimeType: MARKDOWN,
+    mimeType: mimeType ?? MARKDOWN,
     limitBytes,
     ifContentVersion: target.ifContentVersion,
     caps: uploadCaps(deps.config),

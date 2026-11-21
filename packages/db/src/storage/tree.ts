@@ -157,7 +157,9 @@ export async function resolvePlace(ex: Db, door: Door, place: StoragePlace) {
   };
 }
 
-const isDocName = (name: string) => /\.(md|markdown)$/i.test(name);
+const isOmniDocOrMarkdown = (node: { name: string; mimeType: string | null }) =>
+  node.mimeType?.split(";")[0]?.trim().toLowerCase() === "text/vnd.omni.doc" ||
+  /\.(md|markdown)$/i.test(node.name);
 const isImageName = (name: string) => /\.(png|jpe?g|gif|webp)$/i.test(name);
 
 /**
@@ -170,7 +172,7 @@ export async function resolveUploadPlace(ex: Db, door: Door, place: StoragePlace
   const found = await reach(ex, door, place.parentId);
   if (!found || inTrash(found.chain)) return null;
   if (found.node.kind === "folder") return placeIn(found, found.access.inside, false);
-  if (found.node.attached || !isDocName(found.node.name) || !isImageName(name)) return null;
+  if (found.node.attached || !isOmniDocOrMarkdown(found.node) || !isImageName(name)) return null;
   return placeIn(found, editsContent(found.access) && !found.node.lockedAt, true);
 }
 

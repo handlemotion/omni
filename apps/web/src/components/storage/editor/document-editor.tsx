@@ -33,6 +33,8 @@ export interface EditorProps {
   /** Called once the editor is up, with how to read its text now. */
   onReady: (read: () => string) => void;
   onChange: () => void;
+  /** False while the person only reads the doc (Viewing). */
+  editable?: boolean;
 }
 
 function conflictOf(error: unknown) {
@@ -80,9 +82,12 @@ export function isDoc(node: StorageNode) {
   return isMarkdown(node) && canEditFile(node);
 }
 
+export type DocMode = "editing" | "viewing";
+
 /** The open file's editing: on or off, unsaved changes, and saving them (a doc saves itself). */
 export function useEditSession(node: StorageNode, url: string, shareId: string | undefined) {
   const client = useQueryClient();
+  const [mode, setMode] = useState<DocMode>("editing");
   const [editing, setEditing] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -228,6 +233,7 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
       setEditing(true);
     },
     save,
+    text: () => read.current?.(),
     done: async () => {
       clearTimeout(foldTimer.current);
       await live.current?.settle();
@@ -244,7 +250,10 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
       reopen(conflict ?? base.current ?? 0);
       void storageChanged(client);
     },
+    mode,
+    setMode,
     editor: {
+      editable: mode === "editing",
       node,
       url,
       shareId,
@@ -286,7 +295,7 @@ export function DocumentEditor(props: {
   onDownload?: (() => void) | undefined;
 }) {
   const { session } = props;
-  const { node, url, shareId, opened, onReady, onChange, live } = session.editor;
+  const { node, url, shareId, opened, onReady, onChange, live, editable } = session.editor;
   const kind = fileType(node.name, node.mimeType).kind;
   const text = useQuery(previewTextQuery({ url, version: `edit:${opened}`, size: node.size }));
   if (
@@ -311,6 +320,7 @@ export function DocumentEditor(props: {
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
+      data-doc={node.id}
       onKeyDown={(event) => {
         if (event.key !== "s" || !(event.metaKey || event.ctrlKey)) return;
         event.preventDefault();
@@ -328,6 +338,7 @@ export function DocumentEditor(props: {
           loading={loading}
           live={live}
           onReady={onReady}
+          editable={editable}
           onChange={onChange}
         />
       </Suspense>

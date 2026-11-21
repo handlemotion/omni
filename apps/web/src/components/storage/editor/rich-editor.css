@@ -1,4 +1,4 @@
-/* A Markdown file as a page: the blocks Tiptap renders, in the app's tokens. */
+/* A doc as a page: the blocks Tiptap renders, in the app's tokens. */
 @reference "../../../styles.css";
 
 .document-page {
@@ -121,4 +121,31 @@
 }
 .document-page .doc-comment-active {
   @apply border-warning bg-warning/35;
+}
+.document-page [data-type="details"] {
+  @apply flex items-start gap-1;
+}
+.document-dropdown-toggle {
+  @apply -ms-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-transform duration-150 ease-out hover:bg-secondary hover:text-foreground motion-reduce:transition-none;
+}
+.document-dropdown-toggle svg {
+  @apply size-icon;
+}
+.document-page [data-type="details"].is-open > .document-dropdown-toggle {
+  @apply rotate-90;
+}
+.document-page [data-type="details"] > div {
+  @apply min-w-0 flex-1;
+}
+.document-page [data-type="details"] summary {
+  @apply list-none font-medium;
+}
+.document-page [data-type="details"] summary::-webkit-details-marker {
+  @apply hidden;
+}
+.document-page [data-type="detailsContent"] > * + * {
+  @apply mt-3;
+}
+.document-page [data-type="detailsContent"] {
+  @apply mt-1;
 }

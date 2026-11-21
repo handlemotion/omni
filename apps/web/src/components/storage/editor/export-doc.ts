@@ -12,8 +12,8 @@ import {
 import { docExtensions } from "@omni/docs";
 import "./rich-editor.css";
 
-/** What a doc can leave Drive as, besides its own Markdown. */
-export type DocExport = "pdf" | "docx";
+/** What a doc can leave Drive as. */
+export type DocExport = "pdf" | "docx" | "md";
 
 const parse = (markdown: string) =>
   new Editor({
@@ -218,8 +218,8 @@ body { background: white; }
 }
 
 /**
- * Saves a doc's Markdown as a Word file, or opens the print dialog on it laid out as a page
- * (where Save as PDF makes the PDF). Both read the same blocks the editor shows.
+ * Saves a doc as a Word file or as its Markdown, or opens the print dialog on it laid out as a
+ * page (where Save as PDF makes the PDF). Word and PDF read the same blocks the editor shows.
  */
 export async function exportDoc(
   markdown: string,
@@ -227,6 +227,8 @@ export async function exportDoc(
   format: DocExport,
   load: ImageLoader,
 ) {
-  if (format === "docx") await toWord(markdown, name, load);
+  if (format === "md")
+    save(new Blob([markdown], { type: "text/markdown" }), `${baseName(name)}.md`);
+  else if (format === "docx") await toWord(markdown, name, load);
   else await toPdf(markdown, name, load);
 }

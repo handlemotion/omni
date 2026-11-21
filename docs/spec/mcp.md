@@ -314,11 +314,12 @@ read files the way they find and read mail.
 ### Docs: `drive_create_doc`, `drive_edit_doc`
 
 Scope `drive:write`, not read-only, not destructive (every change is a new version; the old ones
-stay in the file's history). A doc is a Markdown file (`.md`) that opens in Omni as a page people edit together.
+stay in the file's history). A doc is an Omni doc (`docs/spec/docs.md`), or a Markdown file (`.md`),
+that opens in Omni as a page people edit together.
 
 - **Create.** `drive_create_doc { name, markdown, folder_id? | workspace?, space? }` writes a new
-  doc in the person's My files (default), a company's Shared, or a folder they can write to.
-  `.md` is added to the name when missing.
+  Omni doc in the person's My files (default), a company's Shared, or a folder they can write
+  to, named as given, with no extension.
 - **Edit.** `drive_edit_doc { id, edits? | markdown? }`. `edits` are `{ find, replace }` pairs
   applied in order, each `find` quoting Markdown that occurs exactly once in the doc now; all
   apply or none do, and a miss answers with the doc as it reads now, so the agent can retry

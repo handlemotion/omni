@@ -4,6 +4,7 @@ import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
 import type { Extensions } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
+import { Dropdown, DropdownContent, DropdownSummary } from "./dropdown.ts";
 
 /**
  * The blocks a doc is made of, and how they read and write as Markdown: the one schema the
@@ -19,6 +20,9 @@ export function docExtensions(options: { history: boolean }) {
     TaskItem.configure({ nested: true }),
     TableKit.configure({ table: { resizable: false } }),
     Image,
+    Dropdown,
+    DropdownSummary,
+    DropdownContent,
     Markdown,
   ];
   return result;

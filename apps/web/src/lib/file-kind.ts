@@ -1,4 +1,7 @@
+import { isDocFile, isOmniDoc } from "@omni/docs/file";
+
 export type FileKind =
+  | "doc"
   | "image"
   | "video"
   | "audio"
@@ -113,6 +116,7 @@ const RULES: {
   { kind: "video", preview: "video", matches: (e, m) => VIDEO.has(e) || m.startsWith("video/") },
   { kind: "audio", preview: "audio", matches: (e, m) => AUDIO.has(e) || m.startsWith("audio/") },
   { kind: "csv", preview: "csv", matches: (e, m) => CSV.has(e) || m === "text/csv" },
+  { kind: "doc", preview: "text", matches: (e, m) => isDocFile(`.${e}`, m) },
   { kind: "code", preview: "text", matches: (e) => e in CODE },
   { kind: "text", preview: "text", matches: (e, m) => PLAIN.has(e) || m.startsWith("text/") },
   { kind: "spreadsheet", preview: "sheet", matches: (e, m) => e === "xlsx" || m === XLSX_MIME },
@@ -127,6 +131,7 @@ const RULES: {
 export const fileType: (name: string, mimeType: string | null) => FileType = (name, mimeType) => {
   const ext = extensionOf(name);
   const mime = (mimeType ?? "").toLowerCase();
+  if (isOmniDoc(mime)) return { kind: "doc", preview: "text", label: "DOC", language: "markdown" };
   const label = (ext && ext.length <= 5 ? ext : (mime.split("/")[1] ?? "")).toUpperCase() || "FILE";
   const raster = RASTER[ext] ?? (Object.values(RASTER).includes(mime) ? mime : undefined);
   if (raster) return { kind: "image", preview: "image", label, raster };

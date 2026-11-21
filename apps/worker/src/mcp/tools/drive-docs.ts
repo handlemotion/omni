@@ -15,11 +15,16 @@ const markdown = z
   .string()
   .max(MAX_MARKDOWN)
   .describe(
-    "The doc in Markdown: headings, lists, `- [ ]` to-dos, tables, code, quotes, links and images.",
+    "The doc in Markdown: headings, lists, `- [ ]` to-dos, tables, code, quotes, links, images, and dropdowns as `<details><summary>Line</summary>` blocks.",
   );
 
 const createInput = z.object({
-  name: z.string().trim().min(1).max(200).describe('Its name; ".md" is added when missing.'),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .describe('Its title, without an extension (".md" is not needed).'),
   markdown,
   folder_id: z.string().min(1).optional().describe("A folder to put it in, from `drive_list`."),
   workspace: z.string().min(1).optional().describe("A workspace id, without `folder_id`."),
@@ -72,7 +77,7 @@ const REFUSED: Record<string, string> = {
   forbidden: "The person may not change files there.",
   locked: "That doc is locked. Someone unlocks it in Omni first.",
   not_found: "No doc with that id you can change. Ids come from `drive_search` or `drive_list`.",
-  not_a_doc: "That file is not a doc. Only Markdown files (.md) are docs.",
+  not_a_doc: "That file is not a doc. Only Omni docs and Markdown files (.md) are docs.",
   too_large: "That doc is too large to change here.",
   too_large_after: "That change would make the doc larger than 1 MB. Nothing was changed.",
   full: "The workspace's storage is full.",
@@ -214,7 +219,7 @@ export function registerDriveDocs(server: McpServer, context: ToolContext) {
     {
       title: "Edit a doc",
       description:
-        "Change a doc (a Markdown file) in Drive. Read it first with `drive_fetch`, then give `edits`: each `find` quotes Markdown that occurs exactly once and becomes `replace`. Edits apply to the doc as it is right now, including what people are typing in it, and appear live for anyone who has it open; earlier versions stay in its history. `markdown` replaces the whole doc instead.",
+        "Change a doc (an Omni doc, or a Markdown file) in Drive. Read it first with `drive_fetch`, then give `edits`: each `find` quotes Markdown that occurs exactly once and becomes `replace`. Edits apply to the doc as it is right now, including what people are typing in it, and appear live for anyone who has it open; earlier versions stay in its history. `markdown` replaces the whole doc instead.",
       inputSchema: editInput,
       outputSchema,
       annotations: ANNOTATIONS,

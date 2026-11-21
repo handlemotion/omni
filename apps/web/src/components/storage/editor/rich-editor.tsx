@@ -4,6 +4,8 @@ import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { IconChevronRight } from "@/components/icons/central";
 import { useDocComments, useLiveComments } from "@/hooks/use-doc-comments.ts";
 import { useDocFiles } from "@/hooks/use-doc-files.ts";
 import { useFilePlace } from "@/hooks/use-storage.ts";
@@ -13,16 +15,34 @@ import { sessionQuery } from "@/lib/session.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
+import { DocToolbar } from "./doc-toolbar.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useStorageHref } from "../file-list.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
-import { docExtensions } from "@omni/docs";
+import { docExtensions, Dropdown } from "@omni/docs";
 import { DriveFiles } from "./drive-files.tsx";
 import { SlashMenu } from "./slash-menu.tsx";
 import SourceEditor from "./source-editor.tsx";
 import "./rich-editor.css";
 
-const blocks = (live: boolean) => [...docExtensions({ history: !live }), SlashMenu];
+const CHEVRON = renderToStaticMarkup(<IconChevronRight />);
+
+const PageDropdown = Dropdown.configure({
+  persist: true,
+  renderToggleButton: ({ element, isOpen }) => {
+    element.innerHTML = CHEVRON;
+    element.className = "document-dropdown-toggle";
+    element.setAttribute("aria-label", isOpen ? "Close dropdown" : "Open dropdown");
+    element.setAttribute("aria-expanded", String(isOpen));
+  },
+});
+
+const blocks = (live: boolean) => [
+  ...docExtensions({ history: !live }).map((each) =>
+    each.name === Dropdown.name ? PageDropdown : each,
+  ),
+  SlashMenu,
+];
 
 const EXTENSIONS = blocks(false);
 
@@ -218,15 +238,20 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
     onReady(() => editor.getMarkdown());
   }, [editor, onReady]);
   useCommentMarks(editor, comments);
+  const editable = props.editable ?? true;
+  useEffect(() => {
+    editor.setEditable(editable);
+  }, [editor, editable]);
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
-      <EditorContent editor={editor} />
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
+      <EditorContent editor={editor} className="flex-1" />
       <BlockHandle editor={editor} />
       <FormatBar
         editor={editor}
         onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
       />
+      <DocToolbar editor={editor} comments={comments} />
     </div>
   );
 }

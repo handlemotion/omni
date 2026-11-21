@@ -35,6 +35,7 @@ const GLYPH: Record<FileKind | "folder", Glyph> = {
   image: IconImage,
   video: IconVideo,
   audio: IconAudio,
+  doc: IconFileText,
   code: IconCode,
   text: IconFileText,
   csv: IconTable,

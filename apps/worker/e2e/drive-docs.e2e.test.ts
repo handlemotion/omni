@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Client } from "@modelcontextprotocol/client";
 import type { StorageNode } from "@omni/contracts";
+import { DOC_TYPE } from "@omni/docs";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { connectAgent } from "./mcp-support.ts";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
@@ -44,7 +45,7 @@ test("an agent writes a doc and edits it, only where its person may", async () =
     markdown: "# Launch plan\n\n- [ ] Book the venue\n- [ ] Send invites",
   });
   if ("error" in made) throw new Error(made.error);
-  expect(made.doc.title).toBe("Launch plan.md");
+  expect(made.doc.title).toBe("Launch plan");
   expect(made.doc.url).toBe(`${WEB_ORIGIN}/${acme.slug}/files/my?file=${made.doc.id}`);
   expect(await contentOf(ana, made.doc.id)).toBe(
     "# Launch plan\n\n- [ ] Book the venue\n- [ ] Send invites",
@@ -61,6 +62,9 @@ test("an agent writes a doc and edits it, only where its person may", async () =
   expect(await contentOf(ana, made.doc.id)).toBe(
     "# Launch plan\n\n- [x] Book the venue\n- [ ] Send invites by Friday",
   );
+  const mine = await stack.api(ana.jar, "GET", "/nodes?space=personal");
+  const kept = (mine.body.nodes as StorageNode[]).find((node) => node.id === made.doc.id);
+  expect(kept).toMatchObject({ name: "Launch plan", mimeType: DOC_TYPE });
 
   const missed = await call(anaAgent, "drive_edit_doc", {
     id: made.doc.id,
@@ -139,6 +143,13 @@ test("an image added to a doc belongs to it: shared with it, hidden from its fol
   const acme = await stack.company("pics");
   const ana = await stack.member(acme.id, "owner");
   const doc = await stack.upload(ana.jar, { space: "personal" }, "Plan.md", new Uint8Array(4));
+  const brief = await stack.upload(
+    ana.jar,
+    { space: "personal" },
+    "Brief",
+    new Uint8Array(4),
+    DOC_TYPE,
+  );
   const sheet = await stack.upload(ana.jar, { space: "personal" }, "notes.txt", new Uint8Array(4));
   const editor = await outsider(doc.id, ana, "editor");
   const viewer = await outsider(doc.id, ana, "viewer");
@@ -156,9 +167,17 @@ test("an image added to a doc belongs to it: shared with it, hidden from its fol
   expect((await open(viewer, doc.id, "mine.png")).status).toBe(403);
   expect((await open(editor, doc.id, "script.js")).status).toBe(404);
   expect((await open(ana, sheet.id, "pasted.png")).status).toBe(404);
+  const pasted = await stack.upload(
+    ana.jar,
+    { parentId: brief.id },
+    "pasted.png",
+    PNG,
+    "image/png",
+  );
+  expect(pasted.parentId).toBe(brief.id);
 
   const listed = await stack.api(ana.jar, "GET", "/nodes?space=personal");
-  expect(names(listed.body).toSorted()).toEqual(["Plan.md", "notes.txt"]);
+  expect(names(listed.body).toSorted()).toEqual(["Brief", "Plan.md", "notes.txt"]);
   const found = await stack.api(ana.jar, "GET", "/search?q=pasted");
   expect(found.body.nodes).toEqual([]);
 

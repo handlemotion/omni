@@ -8,6 +8,7 @@ import {
   IconFilePdf,
   IconFileText,
   IconFolderMove,
+  IconMarkdown,
   IconPencil,
   IconSparkle,
   IconTrash,
@@ -25,6 +26,7 @@ import { storageErrorToast } from "./storage-errors.ts";
 import { SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { downloadFile, downloadZip } from "@/lib/download.ts";
+import { isOmniDoc } from "@omni/docs/file";
 import { fileType } from "@/lib/file-kind.ts";
 import type { DocExport } from "./editor/export-doc.ts";
 
@@ -91,6 +93,15 @@ const docExports = (node: StorageNode, exportAs: ExportDoc) =>
     ? [
         { icon: IconFilePdf, label: "Export as PDF", onAction: () => exportAs(node, "pdf") },
         { icon: IconFileText, label: "Export as Word", onAction: () => exportAs(node, "docx") },
+        ...(isOmniDoc(node.mimeType)
+          ? [
+              {
+                icon: IconMarkdown,
+                label: "Export as Markdown",
+                onAction: () => exportAs(node, "md"),
+              },
+            ]
+          : []),
       ]
     : [];
 
@@ -119,11 +130,15 @@ export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
   return useCallback(
     (node: StorageNode, open: (dialog: FolderDialog) => void) => {
       const result: SettingsRowMenuItem[] = [
-        {
-          icon: IconDownload,
-          label: "Download",
-          onAction: () => (node.kind === "file" ? download(node) : downloadZip([node.id])),
-        },
+        ...(isOmniDoc(node.mimeType)
+          ? []
+          : [
+              {
+                icon: IconDownload,
+                label: "Download",
+                onAction: () => (node.kind === "file" ? download(node) : downloadZip([node.id])),
+              },
+            ]),
         ...docExports(node, exportAs),
         { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
         { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },

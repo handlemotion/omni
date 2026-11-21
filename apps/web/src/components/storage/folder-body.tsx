@@ -1,6 +1,12 @@
 import { useMemo, type KeyboardEvent, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
-import { IconFolderPlus, IconNewDoc, IconPlus } from "@/components/icons/central";
+import {
+  IconCanvas,
+  IconFolderPlus,
+  IconNewDoc,
+  IconPlus,
+  IconTable,
+} from "@/components/icons/central";
 import { EmptyState } from "@/components/empty/empty-state";
 import { ListFailed } from "@/components/inbox/thread-list";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
@@ -143,7 +149,7 @@ function Centered({ children }: { children: ReactNode }) {
 }
 
 /**
- * New (a menu of New doc and New folder) and Upload, for whoever may write: in the
+ * New (folder, doc, and sheet and canvas to come) and Upload, for whoever may write: in the
  * header, or centered in the empty state while the folder holds nothing.
  */
 export function HeaderActions(props: Actions & { canWrite: boolean }) {
@@ -155,16 +161,32 @@ export function HeaderActions(props: Actions & { canWrite: boolean }) {
           <IconPlus data-slot="icon" />
           New
         </Button>
-        <Menu placement="bottom end" aria-label="New" className="text-start">
-          {props.onNewDoc && (
-            <MenuItem id="doc" textValue="New doc" onAction={props.onNewDoc}>
-              <IconNewDoc data-slot="icon" />
-              <MenuLabel>New doc</MenuLabel>
-            </MenuItem>
-          )}
+        <Menu
+          placement="bottom end"
+          aria-label="New"
+          className="text-start"
+          popover={{ className: "min-w-56" }}
+        >
           <MenuItem id="folder" textValue="New folder" onAction={props.onNewFolder}>
             <IconFolderPlus data-slot="icon" />
             <MenuLabel>New folder</MenuLabel>
+          </MenuItem>
+          <MenuItem
+            id="doc"
+            textValue="New doc"
+            isDisabled={!props.onNewDoc}
+            onAction={props.onNewDoc}
+          >
+            <IconNewDoc data-slot="icon" />
+            <MenuLabel>New doc</MenuLabel>
+          </MenuItem>
+          <MenuItem id="sheet" textValue="New sheet" isDisabled>
+            <IconTable data-slot="icon" />
+            <MenuLabel>New sheet</MenuLabel>
+          </MenuItem>
+          <MenuItem id="canvas" textValue="New canvas" isDisabled>
+            <IconCanvas data-slot="icon" />
+            <MenuLabel>New canvas</MenuLabel>
           </MenuItem>
         </Menu>
       </MenuTrigger>

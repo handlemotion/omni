@@ -1,17 +1,12 @@
 import { useEffect, type ReactNode } from "react";
 import {
   IconCheck,
-  IconCommentPlain,
-  IconDownload,
   IconMaximize,
   IconMinimize,
   IconPencil,
   IconX,
 } from "@/components/icons/central";
-import {
-  SettingsRowMenu,
-  type SettingsRowMenuItem,
-} from "@/components/settings/kit/settings-row-menu";
+import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +25,7 @@ import {
   type DocComments,
 } from "@/hooks/use-doc-comments.ts";
 import { useFileEditors } from "@/hooks/use-file-presence.ts";
+import { useShowDetails } from "@/hooks/use-show-details.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { fileType } from "@/lib/file-kind.ts";
@@ -46,6 +42,8 @@ import {
   useEditSession,
   type EditSession,
 } from "../editor/document-editor.tsx";
+import { DocBar } from "../editor/doc-bar.tsx";
+import { HeaderMenu } from "./header-menu.tsx";
 import { PreviewBody } from "./preview-body.tsx";
 import { PreviewRail } from "./preview-rail.tsx";
 import { usePreviewTools } from "./preview-tools.tsx";
@@ -79,6 +77,8 @@ export function PreviewPanel(props: {
   const inset = useHeaderInset(props.fullScreen, props.shell);
   useAlwaysEditing(session, doc);
   const comments = useDocCommentsState(node.id, props.shareId, doc && session.editing);
+  const [details, toggleDetails] = useShowDetails();
+  const exports = doc && !shown ? session.text : undefined;
   return (
     <section aria-label={node.name} className="flex min-w-0 flex-1 flex-col bg-background">
       <div className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${inset}`}>
@@ -87,15 +87,14 @@ export function PreviewPanel(props: {
         <div className="flex shrink-0 items-center gap-1">
           {props.shell && <FileEditors nodeId={node.id} />}
           <EditActions session={session} canEdit={canEdit} doc={doc} />
-          <CommentsAction comments={comments} />
-          {download && (
-            <Action label="Download" onPress={download}>
-              <IconDownload />
-            </Action>
-          )}
-          {!session.dirty && (
-            <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} />
-          )}
+          <HeaderMenu
+            dirty={session.dirty}
+            node={node}
+            items={props.menu}
+            exports={exports}
+            details={details}
+            onDetails={toggleDetails}
+          />
           <Action
             label={props.fullScreen ? "Side by side" : "Full screen"}
             onPress={props.onFullScreen}
@@ -107,6 +106,13 @@ export function PreviewPanel(props: {
           </Action>
         </div>
       </div>
+      <DocBar
+        node={node}
+        items={props.menu}
+        session={session}
+        text={exports}
+        border={!props.fullScreen}
+      />
       <div
         className={`flex min-h-0 flex-1 flex-col bg-surface ${props.fullScreen ? "" : "border-s"}`}
       >
@@ -121,30 +127,8 @@ export function PreviewPanel(props: {
           <Stage node={node} url={props.url} tools={tools} onDownload={download} />
         )}
       </div>
-      <Details node={shown?.node ?? node} border={!props.fullScreen} />
+      <Details node={shown?.node ?? node} border={!props.fullScreen} shown={details} />
     </section>
-  );
-}
-
-function CommentsAction(props: { comments: DocComments }) {
-  const { comments } = props;
-  const counted = comments.count > 0;
-  if (!comments.on) return null;
-  return (
-    <TooltipTrigger delay={400}>
-      <Button
-        intent="ghost"
-        size={counted ? "sm" : "sq-sm"}
-        aria-label="Comments"
-        aria-pressed={comments.open}
-        className={counted ? "gap-1 px-2 tabular-nums" : undefined}
-        onPress={comments.toggle}
-      >
-        <IconCommentPlain />
-        {counted && comments.count}
-      </Button>
-      <Tooltip>Comments</Tooltip>
-    </TooltipTrigger>
   );
 }
 
@@ -174,8 +158,9 @@ function EditingBody(props: {
   );
 }
 
-function Details(props: { node: StorageNode; border: boolean }) {
+function Details(props: { node: StorageNode; border: boolean; shown: boolean }) {
   const { node } = props;
+  if (!props.shown) return null;
   const rows: [string, ReactNode][] = [
     ["Kind", <TypeBadge key="kind" label={fileType(node.name, node.mimeType).label} />],
     ["Size", formatBytes(node.size)],

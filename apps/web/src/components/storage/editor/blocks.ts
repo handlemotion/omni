@@ -13,6 +13,7 @@ import {
   IconTable,
   IconChecklist,
   IconImage,
+  IconDropdown,
 } from "@/components/icons/central";
 import { pickImages } from "./drive-files.tsx";
 
@@ -28,6 +29,27 @@ export interface BlockKind {
 }
 
 const chain = (editor: Editor) => editor.chain().focus();
+
+function addDropdown(editor: Editor) {
+  const { $from } = editor.state.selection;
+  if ($from.parent.type.name !== "paragraph") return chain(editor).setDetails().run();
+  const text = $from.parent.textContent;
+  const at = $from.before();
+  return chain(editor)
+    .insertContentAt(
+      { from: at, to: $from.after() },
+      {
+        type: "details",
+        attrs: { open: true },
+        content: [
+          { type: "detailsSummary", content: text ? [{ type: "text", text }] : [] },
+          { type: "detailsContent", content: [{ type: "paragraph" }] },
+        ],
+      },
+    )
+    .setTextSelection(at + 2 + text.length)
+    .run();
+}
 
 export const BLOCKS: BlockKind[] = [
   {
@@ -94,6 +116,13 @@ export const BLOCKS: BlockKind[] = [
     run: (editor) => pickImages(editor),
   },
   {
+    id: "dropdown",
+    label: "Dropdown",
+    icon: IconDropdown,
+    words: ["toggle", "collapse", "details", "fold", "accordion"],
+    run: (editor) => addDropdown(editor),
+  },
+  {
     id: "quote",
     label: "Quote",
     icon: IconBlockquote,
@@ -115,6 +144,9 @@ export const BLOCKS: BlockKind[] = [
     run: (editor) => chain(editor).setHorizontalRule().run(),
   },
 ];
+
+/** A kind by its id, for the toolbar's buttons. */
+export const block = (id: string) => BLOCKS.find((each) => each.id === id)!;
 
 /** The kinds a `/` query finds: by the start of a word in the label, or of another word. */
 export function findBlocks(query: string) {

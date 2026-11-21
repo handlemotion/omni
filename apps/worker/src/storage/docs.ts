@@ -1,5 +1,5 @@
 import type { StorageLiveEntry } from "@omni/contracts";
-import type { EditResult } from "@omni/docs";
+import { DOC_TYPE, isDocFile, type EditResult } from "@omni/docs";
 import type { MemberStorage, StoragePlace } from "@omni/db";
 import { s2Basin } from "../s2.ts";
 import { docRecordEvents, LiveFile } from "./doc-live.ts";
@@ -9,11 +9,6 @@ import { refusalFor, writeText, type WriteDeps, type WriteResult } from "./doc-w
 export const DOC_MAX_BYTES = 1_000_000;
 
 const SAVE_TRIES = 3;
-
-/** Whether a file is a doc: Markdown, by its name. */
-export const isDocName = (name: string) => /\.(md|markdown)$/i.test(name);
-
-const docName = (name: string) => (isDocName(name) ? name : `${name.trim()}.md`);
 
 async function readText(bucket: R2Bucket, r2Key: string) {
   const object = await bucket.get(r2Key);
@@ -40,8 +35,9 @@ export function createDoc(
     deps,
     files,
     orgId,
-    { place: input.place, name: docName(input.name) },
+    { place: input.place, name: input.name.trim() },
     input.markdown,
+    DOC_TYPE,
   );
 }
 
@@ -59,7 +55,7 @@ export async function editDoc(
   const found = await files.file(nodeId);
   if (found.status !== "ok") return found;
   const node = found.file;
-  if (!isDocName(node.name)) return { status: "not_a_doc" } as const;
+  if (!isDocFile(node.name, node.mimeType)) return { status: "not_a_doc" } as const;
   if (node.lockedAt) return { status: "locked" } as const;
   if (node.size > DOC_MAX_BYTES) return { status: "too_large" } as const;
   const writable = await files.mayWrite(nodeId);
@@ -79,17 +75,25 @@ export async function editDoc(
       node.orgId,
       { nodeId, ifContentVersion: node.contentVersion },
       changed.markdown,
+      node.mimeType,
     );
   }
   const target = { nodeId, ifContentVersion: node.contentVersion };
-  const refused = await refusalFor(deps, files, node.orgId, target, changed.markdown);
+  const refused = await refusalFor(
+    deps,
+    files,
+    node.orgId,
+    target,
+    changed.markdown,
+    node.mimeType,
+  );
   if (refused) return refused;
   const { entry, through } = await live.rewrite(changed.markdown);
   passOn(deps, node.orgId, nodeId, [entry]);
   return saveLive(
     deps,
     files,
-    { nodeId, orgId: node.orgId, base: node.contentVersion },
+    { nodeId, orgId: node.orgId, base: node.contentVersion, mimeType: node.mimeType },
     live,
     through,
   );
@@ -98,7 +102,7 @@ export async function editDoc(
 async function saveLive(
   deps: WriteDeps,
   files: MemberStorage,
-  at: { nodeId: string; orgId: string; base: number },
+  at: { nodeId: string; orgId: string; base: number; mimeType: string | null },
   live: LiveFile,
   through: number,
 ) {
@@ -110,6 +114,7 @@ async function saveLive(
       at.orgId,
       { nodeId: at.nodeId, ifContentVersion: base },
       live.markdown,
+      at.mimeType,
     );
     if (written.status === "ok") {
       passOn(deps, at.orgId, at.nodeId, [await live.folded(written.node.contentVersion, through)]);
