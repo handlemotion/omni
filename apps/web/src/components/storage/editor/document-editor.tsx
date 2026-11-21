@@ -109,6 +109,7 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
     setEditing(false);
     setDirty(false);
     setConflict(null);
+    setMode("editing");
   }, [node.id]);
 
   useEffect(() => {
