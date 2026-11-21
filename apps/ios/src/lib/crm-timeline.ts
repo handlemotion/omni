@@ -18,7 +18,7 @@ export const useStages = () =>
   useQuery({
     queryKey: keys.crmStages(),
     queryFn: ({ signal }) => call(api.crm.stages.$get({}, { init: { signal } })),
-    select: (data) => data.stages.toSorted((a, b) => a.position - b.position),
+    select: (data) => [...data.stages].sort((a, b) => a.position - b.position),
     staleTime: 5 * 60_000,
   });
 

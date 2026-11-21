@@ -76,7 +76,7 @@ cp "$saved" package.json
 rm -f "$saved"
 trap - EXIT INT TERM
 
-args=(--port "$port" --configuration Debug)
+args=(--configuration Debug)
 if [ "$target" = device ]; then
   : "${OMNI_IOS_TEAM_ID:?set OMNI_IOS_TEAM_ID to the Apple team that signs the dev build}"
   args+=(--device)

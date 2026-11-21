@@ -89,6 +89,13 @@
       }
     },
     {
+      "files": ["apps/ios/**"],
+      "rules": {
+        "unicorn/no-array-sort": "off",
+        "unicorn/no-array-reverse": "off"
+      }
+    },
+    {
       "files": ["**/*.test.ts", "**/*.test.tsx", "**/e2e/**"],
       "rules": {
         "max-lines": "off"

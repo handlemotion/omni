@@ -50,7 +50,7 @@ export function FolderArt({ contents }: { contents: DriveNode[] | undefined }) {
       ) : null}
       {cards
         .map((card, i) => <Card key={card.id} node={card} spot={spots[i] ?? EMPTY} />)
-        .toReversed()}
+        .reverse()}
     </View>
   );
 }

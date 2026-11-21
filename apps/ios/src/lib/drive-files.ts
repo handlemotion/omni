@@ -131,7 +131,7 @@ function evict(keep: string) {
   let total = Object.values(entries).reduce((sum, one) => sum + one.bytes, 0);
   if (total <= CACHE_CAP_BYTES) return;
   const now = Date.now();
-  const oldest = Object.entries(entries).toSorted(([, a], [, b]) => a.usedAt - b.usedAt);
+  const oldest = Object.entries(entries).sort(([, a], [, b]) => a.usedAt - b.usedAt);
   for (const [key, entry] of oldest) {
     if (total <= CACHE_CAP_BYTES) break;
     if (key === keep || transfers.has(key) || now - entry.usedAt < IN_USE_MS) continue;

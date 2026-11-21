@@ -124,7 +124,7 @@ export function useActiveProjects() {
   const clients = new Map(companies.map((company) => [company.id, company]));
   return projects
     .map((deal) => ({ deal, client: deal.companyId ? clients.get(deal.companyId) : undefined }))
-    .toSorted((a, b) => a.deal.name.localeCompare(b.deal.name, undefined, { sensitivity: "base" }));
+    .sort((a, b) => a.deal.name.localeCompare(b.deal.name, undefined, { sensitivity: "base" }));
 }
 
 export const usePerson = (id: string) =>
