@@ -58,6 +58,8 @@ pub fn run() {
             sync::sync_status,
             sync::sync_connect,
             sync::sync_disconnect,
+            updater::update_ready,
+            updater::update_install,
         ])
         .setup(|app| {
             window::create(app)?;

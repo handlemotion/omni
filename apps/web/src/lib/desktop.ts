@@ -58,6 +58,25 @@ export const desktop = {
     disconnect: (orgId: string) => bridge().then((b) => b.syncDisconnect(orgId)),
   },
 
+  /**
+   * A shell update downloaded and waiting to install: its version, `null` when there is none or
+   * the shell predates updates it can report. `install` restarts into it.
+   */
+  update: {
+    ready: () =>
+      bridge()
+        .then((b) => b.updateReady())
+        .catch(() => null),
+    install: () => run("update", (b) => b.updateInstall()),
+    /** Calls `handler` once an update is downloaded; returns the unsubscribe. */
+    onReady: (handler: (version: string) => void) => {
+      const stop = bridge()
+        .then((b) => b.onUpdateReady(handler))
+        .catch(() => () => {});
+      return () => void stop.then((unlisten) => unlisten());
+    },
+  },
+
   /** The Dock badge: a count, or none at zero. macOS and Linux; Windows has no count badge. */
   setBadge(count: number) {
     run("badge", (b) => b.setBadge(count));

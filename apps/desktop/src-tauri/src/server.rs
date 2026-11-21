@@ -43,6 +43,8 @@ const REMOTE_PERMISSIONS: &[&str] = &[
     "allow-sync-status",
     "allow-sync-connect",
     "allow-sync-disconnect",
+    "allow-update-ready",
+    "allow-update-install",
 ];
 
 /// The chosen server, shared with the navigation guard, and the origins already granted the

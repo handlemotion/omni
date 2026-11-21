@@ -24,6 +24,9 @@ export const buttonStyles = tv({
       ],
       secondary:
         "shadow-(--shadow-button) [--btn-border:color-mix(in_oklab,var(--color-secondary)_88%,black)] [--btn-bg:var(--color-secondary)] [--btn-foreground:var(--color-secondary-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-secondary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-secondary-foreground)_4%,var(--color-secondary))]",
+      /** Blue fill, white text: something waiting on the person, like a downloaded update. */
+      notice:
+        "shadow-(--shadow-button) [--btn-bg:var(--color-primary)] [--btn-border:color-mix(in_oklab,var(--color-primary)_85%,black)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon:var(--color-primary-foreground)] [--btn-icon-active:var(--color-primary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary))]",
       warning:
         "shadow-(--shadow-button) [--btn-border:color-mix(in_oklab,var(--color-warning)_80%,black)] [--btn-bg:var(--color-warning)] [--btn-foreground:var(--color-warning-foreground)] [--btn-icon:var(--color-warning-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-warning)_90%)]",
       danger:

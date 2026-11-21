@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { DesktopSyncStatus, DesktopWorkspaceSync } from "@omni/client";
@@ -18,6 +19,12 @@ export const syncConnect = (orgId: string) =>
   invoke<DesktopWorkspaceSync>("sync_connect", { orgId });
 export const syncDisconnect = (orgId: string) =>
   invoke<DesktopWorkspaceSync>("sync_disconnect", { orgId });
+
+/** A shell update downloaded and waiting to install, by version (`updater.rs`). */
+export const updateReady = () => invoke<string | null>("update_ready");
+export const updateInstall = () => invoke<void>("update_install");
+export const onUpdateReady = (handler: (version: string) => void) =>
+  listen<string>("update-ready", (event) => handler(event.payload));
 
 export const startDragging = () => getCurrentWindow().startDragging();
 

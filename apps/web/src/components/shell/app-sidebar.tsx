@@ -21,6 +21,7 @@ import { CountBadge } from "./count-badge";
 import { TitleBarRow, useTitleBar } from "./title-bar";
 import { NotificationsButton } from "./notifications";
 import { SidebarIsland } from "./sidebar-island";
+import { UpdateRow } from "./update-row";
 import {
   Sidebar,
   SidebarContent,
@@ -112,7 +113,8 @@ export function AppSidebar() {
         />
       </SidebarContent>
 
-      <SidebarFooter className="flex-col items-stretch">
+      <SidebarFooter className="flex-col items-stretch gap-2">
+        <UpdateRow />
         <ModuleSwitcher />
       </SidebarFooter>
     </Sidebar>

@@ -43,13 +43,14 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
 
     // Read first, always: the update relaunch keeps its arguments, so a login launch's `--hidden`
     // must not leave the mark behind to hide the next ordinary launch.
-    let relaunched = crate::updater::relaunched(app);
+    let relaunch = crate::updater::relaunch(app);
+    let hidden_launch = std::env::args().any(|arg| arg == HIDDEN_ARG);
     let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()));
     let window = chrome(builder)
         .title("Omni")
         .inner_size(1280.0, 800.0)
         .min_inner_size(720.0, 480.0)
-        .visible(!relaunched && !std::env::args().any(|arg| arg == HIDDEN_ARG))
+        .visible(relaunch.unwrap_or(!hidden_launch))
         // Tauri's file-drop handler claims every drag before WebKit sees it, so the page's HTML5
         // drag and drop (Drive's moves, Finder files onto a folder) never fires. The page handles
         // drops itself.

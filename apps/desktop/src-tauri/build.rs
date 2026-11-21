@@ -8,6 +8,8 @@ const COMMANDS: &[&str] = &[
     "sync_status",
     "sync_connect",
     "sync_disconnect",
+    "update_ready",
+    "update_install",
 ];
 
 fn main() {
