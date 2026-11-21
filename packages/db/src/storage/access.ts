@@ -3,6 +3,7 @@ import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
 import { personalSpaces } from "../schema/identity.ts";
 import { storageGrants, storagePolicies } from "../schema/storage.ts";
+import { ensurePersonalSpace } from "../personal-space.ts";
 import { companyForAddress } from "../session-scopes.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
 import { holdsOthersWork, inTrash, type Drive, type NodeRow, type StorageSpace } from "./core.ts";
@@ -196,6 +197,8 @@ export async function grantAddresses(ex: Db, userId: string, scopeOrgId?: string
  * any member can share, so an editor grant to oneself would otherwise undo the member door's rule.
  * With `underShareId` the door opens only the node carrying that link and what is inside it,
  * which is how a request made at `/s/<shareId>` stays in the one workspace it names.
+ * A change through a grant is a member's: someone in no workspace gets their Personal space the
+ * first time they make one (never in a session scoped to a company).
  */
 export const grantDoor: (
   userId: string,
@@ -266,7 +269,13 @@ export const grantDoor: (
         )
         .orderBy(sql`(${members.organizationId} = ${orgId}) desc`, members.createdAt, members.id)
         .limit(1);
-      return row?.id ?? null;
+      if (row || scopeOrgId) return row?.id ?? null;
+      const spaceId = await ensurePersonalSpace(ex, userId);
+      const [own] = await ex
+        .select({ id: members.id })
+        .from(members)
+        .where(and(eq(members.userId, userId), eq(members.organizationId, spaceId)));
+      return own?.id ?? null;
     },
     async ownsUpload(ex, uploader) {
       const [row] = await ex

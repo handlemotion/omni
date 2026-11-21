@@ -240,11 +240,12 @@ test("a brand-new sign-up with no invitation creates its own workspace through o
   const email = `founder-${randomUUID().slice(0, 8)}@solo.test`;
   const jar = new CookieJar();
   await signIn(stack.worker, stack.database.db, email, jar);
-  expect((await api(jar, "GET", "/me")).status).toBe(200);
+  expect((await api(jar, "GET", "/me?personal=on-demand")).status).toBe(403);
   expect(await api(jar, "GET", "/onboarding")).toEqual({
     status: 200,
     body: {
       canCreateOrganization: true,
+      canCreatePersonalSpace: true,
       billing: { enabled: false },
       organization: null,
       domains: [],

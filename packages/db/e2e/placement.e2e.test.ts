@@ -168,3 +168,39 @@ test("a company's Gmail on an address no company locked goes to its owner's Pers
   expect(misplaced.map((m) => m.id)).not.toContain(work.id);
   expect(misplaced.map((m) => m.id)).not.toContain(cli.id);
 });
+
+test("an owner with no Personal space gets one for their company Gmail on an unlocked address, and it moves there", async () => {
+  const { db } = database;
+  const tag = randomUUID().slice(0, 8);
+  const company = await createOrg(db, `co-${tag}`);
+  const owner = await createMember(db, company.id, "owner");
+  const [gmail] = await db
+    .insert(mailboxes)
+    .values({
+      orgId: company.id,
+      address: `own-${tag}@gmail.test`,
+      kind: "personal",
+      provider: "gmail",
+      credentialsEnc: "x",
+    })
+    .returning();
+  await db
+    .insert(mailboxAccess)
+    .values({ orgId: company.id, mailboxId: gmail!.id, memberId: owner.id, role: "owner" });
+
+  const misplaced = await listMisplacedMailboxes(db);
+  const spaces = await db
+    .select({ orgId: personalSpaces.orgId })
+    .from(personalSpaces)
+    .where(eq(personalSpaces.userId, owner.userId));
+  expect(spaces).toHaveLength(1);
+  expect(misplaced.find((m) => m.id === gmail!.id)).toMatchObject({
+    orgId: company.id,
+    targetOrgId: spaces[0]!.orgId,
+  });
+
+  await listMisplacedMailboxes(db);
+  expect(
+    await db.select().from(personalSpaces).where(eq(personalSpaces.userId, owner.userId)),
+  ).toHaveLength(1);
+});

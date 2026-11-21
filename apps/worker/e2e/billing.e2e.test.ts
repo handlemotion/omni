@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PLAN_NAME } from "@omni/auth";
-import { schema } from "@omni/db";
+import { ensurePersonalSpace, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
@@ -494,13 +494,10 @@ test("a Personal space is free: no plan, no trial, no checkout, and writable", a
   const email = `personal-${randomUUID().slice(0, 8)}@omni.test`;
   let cookie = await signIn(worker, db, email);
   const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
-  const [space] = await db
-    .select({ orgId: schema.personalSpaces.orgId })
-    .from(schema.personalSpaces)
-    .where(eq(schema.personalSpaces.userId, user!.id));
+  const spaceId = await ensurePersonalSpace(db, user!.id);
   await db
     .update(schema.sessions)
-    .set({ activeOrganizationId: space!.orgId })
+    .set({ activeOrganizationId: spaceId })
     .where(eq(schema.sessions.userId, user!.id));
   cookie = cookie
     .split("; ")
@@ -518,7 +515,7 @@ test("a Personal space is free: no plan, no trial, no checkout, and writable", a
   expect(
     await db.select().from(schema.trialClaims).where(eq(schema.trialClaims.userId, user!.id)),
   ).toEqual([]);
-  expect(await subscriptionRows(space!.orgId)).toEqual([]);
+  expect(await subscriptionRows(spaceId)).toEqual([]);
 
   const portal = () =>
     api(worker, "/billing/portal", cookie, {
@@ -528,7 +525,7 @@ test("a Personal space is free: no plan, no trial, no checkout, and writable", a
   expect((await portal()).status).toBe(403);
   await db
     .insert(schema.subscriptions)
-    .values({ id: randomUUID(), plan: PLAN_NAME, orgId: space!.orgId, status: "active" });
+    .values({ id: randomUUID(), plan: PLAN_NAME, orgId: spaceId, status: "active" });
   expect((await portal()).status).not.toBe(403);
   const again = await api(worker, "/billing/checkout", cookie, {
     method: "POST",

@@ -149,20 +149,17 @@ test("a brand-new email with no invitation signs up by magic link and has no wor
         eq(schema.personalSpaces.orgId, schema.members.organizationId),
       )
       .where(eq(schema.members.userId, users[0]!.id)),
-  ).toEqual([{ role: "owner", personalOf: users[0]!.id }]);
-  const [space] = await database.db
-    .select({ orgId: schema.personalSpaces.orgId })
-    .from(schema.personalSpaces)
-    .where(eq(schema.personalSpaces.userId, users[0]!.id));
-  expect(await me(jar)).toMatchObject({
-    status: 200,
-    body: { orgId: space!.orgId, role: "owner" },
+  ).toEqual([]);
+  const onDemand = await fetch(new URL("/api/me?personal=on-demand", worker.url), {
+    headers: { cookie: jar.header },
   });
+  expect(onDemand.status).toBe(403);
   const onboarding = await fetch(new URL("/api/onboarding", worker.url), {
     headers: { cookie: jar.header },
   });
   expect(await onboarding.json()).toMatchObject({
     canCreateOrganization: true,
+    canCreatePersonalSpace: true,
     organization: null,
   });
 

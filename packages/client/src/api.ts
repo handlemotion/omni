@@ -50,6 +50,11 @@ export type OnboardingDomain = InferResponseType<Api["onboarding"]["domains"]["$
 export type DnsRecord = OnboardingDomain["records"][number];
 /** Every workspace the user belongs to, for the switcher (`GET /api/workspaces`). */
 export type Workspaces = InferResponseType<Api["workspaces"]["$get"], 200>;
+/** The invitations waiting for the signed-in person (`GET /api/invitations`). */
+export type PendingInvitations = InferResponseType<Api["invitations"]["$get"], 200>;
+export type PendingInvitation = PendingInvitations["invitations"][number];
+/** One invitation as its link shows it (`GET /api/invitations/:id`). */
+export type InvitationStatus = InferResponseType<Api["invitations"][":id"]["$get"], 200>;
 export type Workspace = Workspaces["workspaces"][number];
 export type WorkspaceMailbox = Workspace["mailboxes"][number];
 /**

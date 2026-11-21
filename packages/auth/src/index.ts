@@ -25,7 +25,7 @@ import {
   moduleLifecycle,
   type ModuleLifecycle,
 } from "./module-lifecycle.ts";
-import { ensurePersonalSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
+import { ensureGranteeSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
 import { mcpPlugins } from "./mcp.ts";
 import {
   newSessionScope,
@@ -348,15 +348,11 @@ export function createAuth(env: AuthEnv) {
               });
             }
           },
-          after: async (user) => {
-            await ensurePersonalSpaceQuietly(env.db, user.id);
-          },
         },
       },
       session: {
         create: {
           before: async (session) => {
-            await ensurePersonalSpaceQuietly(env.db, session.userId);
             const scope = await newSessionScope(env.db);
             if (scope) {
               const [inScope] = await env.db
@@ -370,6 +366,7 @@ export function createAuth(env: AuthEnv) {
                 );
               return { data: { ...session, activeOrganizationId: inScope?.orgId ?? null } };
             }
+            await ensureGranteeSpaceQuietly(env.db, session.userId);
             const [member] = await env.db
               .select({ orgId: schema.members.organizationId })
               .from(schema.members)
@@ -403,6 +400,7 @@ export function createAuth(env: AuthEnv) {
       }),
       organization({
         allowUserToCreateOrganization: (user) => mayCreateOrganization(env.db, user.id, env.signUp),
+        requireEmailVerificationOnInvitation: true,
         sendInvitationEmail: ({ id, email, organization, inviter, invitation }) =>
           env.sendInvitation({
             invitationId: id,

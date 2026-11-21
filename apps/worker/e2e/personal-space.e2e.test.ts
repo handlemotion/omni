@@ -13,6 +13,7 @@ import {
   CookieJar,
   createTestDatabase,
   invite,
+  justMe,
   signIn,
   startMailServiceEndpoint,
   startWorker,
@@ -65,12 +66,13 @@ async function userId(email: string) {
 async function signedUp(email: string) {
   const jar = new CookieJar();
   await signIn(worker, database.db, email, jar);
+  await justMe(worker, jar);
   const id = await userId(email);
   const [space] = await personalSpaces(id);
   return { jar, userId: id, spaceId: space!.id };
 }
 
-test("sign-up makes one Personal space, complete and owned; signing in again makes no second", async () => {
+test("Just me makes one Personal space, complete and owned; signing in again makes no second", async () => {
   const { db } = database;
   const { userId: id, spaceId } = await signedUp("solo@personal.test");
   await signIn(worker, db, "solo@personal.test");
@@ -107,15 +109,11 @@ test("racing calls make one Personal space", async () => {
   expect(memberships).toHaveLength(1);
 });
 
-test("a person from before Personal spaces gets theirs at their next sign-in", async () => {
+test("signing in makes no Personal space: only choosing one, or connecting a mailbox, does", async () => {
   const { db } = database;
-  const [user] = await db
-    .insert(schema.users)
-    .values({ id: randomUUID(), name: "old", email: "old@personal.test", emailVerified: true })
-    .returning();
-  expect(await personalSpaces(user!.id)).toHaveLength(0);
-  await signIn(worker, db, "old@personal.test");
-  expect(await personalSpaces(user!.id)).toHaveLength(1);
+  await signIn(worker, db, "nobody@personal.test");
+  await signIn(worker, db, "nobody@personal.test");
+  expect(await personalSpaces(await userId("nobody@personal.test"))).toHaveLength(0);
 });
 
 test("with no company the Personal space is the default; setup still creates a company", async () => {
@@ -251,5 +249,6 @@ test("a company whose handle looks like a Personal space's does not block anyone
   const jar = new CookieJar();
   await signIn(worker, db, "clash@personal.test", jar);
   expect(jar.header).toContain("session_token");
+  await justMe(worker, jar);
   expect(await personalSpaces(user!.id)).toHaveLength(1);
 });

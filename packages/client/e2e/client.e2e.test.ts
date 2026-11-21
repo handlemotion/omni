@@ -116,14 +116,14 @@ test("a member signs in with the auth client and reads only their own mail over 
 
   const session = await auth.getSession();
   expect(session.data?.user.email).toBe("ana@acme.test");
-  const [anasPersonalSpace] = await db
-    .select({ orgId: schema.personalSpaces.orgId })
-    .from(schema.personalSpaces)
-    .where(eq(schema.personalSpaces.userId, ana.userId));
   const orgs = await auth.organization.list();
-  expect(orgs.data?.map((o) => o.id).toSorted()).toEqual(
-    [org.id, anasPersonalSpace?.orgId].toSorted(),
-  );
+  expect(orgs.data?.map((o) => o.id)).toEqual([org.id]);
+  expect(
+    await db
+      .select({ orgId: schema.personalSpaces.orgId })
+      .from(schema.personalSpaces)
+      .where(eq(schema.personalSpaces.userId, ana.userId)),
+  ).toEqual([]);
 
   const me = await api.me.$get();
   expect(me.status).toBe(200);

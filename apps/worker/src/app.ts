@@ -10,6 +10,7 @@ import { routePath } from "hono/route";
 import { requireWritableWorkspace } from "./billing.ts";
 import {
   findMember,
+  personalSpaceForOldClients,
   requestScope,
   requireMailboxMember,
   requireMember,
@@ -45,6 +46,7 @@ import { workspaceAdmin } from "./routes/workspace-admin.ts";
 import { aiSettings } from "./routes/ai-settings.ts";
 import { workspaceInboxes } from "./routes/workspace-inboxes.ts";
 import { workspaceInvitations } from "./routes/workspace-invitations.ts";
+import { invitations } from "./routes/invitations.ts";
 import { onboarding } from "./routes/onboarding.ts";
 import { account as accountPicture, pictures, workspaceLogo } from "./routes/pictures.ts";
 import { storage } from "./storage/routes.ts";
@@ -97,6 +99,7 @@ const trace = createMiddleware<AppEnv>(async (c, next) => {
 
 const api = new Hono<AppEnv>()
   .use("/threads/:id/*", requireThreadMember)
+  .use("/me", personalSpaceForOldClients)
   .use(requireMember)
   .use(requireMailboxMember)
   .use(requireWritableWorkspace)
@@ -195,6 +198,7 @@ export const app = new Hono<AppEnv>()
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)
   .route("/api/join", join)
+  .route("/api/invitations", invitations)
   .route("/api/oauth", oauth)
   .route("/api/account", account)
   .route("/api/account", accountPicture)

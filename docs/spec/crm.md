@@ -249,7 +249,7 @@ One list, newest first, of four kinds of item:
 - The addresses asked of Mail are a person's own; for a deal, its people's; for a company, its
   people's plus its domains.
 - Threads come from every mailbox the person can open inside their session's scope, their
-  Personal space included. It is their own mail, shown only to them.
+  Personal space included when they have one. It is their own mail, shown only to them.
 - Each source is asked for one page older than the cursor; the pages are merged and cut to the
   limit. The cursor is the last item's time and id.
 

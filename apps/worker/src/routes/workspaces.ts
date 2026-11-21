@@ -1,18 +1,19 @@
 import { listUserWorkspaces } from "@omni/db";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { resolveSession, type AppEnv } from "../context.ts";
+import { personalSpaceForOldClients, resolveSession, type AppEnv } from "../context.ts";
 
-export const workspaces = new Hono<AppEnv>().get("/", async (c) => {
+export const workspaces = new Hono<AppEnv>().get("/", personalSpaceForOldClients, async (c) => {
   const resolved = await resolveSession(c);
   if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+  const { user } = resolved;
   return c.json({
     activeOrganizationId: resolved.member?.orgId ?? null,
     workspaces: (
-      await listUserWorkspaces(c.var.db, resolved.user.id, {
+      await listUserWorkspaces(c.var.db, user.id, {
         includePersonal: c.req.query("include") === "personal",
       })
-    ).filter((workspace) => !resolved.user.scopeOrgId || workspace.id === resolved.user.scopeOrgId),
-    scopedTo: resolved.user.scopeOrgId,
+    ).filter((workspace) => !user.scopeOrgId || workspace.id === user.scopeOrgId),
+    scopedTo: user.scopeOrgId,
   });
 });

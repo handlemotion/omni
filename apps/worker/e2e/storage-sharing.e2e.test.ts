@@ -93,6 +93,7 @@ test("a grant on a folder opens a file two levels down for that address only, by
   expect(Buffer.from(await got.arrayBuffer())).toEqual(bytes);
 
   const stranger = await signedIn(address("stranger"));
+  await stack.justMe(stranger);
   for (const jar of [stranger, anonymous]) {
     expect((await stack.api(jar, "GET", `/shared/${shareId}`)).status).toBe(404);
     const refused = await stack.get(jar, `/shared/${shareId}/files/${deep.id}/content`);
@@ -304,6 +305,33 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
     status: 400,
     body: { code: "INVALID_EMAIL" },
   });
+});
+
+test("someone signed in before a folder was shared with them uploads into it without signing in again", async () => {
+  const { ana: owner } = await ana();
+  const project = await folder(owner, { space: "personal" }, "Project");
+  const email = address("early");
+  const guest = await signedIn(email);
+  const spaces = () =>
+    stack.db
+      .select({ orgId: schema.personalSpaces.orgId })
+      .from(schema.personalSpaces)
+      .innerJoin(schema.users, eq(schema.users.id, schema.personalSpaces.userId))
+      .where(eq(schema.users.email, email));
+  expect(await spaces()).toEqual([]);
+
+  const shareId = await share(owner, project.id, email, "editor");
+  const bytes = randomBytes(2000);
+  const uploaded = await stack.upload(
+    guest,
+    { parentId: project.id },
+    "early.bin",
+    bytes,
+    undefined,
+    `/shared/${shareId}`,
+  );
+  expect(uploaded.name).toBe("early.bin");
+  expect(await spaces()).toHaveLength(1);
 });
 
 test("an Editor made Viewer mid-upload can no longer add parts to it, complete it or abort it", async () => {

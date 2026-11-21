@@ -8,6 +8,7 @@ export * from "./crm-links.ts";
 export * from "./crm-plan.ts";
 export * from "./crm-portal.ts";
 export * from "./crm-tasks.ts";
+export * from "./invitations.ts";
 export * from "./mail.ts";
 export * from "./errors.ts";
 export * from "./error-schemas.ts";

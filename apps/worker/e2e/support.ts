@@ -281,6 +281,17 @@ export async function invite(
   });
 }
 
+/** Chooses "Just me", as onboarding does: makes the person's Personal space. Its id. */
+export async function justMe(worker: Worker, jar: CookieJar) {
+  const response = await fetch(new URL("/api/onboarding/personal", worker.url), {
+    method: "POST",
+    headers: { origin: WEB_ORIGIN, cookie: jar.header },
+  });
+  if (response.status !== 200) throw new Error(`just me: ${response.status}`);
+  jar.store(response);
+  return ((await response.json()) as { organization: { id: string } }).organization.id;
+}
+
 /**
  * The real magic-link flow: request a link, read it from the outbox, open it. Returns the cookie.
  * With `jar`, the link is opened in that browser (so its other sessions stay signed in).

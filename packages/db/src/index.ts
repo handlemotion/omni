@@ -6,6 +6,8 @@ export * from "./orgs.ts";
 export * from "./personal-space.ts";
 export * from "./session-scopes.ts";
 export * from "./oauth-grants.ts";
+export * from "./grantee-space.ts";
+export * from "./invitations.ts";
 export * from "./join-requests.ts";
 export * from "./domains.ts";
 export * from "./workspaces.ts";

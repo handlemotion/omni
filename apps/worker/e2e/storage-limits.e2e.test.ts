@@ -31,6 +31,7 @@ test("an upload that would pass the cap answers 402 and stores nothing; deleting
   const email = `solo-${crypto.randomUUID().slice(0, 8)}@personal.test`;
   const jar = new CookieJar();
   await signIn(stack.worker, stack.db, email, jar);
+  await stack.justMe(jar);
   const [space] = await stack.db
     .select({ orgId: schema.personalSpaces.orgId })
     .from(schema.personalSpaces)
@@ -143,6 +144,7 @@ async function soloPerson() {
   const email = `solo-${crypto.randomUUID().slice(0, 8)}@personal.test`;
   const jar = new CookieJar();
   await signIn(stack.worker, stack.db, email, jar);
+  await stack.justMe(jar);
   const [space] = await stack.db
     .select({ orgId: schema.personalSpaces.orgId })
     .from(schema.personalSpaces)

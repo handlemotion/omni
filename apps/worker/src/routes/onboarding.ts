@@ -3,6 +3,7 @@ import { newChallenge } from "@omni/crypto";
 import {
   advanceOrgSetup,
   DOMAIN_ADMIN_ROLES,
+  ensurePersonalSpace,
   findMemberDomain,
   listDomainAudit,
   listMemberDomains,
@@ -93,9 +94,15 @@ export const onboarding = new Hono<AppEnv>()
     const canCreateOrganization =
       !user.scopeOrgId && (await mayCreateOrganization(db, user.id, config.auth.signUp));
     const billing = { enabled: config.auth.billing !== undefined };
+    const [personal] = await db
+      .select({ orgId: schema.personalSpaces.orgId })
+      .from(schema.personalSpaces)
+      .where(eq(schema.personalSpaces.userId, user.id));
+    const canCreatePersonalSpace = !personal && !user.scopeOrgId;
     if (!member) {
       return c.json({
         canCreateOrganization,
+        canCreatePersonalSpace,
         billing,
         organization: null,
         domains: [],
@@ -117,7 +124,13 @@ export const onboarding = new Hono<AppEnv>()
       })),
     };
     if ((await workspaceKind(db, member.orgId)) === "personal") {
-      return c.json({ canCreateOrganization, billing, organization: null, ...views });
+      return c.json({
+        canCreateOrganization,
+        canCreatePersonalSpace,
+        billing,
+        organization: null,
+        ...views,
+      });
     }
     const [org] = await db
       .select({ name: schema.organizations.name })
@@ -125,6 +138,7 @@ export const onboarding = new Hono<AppEnv>()
       .where(eq(schema.organizations.id, member.orgId));
     return c.json({
       canCreateOrganization,
+      canCreatePersonalSpace,
       billing,
       organization: {
         id: member.orgId,
@@ -135,6 +149,27 @@ export const onboarding = new Hono<AppEnv>()
       },
       ...views,
     });
+  })
+  .post("/personal", async (c) => {
+    const resolved = await resolveSession(c);
+    if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+    if (resolved.user.scopeOrgId) {
+      throw new HTTPException(403, {
+        message: "signed in with a work address: sign in another way to use your own email",
+      });
+    }
+    const orgId = await ensurePersonalSpace(c.var.db, resolved.user.id);
+    const { headers } = await c.var.auth.api.setActiveOrganization({
+      headers: c.req.raw.headers,
+      body: { organizationId: orgId },
+      returnHeaders: true,
+    });
+    for (const cookie of headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
+    const [org] = await c.var.db
+      .select({ slug: schema.organizations.slug })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, orgId));
+    return c.json({ organization: { id: orgId, slug: org?.slug ?? "" } });
   })
   .post(
     "/domains",

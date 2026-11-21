@@ -2,7 +2,7 @@ import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startCrmStack, type CrmStack } from "./crm-support.ts";
-import { CookieJar, signIn } from "./support.ts";
+import { CookieJar, justMe, signIn } from "./support.ts";
 
 let stack: CrmStack;
 
@@ -129,6 +129,7 @@ test("adding an address twice answers the same person; giving it to someone else
 test("a Personal space answers 404 no_crm", async () => {
   const jar = new CookieJar();
   await signIn(stack.worker, stack.db, "solo@personal.test", jar);
+  await justMe(stack.worker, jar);
   const listed = await stack.api(jar, "GET", "/companies");
   expect(listed.status).toBe(404);
   expect(listed.body).toMatchObject({ code: "NO_CRM" });

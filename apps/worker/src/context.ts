@@ -1,6 +1,7 @@
 import { createAuth, usesOAuthProvider, type Auth, type InvitationMessage } from "@omni/auth";
 import { WORKSPACE_HEADER, WORKSPACE_PARAM } from "@omni/contracts/headers";
 import {
+  ensurePersonalSpace,
   forUser,
   isCompany,
   schema,
@@ -150,7 +151,7 @@ export const resolveSession: (
 
 /**
  * `userId`'s member in `orgId`, or null. Without `orgId`, their oldest company membership, or their
- * Personal space when they are in no company. A session scoped to a company
+ * Personal space when they are in no company (null when they have neither). A session scoped to a company
  * (`scopeOrgId`) finds only its member there, whatever `orgId` asks for.
  */
 export const findMember: (
@@ -214,6 +215,23 @@ function memberMiddleware(threadParam?: string) {
     await next();
   });
 }
+
+/**
+ * Expand step for clients from before Personal spaces were made on demand: one that does not send
+ * `personal=on-demand` reads `/api/me` and `/api/workspaces` expecting every signed-in person to
+ * be in a workspace (the web app's guard sent them to sign in again; iOS waited forever), so
+ * someone in none gets their Personal space here, as sign-in used to make it. Remove once those
+ * clients are gone.
+ */
+export const personalSpaceForOldClients = createMiddleware<AppEnv>(async (c, next) => {
+  if (c.req.query("personal") !== "on-demand") {
+    const resolved = await resolveSession(c);
+    if (resolved && !resolved.member && !resolved.user.scopeOrgId) {
+      await ensurePersonalSpace(c.var.db, resolved.user.id);
+    }
+  }
+  await next();
+});
 
 /** Resolves the session to a member of its active org (or the user's first org). 401 without one. */
 export const requireMember = memberMiddleware();

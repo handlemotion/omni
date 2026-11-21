@@ -223,6 +223,7 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
 
   const jar = new CookieJar();
   await signIn(stack.worker, stack.db, `solo-${randomUUID().slice(0, 8)}@personal.test`, jar);
+  await stack.justMe(jar);
   expect((await stack.api(jar, "GET", "/usage")).body).toMatchObject({
     limitBytes: PERSONAL,
     allowanceBytes: null,

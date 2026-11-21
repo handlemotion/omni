@@ -334,9 +334,7 @@ test("an invitation to a second address joins the existing user", async () => {
     .where(eq(schema.members.userId, jo.userId));
   const companies = memberships.filter((m) => m.personalOf === null).map((m) => m.orgId);
   expect(companies.toSorted()).toEqual([jo.orgId, kai.orgId].toSorted());
-  expect(memberships.filter((m) => m.personalOf !== null)).toEqual([
-    { orgId: expect.any(String), personalOf: jo.userId },
-  ]);
+  expect(memberships.filter((m) => m.personalOf !== null)).toEqual([]);
   expect(await usersWithEmail("jo.personal@gmail.test")).toEqual([]);
 
   const again = await invite(worker, kai.jar, {

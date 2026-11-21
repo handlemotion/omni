@@ -97,6 +97,8 @@ Returns:
 - `now`, and `me`: name and sign-in address.
 - `workspaces`: each with `id`, `name`, `kind` (personal or company).
 - `mailboxes`: `id`, `address`, `kind` (personal or shared), `workspace`, `status`.
+- A person in no workspace yet (Personal spaces are made on demand, `v1.md`) gets empty
+  `workspaces` and `mailboxes`, not an error.
 - `counts` per mailbox: inbox, unread, Later, and per lane (`needs_reply`, `unsure`,
   `waiting_on_them`, `fyi`, `noise`). For shared inboxes, also the helpdesk views: `mine`,
   `unassigned`, `open`, `pending`, and `sla_at_risk`.

@@ -9,6 +9,7 @@ import {
   createTestDatabase,
   signIn,
   startMailServiceEndpoint,
+  justMe,
   startWorker,
 } from "./support.ts";
 
@@ -97,6 +98,7 @@ export async function startStorageStack(options: {
     get(jar, `/files/${nodeId}/content`, headers);
 
   return {
+    justMe: (jar: CookieJar) => justMe(worker, jar),
     database,
     db,
     worker,

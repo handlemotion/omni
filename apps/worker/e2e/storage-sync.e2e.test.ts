@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { schema } from "@omni/db";
+import { ensurePersonalSpace, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
@@ -96,6 +96,7 @@ test("a sync token reaches the person's own drives and nothing else", async () =
   const ana = await stack.member(acme.id);
   const bo = await stack.member(acme.id);
   const outsider = await stack.member(other.id);
+  await ensurePersonalSpace(stack.db, ana.userId);
   const anas = await stack.upload(ana.jar, { space: "personal" }, "ana.txt", bytes("ana"));
   const shared = await stack.upload(ana.jar, { space: "shared" }, "team.txt", bytes("team"));
   const bos = await stack.upload(bo.jar, { space: "personal" }, "bo.txt", bytes("bo"));

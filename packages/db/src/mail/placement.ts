@@ -34,10 +34,10 @@ export const placeForAddress: (
   input: { userId: string; address: string; scopeOrgId?: string | null },
 ) => Promise<Placement> = async (db, input) => {
   const company = await companyForAddress(db, input.address);
-  const orgId = company ?? (await ensurePersonalSpace(db, input.userId));
-  if (input.scopeOrgId && orgId !== input.scopeOrgId) {
-    return { ok: false, reason: "outside_scope", orgId };
+  if (input.scopeOrgId && company !== input.scopeOrgId) {
+    return { ok: false, reason: "outside_scope", orgId: company ?? input.scopeOrgId };
   }
+  const orgId = company ?? (await ensurePersonalSpace(db, input.userId));
   const [member] = await db
     .select({ id: members.id })
     .from(members)
@@ -63,9 +63,10 @@ export interface MisplacedMailbox {
  *   locked by a company their owner is a member of. The closest lock wins. A mailbox whose owner
  *   is not a member there stays until they join.
  * - A company's Gmail account on an address no company has locked: its owner's Personal space.
- *   An owner who has no Personal space yet gets one at their next sign-in, and it moves then.
+ *   An owner who has no Personal space yet gets one from `ensureSpacesForOwnGmail` first.
  */
 export async function listMisplacedMailboxes(db: Db) {
+  await ensureSpacesForOwnGmail(db);
   const rows = (await db.execute(sql`
     with closest as (
       select distinct on (m.id) m.id as mailbox_id, d.org_id
@@ -189,4 +190,24 @@ export async function carryThreadState(
       snoozed_until = coalesce(${threadState}.snoozed_until, excluded.snoozed_until)
     returning thread_id`)) as unknown as { thread_id: string }[];
   return rows.length;
+}
+
+async function ensureSpacesForOwnGmail(db: Db) {
+  const rows = (await db.execute(sql`
+    select distinct om.user_id
+    from ${mailboxes} m
+    join ${mailboxAccess} a on a.mailbox_id = m.id and a.role = 'owner'
+    join ${members} om on om.id = a.member_id and om.organization_id = m.org_id
+    where m.kind = 'personal' and m.provider = 'gmail' and m.status <> 'disabled'
+      and not exists (select 1 from ${personalSpaces} p1 where p1.org_id = m.org_id)
+      and not exists (select 1 from ${personalSpaces} p2 where p2.user_id = om.user_id)
+      and not exists (
+        select 1 from ${mailDomains} d
+        where (
+          lower(split_part(m.address, '@', 2)) = d.domain
+          or lower(split_part(m.address, '@', 2)) like '%.' || d.domain
+        )
+        and not exists (select 1 from ${personalSpaces} p3 where p3.org_id = d.org_id)
+      )`)) as unknown as { user_id: string }[];
+  for (const row of rows) await ensurePersonalSpace(db, row.user_id);
 }

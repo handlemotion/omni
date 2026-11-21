@@ -8,7 +8,7 @@ import {
   startOnboardingStack,
   waitFor,
 } from "./onboarding-stack.ts";
-import { CookieJar, createMember, signIn } from "./support.ts";
+import { CookieJar, createMember, justMe, signIn } from "./support.ts";
 
 let stack: OnboardingStack;
 beforeAll(async () => {
@@ -230,6 +230,7 @@ test("a Personal space adds its own domain, and every address on it is its owner
   const email = `me-${suffix}@gmail.test`;
   const jar = new CookieJar();
   await signIn(stack.worker, db, email, jar);
+  await justMe(stack.worker, jar);
   const [space] = await db
     .select({ orgId: schema.personalSpaces.orgId })
     .from(schema.personalSpaces)
