@@ -70,36 +70,38 @@ export function FormatBar(props: { editor: Editor; onComment?: (() => void) | un
     editor,
     selector: ({ editor: e }) => MARKS.map((mark) => e.isActive(mark.name)),
   });
+  const editable = useEditorState({ editor, selector: ({ editor: e }) => e.isEditable });
   return (
     <BubbleMenu
       editor={editor}
       options={{ placement: "top", offset: 8 }}
       shouldShow={({ editor: e, view, element, from, to }) =>
         from !== to &&
-        e.isEditable &&
+        (e.isEditable || !!props.onComment) &&
         (view.hasFocus() || element.contains(document.activeElement)) &&
         !e.isActive("codeBlock") &&
         !e.isActive("image")
       }
       className={cn(popupSurface, "flex min-w-0 items-center gap-0.5 p-1")}
     >
-      {MARKS.map((mark, i) => (
-        <TooltipTrigger key={mark.name} delay={400}>
-          <Button
-            intent={active[i] ? "secondary" : "plain"}
-            size="sq-xs"
-            aria-label={mark.label}
-            aria-pressed={active[i]}
-            onPress={() => mark.toggle(editor)}
-          >
-            <mark.icon />
-          </Button>
-          <Tooltip>{mark.label}</Tooltip>
-        </TooltipTrigger>
-      ))}
+      {editable &&
+        MARKS.map((mark, i) => (
+          <TooltipTrigger key={mark.name} delay={400}>
+            <Button
+              intent={active[i] ? "secondary" : "plain"}
+              size="sq-xs"
+              aria-label={mark.label}
+              aria-pressed={active[i]}
+              onPress={() => mark.toggle(editor)}
+            >
+              <mark.icon />
+            </Button>
+            <Tooltip>{mark.label}</Tooltip>
+          </TooltipTrigger>
+        ))}
       {props.onComment && (
         <>
-          <Separator orientation="vertical" className="mx-0.5 h-4 self-center" />
+          {editable && <Separator orientation="vertical" className="mx-0.5 h-4 self-center" />}
           <TooltipTrigger delay={400}>
             <Button intent="plain" size="sq-xs" aria-label="Comment" onPress={props.onComment}>
               <IconCommentPlain />

@@ -36,7 +36,10 @@ of their own, an editor of their own, exports to the formats other tools read.
 - A new version keeps the file's type. Saving from the editor sends the node's own type, and
   the Worker's doc writes pass the node's type through (`writeText`, `refusalFor`).
 - Expand and contract: no migration. Existing `.md` docs stay as they are and keep working.
-  Converting them to Omni docs, if ever wanted, is a later, separate change.
+- **Convert to Omni doc**, from a Markdown file's ⋯ menu or a selection's bar, turns one into an
+  Omni doc on request: its text is saved as the next version with the doc type (the Markdown
+  file stays in Versions), then `.md` leaves its name. Nothing converts on its own: some `.md`
+  files are meant to stay Markdown (READMEs, notes synced from a Mac).
 
 ## The editor
 
@@ -63,6 +66,8 @@ shared schema in `@omni/docs`, live through Yjs. This spec adds:
   `<details open>` when it is open. Dropdowns nest.
 - **No indent model.** Lists nest with Tab, nothing else indents. No rulers, margins, page size
   or fonts: the page has one layout, and Word and PDF exports lay it out for print.
+- **Modes.** The doc bar's mode menu: Editing, or Commenting, where the text is read-only and a
+  selection offers only Comment. Opening another file starts it in Editing again.
 - The bubble bar over selected text (bold, italic, strikethrough, code, comment), the `/` menu
   (which gains Dropdown) and the block handle stay.
 
@@ -89,7 +94,8 @@ Omni docs and Markdown files alike and keeps each one's type. Its Markdown may h
 - Desktop sync names Omni docs as Drive does, with no extension, so Finder does not know to open
   them as Markdown. Next: the File Provider shows an Omni doc as `<name>.md` and maps that name
   back on rename.
-- Converting existing `.md` docs to Omni docs.
+- Shared links that open a doc as a page for people outside the workspace (editing or
+  commenting as the link allows), not only as a download.
 - Ask Claude from the toolbar.
 
 ## Verify

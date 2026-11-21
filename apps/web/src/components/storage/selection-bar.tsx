@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
+import { canConvertToDoc, useConvertToDoc } from "@/hooks/use-convert-doc.ts";
 import { useTrashNode } from "@/hooks/use-storage.ts";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
 import { downloadZip } from "@/lib/download.ts";
@@ -27,6 +28,8 @@ export function SelectionBar(props: {
   const { selection } = props;
   const trash = useBulkTrash(props.shareId);
   const trashable = selection.nodes.every(props.canTrash);
+  const convert = useConvertToDoc();
+  const convertible = props.canMove && !props.shareId && selection.nodes.some(canConvertToDoc);
   return (
     <>
       <CheckboxField
@@ -57,6 +60,16 @@ export function SelectionBar(props: {
       {props.canMove && (
         <Button intent="outline" size="sm" onPress={props.onMove}>
           Move
+        </Button>
+      )}
+      {convertible && (
+        <Button
+          intent="outline"
+          size="sm"
+          isPending={convert.isPending}
+          onPress={() => void convert.run(selection.nodes).then(selection.clear)}
+        >
+          Convert to Omni doc
         </Button>
       )}
       {trashable && (

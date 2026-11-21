@@ -33,7 +33,7 @@ export interface EditorProps {
   /** Called once the editor is up, with how to read its text now. */
   onReady: (read: () => string) => void;
   onChange: () => void;
-  /** False while the person only reads the doc (Viewing). */
+  /** False while the person only reads and comments on the doc (Commenting). */
   editable?: boolean;
 }
 
@@ -82,7 +82,7 @@ export function isDoc(node: StorageNode) {
   return isMarkdown(node) && canEditFile(node);
 }
 
-export type DocMode = "editing" | "viewing";
+export type DocMode = "editing" | "commenting";
 
 /** The open file's editing: on or off, unsaved changes, and saving them (a doc saves itself). */
 export function useEditSession(node: StorageNode, url: string, shareId: string | undefined) {

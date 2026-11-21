@@ -9,6 +9,7 @@ import {
   IconFileText,
   IconFolderMove,
   IconMarkdown,
+  IconNewDoc,
   IconPencil,
   IconSparkle,
   IconTrash,
@@ -16,6 +17,7 @@ import {
 } from "@/components/icons/central";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { useMember } from "@/hooks/use-session.ts";
+import { canConvertToDoc, useConvertToDoc } from "@/hooks/use-convert-doc.ts";
 import { useExportDoc } from "@/hooks/use-export-doc.ts";
 import { useStorageList, useTrashNode } from "@/hooks/use-storage.ts";
 import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
@@ -119,6 +121,7 @@ export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
   const trash = useTrashNode();
   const trashNode = trash.mutate;
   const exportDoc = useExportDoc().mutate;
+  const convert = useConvertToDoc().run;
   const exportAs = useCallback<ExportDoc>(
     (node, format) =>
       exportDoc(
@@ -140,6 +143,15 @@ export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
               },
             ]),
         ...docExports(node, exportAs),
+        ...(canConvertToDoc(node)
+          ? [
+              {
+                icon: IconNewDoc,
+                label: "Convert to Omni doc",
+                onAction: () => void convert([node]),
+              },
+            ]
+          : []),
         { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
         { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
         ...(node.kind === "folder" && node.parentId === null

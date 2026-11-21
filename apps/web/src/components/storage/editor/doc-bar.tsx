@@ -1,10 +1,9 @@
 import type { ComponentType } from "react";
 import {
   IconChevronDown,
-  IconEye,
+  IconCommentPlain,
   IconLock,
   IconPencil,
-  IconSuggest,
   IconUserAdd,
 } from "@/components/icons/central";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
@@ -17,14 +16,13 @@ import { DOC_EXPORTS, useDocExport } from "./export-menu.tsx";
 
 type Icon = ComponentType<{ className?: string; "data-slot"?: string }>;
 
-const MODES: { id: DocMode | "suggesting"; label: string; icon: Icon }[] = [
+const MODES: { id: DocMode; label: string; icon: Icon }[] = [
   { id: "editing", label: "Editing", icon: IconPencil },
-  { id: "suggesting", label: "Suggesting", icon: IconSuggest },
-  { id: "viewing", label: "Viewing", icon: IconEye },
+  { id: "commenting", label: "Commenting", icon: IconCommentPlain },
 ];
 
 /**
- * A doc's second bar, under its header: its outline, then how it is open (Editing or Viewing; Suggesting to come)
+ * A doc's second bar, under its header: its outline, then how it is open (Editing, or Commenting: read, select and comment)
  * and Share, which holds sharing it and exporting it. Absent for anything but a doc being edited.
  */
 export function DocBar(props: {
@@ -73,8 +71,7 @@ function ModeMenu(props: { session: EditSession }) {
             key={each.id}
             id={each.id}
             textValue={each.label}
-            isDisabled={each.id === "suggesting"}
-            onAction={() => each.id !== "suggesting" && setMode(each.id)}
+            onAction={() => setMode(each.id)}
           >
             <each.icon data-slot="icon" />
             <MenuLabel>{each.label}</MenuLabel>

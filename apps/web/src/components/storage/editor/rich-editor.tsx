@@ -249,6 +249,7 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   const editable = props.editable ?? true;
   useEffect(() => {
     editor.setEditable(editable);
+    editor.view.dom.tabIndex = editable ? -1 : 0;
   }, [editor, editable]);
 
   return (
