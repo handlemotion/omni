@@ -278,8 +278,13 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
 
 test("New folder is named in place, and each name creates one folder", async () => {
   const page = await signedIn(`folders-${Date.now()}@gmail.test`, "/files/my");
-  const newFolder = page.getByRole("button", { name: "New folder" }).first();
-  await newFolder.waitFor({ timeout: 15_000 });
+  const newFolder = {
+    click: async () => {
+      await page.getByRole("button", { name: "New", exact: true }).first().click();
+      await page.getByRole("menuitem", { name: "New folder" }).click();
+    },
+  };
+  await page.getByRole("button", { name: "New", exact: true }).first().waitFor({ timeout: 15_000 });
   const field = page.getByRole("textbox", { name: "Folder name" });
 
   await newFolder.click();
@@ -321,7 +326,8 @@ test("Rename changes a name in place on a row and a card, once", async () => {
     .first()
     .setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") });
   await page.getByRole("row", { name: /notes\.txt/ }).waitFor({ timeout: 15_000 });
-  await page.getByRole("button", { name: "New folder" }).first().click();
+  await page.getByRole("button", { name: "New", exact: true }).first().click();
+  await page.getByRole("menuitem", { name: "New folder" }).click();
   await page.keyboard.press("Enter");
   await page.getByRole("row", { name: /Untitled folder/ }).waitFor();
   const renames: string[] = [];
@@ -354,7 +360,7 @@ test("Rename changes a name in place on a row and a card, once", async () => {
   expect(files).toEqual([{ name: "minutes.txt" }]);
 });
 
-test("a Markdown file is edited as a page, saved as Markdown, and a newer save is never overwritten unasked", async () => {
+test("a Markdown file is edited as a page, saves itself as Markdown, and a newer save is never overwritten unasked", async () => {
   const page = await signedIn(`edit-${Date.now()}@gmail.test`, "/files/my");
   await page
     .getByRole("button", { name: "Upload", exact: true })
@@ -405,12 +411,10 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
   await caretAtEndOf("First point");
   await page.keyboard.press("Enter");
   await page.keyboard.type("Second **point**");
-  const save = page.getByRole("button", { name: "Save" });
-  await save.click();
+  expect(await page.getByRole("button", { name: "Save" }).count()).toBe(0);
   await expect
     .poll(content, { timeout: 15_000 })
     .toMatch(/^# Plan\n\n- First point\n- Second \*\*point\*\*\n*$/);
-  await expect.poll(() => save.isDisabled()).toBe(true);
 
   const theirs = await page.evaluate(async (fileId) => {
     const text = "# Theirs\n";
@@ -429,7 +433,6 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
   await page.keyboard.press("End");
   await caretAtEndOf("Second point");
   await page.keyboard.type(" mine");
-  await save.click();
   const conflict = page.getByRole("alertdialog", { name: "Someone saved a newer version" });
   await conflict.waitFor({ timeout: 15_000 });
   expect(await content()).toBe("# Theirs\n");
@@ -448,8 +451,8 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
   }
   await editor.getByText("mine again").waitFor();
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await leaving.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(content, { timeout: 15_000 }).toContain("- Second **point** mine again");
+  expect(await leaving.count()).toBe(0);
   await expect.poll(() => editor.count()).toBe(0);
 });
 
@@ -472,7 +475,6 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
   await source.getByText("| Pro | 9 |").click();
   await page.keyboard.press("End");
   await page.keyboard.type(" (monthly)");
-  await page.getByRole("button", { name: "Save" }).click();
   const [file] = await db
     .select({ id: schema.storageNodes.id })
     .from(schema.storageNodes)

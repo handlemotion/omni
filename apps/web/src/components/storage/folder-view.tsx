@@ -21,7 +21,6 @@ import { useUploads } from "@/hooks/use-storage.ts";
 import { storageNodeQuery } from "@/lib/storage-comments.ts";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
-import { isDoc } from "./editor/document-editor.tsx";
 import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderIconDialog } from "./folder-icons.tsx";
 import { FolderBody, folderIsEmpty, HeaderActions } from "./folder-body.tsx";
@@ -216,9 +215,6 @@ export function FolderView(props: {
           <PreviewPanel
             node={node}
             url={source.fileUrl(node)}
-            previous={open.previous}
-            next={open.next}
-            onOpen={(other) => open.select(other.id, true)}
             onClose={() => open.select(null)}
             onDownload={downloadOf(source, node)}
             menu={menuAt("preview")(node)}
@@ -258,8 +254,6 @@ export function FolderView(props: {
 function useDocs(source: FolderSource, open: OpenFile) {
   const made = useNewDoc(source.place, source.shareId, (node) => open.select(node.id));
   const [fullScreen, toggleFullScreen] = useFullScreen();
-  const [docBeside, setDocBeside] = useState(false);
-  const page = !!open.node && isDoc(open.node) && source.canWrite;
   return {
     make: source.shareId
       ? undefined
@@ -268,8 +262,8 @@ function useDocs(source: FolderSource, open: OpenFile) {
             onError: (error) => storageErrorToast(error, "The doc was not made"),
           }),
     making: made.isPending,
-    wide: page ? !docBeside : fullScreen,
-    toggleWide: page ? () => setDocBeside((beside) => !beside) : toggleFullScreen,
+    wide: fullScreen,
+    toggleWide: toggleFullScreen,
   };
 }
 

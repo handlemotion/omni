@@ -1,4 +1,4 @@
-import { Extension, type Editor, type Range } from "@tiptap/core";
+import { Extension } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import { ReactRenderer } from "@tiptap/react";
 import { Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
@@ -140,10 +140,3 @@ export const SlashMenu = Extension.create({
     ];
   },
 });
-
-/** Opens the `/` menu on the block at the cursor, as if `/` were typed there. */
-export function openSlashMenu(editor: Editor, at?: Range) {
-  const chain = editor.chain().focus();
-  if (at) chain.setTextSelection(at);
-  chain.insertContent("/").run();
-}

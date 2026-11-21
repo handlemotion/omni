@@ -1,9 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import {
   IconCheck,
-  IconChevronLeft,
   IconCommentPlain,
-  IconChevronRight,
   IconDownload,
   IconMaximize,
   IconMinimize,
@@ -57,9 +55,6 @@ export function PreviewPanel(props: {
   node: StorageNode;
   url: string;
   /** The files before and after it in the folder, for Previous and Next. */
-  previous: StorageNode | undefined;
-  next: StorageNode | undefined;
-  onOpen: (node: StorageNode) => void;
   onClose: () => void;
   onDownload?: (() => void) | undefined;
   menu: SettingsRowMenuItem[];
@@ -93,20 +88,6 @@ export function PreviewPanel(props: {
           {props.shell && <FileEditors nodeId={node.id} />}
           <EditActions session={session} canEdit={canEdit} doc={doc} />
           <CommentsAction comments={comments} />
-          <Action
-            label="Previous"
-            isDisabled={!props.previous}
-            onPress={() => props.previous && props.onOpen(props.previous)}
-          >
-            <IconChevronLeft />
-          </Action>
-          <Action
-            label="Next"
-            isDisabled={!props.next}
-            onPress={() => props.next && props.onOpen(props.next)}
-          >
-            <IconChevronRight />
-          </Action>
           {download && (
             <Action label="Download" onPress={download}>
               <IconDownload />
@@ -256,7 +237,7 @@ function EditActions(props: { session: EditSession; canEdit: boolean; doc: boole
       )
     );
   }
-  if (props.doc && session.live) return null;
+  if (props.doc) return null;
   return (
     <>
       <Button

@@ -2,57 +2,29 @@ import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { cn } from "cn";
-import { useRef } from "react";
 import {
   IconBold,
   IconCode,
   IconCommentPlain,
   IconGrip,
   IconItalic,
-  IconPlus,
   IconStrike,
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { popupSurface } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { openSlashMenu } from "./slash-menu.tsx";
 
-/**
- * Beside the block under the pointer: add a block after it (with the `/` menu open on it), and a
- * grip to drag it somewhere else.
- */
+/** Beside the block under the pointer: a grip to drag it somewhere else. */
 export function BlockHandle(props: { editor: Editor }) {
-  const { editor } = props;
-  const hovered = useRef<{ pos: number; size: number } | null>(null);
-  const add = () => {
-    const at = hovered.current;
-    if (!at) return;
-    const after = at.pos + at.size;
-    editor.chain().insertContentAt(after, { type: "paragraph" }).run();
-    openSlashMenu(editor, { from: after + 1, to: after + 1 });
-  };
   return (
-    <DragHandle
-      editor={editor}
-      onNodeChange={({ node, pos }) => {
-        hovered.current = node ? { pos, size: node.nodeSize } : null;
-      }}
-    >
-      <div className="document-handle flex items-center">
-        <TooltipTrigger delay={400}>
-          <Button intent="plain" size="sq-xs" aria-label="Add a block below" onPress={add}>
-            <IconPlus />
-          </Button>
-          <Tooltip>Add a block below</Tooltip>
-        </TooltipTrigger>
-        <span
-          aria-hidden
-          className="flex size-6.5 cursor-grab items-center justify-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground active:cursor-grabbing"
-        >
-          <IconGrip className="size-icon" />
-        </span>
-      </div>
+    <DragHandle editor={props.editor}>
+      <span
+        aria-hidden
+        className="document-handle flex size-6.5 cursor-grab items-center justify-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground active:cursor-grabbing"
+      >
+        <IconGrip className="size-icon" />
+      </span>
     </DragHandle>
   );
 }

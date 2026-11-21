@@ -415,8 +415,8 @@ function useRevealDraft(naming: string | undefined) {
   return <div ref={ref} aria-hidden className="scroll-mt-12" />;
 }
 
-/** Rows are 48px, as `FileRow` draws them. */
-export const ROWS_LAYOUT = { rowSize: 48, loaderSize: 0 };
+/** Rows are 48px, as `FileRow` draws them, 2px apart. */
+export const ROWS_LAYOUT = { rowSize: 48, gap: 2, loaderSize: 0 };
 
 function LoadMore(props: { onLoadMore: () => void }) {
   const ref = useRef<HTMLDivElement>(null);

@@ -1,15 +1,17 @@
 import { useMemo, type KeyboardEvent, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
+import { IconFolderPlus, IconNewDoc, IconPlus } from "@/components/icons/central";
 import { EmptyState } from "@/components/empty/empty-state";
 import { ListFailed } from "@/components/inbox/thread-list";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
 import { FileTrigger } from "@/components/ui/file-trigger";
+import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
 import type { StorageNode } from "@/lib/storage.ts";
-import { pickedFromInput, type Picked } from "@/lib/storage-upload-tree.ts";
+import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { FileSections, FileSectionsBones, type Drafts } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
 import { NodeMenu } from "./node-menu.tsx";
@@ -101,7 +103,7 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
       <Centered>
         <EmptyState figure="drawer" {...source.empty}>
           {props.extra}
-          <HeaderActions {...props} canWrite={source.canWrite} empty />
+          <HeaderActions {...props} canWrite={source.canWrite} />
         </EmptyState>
       </Centered>
     );
@@ -141,31 +143,31 @@ function Centered({ children }: { children: ReactNode }) {
 }
 
 /**
- * New doc, New folder and Upload, for whoever may write: labels alone, as the page's text actions
- * in the header, or centered in the empty state while the folder holds nothing.
+ * New (a menu of New doc and New folder) and Upload, for whoever may write: in the
+ * header, or centered in the empty state while the folder holds nothing.
  */
-export function HeaderActions(props: Actions & { canWrite: boolean; empty?: boolean }) {
+export function HeaderActions(props: Actions & { canWrite: boolean }) {
   if (!props.canWrite) return null;
   return (
     <>
-      {props.onNewDoc && (
-        <Button intent="outline" size="sm" isPending={props.newDocPending} onPress={props.onNewDoc}>
-          New doc
+      <MenuTrigger>
+        <Button intent="outline" size="sm" isPending={props.newDocPending}>
+          <IconPlus data-slot="icon" />
+          New
         </Button>
-      )}
-      <Button intent="outline" size="sm" onPress={props.onNewFolder}>
-        New folder
-      </Button>
-      {!props.empty && (
-        <FileTrigger
-          acceptDirectory
-          onSelect={(files) => props.onFiles(pickedFromInput([...(files ?? [])]))}
-        >
-          <Button intent="outline" size="sm">
-            Upload folder
-          </Button>
-        </FileTrigger>
-      )}
+        <Menu placement="bottom end" aria-label="New" className="text-start">
+          {props.onNewDoc && (
+            <MenuItem id="doc" textValue="New doc" onAction={props.onNewDoc}>
+              <IconNewDoc data-slot="icon" />
+              <MenuLabel>New doc</MenuLabel>
+            </MenuItem>
+          )}
+          <MenuItem id="folder" textValue="New folder" onAction={props.onNewFolder}>
+            <IconFolderPlus data-slot="icon" />
+            <MenuLabel>New folder</MenuLabel>
+          </MenuItem>
+        </Menu>
+      </MenuTrigger>
       <FileTrigger allowsMultiple onSelect={(files) => props.onFiles([...(files ?? [])])}>
         <Button size="sm">Upload</Button>
       </FileTrigger>
