@@ -73,6 +73,12 @@ const nodes: NodeSerializer = {
   orderedList: (state, node) => list(state, node, "numbered"),
   listItem: (state, node) => state.renderListItem(node),
   taskList: (state, node) => state.renderContent(node),
+  details: (state, node) => state.renderContent(node),
+  detailsSummary: (state, node) => {
+    state.renderInline(node);
+    state.closeBlock(node);
+  },
+  detailsContent: (state, node) => state.renderContent(node),
   taskItem: (state, node: PmNode) => {
     state.text(node.attrs.checked ? "☑ " : "☐ ");
     state.renderContent(node);

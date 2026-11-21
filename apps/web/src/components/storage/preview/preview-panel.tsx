@@ -90,7 +90,7 @@ export function PreviewPanel(props: {
           <HeaderMenu
             dirty={session.dirty}
             node={node}
-            items={props.menu}
+            items={versionAware(props.menu, download)}
             exports={exports}
             details={details}
             onDetails={toggleDetails}
@@ -254,6 +254,11 @@ function useAlwaysEditing(session: EditSession, doc: boolean) {
   useEffect(() => {
     if (doc && !editing) start();
   }, [doc, editing, start, editor.node.id]);
+}
+
+function versionAware(items: SettingsRowMenuItem[], download: (() => void) | undefined) {
+  if (!download) return items;
+  return items.map((item) => (item.label === "Download" ? { ...item, onAction: download } : item));
 }
 
 function Action(props: {

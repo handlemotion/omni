@@ -30,10 +30,17 @@ const theme = EditorView.theme({
 });
 
 const label = new Compartment();
+const writable = new Compartment();
+
+const editableAs = (editable: boolean) => [
+  EditorState.readOnly.of(!editable),
+  EditorView.editable.of(editable),
+];
 
 export default function SourceEditor(props: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const { onReady, onChange, name, text } = props;
+  const editable = props.editable ?? true;
   const latest = useRef(onChange);
   useEffect(() => {
     latest.current = onChange;
@@ -53,6 +60,7 @@ export default function SourceEditor(props: EditorProps) {
           EditorState.tabSize.of(2),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           label.of(EditorView.contentAttributes.of({ "aria-label": name })),
+          writable.of(editableAs(editable)),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) latest.current();
           }),
@@ -69,6 +77,9 @@ export default function SourceEditor(props: EditorProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, onReady]);
+  useEffect(() => {
+    view.current?.dispatch({ effects: writable.reconfigure(editableAs(editable)) });
+  }, [editable]);
   useEffect(() => {
     view.current?.dispatch({
       effects: label.reconfigure(EditorView.contentAttributes.of({ "aria-label": name })),
