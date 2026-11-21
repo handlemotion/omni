@@ -19,7 +19,7 @@ import { DocToolbar } from "./doc-toolbar.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useStorageHref } from "../file-list.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
-import { docExtensions, Dropdown } from "@omni/docs";
+import { docExtensions, Dropdown, readableMarkdown } from "@omni/docs";
 import { DriveFiles } from "./drive-files.tsx";
 import { SlashMenu } from "./slash-menu.tsx";
 import SourceEditor from "./source-editor.tsx";
@@ -125,7 +125,14 @@ function seedFrom(markdown: string) {
 }
 
 const words = (markdown: string) =>
-  markdown.replace(/^\s*\d+[.)]\s/gm, "").replace(/[^\p{L}\p{N}]+/gu, "");
+  markdown
+    .replace(/&#(x?)([\da-f]{1,6});/gi, (_, hex: string, code: string) =>
+      String.fromCodePoint(parseInt(code, hex ? 16 : 10) || 32),
+    )
+    .replace(/\[([^\]]*)\]\(mailto:[^)]*\)/g, "$1")
+    .replace(/<([^<>\s@]+@[^<>\s]+)>/g, "$1")
+    .replace(/^\s*\d+[.)]\s/gm, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
 
 function roundTrips(markdown: string) {
   const editor = new Editor({ extensions: EXTENSIONS, content: markdown, contentType: "markdown" });
@@ -137,8 +144,9 @@ function roundTrips(markdown: string) {
 type Phase = { kind: "opening" } | { kind: "live"; doc: LiveDoc } | { kind: "off" };
 
 export default function RichEditor(props: EditorProps) {
-  const page = useMemo(() => roundTrips(props.text), [props.text]);
-  return page ? <LivePage {...props} /> : <SourceEditor {...props} live={undefined} />;
+  const text = useMemo(() => readableMarkdown(props.text), [props.text]);
+  const page = useMemo(() => roundTrips(text), [text]);
+  return page ? <LivePage {...props} text={text} /> : <SourceEditor {...props} live={undefined} />;
 }
 
 function LivePage(props: EditorProps) {

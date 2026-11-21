@@ -9,7 +9,7 @@ import {
   type MarkSerializer,
   type NodeSerializer,
 } from "prosemirror-docx";
-import { docExtensions } from "@omni/docs";
+import { docExtensions, readableMarkdown } from "@omni/docs";
 import "./rich-editor.css";
 
 /** What a doc can leave Drive as. */
@@ -19,7 +19,7 @@ const parse = (markdown: string) =>
   new Editor({
     element: null,
     extensions: docExtensions({ history: false }),
-    content: markdown,
+    content: readableMarkdown(markdown),
     contentType: "markdown",
   });
 
