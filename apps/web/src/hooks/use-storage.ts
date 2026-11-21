@@ -141,8 +141,8 @@ export function useUploadItems() {
 }
 
 /** A file's current content and the versions it replaced (whoever may edit the file only). */
-export function useStorageVersions(nodeId: string, shareId?: string) {
-  return useQuery(storageVersionsQuery(nodeId, shareId));
+export function useStorageVersions(nodeId: string, shareId?: string, enabled = true) {
+  return useQuery({ ...storageVersionsQuery(nodeId, shareId), enabled });
 }
 
 /** `mutate({ id, versionId, shareId? })` makes a kept version the file's content again. */
@@ -151,8 +151,8 @@ export function useRestoreVersion() {
 }
 
 /** A file's comments (a member, an Editor or a Commenter only). */
-export function useStorageComments(nodeId: string, shareId?: string) {
-  return useQuery(storageCommentsQuery(nodeId, shareId));
+export function useStorageComments(nodeId: string, shareId?: string, enabled = true) {
+  return useQuery({ ...storageCommentsQuery(nodeId, shareId), enabled });
 }
 
 /**

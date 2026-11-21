@@ -82,6 +82,21 @@ Exports read the doc as the editor holds it now, unsaved typing included. The fi
 offers Export as PDF, Word and Markdown, and no raw Download for an Omni doc (its file has no
 extension). Everything is done in the browser; nothing new runs on the Worker.
 
+## Shared links
+
+A doc shared through a link opens as the same page, for people outside the workspace too, with
+what the link's role allows:
+
+| Role      | Page                                                                    |
+| --------- | ----------------------------------------------------------------------- |
+| Editor    | Editing (or Commenting), toolbar, saves through the link's door          |
+| Commenter | Read-only text; a selection offers Comment; the toolbar shows comments  |
+| Viewer    | Read-only text, no toolbar, no comments                                 |
+
+Share holds Export only when the link allows downloads. Read-only pages never save, and the
+page asks for versions and comments only when the role may read them. Outside editors save
+version by version: they don't join the live document yet (next).
+
 ## Agents
 
 `drive_create_doc` writes an Omni doc: its name as given, with no `.md`. `drive_edit_doc` edits
@@ -94,8 +109,11 @@ Omni docs and Markdown files alike and keeps each one's type. Its Markdown may h
 - Desktop sync names Omni docs as Drive does, with no extension, so Finder does not know to open
   them as Markdown. Next: the File Provider shows an Omni doc as `<name>.md` and maps that name
   back on rename.
-- Shared links that open a doc as a page for people outside the workspace (editing or
-  commenting as the link allows), not only as a download.
+- Live co-editing for people outside the workspace. The live document's realtime socket and its
+  `doc.append` checks are per workspace member (`realtime.ts`, `realtime-docs.ts`); a link's
+  editor needs a socket opened through the link's door, its role checked per append, and a
+  presence identity of its own. Until then an outside editor's save is a new version, and members
+  editing live reopen on it.
 - Ask Claude from the toolbar.
 
 ## Verify

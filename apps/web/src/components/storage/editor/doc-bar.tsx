@@ -32,6 +32,8 @@ export function DocBar(props: {
   text: (() => string | undefined) | undefined;
   /** Side by side with the folder: the line between them runs down its edge too. */
   border: boolean;
+  /** False on a shared link that forbids downloads: no Export. */
+  canExport?: boolean;
 }) {
   const { text } = props;
   if (!text) return null;
@@ -43,8 +45,14 @@ export function DocBar(props: {
         page={() => document.querySelector(`[data-doc="${props.node.id}"] .document-page`)}
       />
       <div className="flex-1" />
-      <ModeMenu session={props.session} />
-      <ShareMenu node={props.node} items={props.items} text={text} />
+      {props.session.writable && <ModeMenu session={props.session} />}
+      <ShareMenu
+        node={props.node}
+        items={props.items}
+        text={text}
+        canExport={props.canExport ?? true}
+        shareId={props.session.editor.shareId}
+      />
     </div>
   );
 }
@@ -86,9 +94,12 @@ function ShareMenu(props: {
   node: StorageNode;
   items: SettingsRowMenuItem[];
   text: () => string | undefined;
+  canExport: boolean;
+  shareId: string | undefined;
 }) {
-  const run = useDocExport(props.node, props.text);
+  const run = useDocExport(props.node, props.text, props.shareId);
   const share = props.items.find((item) => item.label === "Share");
+  if (!share && !props.canExport) return null;
   return (
     <MenuTrigger>
       <Button intent="plain" size="sm">
@@ -104,19 +115,21 @@ function ShareMenu(props: {
             </MenuItem>
           </MenuSection>
         )}
-        <MenuSection label="Export">
-          {DOC_EXPORTS.map((each) => (
-            <MenuItem
-              key={each.format}
-              id={each.format}
-              textValue={each.label}
-              onAction={() => run(each.format)}
-            >
-              <each.icon data-slot="icon" />
-              <MenuLabel>{each.label}</MenuLabel>
-            </MenuItem>
-          ))}
-        </MenuSection>
+        {props.canExport && (
+          <MenuSection label="Export">
+            {DOC_EXPORTS.map((each) => (
+              <MenuItem
+                key={each.format}
+                id={each.format}
+                textValue={each.label}
+                onAction={() => run(each.format)}
+              >
+                <each.icon data-slot="icon" />
+                <MenuLabel>{each.label}</MenuLabel>
+              </MenuItem>
+            ))}
+          </MenuSection>
+        )}
       </Menu>
     </MenuTrigger>
   );

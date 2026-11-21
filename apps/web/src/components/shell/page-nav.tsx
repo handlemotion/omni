@@ -1,5 +1,5 @@
 import { IconSidebar } from "@/components/icons/sidebar";
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { SidebarTrigger, useOptionalSidebar, useSidebar } from "@/components/ui/sidebar";
 
 function useSidebarOpen() {
   const sidebar = useSidebar();
@@ -8,7 +8,7 @@ function useSidebarOpen() {
 
 /** Whether page headers start with the sidebar toggle: on a phone, where there is no title bar. */
 export function usePageNavShown() {
-  return useSidebar().isMobile;
+  return useOptionalSidebar()?.isMobile ?? false;
 }
 
 export function PageNav() {

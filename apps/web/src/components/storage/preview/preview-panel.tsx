@@ -52,12 +52,12 @@ import { downloadFile } from "@/lib/download.ts";
 export function PreviewPanel(props: {
   node: StorageNode;
   url: string;
-  /** The files before and after it in the folder, for Previous and Next. */
-  onClose: () => void;
+  /** Absent on a shared link's own page, where the file is the whole page: no Close. */
+  onClose?: (() => void) | undefined;
   onDownload?: (() => void) | undefined;
   menu: SettingsRowMenuItem[];
   fullScreen: boolean;
-  onFullScreen: () => void;
+  onFullScreen?: (() => void) | undefined;
   /** False outside the app shell (a shared link's page): no sidebar toggle. */
   shell: boolean;
   /** The person may change the file: Edit, for a text file. */
@@ -66,17 +66,28 @@ export function PreviewPanel(props: {
   shareId?: string | undefined;
   /** Rename from its menu turns the title into a field. */
   rename?: InlineRename | undefined;
+  /** False for a shared link's viewer: a doc reads as a page, with no comments. */
+  canComment?: boolean;
+  /** False on a shared link that forbids downloads: a doc has no Export. */
+  canExport?: boolean;
 }) {
   const { node } = props;
-  const tools = usePreviewTools(node, props.shareId);
+  const tools = usePreviewTools(node, props.shareId, {
+    versions: !props.shareId || props.canWrite,
+    comments: props.canComment !== false,
+  });
   const shown = tools.shown;
   const download = shown && props.onDownload ? () => downloadFile(shown.url) : props.onDownload;
-  const session = useEditSession(node, props.url, props.shareId);
+  const session = useEditSession(node, props.url, props.shareId, props.canWrite);
   const canEdit = props.canWrite && canEditFile(node) && !shown;
-  const doc = canEdit && isDoc(node);
+  const doc = canEditFile(node) && !shown && isDoc(node);
   const inset = useHeaderInset(props.fullScreen, props.shell);
   useAlwaysEditing(session, doc);
-  const comments = useDocCommentsState(node.id, props.shareId, doc && session.editing);
+  const comments = useDocCommentsState(
+    node.id,
+    props.shareId,
+    doc && session.editing && props.canComment !== false,
+  );
   const [details, toggleDetails] = useShowDetails();
   const exports = doc && !shown ? session.text : undefined;
   return (
@@ -95,15 +106,11 @@ export function PreviewPanel(props: {
             details={details}
             onDetails={toggleDetails}
           />
-          <Action
-            label={props.fullScreen ? "Side by side" : "Full screen"}
-            onPress={props.onFullScreen}
-          >
-            {props.fullScreen ? <IconMinimize /> : <IconMaximize />}
-          </Action>
-          <Action label="Close" onPress={props.onClose}>
-            <IconX />
-          </Action>
+          <WindowActions
+            fullScreen={props.fullScreen}
+            onFullScreen={props.onFullScreen}
+            onClose={props.onClose}
+          />
         </div>
       </div>
       <DocBar
@@ -112,6 +119,7 @@ export function PreviewPanel(props: {
         session={session}
         text={exports}
         border={!props.fullScreen}
+        canExport={props.canExport}
       />
       <div
         className={`flex min-h-0 flex-1 flex-col bg-surface ${props.fullScreen ? "" : "border-s"}`}
@@ -254,6 +262,30 @@ function useAlwaysEditing(session: EditSession, doc: boolean) {
   useEffect(() => {
     if (doc && !editing) start();
   }, [doc, editing, start, editor.node.id]);
+}
+
+function WindowActions(props: {
+  fullScreen: boolean;
+  onFullScreen: (() => void) | undefined;
+  onClose: (() => void) | undefined;
+}) {
+  return (
+    <>
+      {props.onFullScreen && (
+        <Action
+          label={props.fullScreen ? "Side by side" : "Full screen"}
+          onPress={props.onFullScreen}
+        >
+          {props.fullScreen ? <IconMinimize /> : <IconMaximize />}
+        </Action>
+      )}
+      {props.onClose && (
+        <Action label="Close" onPress={props.onClose}>
+          <IconX />
+        </Action>
+      )}
+    </>
+  );
 }
 
 function versionAware(items: SettingsRowMenuItem[], download: (() => void) | undefined) {

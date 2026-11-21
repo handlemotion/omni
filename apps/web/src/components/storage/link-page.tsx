@@ -18,9 +18,11 @@ import { useLinkUploading, useStorageLink, useTrashNode } from "@/hooks/use-stor
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { unlockLink, type StorageLinkUpload } from "@/lib/storage-sharing.ts";
-import { sharedFileUrl } from "@/lib/urls.ts";
+import { sharedViewUrl, sharedFileUrl } from "@/lib/urls.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { CommentsPanel } from "./comments-panel.tsx";
+import { isDoc } from "./editor/document-editor.tsx";
+import { PreviewPanel } from "./preview/preview-panel.tsx";
 import { FileGlyph } from "./file-glyph.tsx";
 import { FolderCrumbs } from "./folder-crumbs.tsx";
 import { FolderView, type FolderDialog } from "./folder-view.tsx";
@@ -43,6 +45,23 @@ export function LinkPage({ shareId, nodeId }: { shareId: string; nodeId?: string
   const downloads = first?.downloads !== false;
   const upload = first?.uploading?.find((pending) => pending.id === item.node.id);
   if (upload) return <UploadingCard shareId={shareId} upload={upload} />;
+  if (item.node.kind === "file" && isDoc(item.node)) {
+    return (
+      <LinkFrame>
+        <PreviewPanel
+          node={item.node}
+          url={sharedViewUrl(shareId, item.node.id)}
+          menu={[]}
+          fullScreen
+          shell={false}
+          canWrite={item.role === "member" || item.role === "editor"}
+          canComment={item.role !== "viewer"}
+          canExport={downloads}
+          shareId={shareId}
+        />
+      </LinkFrame>
+    );
+  }
   if (item.node.kind === "file") {
     return (
       <FileCard
@@ -184,9 +203,16 @@ function SharedFolder(props: {
   const canComment = item.role !== "viewer";
   const trash = useTrashNode();
   const [top = { id: item.node.id, name: item.node.name }, ...below] = item.path;
-  const fileUrl = useCallback((node: StorageNode) => sharedFileUrl(shareId, node.id), [shareId]);
+  const fileUrl = useCallback(
+    (node: StorageNode) =>
+      isDoc(node) ? sharedViewUrl(shareId, node.id) : sharedFileUrl(shareId, node.id),
+    [shareId],
+  );
   const folderHref = useCallback((node: StorageNode) => linkHref(shareId, node.id), [shareId]);
-  const download = useCallback((node: StorageNode) => downloadFile(fileUrl(node)), [fileUrl]);
+  const download = useCallback(
+    (node: StorageNode) => downloadFile(sharedFileUrl(shareId, node.id)),
+    [shareId],
+  );
   const trashNode = trash.mutate;
   const menu = useMemo(
     () => (node: StorageNode, open: (dialog: FolderDialog) => void) => {
@@ -269,6 +295,8 @@ function SharedFolder(props: {
           place: { parentId: item.node.id },
           shareId,
           canWrite,
+          canComment,
+          canExport: canDownload,
           list: props.link,
           folderHref,
           fileUrl,

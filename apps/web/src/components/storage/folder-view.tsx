@@ -47,6 +47,10 @@ export interface FolderSource {
   shareId?: string | undefined;
   /** New folder, Upload and drops, and the rows' changes. */
   canWrite: boolean;
+  /** False for a shared link's viewer: a doc opens with no comments. */
+  canComment?: boolean;
+  /** False on a shared link that forbids downloads: a doc has no Export. */
+  canExport?: boolean;
   list: {
     nodes: StorageNode[];
     isPending: boolean;
@@ -223,6 +227,8 @@ export function FolderView(props: {
             onFullScreen={docs.toggleWide}
             shell={shell}
             canWrite={source.canWrite}
+            canComment={source.canComment}
+            canExport={source.canExport}
             shareId={source.shareId}
           />
         </div>

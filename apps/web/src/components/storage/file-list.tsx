@@ -1,4 +1,4 @@
-import { useSearch } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import {
   IconClock3,
@@ -26,7 +26,7 @@ import { FolderCrumbs } from "./folder-crumbs.tsx";
 import { FolderView, type FolderDialog } from "./folder-view.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
-import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
+import { workspaceHref } from "@/lib/workspaces.ts";
 import { downloadFile, downloadZip } from "@/lib/download.ts";
 import { isOmniDoc } from "@omni/docs/file";
 import { fileType } from "@/lib/file-kind.ts";
@@ -40,14 +40,25 @@ const EMPTY = {
 
 /** A link inside Storage, keeping the mailbox the switcher shows for the way back to mail. */
 export function useStorageHref() {
+  const href = useOptionalStorageHref();
+  if (!href) throw new Error("useStorageHref outside a workspace route");
+  return href;
+}
+
+/** Where a space or folder opens in this workspace; null on a page outside one (a shared link). */
+export function useOptionalStorageHref() {
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  const { href } = useWorkspacePaths();
-  return useCallback(
-    (space: StorageSpace, folderId?: string) =>
-      href(
-        `${SPACE_PATH[space]}${folderId ? `/${encodeURIComponent(folderId)}` : ""}${mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ""}`,
-      ),
-    [mailbox, href],
+  const { workspace } = useParams({ strict: false }) as { workspace?: string };
+  return useMemo(
+    () =>
+      workspace
+        ? (space: StorageSpace, folderId?: string) =>
+            workspaceHref(
+              workspace,
+              `${SPACE_PATH[space]}${folderId ? `/${encodeURIComponent(folderId)}` : ""}${mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ""}`,
+            )
+        : null,
+    [mailbox, workspace],
   );
 }
 

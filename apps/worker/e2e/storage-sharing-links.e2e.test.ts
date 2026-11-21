@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { StorageNode } from "@omni/contracts";
 import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
+import { DOC_TYPE } from "@omni/docs/file";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
 import { CookieJar, sentMail, signIn, WEB_ORIGIN } from "./support.ts";
@@ -36,6 +37,8 @@ async function linked(owner: Person, linkAccess = "anyone", name = "brief.pdf") 
   expect(set.status).toBe(200);
   return { file, bytes, shareId: set.body.sharing.shareId as string };
 }
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 
 const settings = (owner: Person, nodeId: string, body: object) =>
   stack.api(owner.jar, "PUT", `/nodes/${nodeId}/sharing/link`, body);
@@ -138,6 +141,47 @@ test("a view-only link shows the item and refuses /content and /zip; the owner s
   const own = await content(owner.jar, shareId, file.id);
   expect(own.status).toBe(200);
   await own.body?.cancel();
+});
+
+test("/view serves what a link downloads, and on a view-only link only a doc and its images", async () => {
+  const { owner } = await company();
+  const markdown = "# Contrato\n\nCláusulas.";
+  const doc = await stack.upload(
+    owner.jar,
+    { space: "personal" },
+    "Contrato",
+    new TextEncoder().encode(markdown),
+    DOC_TYPE,
+  );
+  const set = await stack.api(owner.jar, "PUT", `/nodes/${doc.id}/sharing/link`, {
+    linkAccess: "anyone",
+  });
+  const shareId = set.body.sharing.shareId as string;
+  await settings(owner, doc.id, { downloads: false });
+
+  expect(await status(await content(anonymous(), shareId, doc.id))).toBe(403);
+  const text = await stack.get(anonymous(), `/shared/${shareId}/files/${doc.id}/view`);
+  expect(text.status).toBe(200);
+  expect(await text.text()).toBe(markdown);
+
+  const pasted = await stack.upload(
+    owner.jar,
+    { parentId: doc.id },
+    "pasted.png",
+    PNG,
+    "image/png",
+  );
+  const image = await stack.get(anonymous(), `/shared/${shareId}/files/${pasted.id}/view`);
+  expect(image.status).toBe(200);
+  expect(Buffer.from(await image.arrayBuffer())).toEqual(Buffer.from(PNG));
+  expect(await status(await content(anonymous(), shareId, pasted.id))).toBe(403);
+
+  const { file, shareId: pdfShare } = await linked(owner);
+  const allowed = await stack.get(anonymous(), `/shared/${pdfShare}/files/${file.id}/view`);
+  expect(await status(allowed)).toBe(200);
+  await settings(owner, file.id, { downloads: false });
+  const refused = await stack.get(anonymous(), `/shared/${pdfShare}/files/${file.id}/view`);
+  expect(await status(refused)).toBe(403);
 });
 
 test("a link open to the workspace opens for its members only, not for a visitor or another workspace", async () => {

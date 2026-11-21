@@ -17,7 +17,7 @@ import type { EditorProps } from "./document-editor.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
 import { DocToolbar } from "./doc-toolbar.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
-import { useStorageHref } from "../file-list.tsx";
+import { useOptionalStorageHref } from "../file-list.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
 import { docExtensions, Dropdown, readableMarkdown } from "@omni/docs";
 import { DriveFiles } from "./drive-files.tsx";
@@ -185,10 +185,11 @@ function LivePage(props: EditorProps) {
 
 function useDriveOptions(props: EditorProps) {
   const drive = useDocFiles(props.file, props.shareId);
-  const storageHref = useStorageHref();
+  const storageHref = useOptionalStorageHref();
   const filePlace = useFilePlace();
   const router = useRouter();
   const hrefOf = (node: { id: string; space: StorageNode["space"]; parentId: string | null }) => {
+    if (!storageHref) return "#";
     const folder = storageHref(node.space, node.parentId ?? undefined);
     return `${folder}${folder.includes("?") ? "&" : "?"}file=${encodeURIComponent(node.id)}`;
   };
@@ -223,9 +224,12 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   const comments = useDocComments();
   const commenting = useCommentsExtension(comments);
   useLiveComments(doc, props.nodeId);
+  const editable = props.editable ?? true;
   const editorProps = useMemo(
-    () => ({ attributes: { class: "document-page", "aria-label": name } }),
-    [name],
+    () => ({
+      attributes: { class: "document-page", "aria-label": name, tabindex: editable ? "-1" : "0" },
+    }),
+    [name, editable],
   );
   const extensions = useMemo(
     () => [...(doc ? withCarets(doc, me) : EXTENSIONS), DriveFiles.configure(drive), ...commenting],
@@ -246,10 +250,8 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
     onReady(() => editor.getMarkdown());
   }, [editor, onReady]);
   useCommentMarks(editor, comments);
-  const editable = props.editable ?? true;
   useEffect(() => {
     editor.setEditable(editable);
-    editor.view.dom.tabIndex = editable ? -1 : 0;
   }, [editor, editable]);
 
   return (

@@ -88,7 +88,11 @@ function shownOf(
   } satisfies ShownVersion;
 }
 
-export function usePreviewTools(node: StorageNode, shareId: string | undefined) {
+export function usePreviewTools(
+  node: StorageNode,
+  shareId: string | undefined,
+  may: { versions: boolean; comments: boolean },
+) {
   const [fileId, setFileId] = useState(node.id);
   const [shownKey, setShownKey] = useState("current");
   const [composing, setComposing] = useState(false);
@@ -105,8 +109,8 @@ export function usePreviewTools(node: StorageNode, shareId: string | undefined) 
     setDraft(null);
   }
 
-  const versions = useStorageVersions(node.id, shareId);
-  const comments = useStorageComments(node.id, shareId);
+  const versions = useStorageVersions(node.id, shareId, may.versions);
+  const comments = useStorageComments(node.id, shareId, may.comments);
   const restore = useRestoreVersion();
   const surface = unshownAt === comments.data?.contentVersion ? null : surfaceOf(node);
 

@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { api } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import { workspaceHeaders } from "./current-workspace.ts";
-import { sharedFileUrl, storageFileUrl } from "./urls.ts";
+import { sharedViewUrl, storageFileUrl } from "./urls.ts";
 
 /**
  * Where a doc's Markdown points for a Drive file it shows as an image: the file's content path
@@ -28,7 +28,7 @@ export function docLinkFile(href: string) {
 
 /** An image file's bytes, with the type the browser read them as. */
 export async function docImageBytes(fileId: string, shareId: string | undefined) {
-  const url = shareId ? sharedFileUrl(shareId, fileId) : storageFileUrl(fileId);
+  const url = shareId ? sharedViewUrl(shareId, fileId) : storageFileUrl(fileId);
   const response = await fetch(url, { credentials: "same-origin", headers: workspaceHeaders() });
   if (!response.ok) throw new Error(`the image did not load (${response.status})`);
   const blob = await response.blob();

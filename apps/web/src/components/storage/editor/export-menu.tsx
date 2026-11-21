@@ -23,11 +23,15 @@ export const DOC_EXPORTS: DocExportItem[] = [
  * Exports a doc as the editor holds it now (`text`), unsaved typing included: Word, PDF or
  * Markdown downloaded, or its Markdown copied.
  */
-export function useDocExport(node: StorageNode, text: () => string | undefined) {
+export function useDocExport(
+  node: StorageNode,
+  text: () => string | undefined,
+  shareId?: string | undefined,
+) {
   const exporting = useExportDoc();
   return (format: DocExportAction) =>
     exporting.mutate(
-      { node, format, text: text() },
+      { node, format, text: text(), shareId },
       {
         onSuccess: () => {
           if (format === "copy") appToast.success("Copied as Markdown");

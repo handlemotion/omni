@@ -25,6 +25,7 @@ import {
   type OpenUploadLinkResult,
   type ShareEventInput,
   type SharedStorage,
+  type StorageNode,
   type UploadingFile,
 } from "@omni/db";
 import { Hono, type Context } from "hono";
@@ -47,6 +48,16 @@ import {
   type SharedAccess,
 } from "./http.ts";
 import { thumbnail } from "./thumbnails.ts";
+import { isDocFile } from "@omni/docs/file";
+
+const IMAGE_NAME = /\.(png|jpe?g|gif|webp)$/i;
+
+async function readsOnPage(shared: Pick<SharedStorage, "file">, file: StorageNode) {
+  if (isDocFile(file.name, file.mimeType)) return true;
+  if (!IMAGE_NAME.test(file.name) || !file.parentId) return false;
+  const parent = await shared.file(file.parentId);
+  return parent.status === "ok" && isDocFile(parent.file.name, parent.file.mimeType);
+}
 import { zip } from "./zip.ts";
 
 const UNLOCK_MS = 12 * 60 * 60 * 1000;
@@ -361,6 +372,15 @@ export const storageShared = new Hono<AppEnv>()
       await audit(c, "downloaded", found.file.id);
     }
     return response;
+  })
+
+  .get("/:shareId/files/:id/view", async (c) => {
+    const shared = c.var.shared!;
+    const found = await shared.file(c.req.param("id"));
+    if (found.status === "ok" && !shared.downloads && !(await readsOnPage(shared, found.file))) {
+      return apiError(c, "forbidden", "only a doc and its images read here");
+    }
+    return download(c, found);
   })
 
   .get("/:shareId/files/:id/thumbnail", async (c) =>

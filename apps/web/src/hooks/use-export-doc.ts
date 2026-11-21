@@ -13,13 +13,18 @@ export type DocExportAction = DocExport | "copy";
  */
 export function useExportDoc() {
   return useMutation({
-    mutationFn: async (input: { node: StorageNode; format: DocExportAction; text?: string }) => {
+    mutationFn: async (input: {
+      node: StorageNode;
+      format: DocExportAction;
+      text?: string;
+      shareId?: string | undefined;
+    }) => {
       const text = input.text ?? (await fileText(input.node));
       if (input.format === "copy") return navigator.clipboard.writeText(text);
       const module = await import("@/components/storage/editor/export-doc.ts");
       await module.exportDoc(text, input.node.name, input.format, async (src) => {
         const id = docImageFile(src);
-        return id ? docImageBytes(id, undefined) : null;
+        return id ? docImageBytes(id, input.shareId) : null;
       });
     },
   });

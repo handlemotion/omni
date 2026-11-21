@@ -61,6 +61,11 @@ export function SidebarExpanded({ children }: { children: React.ReactNode }) {
   return <SidebarContext value={value}>{children}</SidebarContext>;
 }
 
+/** The sidebar, or null on a page that has none (a shared link's page). */
+export function useOptionalSidebar() {
+  return use(SidebarContext);
+}
+
 export function useSidebar() {
   const context = use(SidebarContext);
   if (!context) {

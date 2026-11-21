@@ -85,7 +85,12 @@ export function isDoc(node: StorageNode) {
 export type DocMode = "editing" | "commenting";
 
 /** The open file's editing: on or off, unsaved changes, and saving them (a doc saves itself). */
-export function useEditSession(node: StorageNode, url: string, shareId: string | undefined) {
+export function useEditSession(
+  node: StorageNode,
+  url: string,
+  shareId: string | undefined,
+  writable = true,
+) {
   const client = useQueryClient();
   const [mode, setMode] = useState<DocMode>("editing");
   const [editing, setEditing] = useState(false);
@@ -144,7 +149,7 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
   const saveNow = async () => {
     const text = read.current?.();
     const boundary = live.current?.boundary;
-    if (text === undefined || inFlight.current) return false;
+    if (!writable || text === undefined || inFlight.current) return false;
     const at = changes.current;
     const mine = session.current;
     inFlight.current = true;
@@ -253,8 +258,9 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
     },
     mode,
     setMode,
+    writable,
     editor: {
-      editable: mode === "editing",
+      editable: writable && mode === "editing",
       node,
       url,
       shareId,
@@ -263,6 +269,7 @@ export function useEditSession(node: StorageNode, url: string, shareId: string |
         read.current = reader;
       }, []),
       onChange: () => {
+        if (!writable) return;
         changes.current += 1;
         setDirty(true);
         if (live.current || autosaves) fold();
