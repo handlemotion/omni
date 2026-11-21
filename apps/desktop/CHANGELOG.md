@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/wokshop/omni/compare/desktop-v0.2.1...desktop-v0.3.0) (2026-11-21)
+
+
+### Features
+
+* **desktop:** a blue Restart to update strip in the sidebar, and Check for Updates in the menus ([#689](https://github.com/wokshop/omni/issues/689)) ([723586d](https://github.com/wokshop/omni/commit/723586dd8b3bc9c53c863251664abf1ebaf10dea))
+* **drive:** Omni docs, their own file type with a toolbar, doc bar and Export ([#686](https://github.com/wokshop/omni/issues/686)) ([f406837](https://github.com/wokshop/omni/commit/f4068376363ee22891a3cbb3c4bd693c8cf71f8c))
+
 ## [0.2.1](https://github.com/wokshop/omni/compare/desktop-v0.2.0...desktop-v0.2.1) (2026-11-21)
 
 
