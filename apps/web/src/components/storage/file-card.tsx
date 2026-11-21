@@ -12,6 +12,7 @@ import { FolderArt } from "./folder-art.tsx";
 import { CARD_DROP_TARGET, LIFTED, useSurfaceDrag, type NodeDrag } from "./node-drag.tsx";
 import { NodeName, type ItemName } from "./name-field.tsx";
 import { PdfStack } from "./pdf-stack.tsx";
+import { useWarmOnHover } from "./preview/warm-preview.ts";
 import { cardThumbnailSize, hasThumbnail, ThumbnailImage } from "./thumbnail-image.tsx";
 
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
@@ -45,10 +46,12 @@ export function FileCard(props: {
   const { node } = props;
   const type = node.kind === "file" ? fileType(node.name, node.mimeType) : null;
   const lift = useSurfaceDrag(node, "card", props.drag);
+  const warm = useWarmOnHover(node, props.url);
   return (
     <GridListItem
       ref={lift.ref}
       {...lift.props}
+      {...warm}
       id={node.id}
       href={props.href}
       textValue={node.name}

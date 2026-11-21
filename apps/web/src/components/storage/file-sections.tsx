@@ -26,6 +26,7 @@ import { DraftCard, DraftRow, type DraftHandlers } from "./folder-draft.tsx";
 import { TypeBadge } from "./file-glyph.tsx";
 import { RowTile } from "./row-tile.tsx";
 import { DAY } from "./file-table.tsx";
+import { useWarmOnHover } from "./preview/warm-preview.ts";
 import { GAP_MS, useDriveDrag } from "./drive-drag-state.ts";
 import { DROP_TARGET, GAP, LIFTED, useGapAt, useSurfaceDrag, type NodeDrag } from "./node-drag.tsx";
 
@@ -319,6 +320,7 @@ function FileRow(props: {
   const { node } = props;
   const type = node.kind === "file" ? fileType(node.name, node.mimeType) : null;
   const prefetch = usePrefetchFolder();
+  const warm = useWarmOnHover(node, props.url);
   const lift = useSurfaceDrag(node, "row", props.drag);
   return (
     <GridListItem
@@ -327,7 +329,10 @@ function FileRow(props: {
       id={node.id}
       href={props.href}
       textValue={node.name}
-      onHoverStart={props.prefetch ? () => prefetch(node) : undefined}
+      {...warm}
+      onHoverStart={
+        node.kind === "folder" && props.prefetch ? () => prefetch(node) : warm.onHoverStart
+      }
       className={`mx-2.5 h-12 gap-3 rounded-lg ps-2 pe-1 selected:bg-accent ${DROP_TARGET} ${LIFTED}`}
     >
       <RowTile node={node} url={props.url} />

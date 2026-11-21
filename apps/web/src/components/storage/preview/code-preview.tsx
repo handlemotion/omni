@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import type { HighlighterCore, LanguageInput, ThemedToken } from "shiki/core";
+import type { GrammarState, HighlighterCore, LanguageInput, ThemedToken } from "shiki/core";
 import { SkeletonBox } from "skullet/react";
 import { useFileText } from "@/hooks/use-storage-preview.ts";
 import type { FileKind } from "@/lib/file-kind.ts";
@@ -10,6 +10,8 @@ const HIGHLIGHT_LINES = 4000;
 const BLOCK = 200;
 const LINE_PX = 20;
 const THEME = "github-light";
+const FIRST_BLOCKS = 2;
+const BLOCKS_PER_STEP = 4;
 
 export default function CodePreview(props: {
   source: PreviewSource;
@@ -43,6 +45,7 @@ const Code = memo(function Code(props: { text: string; language?: string | undef
     for (let start = 0; start < lines.length; start += BLOCK) out.push(start);
     return out;
   }, [lines]);
+  const drawn = useDrawnBlocks(blocks.length);
   const gutter = `calc(${String(lines.length).length}ch + 36px)`;
   return (
     <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
@@ -50,26 +53,50 @@ const Code = memo(function Code(props: { text: string; language?: string | undef
         className="w-max min-w-full py-4 font-mono text-sm/5 text-foreground"
         style={{ tabSize: 2 }}
       >
-        {blocks.map((start) => (
-          <div
+        {blocks.map((start, block) => (
+          <Block
             key={start}
-            style={{
-              contentVisibility: "auto",
-              containIntrinsicSize: `auto ${Math.min(BLOCK, lines.length - start) * LINE_PX}px`,
-            }}
-          >
-            {lines.slice(start, start + BLOCK).map((line, i) => (
-              <Line
-                key={start + i}
-                number={start + i + 1}
-                gutter={gutter}
-                text={line}
-                tokens={tokens?.[start + i]}
-              />
-            ))}
-          </div>
+            start={start}
+            lines={lines}
+            gutter={gutter}
+            drawn={block < drawn}
+            tokens={tokens[block]}
+          />
         ))}
       </pre>
+    </div>
+  );
+});
+
+const Block = memo(function Block(props: {
+  start: number;
+  lines: string[];
+  gutter: string;
+  drawn: boolean;
+  tokens: ThemedToken[][] | undefined;
+}) {
+  const { start, lines } = props;
+  const count = Math.min(BLOCK, lines.length - start);
+  return (
+    <div
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: `auto ${count * LINE_PX}px`,
+        ...(props.drawn ? {} : { height: count * LINE_PX }),
+      }}
+    >
+      {props.drawn &&
+        lines
+          .slice(start, start + count)
+          .map((line, i) => (
+            <Line
+              key={start + i}
+              number={start + i + 1}
+              gutter={props.gutter}
+              text={line}
+              tokens={props.tokens?.[i]}
+            />
+          ))}
     </div>
   );
 });
@@ -157,23 +184,53 @@ async function getHighlighter() {
   return highlighter;
 }
 
-function useTokens(lines: string[], language: string | undefined) {
-  const [tokens, setTokens] = useState<ThemedToken[][]>();
+const breathe = () =>
+  new Promise<void>((resume) =>
+    typeof requestIdleCallback === "undefined"
+      ? setTimeout(resume, 0)
+      : requestIdleCallback(() => resume(), { timeout: 100 }),
+  );
+
+function useDrawnBlocks(total: number) {
+  const [drawn, setDrawn] = useState(FIRST_BLOCKS);
   useEffect(() => {
-    setTokens(undefined);
-    if (!language) return;
+    if (drawn >= total) return;
+    let live = true;
+    void breathe().then(() => live && setDrawn(drawn + BLOCKS_PER_STEP));
+    return () => {
+      live = false;
+    };
+  }, [drawn, total]);
+  return drawn;
+}
+
+function useTokens(lines: string[], language: string | undefined) {
+  const [tokens, setTokens] = useState<ThemedToken[][][]>([]);
+  useEffect(() => {
+    setTokens([]);
+    const grammar = language && GRAMMARS[language];
+    if (!language || !grammar) return;
     let live = true;
     void (async () => {
-      const grammar = GRAMMARS[language];
-      if (!grammar) return;
       const shiki = await getHighlighter();
       if (!live) return;
       if (!shiki.getLoadedLanguages().includes(language)) {
         await shiki.loadLanguage((await grammar()).default);
       }
-      if (!live) return;
-      const head = lines.slice(0, HIGHLIGHT_LINES).join("\n");
-      setTokens(shiki.codeToTokensBase(head, { lang: language, theme: THEME }));
+      const done: ThemedToken[][][] = [];
+      let grammarState: GrammarState | undefined;
+      for (let start = 0; start < Math.min(lines.length, HIGHLIGHT_LINES); start += BLOCK) {
+        if (!live) return;
+        const block = shiki.codeToTokensBase(lines.slice(start, start + BLOCK).join("\n"), {
+          lang: language,
+          theme: THEME,
+          ...(grammarState ? { grammarState } : {}),
+        });
+        grammarState = shiki.getLastGrammarState(block);
+        done.push(block);
+        setTokens([...done]);
+        await breathe();
+      }
     })().catch(() => {});
     return () => {
       live = false;

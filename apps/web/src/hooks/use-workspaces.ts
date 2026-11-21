@@ -42,7 +42,7 @@ export function useWorkspaceSlug() {
  */
 export function useWorkspacePaths() {
   const workspace = useWorkspaceSlug();
-  const { pathname } = useLocation();
+  const pathname = useLocation({ select: (location) => location.pathname });
   const href = useCallback((place: string) => workspaceHref(workspace, place), [workspace]);
   return { href, place: placeInWorkspace(pathname) };
 }

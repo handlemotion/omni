@@ -2,14 +2,16 @@ import { lazy, Suspense } from "react";
 import { Contain } from "@/components/errors/error-boundary.tsx";
 import { fileType, IMAGE_PREVIEW_MAX_BYTES, SHEET_PREVIEW_MAX_BYTES } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
+import { previewThumbnail } from "../thumbnail-image.tsx";
 import { ImagePreview } from "./image-preview.tsx";
 import { AudioPreview, VideoPreview } from "./media-preview.tsx";
+import { PREVIEW_CODE } from "./preview-code.ts";
 import { NoPreview, StageLoading } from "./shared.tsx";
 
-const PdfPreview = lazy(() => import("./pdf-preview.tsx"));
-const CodePreview = lazy(() => import("./code-preview.tsx"));
-const CsvPreview = lazy(() => import("./csv-preview.tsx"));
-const XlsxPreview = lazy(() => import("./xlsx-preview.tsx"));
+const PdfPreview = lazy(PREVIEW_CODE.pdf);
+const CodePreview = lazy(PREVIEW_CODE.text);
+const CsvPreview = lazy(PREVIEW_CODE.csv);
+const XlsxPreview = lazy(PREVIEW_CODE.sheet);
 
 export function PreviewBody(props: {
   node: StorageNode;
@@ -29,6 +31,7 @@ export function PreviewBody(props: {
           source={source}
           raster={type.raster}
           name={node.name}
+          placeholder={previewThumbnail(node, url)}
           onDownload={onDownload}
         />
       ) : (

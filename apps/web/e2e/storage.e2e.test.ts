@@ -491,6 +491,34 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
     .toBe(text.replace("| Pro | 9 |", "| Pro | 9 | (monthly)"));
 });
 
+test("picking another file while a text file has unsaved edits asks first and keeps the edits", async () => {
+  const page = await signedIn(`edit-leave-${Date.now()}@gmail.test`, "/files/my");
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles([
+      { name: "a-notes.txt", mimeType: "text/plain", buffer: Buffer.from("first line\n") },
+      { name: "b-other.txt", mimeType: "text/plain", buffer: Buffer.from("other file\n") },
+    ]);
+  await page.getByRole("row", { name: /a-notes\.txt/ }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const source = page.locator(".cm-content");
+  await source.getByText("first line").click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" unsaved");
+
+  await page.getByRole("row", { name: /b-other\.txt/ }).click();
+  const leaving = page.getByRole("alertdialog", { name: "Save your changes?" });
+  await leaving.waitFor({ timeout: 15_000 });
+  await leaving.getByRole("button", { name: "Cancel" }).click();
+  await source.getByText("first line unsaved").waitFor({ timeout: 5_000 });
+  expect(await page.getByRole("region", { name: "a-notes.txt" }).count()).toBe(1);
+});
+
 async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
   const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, email);

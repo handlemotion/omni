@@ -23,7 +23,7 @@ export type StorageSpace = StorageNode["space"];
 /** Where a listing, a new folder or an upload goes: a space's root, or inside a folder. */
 export type StoragePlace = { space: StorageSpace } | { parentId: string };
 
-const PAGE_SIZE = "100";
+const pageSize = (cursor: string | null) => (cursor ? "200" : "100");
 
 /** A folder's sidebar glyph, as `PATCH /nodes/:id` takes it. */
 export type StorageFolderIcon = Extract<
@@ -43,7 +43,7 @@ export const storageListQuery = (place: StoragePlace) =>
             query: {
               ...("parentId" in place ? { parent: place.parentId } : { space: place.space }),
               ...(pageParam ? { cursor: pageParam } : {}),
-              limit: PAGE_SIZE,
+              limit: pageSize(pageParam),
             },
           },
           { init: { signal } },
@@ -60,7 +60,12 @@ export const storageTrashQuery = () =>
     queryFn: ({ pageParam, signal }) =>
       call(
         api.storage.trash.$get(
-          { query: { ...(pageParam ? { cursor: pageParam } : {}), limit: PAGE_SIZE } },
+          {
+            query: {
+              ...(pageParam ? { cursor: pageParam } : {}),
+              limit: pageSize(pageParam),
+            },
+          },
           { init: { signal } },
         ),
       ),
@@ -91,7 +96,12 @@ export const createFolderMutation = (client: QueryClient) =>
       shareId?: string;
     }) =>
       shareId
-        ? call(sharedDoor().folders.$post({ param: { shareId }, json: { name, ...place } }))
+        ? call(
+            sharedDoor().folders.$post({
+              param: { shareId },
+              json: { name, ...place },
+            }),
+          )
         : call(api.storage.folders.$post({ json: { name, ...place } })),
     onSuccess: ({ node }, { shareId }) => {
       if (shareId) return storageChanged(client);
@@ -119,14 +129,21 @@ export const changeNodeMutation = (client: QueryClient) =>
             ? { icon: change.icon }
             : change.place;
       return shareId
-        ? call(sharedDoor().nodes[":id"].$patch({ param: { shareId, id: change.id }, json }))
+        ? call(
+            sharedDoor().nodes[":id"].$patch({
+              param: { shareId, id: change.id },
+              json,
+            }),
+          )
         : call(api.storage.nodes[":id"].$patch({ param: { id: change.id }, json }));
     },
     onSuccess: ({ node }, change) =>
       change.shareId
         ? storageChanged(client)
         : "icon" in change
-          ? client.invalidateQueries({ queryKey: keys.storageIcons(node.space) })
+          ? client.invalidateQueries({
+              queryKey: keys.storageIcons(node.space),
+            })
           : storageNodeChanged(client, node),
   });
 
@@ -136,7 +153,12 @@ export const trashNodeMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, shareId }: { id: string; shareId?: string }) =>
       shareId
-        ? call(sharedDoor().nodes[":id"].$delete({ param: { shareId, id }, query: {} }))
+        ? call(
+            sharedDoor().nodes[":id"].$delete({
+              param: { shareId, id },
+              query: {},
+            }),
+          )
         : call(api.storage.nodes[":id"].$delete({ param: { id }, query: {} })),
     onMutate: async ({ id, shareId }) =>
       shareId ? undefined : { held: await storageNodeAhead(client, id) },
@@ -158,7 +180,12 @@ export const deleteForeverMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: (id: string) =>
-      call(api.storage.nodes[":id"].$delete({ param: { id }, query: { forever: "1" } })),
+      call(
+        api.storage.nodes[":id"].$delete({
+          param: { id },
+          query: { forever: "1" },
+        }),
+      ),
     onMutate: async (id) => ({ held: await storageNodeAhead(client, id) }),
     onError: (_error, _id, context) => storageListsPut(client, context?.held),
     onSuccess: (_, id) => storageNodeRemoved(client, id),

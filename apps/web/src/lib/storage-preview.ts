@@ -1,5 +1,6 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { TEXT_PREVIEW_BYTES } from "./file-kind.ts";
+import { fileType, TEXT_PREVIEW_BYTES } from "./file-kind.ts";
+import type { StorageNode } from "./storage.ts";
 import { keys } from "./query-keys.ts";
 import { workspaceHeaders } from "./current-workspace.ts";
 
@@ -165,6 +166,31 @@ export const pdfThumbnailQuery = (source: PreviewSource) =>
     gcTime: 30 * 60_000,
     retry: false,
   });
+
+const READ_AHEAD_MAX_BYTES = 12 * 1024 * 1024;
+
+/**
+ * Starts reading what a file's preview shows, so opening it finds it in the cache: a text or CSV
+ * file's first 512 KB, and with `images` an image's bytes (a list only ever reads thumbnails, so
+ * originals are read ahead only beside an open file). A PDF is read by pdf.js as it draws, and a
+ * workbook is read whole, so neither is read ahead.
+ */
+export function readAhead(
+  client: QueryClient,
+  node: Pick<StorageNode, "kind" | "name" | "mimeType" | "size" | "updatedAt">,
+  url: string,
+  images: boolean,
+) {
+  if (node.kind !== "file" || node.size === 0 || node.size > READ_AHEAD_MAX_BYTES) return;
+  const type = fileType(node.name, node.mimeType);
+  const source = { url, version: node.updatedAt, size: node.size };
+  if (type.preview === "image" && type.raster) {
+    if (!images) return;
+    void client.prefetchQuery(previewImageQuery(source, type.raster));
+  } else if ((type.preview === "text" && type.kind !== "doc") || type.preview === "csv") {
+    void client.prefetchQuery(previewTextQuery(source));
+  }
+}
 
 const tracked = new WeakSet<QueryClient>();
 

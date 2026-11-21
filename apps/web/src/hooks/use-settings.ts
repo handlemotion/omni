@@ -67,7 +67,7 @@ export function useOpenSettings() {
 export function useToggleSettings() {
   const router = useRouter();
   const open = useOpenSettings();
-  const { pathname } = useLocation();
+  const pathname = useLocation({ select: (location) => location.pathname });
   return useCallback(() => {
     if (isSettingsPath(pathname)) void router.history.push(appHref);
     else open();

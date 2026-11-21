@@ -134,7 +134,9 @@ const PANEL =
 function ModuleRail() {
   const { open } = useSidebar();
   const modules = useModules();
-  const inSettings = isSettingsPath(useLocation().pathname);
+  const inSettings = useLocation({
+    select: (location) => isSettingsPath(location.pathname),
+  });
   const module = useCurrentModule();
   const current = inSettings ? null : module;
   const workspace = useWorkspaceSlug();

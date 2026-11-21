@@ -87,7 +87,7 @@ export function moduleHome(pathname: string, workspace: string) {
 }
 
 export function useCurrentModule() {
-  return moduleOf(useLocation().pathname);
+  return useLocation({ select: (location) => moduleOf(location.pathname) });
 }
 
 function ModuleMark({ module, className }: { module: Module; className?: string }) {

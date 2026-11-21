@@ -1,4 +1,11 @@
-import { createFileRoute, notFound, Outlet, redirect, useLocation } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  notFound,
+  Outlet,
+  redirect,
+  useLocation,
+  useRouter,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 import { ComposeDialog } from "../../components/compose/compose-pane.tsx";
 import { ModuleBoundary } from "../../components/errors/error-boundary.tsx";
@@ -65,7 +72,10 @@ export const Route = createFileRoute("/_authed/$workspace")({
     const { mailbox } = location.search as { mailbox?: string };
     const owner = mailbox && workspaceOfMailbox(workspaces, mailbox);
     if (owner && owner.id !== workspace.id) {
-      throw redirect({ href: inOtherWorkspace(location.href, owner.slug), replace: true });
+      throw redirect({
+        href: inOtherWorkspace(location.href, owner.slug),
+        replace: true,
+      });
     }
     if (preload && workspace.id !== currentWorkspaceId()) throw notFound();
     await enterWorkspace(client, workspace);
@@ -119,10 +129,17 @@ function Shell() {
 }
 
 function useSettingsLocation() {
-  const { pathname, href } = useLocation();
-  const settings = isSettingsPath(pathname);
+  const router = useRouter();
+  const settings = useLocation({
+    select: (location) => isSettingsPath(location.pathname),
+  });
   useEffect(() => {
-    if (!settings) rememberAppHref(href);
-  }, [settings, href]);
+    const remember = () => {
+      const { pathname, href } = router.state.location;
+      if (!isSettingsPath(pathname)) rememberAppHref(href);
+    };
+    remember();
+    return router.subscribe("onResolved", remember);
+  }, [router]);
   return settings;
 }

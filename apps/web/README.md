@@ -34,6 +34,10 @@ clicks (rename a deal, add a note, complete a task, open a company) until they s
 Worker whose database is `BENCH_DB_LATENCY` ms away per round trip (default 60, a Worker at the edge
 one region from its database; 2 is a Worker placed beside it), and fails when a change shows and
 is then undone by the refetch. `BENCH_CALLS=1` lists every API call it saw by median time.
+`pnpm bench:preview` opens files in Drive's preview (a 12 MP photo, a PDF, a 6,000-function
+TypeScript file, a 5,000-row CSV, uploaded fresh each run): from the press until the panel shows,
+until the file's content shows, and until all of it has, the first time and again, and stepping
+with → between them (`scripts/bench-preview.ts`).
 
 ## Layout
 

@@ -136,6 +136,7 @@ export function useEditSession(
     },
     enableBeforeUnload: false,
     withResolver: true,
+    disabled: !dirty,
   });
 
   useReportEditing(editing && !shareId ? node : undefined);

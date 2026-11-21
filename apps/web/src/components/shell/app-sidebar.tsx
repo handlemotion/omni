@@ -77,11 +77,15 @@ const folders: NavItem[] = [
   { label: "Spam", icon: <IconWarning />, href: "/mail/spam", current: { path: "/mail/spam" } },
 ];
 
+type Lane = { lane?: string; view?: string };
+
+const mailboxOf = (search: object) => (search as { mailbox?: string }).mailbox;
+
 const MODULE_LABELS = { mail: "Mail", files: "Drive", crm: "CRM" } as const;
 
 export function AppSidebar() {
   const module = useCurrentModule();
-  const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
+  const mailbox = useSearch({ strict: false, select: mailboxOf });
   const { isMobile } = useSidebar();
   const pages = {
     mail: <MailNav mailbox={mailbox} />,
@@ -134,7 +138,7 @@ function MailItems({ mailbox }: { mailbox: string | undefined }) {
 
 function useShownMailbox() {
   const { member } = useMember();
-  const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
+  const mailbox = useSearch({ strict: false, select: mailboxOf });
   const boxes =
     useWorkspaces().data?.workspaces.find((w) => w.id === member.orgId)?.mailboxes ?? [];
   return boxes.find((box) => box.id === mailbox);
@@ -155,8 +159,9 @@ function Group(props: { label: string; items: NavItem[]; mailbox: string | undef
 
 function Items({ items, mailbox }: { items: NavItem[]; mailbox: string | undefined }) {
   const workspace = useWorkspaceSlug();
-  const { pathname } = useLocation();
-  const { lane, view } = useSearch({ strict: false }) as { lane?: string; view?: string };
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const lane = useSearch({ strict: false, select: (search) => (search as Lane).lane });
+  const view = useSearch({ strict: false, select: (search) => (search as Lane).view });
   const isCurrent = ({ current }: NavItem) => {
     if (!current) return false;
     const path = workspaceHref(workspace, current.path);

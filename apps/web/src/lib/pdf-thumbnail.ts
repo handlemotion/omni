@@ -1,10 +1,5 @@
-import { getDocument, GlobalWorkerOptions, PDFWorker } from "pdfjs-dist";
-// oxlint-disable-next-line import/default
-import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
-
-GlobalWorkerOptions.workerSrc = workerUrl;
-
-let worker: PDFWorker | undefined;
+import { getDocument } from "pdfjs-dist";
+import { pdfWorker } from "./pdf-worker.ts";
 
 /** A PDF's first pages for its tile, and what it takes to lay them out. */
 export interface PdfPages {
@@ -24,11 +19,10 @@ export async function firstPages(
   signal: AbortSignal,
   max = 3,
 ) {
-  worker ??= new PDFWorker();
   const task = getDocument({
     url,
     httpHeaders: headers,
-    worker,
+    worker: pdfWorker(),
     disableAutoFetch: true,
     disableStream: true,
     rangeChunkSize: 256 * 1024,

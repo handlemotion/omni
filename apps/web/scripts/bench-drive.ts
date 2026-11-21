@@ -241,9 +241,9 @@ for (let run = 0; run < RUNS; run++) {
   await page.waitForLoadState("networkidle");
 
   for (const [link, grid] of [
-    ["Shared", "Shared"],
+    ["Team", "Team"],
     ["Trash", "Trash"],
-    ["My files", "My files"],
+    ["Personal", "Personal"],
   ] as const) {
     const ms = await timed(page, grid, () =>
       page.getByRole("link", { name: link, exact: true }).first().click(),

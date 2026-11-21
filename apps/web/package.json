@@ -11,6 +11,7 @@
     "test:e2e": "vitest run --config vitest.e2e.mts",
     "bench": "node scripts/bench.ts",
     "bench:drive": "node scripts/bench-drive.ts",
+    "bench:preview": "node scripts/bench-preview.ts",
     "bench:crm": "node scripts/bench-crm.ts"
   },
   "dependencies": {

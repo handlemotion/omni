@@ -28,6 +28,16 @@ export function thumbnailUrl(contentUrl: string, node: StorageNode, size: Thumbn
   return url.toString();
 }
 
+/**
+ * What an image's preview shows while its bytes load: its large thumbnail, when the Worker draws
+ * one and `url` is the file's current content (a kept version has none).
+ */
+export function previewThumbnail(node: StorageNode, url: string) {
+  if (!hasThumbnail(node)) return undefined;
+  if (!new URL(url, window.location.origin).pathname.endsWith("/content")) return undefined;
+  return thumbnailUrl(url, node, 640);
+}
+
 /** A card's thumbnail size: the smallest drawn that stays sharp at this screen's density. */
 export const cardThumbnailSize: () => ThumbnailSize = () =>
   (globalThis.devicePixelRatio ?? 1) > 1.4 ? 640 : 256;

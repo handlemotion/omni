@@ -1,9 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import type { StorageNode } from "../lib/storage.ts";
 import {
   previewImageQuery,
   previewSheetsQuery,
   pdfThumbnailQuery,
   previewTextQuery,
+  readAhead,
   revokePreviewUrls,
   type PreviewSource,
 } from "../lib/storage-preview.ts";
@@ -30,4 +33,17 @@ export function usePdfPages(source: PreviewSource, enabled: boolean) {
   revokePreviewUrls(useQueryClient());
   const options = pdfThumbnailQuery(source);
   return useQuery({ ...options, enabled: enabled && options.enabled !== false });
+}
+
+/**
+ * `(node, url, images)` starts reading a file's preview on a guess, when it is cheap to
+ * (`readAhead`).
+ */
+export function useReadAhead() {
+  const client = useQueryClient();
+  revokePreviewUrls(client);
+  return useCallback(
+    (node: StorageNode, url: string, images: boolean) => readAhead(client, node, url, images),
+    [client],
+  );
 }

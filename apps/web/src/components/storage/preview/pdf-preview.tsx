@@ -1,16 +1,14 @@
 import "@/lib/stream-iterator.ts";
 import "react-pdf/dist/Page/TextLayer.css";
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
-// oxlint-disable-next-line import/default
-import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
+import { Document, Page } from "react-pdf";
 import { SkeletonBox } from "skullet/react";
+import { pdfWorker } from "@/lib/pdf-worker.ts";
 import { PageMarks } from "./pdf-marks.tsx";
 import { NoPreview, StageLoading } from "./shared.tsx";
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-
 const OPTIONS = {
+  worker: pdfWorker(),
   isEvalSupported: false,
   disableAutoFetch: true,
   rangeChunkSize: 1024 * 1024,

@@ -17,6 +17,7 @@ import { useInlineRename, type RenameAt } from "@/hooks/use-inline-rename.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { useNewDoc } from "@/hooks/use-new-doc.ts";
 import { useNodeSelection, type NodeSelection } from "@/hooks/use-node-selection.ts";
+import { useOptimisticSearch } from "@/hooks/use-optimistic-search.ts";
 import { useUploads } from "@/hooks/use-storage.ts";
 import { storageNodeQuery } from "@/lib/storage-comments.ts";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
@@ -25,6 +26,7 @@ import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderIconDialog } from "./folder-icons.tsx";
 import { FolderBody, folderIsEmpty, HeaderActions } from "./folder-body.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
+import { useWarmNeighbors } from "./preview/warm-preview.ts";
 import { SelectionBar, useBulkTrash } from "./selection-bar.tsx";
 import { ShareDialog } from "./share-dialog.tsx";
 import { SignaturesDialog } from "./signatures-dialog.tsx";
@@ -104,6 +106,7 @@ export function FolderView(props: {
       storageErrorToast(error, `“${name}” was not uploaded`),
     );
   const open = useOpenFile(source.list, source.shareId ? undefined : source.place);
+  useWarmNeighbors([open.next, open.previous], source.fileUrl);
   const selection = useNodeSelection(source.list.nodes, placeKeyOf(source), open.id);
   const [movingSelection, setMovingSelection] = useState(false);
   const selectionKeys = useSelectionKeys(selection, source);
@@ -303,28 +306,16 @@ export interface OpenFile {
   select: (id: string | null, replace?: boolean) => void;
 }
 
+const COMMENTS = ["comments"] as const;
+
 const useOpenFile: (list: FolderSource["list"], place: StoragePlace | undefined) => OpenFile = (
   list,
   place,
 ) => {
   const { nodes } = list;
-  const { file } = useSearch({ strict: false }) as { file?: string };
+  const [file, select] = useOptimisticSearch("file", COMMENTS);
   useLoadUntilFound(list, file);
   const direct = useDeepLinkedFile(nodes, file, place);
-  const navigate = useNavigate();
-  const select = useCallback(
-    (id: string | null, replace = false) =>
-      void navigate({
-        to: ".",
-        search: ((prev: Record<string, unknown>) => ({
-          ...prev,
-          file: id ?? undefined,
-          comments: undefined,
-        })) as never,
-        replace,
-      }),
-    [navigate],
-  );
   return useMemo(() => {
     const files = nodes.filter((n) => n.kind === "file");
     const at = file ? files.findIndex((n) => n.id === file) : -1;
