@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
+import { threadWithPendingEffects, withPendingEffects } from "./cache.ts";
 import { prunePending } from "./pending.ts";
 import { keys } from "./query-keys.ts";
 import type { ThreadFilter } from "./types.ts";
@@ -50,19 +51,23 @@ export const countsQuery = () =>
 export const threadsQuery = (filter: ThreadFilter) =>
   infiniteQueryOptions({
     queryKey: keys.threads(filter),
-    queryFn: ({ pageParam, signal }) =>
-      call(
-        api.threads.$get(
-          {
-            query: {
-              view: filter.view,
-              ...(filter.mailbox ? { mailboxId: filter.mailbox } : {}),
-              ...(filter.lane ? { lane: filter.lane } : {}),
-              ...(pageParam ? { cursor: pageParam } : {}),
-              limit: String(pageParam ? OLDER_PAGE_SIZE : FIRST_PAGE_SIZE),
+    queryFn: async ({ pageParam, signal, client }) =>
+      withPendingEffects(
+        client,
+        filter,
+        await call(
+          api.threads.$get(
+            {
+              query: {
+                view: filter.view,
+                ...(filter.mailbox ? { mailboxId: filter.mailbox } : {}),
+                ...(filter.lane ? { lane: filter.lane } : {}),
+                ...(pageParam ? { cursor: pageParam } : {}),
+                limit: String(pageParam ? OLDER_PAGE_SIZE : FIRST_PAGE_SIZE),
+              },
             },
-          },
-          { init: { signal } },
+            { init: { signal } },
+          ),
         ),
       ),
     initialPageParam: null as string | null,
@@ -81,7 +86,7 @@ export const threadQuery = (threadId: string) =>
         api.threads[":id"].$get({ param: { id: threadId } }, { init: { signal } }),
       );
       prunePending(client, threadId, thread.messages);
-      return thread;
+      return threadWithPendingEffects(client, thread);
     },
   });
 

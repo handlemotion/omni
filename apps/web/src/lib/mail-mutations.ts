@@ -1,11 +1,12 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { api, ApiError, call } from "./api.ts";
 import {
-  patchThread,
-  removeFromLists,
-  restore,
-  snapshotThread,
+  applyEffect,
   invalidateThread,
+  restoreFailed,
+  snapshotThread,
+  type Snapshot,
+  type ThreadEffect,
 } from "./cache.ts";
 import { addPending, updatePending } from "./pending.ts";
 import { keys } from "./query-keys.ts";
@@ -22,6 +23,24 @@ const scope = { id: "mail-actions" };
 
 const header = (key: string) => ({ "idempotency-key": key });
 
+function optimistic<V extends Keyed & { threadId: string }>(
+  client: QueryClient,
+  effect: (variables: V) => ThreadEffect,
+) {
+  return {
+    meta: { optimistic: effect },
+    onMutate: async (variables: V) => {
+      const snapshot = await snapshotThread(client, variables.threadId);
+      applyEffect(client, effect(variables));
+      return { snapshot };
+    },
+    onError: (_error: Error, variables: V, result: { snapshot: Snapshot } | undefined) =>
+      restoreFailed(client, result?.snapshot, variables),
+    onSettled: (_data: unknown, _error: unknown, { threadId }: V) =>
+      void invalidateThread(client, threadId),
+  };
+}
+
 export const markReadMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "mark-read"],
@@ -35,12 +54,10 @@ export const markReadMutation = (client: QueryClient) =>
           json: { read },
         }),
       ),
-    onMutate: async ({ threadId, read }) => {
-      const snapshot = await snapshotThread(client, threadId);
-      patchThread(client, threadId, { read, unread: !read });
-      return { snapshot };
-    },
-    onError: (_error, _vars, context) => restore(client, context?.snapshot),
+    ...optimistic(client, ({ threadId, read }: Keyed & { threadId: string; read: boolean }) => ({
+      threadId,
+      patch: { read, unread: !read },
+    })),
     onSettled: () => void client.invalidateQueries({ queryKey: keys.counts() }),
   });
 
@@ -55,14 +72,11 @@ export const laterMutation = (client: QueryClient) =>
       const request = { param: { id: threadId }, header: header(key) };
       return call(later ? route.$post(request) : route.$delete(request));
     },
-    onMutate: async ({ threadId, later }) => {
-      const snapshot = await snapshotThread(client, threadId);
-      patchThread(client, threadId, { later, ...(later ? { done: false } : {}) });
-      removeFromLists(client, threadId, (f) => leavesView(later ? "later" : "unlater", f.view));
-      return { snapshot };
-    },
-    onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
+    ...optimistic(client, ({ threadId, later }: Keyed & { threadId: string; later: boolean }) => ({
+      threadId,
+      patch: { later, ...(later ? { done: false } : {}) },
+      leaves: (view) => leavesView(later ? "later" : "unlater", view),
+    })),
   });
 
 /**
@@ -83,14 +97,11 @@ export const doneMutation = (client: QueryClient) =>
           json: { through },
         }),
       ),
-    onMutate: async ({ threadId }) => {
-      const snapshot = await snapshotThread(client, threadId);
-      patchThread(client, threadId, { done: true, later: false });
-      removeFromLists(client, threadId, (f) => leavesView("done", f.view));
-      return { snapshot };
-    },
-    onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
+    ...optimistic(client, ({ threadId }: Keyed & { threadId: string; through: string }) => ({
+      threadId,
+      patch: { done: true, later: false },
+      leaves: (view) => leavesView("done", view),
+    })),
   });
 
 /** Not done: back in the Inbox. */
@@ -101,14 +112,11 @@ export const undoneMutation = (client: QueryClient) =>
     scope,
     mutationFn: ({ threadId, key }: Keyed & { threadId: string }) =>
       call(api.threads[":id"].done.$delete({ param: { id: threadId }, header: header(key) })),
-    onMutate: async ({ threadId }) => {
-      const snapshot = await snapshotThread(client, threadId);
-      patchThread(client, threadId, { done: false });
-      removeFromLists(client, threadId, (f) => leavesView("undone", f.view));
-      return { snapshot };
-    },
-    onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
+    ...optimistic(client, ({ threadId }: Keyed & { threadId: string }) => ({
+      threadId,
+      patch: { done: false },
+      leaves: (view) => leavesView("undone", view),
+    })),
   });
 
 export const archiveMutation = (client: QueryClient) =>
@@ -118,14 +126,11 @@ export const archiveMutation = (client: QueryClient) =>
     scope,
     mutationFn: ({ threadId, key }: Keyed & { threadId: string }) =>
       call(api.threads[":id"].archive.$post({ param: { id: threadId }, header: header(key) })),
-    onMutate: async ({ threadId }) => {
-      const snapshot = await snapshotThread(client, threadId);
-      patchThread(client, threadId, { archived: true });
-      removeFromLists(client, threadId, (f) => leavesView("archive", f.view));
-      return { snapshot };
-    },
-    onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
+    ...optimistic(client, ({ threadId }: Keyed & { threadId: string }) => ({
+      threadId,
+      patch: { archived: true },
+      leaves: (view) => leavesView("archive", view),
+    })),
   });
 
 /** Moves every copy of the thread to the mailbox's Trash; it leaves the Inbox for everyone. */
@@ -136,14 +141,11 @@ export const trashMutation = (client: QueryClient) =>
     scope,
     mutationFn: ({ threadId, key }: Keyed & { threadId: string }) =>
       call(api.threads[":id"].trash.$post({ param: { id: threadId }, header: header(key) })),
-    onMutate: async ({ threadId }) => {
-      const snapshot = await snapshotThread(client, threadId);
-      patchThread(client, threadId, { archived: true });
-      removeFromLists(client, threadId, (f) => leavesView("trash", f.view));
-      return { snapshot };
-    },
-    onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
+    ...optimistic(client, ({ threadId }: Keyed & { threadId: string }) => ({
+      threadId,
+      patch: { archived: true },
+      leaves: (view) => leavesView("trash", view),
+    })),
   });
 
 /** Moves the thread's messages to another IMAP folder. Not optimistic: no list shows folders. */

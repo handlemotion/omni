@@ -5,6 +5,7 @@ import {
   QueryClient,
   type Mutation,
 } from "@tanstack/react-query";
+import type { ThreadEffect } from "./cache.ts";
 import { classify, failureMessage, reportFailure, type Failure } from "./failure.ts";
 import { keys } from "./query-keys.ts";
 
@@ -16,6 +17,8 @@ declare module "@tanstack/react-query" {
        * an inline problem, a retry), so the default toast stays quiet.
        */
       handlesError?: boolean;
+      /** What the action does to the cache until it settles (see `ThreadEffect`). */
+      optimistic?: (variables: never) => ThreadEffect;
     };
   }
 }

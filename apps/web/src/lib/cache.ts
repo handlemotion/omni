@@ -1,6 +1,13 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import { filterOf, keys } from "./query-keys.ts";
-import type { ConversationPage, Thread, ThreadFilter, ThreadPage, ThreadSummary } from "./types.ts";
+import type {
+  ConversationPage,
+  Thread,
+  ThreadFilter,
+  ThreadPage,
+  ThreadSummary,
+  ThreadView,
+} from "./types.ts";
 
 type ThreadPages = InfiniteData<ThreadPage, string | null>;
 type ConversationPages = InfiniteData<ConversationPage, string | null>;
@@ -27,15 +34,81 @@ export function restore(client: QueryClient, snapshot: Snapshot | undefined) {
   for (const [key, data] of snapshot ?? []) client.setQueryData(key, data);
 }
 
+type ThreadPatch = Partial<ThreadSummary> & Partial<Thread>;
+
+/**
+ * What a triage action does to the cache before the server answers: patches the thread, and
+ * takes it out of every list whose view it `leaves`. A mutation declares it as
+ * `meta.optimistic`, so fetches that land while it is pending show it too.
+ */
+export interface ThreadEffect {
+  threadId: string;
+  patch: ThreadPatch;
+  leaves?: (view: ThreadView | undefined) => boolean;
+}
+
+/** Applies `effect` to every cached list and to the thread. */
+export function applyEffect(client: QueryClient, { threadId, patch, leaves }: ThreadEffect) {
+  patchThread(client, threadId, patch);
+  if (leaves) removeFromLists(client, threadId, (filter) => leaves(filter.view));
+}
+
+/**
+ * The effects of the mail actions not yet settled, oldest first, except the one run with
+ * `excluding` (its variables). A list fetched while one is pending predates it on the server.
+ */
+export function pendingEffects(client: QueryClient, excluding?: unknown) {
+  return client
+    .getMutationCache()
+    .findAll({ mutationKey: keys.mail(), status: "pending" })
+    .flatMap((mutation) => {
+      const effect = mutation.meta?.optimistic;
+      const { variables } = mutation.state;
+      return effect && variables !== excluding ? [effect(variables as never)] : [];
+    });
+}
+
+/** A fetched list page, as it looks once the pending actions have landed. */
+export function withPendingEffects(client: QueryClient, filter: ThreadFilter, page: ThreadPage) {
+  return pendingEffects(client).reduce(
+    (current, { threadId, patch, leaves }) => ({
+      ...current,
+      threads: current.threads.flatMap((row) => {
+        if (row.id !== threadId) return [row];
+        return leaves?.(filter.view) ? [] : [{ ...row, ...patch }];
+      }),
+    }),
+    page,
+  );
+}
+
+/** A fetched thread, as it looks once the pending actions on it have landed. */
+export function threadWithPendingEffects(client: QueryClient, thread: Thread) {
+  return pendingEffects(client)
+    .filter((effect) => effect.threadId === thread.id)
+    .reduce((current, { patch }) => ({ ...current, ...patch }), thread);
+}
+
+/**
+ * Undoes a failed action: puts back the cache as it was before it, then re-applies the actions
+ * still pending since, so their threads don't come back with it. Lists first fetched while it
+ * was pending are not in the snapshot, so the thread and every list refetch too.
+ */
+export function restoreFailed(
+  client: QueryClient,
+  snapshot: Snapshot | undefined,
+  variables: { threadId: string },
+) {
+  restore(client, snapshot);
+  for (const effect of pendingEffects(client, variables)) applyEffect(client, effect);
+  void invalidateThread(client, variables.threadId);
+}
+
 /**
  * Applies a patch to the thread in every cached list and in its detail. A helpdesk row takes
  * only the fields it has (read state, say), not mail-only ones like `done`.
  */
-export function patchThread(
-  client: QueryClient,
-  threadId: string,
-  patch: Partial<ThreadSummary> & Partial<Thread>,
-) {
+export function patchThread(client: QueryClient, threadId: string, patch: ThreadPatch) {
   client.setQueriesData<ThreadPages>({ queryKey: keys.threadLists() }, (data) =>
     mapRows(data, (row) => (row.id === threadId ? { ...row, ...patch } : row)),
   );
