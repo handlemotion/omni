@@ -165,6 +165,7 @@ settings:
 overrides:
   '@esbuild-kit/core-utils>esbuild': 0.25.12
   '@sentry/bundler-plugins>glob': 14.0.3
+  '@expo/fingerprint>minimatch': 11.0.4
 
 patchedDependencies:
   react-aria@3.53.1: 04355547d34b617d3ba5937bff293d7c3642937ec1eaaffd3ddc7122220d1b93
@@ -7080,10 +7081,6 @@ packages:
   minimalistic-assert@1.0.1:
     resolution: {integrity: sha512-UtJcAD4yEaGtjPezWuO9wC4nwUnVH/8/Im3yEHQP4b67cXlD/Qr9hdITCU1xDbSEXg2XKNaP8jsReV7vQd00/A==}
 
-  minimatch@10.2.6:
-    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
-    engines: {node: 18 || 20 || >=22}
-
   minimatch@11.0.4:
     resolution: {integrity: sha512-/UJ1dEoVQTjPNDh6SGlUo+ueLMmoHTas4q+8yaAR/5t6nLAIiBDJtoYUh20IYleix7ehiQkgczb84PE3uzHkxg==}
     engines: {node: 20 || >=22}
@@ -9981,7 +9978,7 @@ snapshots:
       chalk: 4.1.2
       debug: 4.4.3(supports-color@10.2.2)
       ignore: 5.3.2
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       resolve-from: 5.0.0
       semver: 7.8.5
     transitivePeerDependencies:
@@ -15031,10 +15028,6 @@ snapshots:
       - utf-8-validate
 
   minimalistic-assert@1.0.1: {}
-
-  minimatch@10.2.6:
-    dependencies:
-      brace-expansion: 5.0.12
 
   minimatch@11.0.4:
     dependencies:
