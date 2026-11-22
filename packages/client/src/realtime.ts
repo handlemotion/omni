@@ -237,6 +237,8 @@ export function connectRealtime(options: RealtimeOptions) {
 /** `STORAGE_DOC_PRESENCE_MAX` in `@omni/contracts`, without pulling its schemas in. */
 export const DOC_PRESENCE_MAX = 4096;
 
+export { LiveParts, splitLiveRecord, type LiveWhole } from "@omni/contracts/storage-live-parts";
+
 /** `STORAGE_LIVE_SNAP_EVERY` in `@omni/contracts`, without pulling its schemas in. */
 export const LIVE_SNAP_EVERY = 200;
 
@@ -359,12 +361,23 @@ const DOC_REFUSALS = new Set([
   "rate",
 ]);
 
+const partsOf = (n: unknown) =>
+  typeof n === "number" && Number.isInteger(n) && n >= 2 ? { n } : n === undefined ? {} : null;
+
 const parseLiveRecord: (value: unknown) => StorageLiveRecord | undefined = (value) => {
   if (typeof value !== "object" || value === null) return undefined;
-  const { t, cv, e, u } = value as Record<string, unknown>;
-  if (t === "seed" && isSeqNum(cv) && typeof u === "string") return { t, cv, u };
-  if (t === "update" && isSeqNum(e) && typeof u === "string") return { t, e, u };
-  const { s } = value as Record<string, unknown>;
+  const { t, cv, e, u, s, f, h, i, n } = value as Record<string, unknown>;
+  const parts = partsOf(n);
+  if (typeof u === "string" && parts) {
+    if (t === "seed" && isSeqNum(cv)) return { t, cv, u, ...parts };
+    if (t === "update" && isSeqNum(e)) return { t, e, u, ...parts };
+    if (t === "snap" && isSeqNum(e) && isSeqNum(s) && isSeqNum(cv) && isSeqNum(f)) {
+      return { t, e, s, cv, f, u, ...parts };
+    }
+  }
+  if (t === "more" && isSeqNum(h) && isSeqNum(i) && i >= 1 && typeof u === "string") {
+    return { t, h, i, u };
+  }
   if (t === "fold" && isSeqNum(e) && isSeqNum(cv) && isSeqNum(s)) return { t, e, cv, s };
   return undefined;
 };

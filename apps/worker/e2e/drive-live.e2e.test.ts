@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { STORAGE_LIVE_SNAP_EVERY } from "@omni/contracts";
-import { rewriteLive } from "@omni/docs";
+import {
+  LiveParts,
+  splitLiveRecord,
+  STORAGE_LIVE_SNAP_EVERY,
+  type StorageLiveEntry,
+} from "@omni/contracts";
+import { liveMarkdown, rewriteLive } from "@omni/docs";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import * as Y from "yjs";
 import {
@@ -243,5 +248,171 @@ test("a version restored while people edit is an edit of their live document: th
     ifContentVersion: 3,
   });
   expect(saved.status).toBe(201);
+  tab.socket.close();
+});
+
+const paragraphs = (words: string) =>
+  Array.from({ length: 560 }, (_, i) => `${i} ${words.repeat(130)}`).join("\n\n");
+
+test("a document too large for one record goes through in parts: a split seed opens, a split paste reaches an agent's edit whole, and a split snap missing a part is passed over", async () => {
+  const org = await stack.company(`parts-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const first = `# Long\n\n${paragraphs("lorem ipsum ")}`;
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "long.md", bytes(first));
+  const tab = await editor(ana.jar, doc.id);
+
+  const typing = new Y.Doc();
+  const seed = splitLiveRecord({ t: "seed", cv: 1, u: base64(rewriteLive(typing, first)) });
+  expect(seed.head.n).toBeGreaterThan(1);
+  const epoch = await tab.append(seed.head, 0);
+  for (const part of seed.rest(epoch)) await tab.append(part);
+
+  const pasted = `# Long\n\n${paragraphs("dolor sitam ")}\n\nTyped by Ana`;
+  const paste = splitLiveRecord({ t: "update", e: epoch, u: base64(rewriteLive(typing, pasted)) });
+  expect(paste.head.n).toBeGreaterThan(1);
+  const pasteAt = await tab.append(paste.head);
+  let last = pasteAt;
+  for (const part of paste.rest(pasteAt)) last = await tab.append(part);
+
+  const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const edited = await call(agent, "drive_edit_doc", {
+    id: doc.id,
+    edits: [{ find: "Typed by Ana", replace: "Typed by Ana, kept by the agent" }],
+  });
+  expect(edited).not.toHaveProperty("error");
+  const saved = pasted.replace("Typed by Ana", "Typed by Ana, kept by the agent");
+  expect(await (await stack.download(ana.jar, doc.id)).text()).toBe(saved);
+
+  const fold = await tab.waitFor(
+    (e) => e.type === "doc.record" && (e.record as Event).t === "fold",
+  );
+  const joiner = new LiveParts();
+  for (const e of tab.received.filter((event) => event.type === "doc.record")) {
+    const whole = joiner.push({ seqNum: e.seqNum, record: e.record } as StorageLiveEntry);
+    if (whole?.record.t === "update") Y.applyUpdate(typing, Buffer.from(whole.record.u, "base64"));
+  }
+  expect(liveMarkdown(typing)).toBe(saved);
+
+  const snap = splitLiveRecord({
+    t: "snap",
+    e: epoch,
+    s: fold.seqNum as number,
+    cv: 2,
+    f: last,
+    u: base64(Y.encodeStateAsUpdate(typing)),
+  });
+  expect(snap.head.n).toBeGreaterThan(1);
+  await tab.append(snap.head);
+  const opened = await stack.api(ana.jar, "GET", `/files/${doc.id}/live?from=latest`);
+  const entries = (opened.body as { entries: StorageLiveEntry[] }).entries;
+  expect(entries[0]).toMatchObject({ seqNum: epoch, record: { t: "seed", n: seed.head.n } });
+
+  const after = await call(agent, "drive_edit_doc", {
+    id: doc.id,
+    edits: [{ find: "kept by the agent", replace: "kept by the agent, twice" }],
+  });
+  expect(after).not.toHaveProperty("error");
+  const reread = await call(agent, "drive_fetch", { id: doc.id });
+  expect((reread as { metadata: Record<string, unknown> }).metadata).not.toHaveProperty(
+    "unsaved_edits",
+  );
+  tab.socket.close();
+});
+
+test("an agent's edit that fit one record before parts still goes as one, and a split change finished after a save still reads as unsaved", async () => {
+  const org = await stack.company(`one-record-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const first = "# Notes\n\nShort";
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "notes.md", bytes(first));
+  const tab = await editor(ana.jar, doc.id);
+  const typing = new Y.Doc();
+  const epoch = await tab.append({ t: "seed", cv: 1, u: base64(rewriteLive(typing, first)) }, 0);
+
+  const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const long = "x".repeat(610_000);
+  const edited = await call(agent, "drive_edit_doc", {
+    id: doc.id,
+    edits: [{ find: "Short", replace: long }],
+  });
+  expect(edited).not.toHaveProperty("error");
+  const heard = await tab.waitFor(
+    (e) => e.type === "doc.record" && (e.record as Event).t === "update",
+  );
+  expect((heard.record as Event).n).toBeUndefined();
+  await tab.waitFor((e) => e.type === "doc.record" && (e.record as Event).t === "fold");
+  Y.applyUpdate(typing, Buffer.from((heard.record as { u: string }).u, "base64"));
+  expect(liveMarkdown(typing)).toBe(`# Notes\n\n${long}`);
+
+  const pasted = `# Notes\n\n${paragraphs("dolor sitam ")}`;
+  const paste = splitLiveRecord({ t: "update", e: epoch, u: base64(rewriteLive(typing, pasted)) });
+  expect(paste.head.n).toBeGreaterThan(1);
+  const head = await tab.append(paste.head);
+  const between = await tab.append({
+    t: "update",
+    e: epoch,
+    u: base64(Y.encodeStateAsUpdate(new Y.Doc())),
+  });
+  await tab.append({ t: "fold", e: epoch, cv: 2, s: between });
+  for (const part of paste.rest(head)) await tab.append(part);
+
+  const fetched = await call(agent, "drive_fetch", { id: doc.id });
+  expect(fetched).toMatchObject({ metadata: { unsaved_edits: true } });
+  expect((fetched as { text: string }).text.startsWith("# Notes\n\n0 dolor sitam")).toBe(true);
+
+  const stalled = splitLiveRecord({
+    t: "update",
+    e: epoch,
+    u: base64(rewriteLive(typing, `${pasted}\n\n${paragraphs("amet elit ")}`)),
+  });
+  await tab.append(stalled.head);
+  const [zero, one] = await Promise.all([
+    call(agent, "drive_edit_doc", {
+      id: doc.id,
+      edits: [{ find: "\n\n0 dolor", replace: "\n\nZero dolor" }],
+    }),
+    call(agent, "drive_edit_doc", {
+      id: doc.id,
+      edits: [{ find: "\n\n1 dolor", replace: "\n\nOne dolor" }],
+    }),
+  ]);
+  expect(zero).not.toHaveProperty("error");
+  expect(one).not.toHaveProperty("error");
+  const both = await (await stack.download(ana.jar, doc.id)).text();
+  expect(both).toContain("Zero dolor");
+  expect(both).toContain("One dolor");
+  tab.socket.close();
+});
+
+test("a record too large to share a read with the small ones before it still opens with them", async () => {
+  const org = await stack.company(`cut-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const first = "# Notes\n\nStart";
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "notes.md", bytes(first));
+  const tab = await editor(ana.jar, doc.id);
+  const typing = new Y.Doc();
+  const epoch = await tab.append({ t: "seed", cv: 1, u: base64(rewriteLive(typing, first)) }, 0);
+  let text = first;
+  for (let i = 0; i < 35; i++) {
+    text += `\n\n${i} ${"typed ".repeat(330)}`;
+    await tab.append({ t: "update", e: epoch, u: base64(rewriteLive(typing, text)) });
+  }
+  const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const long = "x".repeat(730_000);
+  const edited = await call(agent, "drive_edit_doc", {
+    id: doc.id,
+    edits: [{ find: "Start", replace: long }],
+  });
+  expect(edited).not.toHaveProperty("error");
+
+  const opened = await stack.api(ana.jar, "GET", `/files/${doc.id}/live?from=latest`);
+  const { entries } = opened.body as { entries: StorageLiveEntry[] };
+  expect(entries.map((e) => e.record.t)).toEqual(["seed", ...Array(36).fill("update"), "fold"]);
+  const big = entries.at(-2)!.record as { u: string; n?: number };
+  expect(big.n).toBeUndefined();
+  expect(big.u.length).toBeGreaterThan(950_000);
+  const next = `/files/${doc.id}/live?from=${entries.at(-1)!.seqNum + 1}`;
+  expect((await stack.api(ana.jar, "GET", next)).body).toMatchObject({ entries: [], more: false });
+  Y.applyUpdate(typing, Buffer.from(big.u, "base64"));
+  expect(liveMarkdown(typing)).toBe(text.replace("Start", long));
   tab.socket.close();
 });

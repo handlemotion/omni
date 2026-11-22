@@ -1,6 +1,10 @@
 import {
   latestEpochStart,
+  LiveParts,
+  splitLiveRecord,
+  STORAGE_LIVE_RECORD_CHARS,
   STORAGE_LIVE_SNAP_EVERY,
+  type LiveWhole,
   type StorageDocEvent,
   type StorageLiveEntry,
   type StorageLiveRecord,
@@ -35,6 +39,7 @@ export class LiveFile {
   private fold: { cv: number; s: number };
   private changedAt = -1;
   private start = -1;
+  private readonly parts = new LiveParts();
 
   private constructor(
     basin: S2Basin,
@@ -57,7 +62,11 @@ export class LiveFile {
 
   /** The latest epoch of `nodeId`, whatever version of the file it last saved. */
   static async latest(basin: S2Basin, nodeId: string) {
-    const entries = await readLive(basin, nodeId, await latestLiveStart(basin, nodeId));
+    const raw = await readLive(basin, nodeId, await latestLiveStart(basin, nodeId));
+    const joiner = new LiveParts();
+    const entries = raw
+      .flatMap((entry) => joiner.push(entry) ?? [])
+      .toSorted((a, b) => a.seqNum - b.seqNum);
     const first = latestEpochStart(entries);
     if (!first) return null;
     const { record } = first;
@@ -72,7 +81,7 @@ export class LiveFile {
       live.next = record.s + 1;
       live.changedAt = record.s;
     }
-    live.take(entries);
+    live.take(raw);
     return live;
   }
 
@@ -86,9 +95,10 @@ export class LiveFile {
     return liveMarkdown(this.doc);
   }
 
-  /** The last record it holds, with every one before it. */
+  /** The last record it holds all of, with every one before it: never past a record still in parts. */
   get through() {
-    return this.next - 1;
+    const pending = this.parts.pendingFrom();
+    return pending === null ? this.next - 1 : Math.min(this.next - 1, pending - 1);
   }
 
   /** Whether it holds changes made after its latest save: typing the file does not have yet. */
@@ -107,20 +117,27 @@ export class LiveFile {
 
   /**
    * Appends `update`, a change already made to this document, for everyone editing to merge with
-   * their own, then catches up with what others appended meanwhile. Answers the record to pass on
-   * and the last one the document now holds.
+   * their own: as one record, split into parts when it is too large for one. Then catches up with
+   * what others appended meanwhile. Answers the records to pass on, the last record the document
+   * now holds all of, and the last of its own.
    */
   async append(update: Uint8Array, by?: string) {
-    const record: StorageLiveRecord = {
-      t: "update",
-      e: this.epoch,
-      u: toBase64(update),
-      ...(by ? { by } : {}),
-    };
-    const seqNum = await this.basin.append(docStream(this.nodeId), JSON.stringify(record));
+    const { head, rest } = splitLiveRecord(
+      { t: "update", e: this.epoch, u: toBase64(update), ...(by ? { by } : {}) },
+      STORAGE_LIVE_RECORD_CHARS,
+    );
+    const stream = docStream(this.nodeId);
+    const seqNum = await this.basin.append(stream, JSON.stringify(head));
     if (seqNum === null) throw new Error("storage: the live document refused a change");
+    const entries: StorageLiveEntry[] = [{ seqNum, record: head }];
+    for (const record of rest(seqNum)) {
+      const at = await this.basin.append(stream, JSON.stringify(record));
+      if (at === null) throw new Error("storage: the live document refused part of a change");
+      entries.push({ seqNum: at, record });
+    }
     this.take(await readLive(this.basin, this.nodeId, this.next));
-    return { entry: { seqNum, record } satisfies StorageLiveEntry, through: this.next - 1 };
+    const mine = entries.at(-1)!.seqNum;
+    return { entries, entry: entries[0]!, through: this.through, mine };
   }
 
   /** Records that the document through record `through` was saved as `contentVersion`. */
@@ -162,17 +179,24 @@ export class LiveFile {
   }
 
   private take(entries: StorageLiveEntry[]) {
-    for (const { seqNum, record } of entries) {
-      if (seqNum < this.next) continue;
-      this.next = seqNum + 1;
-      if (record.t === "seed" ? seqNum !== this.epoch : record.e !== this.epoch) continue;
-      if (record.t === "fold") {
-        if (record.cv > this.fold.cv) this.fold = { cv: record.cv, s: record.s };
-        continue;
-      }
-      Y.applyUpdate(this.doc, fromBase64(record.u));
-      if (record.t === "update") this.changedAt = seqNum;
+    for (const entry of entries) {
+      if (entry.seqNum < this.next) continue;
+      this.next = entry.seqNum + 1;
+      const whole = this.parts.push(entry);
+      if (whole) this.use(whole);
     }
+    this.parts.abandon(this.next);
+  }
+
+  private use({ seqNum, record, completedAt }: LiveWhole) {
+    if (record.t === "more") return;
+    if (record.t === "seed" ? seqNum !== this.epoch : record.e !== this.epoch) return;
+    if (record.t === "fold") {
+      if (record.cv > this.fold.cv) this.fold = { cv: record.cv, s: record.s };
+      return;
+    }
+    Y.applyUpdate(this.doc, fromBase64(record.u));
+    if (record.t === "update") this.changedAt = Math.max(this.changedAt, completedAt);
   }
 }
 

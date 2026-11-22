@@ -1,5 +1,6 @@
 import {
   latestEpochStart,
+  LiveParts,
   liveStartOf,
   storageLiveRecordSchema,
   type StorageLiveEntry,
@@ -55,17 +56,37 @@ export async function latestLiveStart(basin: S2Basin, nodeId: string) {
   return all ? liveStartOf(all) : 0;
 }
 
-/** Every record of the document from `from`, with when S2 appended it (`at`, in ms). */
+/**
+ * Every whole record of the document from `from`, with when S2 appended its last part (`at`, in
+ * ms): split records joined and placed at their head, `more` parts left out. It stops before the
+ * first update still waiting for parts, so a reader that resumes after the last one it got reads
+ * that update again once it is whole; one given up on (`STORAGE_LIVE_PART_WINDOW`) is skipped.
+ */
 export async function readLiveTimed(basin: S2Basin, nodeId: string, from: number) {
-  const entries: (StorageLiveEntry & { at: number })[] = [];
+  const joiner = new LiveParts();
+  const times = new Map<number, number>();
+  const whole: (StorageLiveEntry & { at: number })[] = [];
+  let end = from;
   for (let at = from; ;) {
     const page = await basin.read(docStream(nodeId), at);
-    const times = new Map(page.records.map((r) => [r.seqNum, r.timestamp]));
+    for (const r of page.records) times.set(r.seqNum, r.timestamp);
     for (const entry of liveEntries(page.records)) {
-      entries.push({ ...entry, at: times.get(entry.seqNum) ?? 0 });
+      const done = joiner.push(entry);
+      if (done)
+        whole.push({
+          seqNum: done.seqNum,
+          record: done.record,
+          at: times.get(done.completedAt) ?? 0,
+        });
     }
     const last = page.records.at(-1);
-    if (!page.more || !last) return entries;
+    if (last) end = last.seqNum + 1;
+    if (!page.more || !last) break;
     at = last.seqNum + 1;
   }
+  joiner.abandon(end);
+  const pending = joiner.pendingFrom();
+  return whole
+    .filter((entry) => pending === null || entry.seqNum < pending)
+    .toSorted((a, b) => a.seqNum - b.seqNum);
 }

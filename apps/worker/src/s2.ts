@@ -1,5 +1,8 @@
 import type { Config } from "./env.ts";
 
+// WARNING: S2 also ends a read near 1 MiB, unsaid; only an empty read proves the end.
+const S2_READ_BYTES = 1024 * 1024;
+
 export interface S2Record {
   seqNum: number;
   body: string;
@@ -37,27 +40,33 @@ export function s2Basin(config: Config) {
     }
     return body as T;
   };
-  const readAt = async (stream: string, start: string, count: number) => {
+  const readOnce = async (stream: string, start: string, count: number) => {
     try {
       const { records: batch } = await call<{
         records: { seq_num: number; body?: string; timestamp?: number }[];
       }>(`${records(stream)}?${start}&count=${count}`);
-      return {
-        records: batch.map(
-          (r) =>
-            ({
-              seqNum: r.seq_num,
-              body: r.body ?? "",
-              timestamp: r.timestamp ?? 0,
-            }) satisfies S2Record,
-        ),
-        more: batch.length === count,
-      };
+      return batch.map(
+        (r) =>
+          ({
+            seqNum: r.seq_num,
+            body: r.body ?? "",
+            timestamp: r.timestamp ?? 0,
+          }) satisfies S2Record,
+      );
     } catch (error) {
-      if (error instanceof S2Error && error.status === 416) {
-        return { records: [] as S2Record[], more: false };
-      }
+      if (error instanceof S2Error && error.status === 416) return [];
       throw error;
+    }
+  };
+  const readAt = async (stream: string, start: string, count: number) => {
+    const out: S2Record[] = [];
+    let bytes = 0;
+    for (let at = start; ; at = `seq_num=${out.at(-1)!.seqNum + 1}`) {
+      const batch = await readOnce(stream, at, count - out.length);
+      if (!batch.length) return { records: out, more: false };
+      out.push(...batch);
+      bytes += batch.reduce((n, r) => n + r.body.length, 0);
+      if (out.length >= count || bytes >= S2_READ_BYTES) return { records: out, more: true };
     }
   };
   return {

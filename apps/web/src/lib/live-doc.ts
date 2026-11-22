@@ -1,6 +1,8 @@
 import {
   DOC_PRESENCE_MAX,
   LIVE_SNAP_EVERY,
+  LiveParts,
+  type LiveWhole,
   type RealtimeClientMessage,
   type RealtimeEvent,
 } from "@omni/client";
@@ -135,6 +137,7 @@ export class LiveDoc {
   private orphanTimer: ReturnType<typeof setTimeout> | undefined;
   private orphanTries = 0;
   private folds = new Set<number>();
+  private readonly parts = new LiveParts();
   private pending = new Map<number, { record: StorageLiveRecord; matchSeqNum?: number }>();
   private answers = new Map<number, (event: StorageDocEvent) => void>();
   private batch: Uint8Array[] = [];
@@ -181,11 +184,16 @@ export class LiveDoc {
    * epoch was saved as when that is newer than the file this tab read.
    */
   join(entries: StorageLiveEntry[]) {
+    const joiner = new LiveParts();
+    const whole = entries
+      .flatMap((entry) => joiner.push(entry) ?? [])
+      .toSorted((a, b) => a.seqNum - b.seqNum);
     let epoch = -1;
-    for (const { seqNum, record: each } of entries) {
+    for (const { seqNum, record: each } of whole) {
+      if (each.t === "more") continue;
       epoch = Math.max(epoch, each.t === "seed" ? seqNum : each.e);
     }
-    const first = entries.findLast(
+    const first = whole.findLast(
       ({ seqNum, record: each }) =>
         (each.t === "seed" && seqNum === epoch) || (each.t === "snap" && each.e === epoch),
     );
@@ -211,6 +219,7 @@ export class LiveDoc {
     for (const entry of entries) {
       if (entry.seqNum >= this.next) this.apply(entry, false);
     }
+    this.readThrough(entries);
     return true;
   }
 
@@ -482,10 +491,19 @@ export class LiveDoc {
   }
 
   private apply(entry: StorageLiveEntry, mine: boolean) {
-    const { seqNum, record } = entry;
-    if (seqNum < this.epoch || this.known.has(seqNum)) return;
+    if (entry.seqNum < this.epoch || this.known.has(entry.seqNum)) return;
+    const whole = this.parts.push(entry);
+    if (!whole) return;
+    this.use(whole, mine);
+    for (const seqNum of whole.seqNums) this.markKnown(seqNum, false);
+    if (this.started) this.watchOrphans();
+  }
+
+  private use(entry: LiveWhole, mine: boolean) {
+    const { seqNum, record, completedAt } = entry;
+    if (record.t === "more") return;
     if (record.t === "seed" && seqNum !== this.epoch) return;
-    if (record.t !== "seed" && record.e !== this.epoch) return this.markKnown(seqNum, false);
+    if (record.t !== "seed" && record.e !== this.epoch) return;
     if (record.t === "fold") {
       this.lastFold = Math.max(this.lastFold, record.s);
       this.foldCv = Math.max(this.foldCv, record.cv);
@@ -493,11 +511,17 @@ export class LiveDoc {
       this.options.onFolded(record.cv);
     } else {
       Y.applyUpdate(this.doc, fromBase64(record.u), REMOTE);
-      if (record.t === "update" && seqNum > this.last.seqNum) this.last = { seqNum, mine };
+      if (record.t === "update" && completedAt > this.last.seqNum) {
+        this.last = { seqNum: completedAt, mine };
+      }
       if (record.t === "snap") this.startAt = Math.max(this.startAt, seqNum);
     }
-    this.markKnown(seqNum, false);
-    if (this.started) this.watchOrphans();
+  }
+
+  private readThrough(entries: StorageLiveEntry[]) {
+    const end = entries.at(-1)?.seqNum;
+    if (end === undefined) return;
+    for (const seqNum of this.parts.abandon(end + 1)) this.markKnown(seqNum, false);
   }
 
   private markKnown(seqNum: number, mine: boolean) {
@@ -517,6 +541,7 @@ export class LiveDoc {
         }
         this.apply(entry, false);
       }
+      this.readThrough(entries);
     } finally {
       this.catchingUp = false;
     }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { splitLiveRecord } from "@omni/contracts";
 import { liveMarkdown, rewriteLive } from "@omni/docs";
 import { schema } from "@omni/db";
 import { asc, eq } from "drizzle-orm";
@@ -514,5 +515,34 @@ test("a page's save journaled before its fold lands is not listed twice; one tha
   expect(await stack.cron("* * * * *")).toBe("ok");
   await settled(doc.id, 3);
   expect(await writes()).toEqual([-3, -1]);
+  tab.socket.close();
+});
+
+test("a paste split into parts is journaled whole, at its head, once its last part is in", async () => {
+  const org = await stack.company(`split-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const first = "# Long\n\nStart";
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "long.md", bytes(first));
+  await settled(doc.id, 1);
+  const tab = await editor(stack, ana.jar, doc.id);
+  const page = new Y.Doc();
+  const seed = base64(rewriteLive(page, first));
+  const epoch = await tab.append({ t: "seed", cv: 1, u: seed }, 0);
+  const pasted = `${first}\n\n${Array.from({ length: 560 }, (_, i) => `${i} ${"dolor sitam ".repeat(130)}`).join("\n\n")}`;
+  const paste = splitLiveRecord({ t: "update", e: epoch, u: base64(rewriteLive(page, pasted)) });
+  expect(paste.head.n).toBeGreaterThan(1);
+  const head = await tab.append(paste.head);
+  let last = head;
+  for (const part of paste.rest(head)) last = await tab.append(part);
+  await save(ana.jar, doc.id, pasted, 1);
+  await tab.append({ t: "fold", e: epoch, cv: 2, s: last });
+
+  await expect.poll(async () => (await liveChangesOf(doc.id)).length, { timeout: 10_000 }).toBe(1);
+  const [run] = await liveChangesOf(doc.id);
+  expect([run!.by, run!.firstSeq, run!.lastSeq]).toEqual([`m:${ana.id}`, head, head]);
+  const replayed = new Y.Doc();
+  Y.applyUpdate(replayed, Buffer.from(seed, "base64"));
+  Y.applyUpdate(replayed, Buffer.from(run!.update, "base64"));
+  expect(liveMarkdown(replayed)).toBe(pasted);
   tab.socket.close();
 });

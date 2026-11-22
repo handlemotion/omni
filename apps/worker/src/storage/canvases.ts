@@ -93,10 +93,10 @@ export async function editCanvas(
   const refused = await refusalFor(deps, files, node.orgId, target, body, node.mimeType);
   if (refused && refused.status !== "ok") return refused;
   await files.endSession(nodeId);
-  const { entry, through } = await live.append(rewriteCanvas(live.doc, changed.scene));
-  passOn(deps, node.orgId, nodeId, [entry]);
+  const { entries, through, mine } = await live.append(rewriteCanvas(live.doc, changed.scene));
+  passOn(deps, node.orgId, nodeId, entries);
   const at = { nodeId, orgId: node.orgId, base: node.contentVersion, mimeType: node.mimeType };
-  const saved: WriteResult = await saveLive(deps, files, at, live, through, () =>
+  const saved: WriteResult = await saveLive(deps, files, at, live, { through, mine }, () =>
     sceneToJson(liveScene(live.doc)),
   );
   return { ...saved, changed, scene: liveScene(live.doc) };

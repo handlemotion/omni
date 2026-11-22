@@ -180,7 +180,9 @@ export async function onOutsideAppend(
   const { nodeId, ref, record } = message;
   if (editingOf(socket)?.nodeId !== nodeId) return;
   if (!limitsOf(socket).append.take()) return refuse(socket, nodeId, ref, "rate");
-  if (record.t !== "update") return refuse(socket, nodeId, ref, "read_only");
+  if (record.t !== "update" || record.n !== undefined) {
+    return refuse(socket, nodeId, ref, "read_only");
+  }
   if (!wellFormed(record.u)) return refuse(socket, nodeId, ref, "read_only");
   const basin = s2Basin(loadConfig(env));
   if (!basin) return refuse(socket, nodeId, ref, "unavailable");

@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./errors": "./src/errors.ts",
-    "./headers": "./src/headers.ts"
+    "./headers": "./src/headers.ts",
+    "./storage-live-parts": "./src/storage-live-parts.ts"
   },
   "scripts": {
     "native-types": "node scripts/native-types.ts",

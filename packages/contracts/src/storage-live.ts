@@ -1,6 +1,10 @@
 import { z } from "zod";
 
+import { liveRecordWhole, STORAGE_LIVE_MAX_PARTS } from "./storage-live-parts.ts";
+
 const id = z.string().min(1);
+
+const parts = z.number().int().min(2).max(STORAGE_LIVE_MAX_PARTS);
 
 /**
  * Who sent a live record, stamped by the realtime object whatever the sender wrote: `m:<memberId>`
@@ -25,10 +29,28 @@ const by = storageLiveAuthorSchema;
  * document opens in a few records however long it has been edited. Editors write one every
  * `STORAGE_LIVE_SNAP_EVERY` records; a reader that does not know `snap` may apply its `u` as an
  * update of the epoch, which it is.
+ *
+ * A record too large for one S2 record or socket message (a large sheet's state, a paste of many
+ * cells) is split: its `seed`, `snap` or `update` carries `n`, its number of parts, and the first
+ * part in `u`; each `more` that follows carries part `i` of the record at sequence number `h`. A
+ * reader joins the parts and applies them as one update only once it holds them all
+ * (`LiveParts`); a split start missing a part is passed over for the start before it.
  */
 export const storageLiveRecordSchema = z.discriminatedUnion("t", [
-  z.object({ t: z.literal("seed"), cv: z.number().int().nonnegative(), u: z.base64(), by }),
-  z.object({ t: z.literal("update"), e: z.number().int().nonnegative(), u: z.base64(), by }),
+  z.object({
+    t: z.literal("seed"),
+    cv: z.number().int().nonnegative(),
+    u: z.base64(),
+    by,
+    n: parts.optional(),
+  }),
+  z.object({
+    t: z.literal("update"),
+    e: z.number().int().nonnegative(),
+    u: z.base64(),
+    by,
+    n: parts.optional(),
+  }),
   z.object({
     t: z.literal("fold"),
     e: z.number().int().nonnegative(),
@@ -47,6 +69,18 @@ export const storageLiveRecordSchema = z.discriminatedUnion("t", [
     f: z.number().int().nonnegative(),
     u: z.base64(),
     by,
+    n: parts.optional(),
+  }),
+  z.object({
+    t: z.literal("more"),
+    /** The sequence number of the record this is a part of. */
+    h: z.number().int().nonnegative(),
+    i: z
+      .number()
+      .int()
+      .min(1)
+      .max(STORAGE_LIVE_MAX_PARTS - 1),
+    u: z.base64(),
   }),
 ]);
 
@@ -67,13 +101,21 @@ type EpochStart = Extract<StorageLiveRecord, { t: "seed" | "snap" }>;
 export function latestEpochStart(entries: { seqNum: number; record: StorageLiveRecord }[]) {
   let epoch = -1;
   for (const { seqNum, record } of entries) {
+    if (record.t === "more") continue;
+    if (record.t === "seed" && !liveRecordWhole(entries, seqNum)) continue;
     epoch = Math.max(epoch, record.t === "seed" ? seqNum : record.e);
   }
   let start: { seqNum: number; record: EpochStart } | undefined;
   for (const { seqNum, record } of entries) {
     const starts =
       record.t === "seed" ? seqNum === epoch : record.t === "snap" && record.e === epoch;
-    if (starts && (record.t === "seed" || record.t === "snap")) start = { seqNum, record };
+    if (
+      starts &&
+      (record.t === "seed" || record.t === "snap") &&
+      liveRecordWhole(entries, seqNum)
+    ) {
+      start = { seqNum, record };
+    }
   }
   return start;
 }
@@ -115,10 +157,10 @@ export const STORAGE_DOC_PRESENCE_MAX = 4096;
  * `editing` (the socket's `editing` has not been checked yet, or it is not editing the file: try
  * again after it), `denied` (the member no longer reaches the file), `locked`, `unavailable`
  * (the live layer is off or failed), `read_only` (an outsider whose role does not edit, or a
- * record an outsider may not write: only `update`s) or `rate` (an outsider over their limits).
- * The others editing the file hear `doc.record`. Records can arrive out of order and a dropped
- * socket misses some: read the gap with `GET /files/:id/live` (an outsider:
- * `GET /shared/:shareId/files/:id/live`).
+ * record an outsider may not write: only whole `update`s, never split ones) or `rate` (an
+ * outsider over their limits). The others editing the file hear `doc.record`. Records can
+ * arrive out of order and a dropped socket misses some: read the gap with `GET /files/:id/live`
+ * (an outsider: `GET /shared/:shareId/files/:id/live`).
  *
  * `{"type":"doc.presence","nodeId","u"}` is where someone's cursor is, and who they are: a Yjs
  * awareness update, base64. The Worker passes it on to the others editing the file and keeps
@@ -167,3 +209,14 @@ export type StorageLiveRecord = z.infer<typeof storageLiveRecordSchema>;
 export type StorageLiveEntry = z.infer<typeof storageLiveEntrySchema>;
 export type StorageLiveReadResponse = z.infer<typeof storageLiveReadResponseSchema>;
 export type StorageDocEvent = z.infer<typeof storageDocEventSchema>;
+
+export {
+  LiveParts,
+  liveRecordWhole,
+  splitLiveRecord,
+  STORAGE_LIVE_MAX_PARTS,
+  STORAGE_LIVE_PART_CHARS,
+  STORAGE_LIVE_PART_WINDOW,
+  STORAGE_LIVE_RECORD_CHARS,
+  type LiveWhole,
+} from "./storage-live-parts.ts";

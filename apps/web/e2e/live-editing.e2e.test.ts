@@ -3,7 +3,23 @@ import type { AddressInfo } from "node:net";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
+import { rewriteLive } from "@omni/docs";
 import { afterAll, beforeAll, expect, test } from "vitest";
+import * as Y from "yjs";
+
+type LiveRecord = { t: string; u?: string; n?: number };
+
+const PART = 800_000;
+
+function split(e: number, u: string) {
+  const chunks = Array.from({ length: Math.ceil(u.length / PART) }, (_, k) =>
+    u.slice(k * PART, (k + 1) * PART),
+  );
+  return {
+    head: { t: "update", e, u: chunks[0]!, n: chunks.length },
+    rest: (h: number) => chunks.slice(1).map((part, k) => ({ t: "more", h, i: k + 1, u: part })),
+  };
+}
 import { connectAgent } from "../../worker/e2e/mcp-support.ts";
 import {
   CookieJar,
@@ -437,6 +453,143 @@ test("an assistant's edit lands live in an open doc, merged with what the person
     .poll(saved, { timeout: 20_000 })
     .toMatch(/^# Agenda\n\nOpen the meeting at nine\n\nReview the budget\n\nThen lunch\n*$/);
   expect(await ana.getByRole("alertdialog").count()).toBe(0);
+  await own.close();
+});
+
+test("an assistant's edit too large for one live record reaches an open doc whole", async () => {
+  const origin = String(worker.url);
+  const jar = new CookieJar();
+  const cookie = await signInWithPersonalSpace(
+    { url: new URL(origin) },
+    db,
+    `large-${Date.now()}@gmail.test`,
+    jar,
+  );
+  const own = await browser.newContext();
+  await own.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const ana = await own.newPage();
+  await ana.goto(new URL("/files/my", origin).toString());
+  await ana
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await ana
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({
+      name: "long.md",
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# Long\n\nPlaceholder\n"),
+    });
+  await ana.getByRole("row", { name: /long\.md/ }).click();
+  await ana.locator("[contenteditable=true]").getByText("Placeholder").waitFor({ timeout: 15_000 });
+  const id = new URL(ana.url()).searchParams.get("file") ?? "";
+  await typeAtEnd(ana, "Typed by Ana");
+
+  const agent = await connectAgent(origin, jar, {
+    scope: "openid mail:read drive:read drive:write",
+    authURL: origin.replace(/\/$/, ""),
+  });
+  const words = Array.from({ length: 900 }, (_, i) => `${i} ${"dolor sitam ".repeat(85)}`);
+  const edited = await agent.callTool({
+    name: "drive_edit_doc",
+    arguments: { id, edits: [{ find: "Placeholder", replace: words.join("\n\n") }] },
+  });
+  expect(edited.isError).toBeFalsy();
+
+  await expect.poll(() => pageText(ana), { timeout: 30_000 }).toContain("899 dolor sitam");
+  expect(await pageText(ana)).toContain("Typed by Ana");
+  expect(await ana.getByRole("alertdialog").count()).toBe(0);
+  await own.close();
+});
+
+test("a large paste whose author leaves is saved by the open page, even when the page typed while its parts arrived", async () => {
+  const origin = String(worker.url);
+  const jar = new CookieJar();
+  const cookie = await signInWithPersonalSpace(
+    { url: new URL(origin) },
+    db,
+    `orphan-${Date.now()}@gmail.test`,
+    jar,
+  );
+  const own = await browser.newContext();
+  await own.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const ana = await own.newPage();
+  await ana.goto(new URL("/files/my", origin).toString());
+  await ana
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await ana
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({
+      name: "paste.md",
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# Paste\n\nStart\n"),
+    });
+  await ana.getByRole("row", { name: /paste\.md/ }).click();
+  await ana.locator("[contenteditable=true]").getByText("Start").waitFor({ timeout: 15_000 });
+  const id = new URL(ana.url()).searchParams.get("file") ?? "";
+  const saved = () =>
+    ana.evaluate(async (at) => (await fetch(at)).text(), `/api/storage/files/${id}/content`);
+
+  const read = await fetch(new URL(`/api/storage/files/${id}/live?from=latest`, origin), {
+    headers: { cookie },
+  });
+  const { entries } = (await read.json()) as {
+    entries: { seqNum: number; record: LiveRecord }[];
+  };
+  const mirror = new Y.Doc();
+  let epoch = 0;
+  for (const { seqNum, record } of entries) {
+    if (record.t === "seed") epoch = seqNum;
+    if (record.u && record.n === undefined) Y.applyUpdate(mirror, Buffer.from(record.u, "base64"));
+  }
+
+  const url = new URL("/api/realtime", origin);
+  url.protocol = "ws:";
+  const socket = new WebSocket(url, {
+    headers: { cookie, origin: new URL(origin).origin },
+  } as unknown as string[]);
+  const answers: Record<string, unknown>[] = [];
+  socket.addEventListener("message", (e) => answers.push(JSON.parse(String(e.data))));
+  await new Promise<void>((resolve) => socket.addEventListener("open", () => resolve()));
+  socket.send(JSON.stringify({ type: "file.presence", nodeId: id, state: "editing" }));
+  let ref = 0;
+  const append = async (record: unknown) => {
+    for (;;) {
+      const sent = ++ref;
+      socket.send(JSON.stringify({ type: "doc.append", nodeId: id, ref: sent, record }));
+      await expect.poll(() => answers.some((a) => a.ref === sent), { timeout: 10_000 }).toBe(true);
+      const answer = answers.find((a) => a.ref === sent)!;
+      if (answer.type === "doc.appended") return answer.seqNum as number;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  };
+
+  const words = Array.from({ length: 700 }, (_, i) => `${i} ${"dolor sitam ".repeat(85)}`);
+  const pasted = `# Paste\n\nStart\n\n${words.join("\n\n")}`;
+  const paste = split(epoch, Buffer.from(rewriteLive(mirror, pasted)).toString("base64"));
+  expect(paste.head.n).toBeGreaterThan(1);
+  const head = await append(paste.head);
+  await typeAtEnd(ana, "Typed meanwhile");
+  await expect.poll(saved, { timeout: 20_000 }).toContain("Typed meanwhile");
+  for (const part of paste.rest(head)) await append(part);
+  socket.close();
+
+  await expect.poll(saved, { timeout: 30_000 }).toContain("699 dolor sitam");
+  expect(await saved()).toContain("Typed meanwhile");
   await own.close();
 });
 
