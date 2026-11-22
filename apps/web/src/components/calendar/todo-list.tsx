@@ -18,11 +18,9 @@ import {
   taskPath,
   type CrmTask,
   type DueGroup,
+  MY_TODOS,
   type TaskFilter,
 } from "@/lib/crm-tasks.ts";
-
-/** The member's open to-dos: the workspace's tasks assigned to them. */
-export const MY_TODOS = { status: "open", assignee: "me" } satisfies TaskFilter;
 
 const SECTIONS: { id: DueGroup; label: string; fixed: boolean }[] = [
   { id: "overdue", label: "Overdue", fixed: false },

@@ -30,17 +30,31 @@ export const calendarsQuery = () =>
     select: (body) => body.calendars,
   });
 
+const fetchWindow = (from: Date, to: Date, signal?: AbortSignal) =>
+  call(
+    api.calendar.events.$get(
+      { query: { from: from.toISOString(), to: to.toISOString() } },
+      { init: { signal } },
+    ),
+  );
+
 export const calendarEventsQuery = (from: Date, to: Date) =>
   queryOptions({
     queryKey: calendarKeys.window(from.toISOString(), to.toISOString()),
-    queryFn: ({ signal }) =>
-      call(
-        api.calendar.events.$get(
-          { query: { from: from.toISOString(), to: to.toISOString() } },
-          { init: { signal } },
-        ),
-      ),
+    queryFn: ({ signal }) => fetchWindow(from, to, signal),
     select: (body) => body.events,
+  });
+
+/**
+ * Asks for a window ahead of time, only when nothing of it is cached (one cached, even stale,
+ * shows at once and is checked when shown). It is not cancelled when a page showing it unmounts,
+ * so the page that mounts next takes this answer rather than asking again.
+ */
+export const warmCalendarWindow = (client: QueryClient, from: Date, to: Date) =>
+  client.prefetchQuery({
+    ...calendarEventsQuery(from, to),
+    queryFn: () => fetchWindow(from, to),
+    staleTime: Infinity,
   });
 
 export const calendarEventQuery = (id: string) =>

@@ -1,6 +1,11 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { calendarEvents, calendarMemberPrefs, calendarParts } from "../schema/index.ts";
-import { calendarOf, calendarsOf, NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
+import {
+  calendarCalendars,
+  calendarEvents,
+  calendarMemberPrefs,
+  calendarParts,
+} from "../schema/index.ts";
+import { calendarsOf, NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
 import { getEvent } from "./read.ts";
 
 /** A calendar as one member sees it: its inbox, and their color and toggle. */
@@ -16,29 +21,21 @@ export interface MemberCalendarView {
 
 /**
  * The calendars of every inbox the member can open in their workspace, each made the first time
- * it is listed, with the member's own color and toggle.
+ * it is listed, with the member's own color and toggle. The calendars and the member's prefs are
+ * read at once; only inboxes with no calendar yet cost a write, all of them in one.
  */
 export async function listMemberCalendars(
   ex: Ex,
   memberId: string,
   mailboxes: readonly VisibleMailbox[],
 ) {
-  for (const mailbox of mailboxes) await calendarOf(ex, mailbox);
-  const calendars = await calendarsOf(ex, mailboxes);
-  const prefs = calendars.length
-    ? await ex
-        .select()
-        .from(calendarMemberPrefs)
-        .where(
-          and(
-            eq(calendarMemberPrefs.memberId, memberId),
-            inArray(
-              calendarMemberPrefs.calendarId,
-              calendars.map((c) => c.id),
-            ),
-          ),
-        )
-    : [];
+  const [existing, prefs] = await Promise.all([
+    calendarsOf(ex, mailboxes),
+    ex.select().from(calendarMemberPrefs).where(eq(calendarMemberPrefs.memberId, memberId)),
+  ]);
+  const made = new Set(existing.map((c) => c.mailboxId));
+  const missing = mailboxes.filter((m) => !made.has(m.id));
+  const calendars = missing.length ? await ensureCalendars(ex, mailboxes, missing) : existing;
   const byCalendar = new Map(prefs.map((p) => [p.calendarId, p]));
   return calendars
     .map(
@@ -54,6 +51,18 @@ export async function listMemberCalendars(
         }) satisfies MemberCalendarView,
     )
     .toSorted((a, b) => a.address.localeCompare(b.address));
+}
+
+async function ensureCalendars(
+  ex: Ex,
+  mailboxes: readonly VisibleMailbox[],
+  missing: readonly VisibleMailbox[],
+) {
+  await ex
+    .insert(calendarCalendars)
+    .values(missing.map((m) => ({ orgId: m.orgId, mailboxId: m.id })))
+    .onConflictDoNothing({ target: calendarCalendars.mailboxId });
+  return calendarsOf(ex, mailboxes);
 }
 
 /** Sets the member's own color or toggle for a calendar they can see. */
@@ -97,7 +106,8 @@ export async function hiddenCalendars(ex: Ex, memberId: string) {
 
 /**
  * The invitations in a thread's messages, each with its event on a calendar the member can see.
- * The caller passes the attachment ids of a thread mail's door opened for the member.
+ * The caller passes the attachment ids of a thread mail's door opened for the member. A
+ * thread's parts and their events are read in a fixed number of round trips, however many.
  */
 export async function invitesIn(
   ex: Ex,
@@ -105,38 +115,70 @@ export async function invitesIn(
   attachments: readonly { id: string; messageId: string }[],
 ) {
   if (attachments.length === 0) return [];
-  const parts = await ex
-    .select({
-      attachmentId: calendarParts.attachmentId,
-      calendarId: calendarParts.calendarId,
-      method: calendarParts.method,
-      uid: calendarParts.uid,
-      outcome: calendarParts.outcome,
-    })
-    .from(calendarParts)
-    .where(
-      inArray(
-        calendarParts.attachmentId,
-        attachments.map((a) => a.id),
+  const [parts, calendars] = await Promise.all([
+    ex
+      .select({
+        attachmentId: calendarParts.attachmentId,
+        calendarId: calendarParts.calendarId,
+        method: calendarParts.method,
+        uid: calendarParts.uid,
+      })
+      .from(calendarParts)
+      .where(
+        inArray(
+          calendarParts.attachmentId,
+          attachments.map((a) => a.id),
+        ),
       ),
-    );
-  const visible = new Set((await calendarsOf(ex, mailboxes)).map((c) => c.id));
+    calendarsOf(ex, mailboxes),
+  ]);
+  const visible = new Set(calendars.map((c) => c.id));
+  const shown = parts.flatMap((part) =>
+    part.calendarId && part.uid && visible.has(part.calendarId)
+      ? [{ ...part, calendarId: part.calendarId, uid: part.uid }]
+      : [],
+  );
+  if (shown.length === 0) return [];
+  const firsts = await firstRowsOf(ex, shown);
+  const found = await Promise.all(
+    [...new Set(firsts.values())].map((id) => getEvent(ex, mailboxes, id)),
+  );
+  const events = new Map(
+    found.flatMap((one) => (one.status === "ok" ? [[one.event.id, one.event] as const] : [])),
+  );
   const invites = [];
   const seen = new Set<string>();
-  for (const part of parts) {
-    if (!part.calendarId || !part.uid || !visible.has(part.calendarId)) continue;
-    const [row] = await ex
-      .select({ id: calendarEvents.id })
-      .from(calendarEvents)
-      .where(and(eq(calendarEvents.calendarId, part.calendarId), eq(calendarEvents.uid, part.uid)))
-      .orderBy(sql`${calendarEvents.recurrenceId} asc nulls first`)
-      .limit(1);
-    if (!row || seen.has(`${row.id} ${part.method}`)) continue;
-    seen.add(`${row.id} ${part.method}`);
-    const found = await getEvent(ex, mailboxes, row.id);
-    if (found.status !== "ok") continue;
+  for (const part of shown) {
+    const id = firsts.get(`${part.calendarId} ${part.uid}`);
+    if (!id || seen.has(`${id} ${part.method}`)) continue;
+    seen.add(`${id} ${part.method}`);
+    const event = events.get(id);
+    if (!event) continue;
     const messageId = attachments.find((a) => a.id === part.attachmentId)?.messageId ?? null;
-    invites.push({ messageId, method: part.method, event: found.event });
+    invites.push({ messageId, method: part.method, event });
   }
   return invites;
+}
+
+async function firstRowsOf(ex: Ex, parts: readonly { calendarId: string; uid: string }[]) {
+  const rows = await ex
+    .selectDistinctOn([calendarEvents.calendarId, calendarEvents.uid], {
+      id: calendarEvents.id,
+      calendarId: calendarEvents.calendarId,
+      uid: calendarEvents.uid,
+    })
+    .from(calendarEvents)
+    .where(
+      and(
+        inArray(calendarEvents.calendarId, [...new Set(parts.map((p) => p.calendarId))]),
+        inArray(calendarEvents.uid, [...new Set(parts.map((p) => p.uid))]),
+      ),
+    )
+    .orderBy(
+      calendarEvents.calendarId,
+      calendarEvents.uid,
+      sql`${calendarEvents.recurrenceId} asc nulls first`,
+      calendarEvents.id,
+    );
+  return new Map(rows.map((row) => [`${row.calendarId} ${row.uid}`, row.id]));
 }

@@ -46,21 +46,35 @@ export const taskKeys = {
 const clean = (filter: TaskFilter) =>
   Object.fromEntries(Object.entries(filter).filter(([, value]) => value)) as TaskFilter;
 
+const fetchTasks = (filter: TaskFilter, cursor: string | null, signal?: AbortSignal) =>
+  call(
+    api.crm.tasks.$get(
+      { query: { ...clean(filter), ...(cursor ? { cursor } : {}), limit: "100" } },
+      { init: { signal } },
+    ),
+  );
+
 export const crmTasksQuery = (filter: TaskFilter) =>
   infiniteQueryOptions({
     queryKey: taskKeys.list(clean(filter)),
-    queryFn: ({ pageParam, signal }) =>
-      call(
-        api.crm.tasks.$get(
-          {
-            query: { ...clean(filter), ...(pageParam ? { cursor: pageParam } : {}), limit: "100" },
-          },
-          { init: { signal } },
-        ),
-      ),
+    queryFn: ({ pageParam, signal }) => fetchTasks(filter, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.nextCursor,
   });
+
+/**
+ * Asks for a task list's first page ahead of time, only when none is cached. It is not cancelled
+ * when a page showing it unmounts, so the page that mounts next takes this answer.
+ */
+export const warmCrmTasks = (client: QueryClient, filter: TaskFilter) =>
+  client.prefetchInfiniteQuery({
+    ...crmTasksQuery(filter),
+    queryFn: ({ pageParam }) => fetchTasks(filter, pageParam),
+    staleTime: Infinity,
+  });
+
+/** The member's own open to-dos, as the calendar shows them. */
+export const MY_TODOS = { status: "open", assignee: "me" } satisfies TaskFilter;
 
 export const crmTaskQuery = (id: string) =>
   queryOptions({

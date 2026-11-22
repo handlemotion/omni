@@ -85,10 +85,12 @@ export function expandSeries(
   const rule = ruleOf(series, zone);
   if (!rule) add(series.start);
   else {
-    const iterator = rule.iterator(firstTime(series, zone));
+    const before = window.from.getTime() - Math.max(length, spanDays * DAY_MS) - DAY_MS;
+    const iterator = rule.iterator(startNear(firstTime(series, zone), rule, before));
     for (let step = 0; step < STEPS_MAX && instances.size < limit; step++) {
       const next = iterator.next();
       if (!next) break;
+      if (wallClockMs(next) < before) continue;
       const start = instantAt(next, series.allDay, zone);
       if (start >= window.to) break;
       add(start);
@@ -99,6 +101,23 @@ export function expandSeries(
     .toSorted((a, b) => a.start.getTime() - b.start.getTime())
     .slice(0, limit);
 }
+
+const PERIOD_DAYS: Partial<Record<string, number>> = { DAILY: 1, WEEKLY: 7 };
+
+function startNear(first: ICAL.Time, rule: ICAL.Recur, before: number) {
+  const days = PERIOD_DAYS[rule.freq];
+  // WARNING: COUNT counts from the real first start; moving it would let the series run past its last instance.
+  if (!days || rule.count) return first;
+  const period = days * Math.max(1, rule.interval || 1);
+  const ahead = Math.floor((before - 7 * DAY_MS - wallClockMs(first)) / DAY_MS / period);
+  if (ahead <= 0) return first;
+  const moved = first.clone();
+  moved.adjust(ahead * period, 0, 0, 0);
+  return moved;
+}
+
+const wallClockMs = (time: ICAL.Time) =>
+  Date.UTC(time.year, time.month - 1, time.day, time.hour, time.minute, time.second);
 
 function instantAt(time: ICAL.Time, allDay: boolean, zone: string) {
   const clock = { year: time.year, month: time.month, day: time.day };

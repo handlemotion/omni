@@ -27,12 +27,13 @@ const dates = <T extends { start?: string; end?: string }>(body: T) => ({
 async function afterWrite(c: Context<AppEnv>, eventId: string) {
   c.executionCtx.waitUntil(pingMailService(c.var));
   const found = await memberCalendar(c).event(eventId);
-  if (found.status !== "ok") return;
+  if (found.status !== "ok") return found;
   c.executionCtx.waitUntil(
     announceCalendars(c.env, c.var.db, c.var.log, [
       { calendarId: found.event.calendarId, mailboxId: found.event.mailboxId },
     ]),
   );
+  return found;
 }
 
 export const calendar = new Hono<AppEnv>()
@@ -80,8 +81,7 @@ export const calendar = new Hono<AppEnv>()
       c.var.requestId,
     );
     if (made.status !== "ok") return refused(c, made);
-    await afterWrite(c, made.eventId);
-    const found = await memberCalendar(c).event(made.eventId);
+    const found = await afterWrite(c, made.eventId);
     if (found.status !== "ok") return refused(c, found);
     return c.json(
       { event: wireEvent(found.event), threadId: null } satisfies CalendarEventResponse,
@@ -96,8 +96,7 @@ export const calendar = new Hono<AppEnv>()
       c.var.requestId,
     );
     if (changed.status !== "ok") return refused(c, changed);
-    await afterWrite(c, changed.eventId);
-    const found = await memberCalendar(c).event(changed.eventId);
+    const found = await afterWrite(c, changed.eventId);
     if (found.status !== "ok") return refused(c, found);
     return c.json({
       event: wireEvent(found.event),
@@ -121,8 +120,7 @@ export const calendar = new Hono<AppEnv>()
       c.var.requestId,
     );
     if (answered.status !== "ok") return refused(c, answered);
-    if (answered.changed) await afterWrite(c, id);
-    const found = await memberCalendar(c).event(id);
+    const found = answered.changed ? await afterWrite(c, id) : await memberCalendar(c).event(id);
     if (found.status !== "ok") return refused(c, found);
     return c.json({
       event: wireEvent(found.event),

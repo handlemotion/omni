@@ -1,7 +1,7 @@
 import { expandSeries } from "@omni/mail-core/calendar";
-import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
-import { calendarAttendees, calendarEvents } from "../schema/index.ts";
-import { calendarsOf, NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
+import { and, eq, gt, inArray, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import { calendarAttendees, calendarCalendars, calendarEvents } from "../schema/index.ts";
+import { NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
 
 /** The longest window one read expands. */
 export const CALENDAR_WINDOW_MAX_DAYS = 62;
@@ -54,31 +54,55 @@ type Row = typeof calendarEvents.$inferSelect;
 
 export type WindowTooLarge = { status: "window_too_large"; maxDays: number };
 
-/** Every visible event overlapping `[from, to)`, soonest first, cancelled ones left out. */
+/** Whether a read of `[from, to)` is refused before it touches the database. */
+export const windowRefused = (window: { from: Date; to: Date }) =>
+  !(window.to > window.from) ||
+  window.to.getTime() - window.from.getTime() > CALENDAR_WINDOW_MAX_DAYS * DAY_MS
+    ? ({ status: "window_too_large", maxDays: CALENDAR_WINDOW_MAX_DAYS } satisfies WindowTooLarge)
+    : null;
+
+/**
+ * Every visible event overlapping `[from, to)`, soonest first, cancelled ones left out: on the
+ * inboxes' calendars, only `calendarIds` when given, none of `hidden`. The calendars are joined
+ * in the events' read, and the series' changed instances read beside their attendees, so a
+ * window costs two round trips after the inboxes.
+ */
 export async function listEvents(
   ex: Ex,
   mailboxes: readonly VisibleMailbox[],
-  window: { from: Date; to: Date; calendarIds?: readonly string[] },
+  window: {
+    from: Date;
+    to: Date;
+    calendarIds?: readonly string[];
+    hidden?: ReadonlySet<string>;
+  },
 ) {
-  if (
-    !(window.to > window.from) ||
-    window.to.getTime() - window.from.getTime() > CALENDAR_WINDOW_MAX_DAYS * DAY_MS
-  ) {
-    return { status: "window_too_large", maxDays: CALENDAR_WINDOW_MAX_DAYS } as WindowTooLarge;
-  }
-  const calendars = (await calendarsOf(ex, mailboxes)).filter(
-    (c) => !window.calendarIds || window.calendarIds.includes(c.id),
-  );
-  if (calendars.length === 0) return { status: "ok" as const, events: [] as CalendarEventView[] };
-  const ids = calendars.map((c) => c.id);
+  const refusal = windowRefused(window);
+  if (refusal) return refusal;
+  const none = { status: "ok" as const, events: [] as CalendarEventView[] };
+  if (mailboxes.length === 0 || window.calendarIds?.length === 0) return none;
   const from = window.from.toISOString();
   const to = window.to.toISOString();
-  const rows = await ex
-    .select()
+  const found = await ex
+    .select({ row: calendarEvents, mailboxId: calendarCalendars.mailboxId })
     .from(calendarEvents)
+    .innerJoin(
+      calendarCalendars,
+      and(
+        eq(calendarCalendars.id, calendarEvents.calendarId),
+        eq(calendarCalendars.orgId, calendarEvents.orgId),
+      ),
+    )
     .where(
       and(
-        inArray(calendarEvents.calendarId, ids),
+        inArray(
+          calendarCalendars.mailboxId,
+          mailboxes.map((m) => m.id),
+        ),
+        window.calendarIds
+          ? inArray(calendarEvents.calendarId, [...window.calendarIds])
+          : undefined,
+        window.hidden?.size ? notInArray(calendarEvents.calendarId, [...window.hidden]) : undefined,
         lt(calendarEvents.startsAt, sql`${to}::timestamptz`),
         or(
           and(isNull(calendarEvents.rrule), gt(calendarEvents.endsAt, sql`${from}::timestamptz`)),
@@ -92,18 +116,26 @@ export async function listEvents(
         ),
       ),
     );
-  const series = rows.filter((row) => row.rrule && row.status !== "cancelled");
-  const replaced = await changedInstances(ex, series);
-  const people = await attendeesOf(
-    ex,
-    rows.map((row) => row.id),
-  );
-  const byCalendar = new Map(calendars.map((c) => [c.id, c]));
+  const byMailbox = new Map(mailboxes.map((m) => [m.id, m]));
+  const rows = found.flatMap(({ row, mailboxId }) => {
+    const mailbox = byMailbox.get(mailboxId);
+    return mailbox && mailbox.orgId === row.orgId && row.status !== "cancelled"
+      ? [{ row, mailbox }]
+      : [];
+  });
+  const [replaced, people] = await Promise.all([
+    changedInstances(
+      ex,
+      rows.flatMap(({ row }) => (row.rrule ? [row] : [])),
+    ),
+    attendeesOf(
+      ex,
+      rows.map(({ row }) => row.id),
+    ),
+  ]);
   const events: CalendarEventView[] = [];
-  for (const row of rows) {
-    const calendar = byCalendar.get(row.calendarId);
-    if (!calendar || row.status === "cancelled") continue;
-    const base = viewOf(row, calendar.mailbox, people.get(row.id) ?? []);
+  for (const { row, mailbox } of rows) {
+    const base = viewOf(row, mailbox, people.get(row.id) ?? []);
     if (!row.rrule) {
       events.push(base);
       continue;
@@ -125,14 +157,38 @@ export async function listEvents(
   return { status: "ok" as const, events };
 }
 
-/** One visible event (a series is its first instance), or `not_found`. */
-export async function getEvent(ex: Ex, mailboxes: readonly VisibleMailbox[], id: string) {
-  const [row] = await ex.select().from(calendarEvents).where(eq(calendarEvents.id, id));
-  if (!row) return NOT_FOUND;
-  const [calendar] = (await calendarsOf(ex, mailboxes)).filter((c) => c.id === row.calendarId);
-  if (!calendar || calendar.orgId !== row.orgId) return NOT_FOUND;
-  const people = await attendeesOf(ex, [row.id]);
-  return { status: "ok" as const, event: viewOf(row, calendar.mailbox, people.get(row.id) ?? []) };
+/**
+ * One visible event (a series is its first instance), or `not_found`. The inboxes, the row with
+ * its calendar and its attendees are read at once; attendees of a row the person cannot see are
+ * dropped unread.
+ */
+export async function getEvent(
+  ex: Ex,
+  mailboxes: readonly VisibleMailbox[] | (() => Promise<readonly VisibleMailbox[]>),
+  id: string,
+) {
+  const [visible, [found], people] = await Promise.all([
+    typeof mailboxes === "function" ? mailboxes() : mailboxes,
+    ex
+      .select({ row: calendarEvents, mailboxId: calendarCalendars.mailboxId })
+      .from(calendarEvents)
+      .innerJoin(
+        calendarCalendars,
+        and(
+          eq(calendarCalendars.id, calendarEvents.calendarId),
+          eq(calendarCalendars.orgId, calendarEvents.orgId),
+        ),
+      )
+      .where(eq(calendarEvents.id, id)),
+    attendeesOf(ex, [id]),
+  ]);
+  if (!found) return NOT_FOUND;
+  const mailbox = visible.find((m) => m.id === found.mailboxId);
+  if (!mailbox || mailbox.orgId !== found.row.orgId) return NOT_FOUND;
+  return {
+    status: "ok" as const,
+    event: viewOf(found.row, mailbox, people.get(id) ?? []),
+  };
 }
 
 const seriesOf = (row: Row) => ({

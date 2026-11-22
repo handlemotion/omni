@@ -11,8 +11,10 @@ const STORAGE_KEY = "omni.desktop-notifications";
 /** `unsupported`: no Notification API. `blocked`: the browser denied it. Else on or off here. */
 export type DesktopNotificationState = "unsupported" | "blocked" | "on" | "off";
 
+let known: DesktopNotificationState | null = null;
 const listeners = new Set<() => void>();
 const emit = () => {
+  known = null;
   for (const notify of listeners) notify();
 };
 
@@ -24,11 +26,23 @@ function readEnabled() {
   }
 }
 
-const currentState: () => DesktopNotificationState = () => {
+const readState: () => DesktopNotificationState = () => {
   if (typeof Notification === "undefined") return "unsupported";
   if (Notification.permission === "denied") return "blocked";
   return Notification.permission === "granted" && readEnabled() ? "on" : "off";
 };
+
+const currentState = () => (known ??= readState());
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key === STORAGE_KEY || event.key === null) emit();
+  });
+  void navigator.permissions
+    ?.query({ name: "notifications" })
+    .then((status) => status.addEventListener("change", emit))
+    .catch(() => {});
+}
 
 export function useDesktopNotificationState() {
   return useSyncExternalStore((notify) => {

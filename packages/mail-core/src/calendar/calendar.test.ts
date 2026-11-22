@@ -190,6 +190,51 @@ describe("expandSeries", () => {
     expect(expandSeries(daily, window, 3)).toHaveLength(3);
   });
 
+  test("a years-old series shows a far week exactly as walking it from its first start does", () => {
+    const old = (rrule: string, timeZone: string, extra: Partial<typeof series> = {}) => ({
+      ...series,
+      start: new Date("2021-03-01T23:30:00Z"),
+      end: new Date("2021-03-02T00:15:00Z"),
+      timeZone,
+      rrule,
+      exdates: [],
+      rdates: [],
+      ...extra,
+    });
+    const cases = [
+      old("FREQ=DAILY", "Europe/Madrid"),
+      old("FREQ=DAILY;INTERVAL=3", "Pacific/Kiritimati"),
+      old("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE", "Pacific/Pago_Pago"),
+      old("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "America/New_York"),
+      old("FREQ=WEEKLY;UNTIL=20261125T000000Z", "Australia/Lord_Howe"),
+      old("FREQ=DAILY;COUNT=2061", "UTC"),
+      old("FREQ=DAILY", "Europe/Madrid", {
+        exdates: [new Date("2026-11-24T22:30:00Z")],
+        rdates: [new Date("2026-11-26T08:00:00Z")],
+      }),
+      old("FREQ=WEEKLY;INTERVAL=3", "UTC", {
+        allDay: true,
+        startDay: "2021-03-03",
+        endDay: "2021-03-06",
+      }),
+    ];
+    for (const one of cases) {
+      let seen = 0;
+      for (const week of ["2026-03-23", "2026-10-19", "2026-11-23"]) {
+        const window = {
+          from: new Date(`${week}T00:00:00Z`),
+          to: new Date(Date.parse(`${week}T00:00:00Z`) + 7 * 86_400_000),
+        };
+        const walked = expandSeries(one, { from: one.start, to: window.to }, Infinity).filter(
+          (i) => i.end > window.from,
+        );
+        expect(expandSeries(one, window)).toEqual(walked);
+        seen += walked.length;
+      }
+      expect(seen).toBeGreaterThan(0);
+    }
+  });
+
   test("a repeating all-day event repeats its days", () => {
     const allDay = only(ics("apple-all-day.ics"));
     const yearly = { ...allDay, rrule: "FREQ=YEARLY;COUNT=2" };

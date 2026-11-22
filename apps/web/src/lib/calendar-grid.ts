@@ -35,6 +35,13 @@ export function shiftView(view: CalendarView, anchor: Date, delta: number) {
   return addDays(anchor, delta * (view === "week" ? 7 : 1));
 }
 
+/** What a view around `anchor` reads: its days and the window `[from, to)` they cover. */
+export function windowOf(view: CalendarView, anchor: Date) {
+  const days = daysOf(view, anchor);
+  const from = days[0] ?? anchor;
+  return { days, from, to: addDays(days.at(-1) ?? anchor, 1) };
+}
+
 /** `YYYY-MM-DD` of a local date, for the URL. */
 export const dayKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;

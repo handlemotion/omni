@@ -16,7 +16,7 @@ import {
   type OwnEventPatch,
   type Writer,
 } from "./calendar/write.ts";
-import { getEvent, listEvents } from "./calendar/read.ts";
+import { getEvent, listEvents, windowRefused } from "./calendar/read.ts";
 import { memberMail, userMail } from "./mail.ts";
 
 export type { VisibleMailbox } from "./calendar/core.ts";
@@ -59,8 +59,8 @@ function calendarDoor(db: Db, mailboxes: Mailboxes) {
       }));
     },
     events: async (window: { from: Date; to: Date; calendarIds?: readonly string[] }) =>
-      listEvents(db, await visible(), window),
-    event: async (id: string) => getEvent(db, await visible(), id),
+      windowRefused(window) ?? listEvents(db, await visible(), window),
+    event: (id: string) => getEvent(db, visible, id),
   };
 }
 
@@ -87,10 +87,13 @@ export function memberCalendar(db: Db, memberId: string) {
     setPrefs: async (calendarId: string, prefs: { color?: string | null; hidden?: boolean }) =>
       setCalendarPrefs(db, memberId, await mailboxes(), calendarId, prefs),
     events: async (window: { from: Date; to: Date; calendarIds?: readonly string[] }) => {
-      if (window.calendarIds) return read.events(window);
-      const hidden = await hiddenCalendars(db, memberId);
-      const shown = (await calendarsOf(db, await mailboxes())).filter((c) => !hidden.has(c.id));
-      return read.events({ ...window, calendarIds: shown.map((c) => c.id) });
+      const refusal = windowRefused(window);
+      if (refusal) return refusal;
+      const [visible, hidden] = await Promise.all([
+        mailboxes(),
+        window.calendarIds ? undefined : hiddenCalendars(db, memberId),
+      ]);
+      return listEvents(db, visible, { ...window, ...(hidden ? { hidden } : {}) });
     },
     invites: async (threadId: string) => {
       const thread = await mail.getThread(threadId);
