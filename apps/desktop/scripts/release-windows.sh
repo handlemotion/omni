@@ -135,11 +135,11 @@ fi
 
 put() {
   (cd "$repo/apps/worker" && pnpm exec wrangler r2 object put "$bucket/$1" --remote \
-    --file "$(native "$2")" --content-type "$3")
+    --file "$(native "$2")" --content-type "$3" ${4:+--content-disposition "$4"})
 }
 exe=application/vnd.microsoft.portable-executable
 put "releases/$version/Omni_${version}_x64-setup.exe" "$setup" "$exe"
-put "download/windows.exe" "$setup" "$exe"
+put "download/windows.exe" "$setup" "$exe" "attachment; filename=\"$(basename "$setup")\""
 
 # Last: the manifest, so installed apps never see a release whose files are not there yet. Its own
 # key (windows/latest.json), so it never replaces the Mac's. Windows on Arm runs the x64 build.

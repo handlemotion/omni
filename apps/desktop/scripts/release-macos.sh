@@ -120,11 +120,12 @@ fi
 
 put() {
   (cd "$repo/apps/worker" && pnpm exec wrangler r2 object put "$bucket/$1" --remote \
-    --file "$2" --content-type "$3")
+    --file "$2" --content-type "$3" ${4:+--content-disposition "$4"})
 }
 put "releases/$version/Omni.app.tar.gz" "$archive" application/gzip
 put "releases/$version/Omni_${version}_universal.dmg" "$dmg" application/x-apple-diskimage
-put "download/macos.dmg" "$dmg" application/x-apple-diskimage
+put "download/macos.dmg" "$dmg" application/x-apple-diskimage \
+  "attachment; filename=\"$(basename "$dmg")\""
 
 # Last: the manifest, so installed apps never see a release whose files are not there yet. One
 # universal build serves both Mac architectures.

@@ -315,7 +315,8 @@ primitives, and add no text.
   with the updater key, uploads it to the R2 bucket behind the Worker (`DESKTOP_BUCKET`), writes
   `/desktop/latest.json` last, checks the live feed and tags `desktop-v<version>`. The Worker
   serves `/desktop/latest.json`, `/desktop/windows/latest.json`, `/desktop/download/:platform`
-  (`macos`, `windows`) and `/desktop/releases/*` from it,
+  (`macos`, `windows`, downloading under the release's own name, `Omni_<version>_universal.dmg`
+  or `Omni_<version>_x64-setup.exe`) and `/desktop/releases/*` from it,
   so a self-hoster publishes to their own. Every key is a file on that Mac, or a secret of the
   Doppler `prd_github` secret (synced to the GitHub environment `production`) written to a file for the job.
 - **Config.** `OMNI_DESKTOP_ORIGIN` (optional default server), `OMNI_DESKTOP_BUNDLE_ID`,

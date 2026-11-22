@@ -1,25 +1,31 @@
 import { type Context, Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 
-const INSTALLERS: Record<string, { key: string; filename: string; type: string }> = {
-  macos: { key: "download/macos.dmg", filename: "Omni.dmg", type: "application/x-apple-diskimage" },
+const INSTALLERS: Record<string, { key: string; fallbackName: string; type: string }> = {
+  macos: {
+    key: "download/macos.dmg",
+    fallbackName: "Omni.dmg",
+    type: "application/x-apple-diskimage",
+  },
   windows: {
     key: "download/windows.exe",
-    filename: "Omni-Setup.exe",
+    fallbackName: "Omni-Setup.exe",
     type: "application/vnd.microsoft.portable-executable",
   },
 };
 
 const RELEASE_FILE = /^[0-9A-Za-z.+-]+\/[0-9A-Za-z._-]+$/;
 
-function serve(object: R2ObjectBody, type: string, cache: string, filename?: string) {
+function serve(object: R2ObjectBody, type: string, cache: string, fallbackName?: string) {
   const headers = new Headers({
     "content-type": type,
     "content-length": String(object.size),
     "cache-control": cache,
     etag: object.httpEtag,
   });
-  if (filename) headers.set("content-disposition", `attachment; filename="${filename}"`);
+  const stored = object.httpMetadata?.contentDisposition;
+  if (fallbackName)
+    headers.set("content-disposition", stored ?? `attachment; filename="${fallbackName}"`);
   return new Response(object.body, { headers });
 }
 
@@ -36,7 +42,7 @@ export const desktop = new Hono<AppEnv>()
     const installer = INSTALLERS[c.req.param("platform")];
     const object = installer ? await c.env.DESKTOP_BUCKET.get(installer.key) : null;
     if (!installer || !object) return c.notFound();
-    return serve(object, installer.type, "public, max-age=300", installer.filename);
+    return serve(object, installer.type, "public, max-age=300", installer.fallbackName);
   })
   .get("/releases/*", async (c) => {
     const path = c.req.path.slice("/desktop/releases/".length);

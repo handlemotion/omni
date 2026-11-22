@@ -2,7 +2,11 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { createTestDatabase, startMailServiceEndpoint, startWorker } from "./support.ts";
 
 interface Bucket {
-  put(key: string, body: string): Promise<unknown>;
+  put(
+    key: string,
+    body: string,
+    options?: { httpMetadata?: { contentDisposition?: string } },
+  ): Promise<unknown>;
 }
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -76,5 +80,26 @@ test("Windows has its own feed and installer, apart from the Mac's", async () =>
 
   const exe = await fetch(new URL("/desktop/download/windows", worker.url));
   expect(exe.headers.get("content-disposition")).toBe('attachment; filename="Omni-Setup.exe"');
+  expect(await exe.text()).toBe("exe");
+});
+
+test("the installer link downloads under its release's own name", async () => {
+  const bucket = (await worker.server.getWorker<{ DESKTOP_BUCKET: Bucket }>().getEnv())
+    .DESKTOP_BUCKET;
+  const named = (filename: string) => ({
+    httpMetadata: { contentDisposition: `attachment; filename="${filename}"` },
+  });
+  await bucket.put("download/macos.dmg", "dmg", named("Omni_0.5.0_universal.dmg"));
+  await bucket.put("download/windows.exe", "exe", named("Omni_0.5.0_x64-setup.exe"));
+
+  const dmg = await fetch(new URL("/desktop/download/macos", worker.url));
+  expect(dmg.headers.get("content-disposition")).toBe(
+    'attachment; filename="Omni_0.5.0_universal.dmg"',
+  );
+  expect(await dmg.text()).toBe("dmg");
+  const exe = await fetch(new URL("/desktop/download/windows", worker.url));
+  expect(exe.headers.get("content-disposition")).toBe(
+    'attachment; filename="Omni_0.5.0_x64-setup.exe"',
+  );
   expect(await exe.text()).toBe("exe");
 });
