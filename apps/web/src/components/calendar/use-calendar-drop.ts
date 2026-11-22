@@ -1,10 +1,11 @@
 import { useRef } from "react";
 import { crmErrorToast } from "@/components/crm/crm-errors.ts";
-import { useUpdateTask } from "@/hooks/use-crm-tasks.ts";
+import { useUpdateCalendarTask } from "@/hooks/use-calendar-tasks.ts";
 import type { CalendarEvent } from "@/lib/calendar.ts";
 import { atMinutes, dropStart, type Dragged, type Drop } from "@/lib/calendar-drag.ts";
 import { dayKey, parseDayKey } from "@/lib/calendar-grid.ts";
-import { dueAtOf, type CrmTask } from "@/lib/crm-tasks.ts";
+import type { Todo } from "@/lib/calendar-tasks.ts";
+import { dueAtOf } from "@/lib/crm-tasks.ts";
 import { ownEvent } from "./week-grid.tsx";
 
 const DAY_MINUTES = 24 * 60;
@@ -33,7 +34,7 @@ function shiftOf(event: CalendarEvent, drop: Drop, shownOn?: Date) {
  * due time: a time on the hours, or the day alone.
  */
 export function useCalendarDrop(move: (event: CalendarEvent, minutes: number) => void) {
-  const update = useUpdateTask();
+  const update = useUpdateCalendarTask();
   const saving = useRef(new Map<string, { last: Promise<unknown>; to: string | null }>());
   const save = (id: string, dueAt: string | null) => {
     const queue = saving.current;
@@ -43,7 +44,7 @@ export function useCalendarDrop(move: (event: CalendarEvent, minutes: number) =>
     queue.set(id, { last, to: dueAt });
     void last.finally(() => queue.get(id)?.last === last && queue.delete(id));
   };
-  const queuedDue = (task: CrmTask) => {
+  const queuedDue = (task: Todo) => {
     const queued = saving.current.get(task.id);
     return queued ? queued.to : task.dueAt;
   };

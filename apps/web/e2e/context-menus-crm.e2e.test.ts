@@ -149,7 +149,8 @@ test("a deal card's right-click moves it to another stage", async () => {
 
 test("a task's right-click completes it", async () => {
   const team = await workspace("menu-task");
-  const { task } = await team.api("POST", "/tasks", { title: "Call the venue" });
+  const { deal } = await team.api("POST", "/deals", { name: "Venue" });
+  const { task } = await team.api("POST", "/tasks", { title: "Call the venue", dealId: deal.id });
   const page = await team.page("/crm/tasks");
 
   await rightClick(page, page.getByRole("listitem").filter({ hasText: "Call the venue" }));

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CalendarPage } from "../../../components/calendar/calendar-page.tsx";
 import { calendarsQuery, warmCalendarWindow } from "../../../lib/calendar.ts";
 import { parseDayKey, windowOf } from "../../../lib/calendar-grid.ts";
-import { MY_TODOS, warmCrmTasks } from "../../../lib/crm-tasks.ts";
+import { warmCalendarTasks } from "../../../lib/calendar-tasks.ts";
 import { calendarSearch } from "../../../lib/search-params.ts";
 
 export const Route = createFileRoute("/_authed/$workspace/calendar")({
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_authed/$workspace/calendar")({
     const { from, to } = windowOf(deps.view ?? "week", parseDayKey(deps.date));
     void context.queryClient.prefetchQuery(calendarsQuery());
     void warmCalendarWindow(context.queryClient, from, to);
-    void warmCrmTasks(context.queryClient, MY_TODOS);
+    void warmCalendarTasks(context.queryClient);
   },
   component: Calendar,
 });

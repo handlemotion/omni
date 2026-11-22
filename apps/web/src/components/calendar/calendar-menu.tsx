@@ -17,7 +17,7 @@ import { appToast } from "@/components/ui/toast";
 import { useCalendarWrites } from "@/hooks/use-calendar.ts";
 import type { CalendarEvent } from "@/lib/calendar.ts";
 import { eventKey, HOUR_PX, parseDayKey, slotAt, type Slot } from "@/lib/calendar-grid.ts";
-import type { CrmTask } from "@/lib/crm-tasks.ts";
+import type { Todo } from "@/lib/calendar-tasks.ts";
 import { answerable } from "./event-panel.tsx";
 import { ownEvent } from "./week-grid.tsx";
 
@@ -25,17 +25,18 @@ const NINE = 9 * 60;
 
 /**
  * The grid's right-click menu, read from what was clicked: an event's Open, Edit, answers and
- * Delete; a to-do's check; a stretch of a day's hours, a day of the month or its all-day row, a
+ * Delete; a to-do's Open, beside the calendar, and its check; a stretch of a day's hours, a day of the month or its all-day row, a
  * New event there.
  */
 export function useCalendarMenu(props: {
   events: readonly CalendarEvent[];
-  todos: readonly CrmTask[];
+  todos: readonly Todo[];
   onOpen: (event: CalendarEvent) => void;
   onEdit: (event: CalendarEvent) => void;
   onCreate: (slot: Slot) => void;
   onDay?: (day: Date) => void;
-  onTodo: (task: CrmTask, done: boolean) => void;
+  onTodo: (task: Todo, done: boolean) => void;
+  onOpenTodo: (task: Todo) => void;
 }) {
   const { answer, remove } = useCalendarWrites();
   const pointerY = useRef(0);
@@ -88,6 +89,7 @@ export function useCalendarMenu(props: {
     if (task) {
       const done = !!task.completedAt;
       return [
+        { icon: IconEye, label: "Open", onAction: () => props.onOpenTodo(task) },
         {
           icon: done ? IconRestore : IconCheck,
           label: done ? "Reopen" : "Complete",

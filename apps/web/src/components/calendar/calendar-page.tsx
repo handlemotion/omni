@@ -3,14 +3,14 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconChevronLeft, IconChevronRight } from "@/components/icons/central";
 import { StorageFrame } from "@/components/storage/storage-frame";
-import { TaskPanel, useOpenTask } from "@/components/crm/task-panel.tsx";
+import { TaskPanel, useOpenTask } from "@/components/tasks/task-panel.tsx";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCalendarEvents, useCalendars } from "@/hooks/use-calendar.ts";
 import { useWheelStep } from "@/hooks/use-wheel-step.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { warmCalendarWindow, type CalendarEvent } from "@/lib/calendar.ts";
-import type { CrmTask } from "@/lib/crm-tasks.ts";
+import type { Todo } from "@/lib/calendar-tasks.ts";
 import {
   dayKey,
   eventKey,
@@ -106,7 +106,7 @@ export function CalendarPage(props: {
     });
   const openTask = useOpenTask();
   const router = useRouter();
-  const openTodo = (task: CrmTask) => void router.history.push(openTask.href(task.id));
+  const openTodo = (task: Todo) => void router.history.push(openTask.href(task.id));
   const [taskShown, setTaskShown] = useState(props.task);
   if (taskShown !== props.task) {
     setTaskShown(props.task);
@@ -142,6 +142,7 @@ export function CalendarPage(props: {
     onCreate: (slot) => setEditing({ slot }),
     onDay: view === "day" ? undefined : (day) => go({ date: day, view: "day" }),
     onTodo: toggleTodo,
+    onOpenTodo: (task) => openTodo(task),
   });
   const grid = useRef<HTMLDivElement>(null);
   useWheelStep(grid, view === "month" ? "y" : "x", (delta) =>
@@ -242,7 +243,7 @@ export function CalendarPage(props: {
       </div>
       {props.task && !opened && (
         <div data-calendar-keys="off" className="flex w-[25rem] shrink-0">
-          <TaskPanel id={props.task} onClose={openTask.close} />
+          <TaskPanel id={props.task} onClose={openTask.close} from="calendar" />
         </div>
       )}
       {opened && (

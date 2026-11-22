@@ -4,14 +4,20 @@ import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { IconTrash, IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
+import { useCalendarTask } from "@/hooks/use-calendar-tasks.ts";
+import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useCrmTask } from "@/hooks/use-crm-tasks.ts";
 import { ApiError } from "@/lib/api.ts";
-import type { CrmTask } from "@/lib/crm-tasks.ts";
+import type { CalendarTask } from "@/lib/calendar-tasks.ts";
+import type { CrmTask, TaskChange } from "@/lib/crm-tasks.ts";
 import {
+  asPanelTask,
   TaskContent,
   TaskDetails,
   TaskHeading,
+  useDeleteCalendarThisTask,
   useDeleteThisTask,
+  useSaveCalendarTask,
   useSaveTask,
 } from "./task-detail.tsx";
 
@@ -58,11 +64,83 @@ function useCloseOnEscape(onClose: () => void) {
   }, [onClose]);
 }
 
+type PanelProps = { id: string; onClose: () => void; inPlace?: boolean };
+
 /**
  * A task beside the list, as an open email sits beside its inbox: its check and title on top, then
  * the task. `inPlace` lays it in the page instead, where a record's Tasks tab shows it over its list.
+ * `from="calendar"` opens one of the member's own tasks: a private one through the calendar, one
+ * on a record as the CRM shows it, where the workspace has the CRM.
  */
-export function TaskPanel(props: { id: string; onClose: () => void; inPlace?: boolean }) {
+export function TaskPanel(props: PanelProps & { from?: "crm" | "calendar" }) {
+  return props.from === "calendar" ? <CalendarTaskPanel {...props} /> : <CrmTaskPanel {...props} />;
+}
+
+function CalendarTaskPanel(props: PanelProps) {
+  const query = useCalendarTask(props.id);
+  const hasCrm = useHasCrm();
+  const task = query.data?.task;
+  useCloseOnEscape(props.onClose);
+  if (task?.record && hasCrm) return <CrmTaskPanel {...props} />;
+  return (
+    <section aria-label="Task" className="flex min-w-0 flex-1 flex-col border-s bg-background">
+      {task ? (
+        <OwnTask task={task} onClose={props.onClose} canLink={hasCrm} />
+      ) : (
+        <Unloaded query={query} onClose={props.onClose} />
+      )}
+    </section>
+  );
+}
+
+function OwnTask(props: { task: CalendarTask; onClose: () => void; canLink: boolean }) {
+  const task = asPanelTask(props.task);
+  const save = useSaveCalendarTask(task.id);
+  const remove = useDeleteCalendarThisTask(task.id, props.onClose);
+  return (
+    <TaskBody
+      task={task}
+      save={save}
+      remove={remove}
+      onClose={props.onClose}
+      details={
+        <TaskDetails task={task} onSave={save} isPrivate={!task.record} canLink={props.canLink} />
+      }
+    />
+  );
+}
+
+function Unloaded(props: {
+  query: { isPending: boolean; error: unknown; refetch: () => Promise<unknown> };
+  onClose: () => void;
+  inPlace?: boolean;
+}) {
+  const { query } = props;
+  return (
+    <>
+      <PanelHeader title={null} onClose={props.onClose} inPlace={props.inPlace} />
+      {query.isPending ? (
+        <Skeleton loading label="Loading task" skeleton={<PanelBones />}>
+          {null}
+        </Skeleton>
+      ) : (
+        <div className="flex flex-1 flex-col">
+          {query.error instanceof ApiError && query.error.status === 404 ? (
+            <EmptyState figure="loupe" title="This task is gone" />
+          ) : (
+            <EmptyState figure="plug" title="This task didn't load">
+              <Button size="sm" intent="outline" onPress={() => void query.refetch()}>
+                Try again
+              </Button>
+            </EmptyState>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function CrmTaskPanel(props: PanelProps) {
   const query = useCrmTask(props.id);
   const task = query.data?.task;
   useCloseOnEscape(props.onClose);
@@ -74,26 +152,7 @@ export function TaskPanel(props: { id: string; onClose: () => void; inPlace?: bo
       {task ? (
         <LoadedTask task={task} onClose={props.onClose} inPlace={props.inPlace} />
       ) : (
-        <>
-          <PanelHeader title={null} onClose={props.onClose} inPlace={props.inPlace} />
-          {query.isPending ? (
-            <Skeleton loading label="Loading task" skeleton={<PanelBones />}>
-              {null}
-            </Skeleton>
-          ) : (
-            <div className="flex flex-1 flex-col">
-              {query.error instanceof ApiError && query.error.status === 404 ? (
-                <EmptyState figure="loupe" title="This task is gone" />
-              ) : (
-                <EmptyState figure="plug" title="This task didn't load">
-                  <Button size="sm" intent="outline" onPress={() => void query.refetch()}>
-                    Try again
-                  </Button>
-                </EmptyState>
-              )}
-            </div>
-          )}
-        </>
+        <Unloaded query={query} onClose={props.onClose} inPlace={props.inPlace} />
       )}
     </section>
   );
@@ -103,6 +162,27 @@ function LoadedTask(props: { task: CrmTask; onClose: () => void; inPlace?: boole
   const { task } = props;
   const save = useSaveTask(task.id);
   const remove = useDeleteThisTask(task.id, props.onClose);
+  return (
+    <TaskBody
+      task={task}
+      save={save}
+      remove={remove}
+      onClose={props.onClose}
+      inPlace={props.inPlace}
+      details={<TaskDetails task={task} onSave={save} />}
+    />
+  );
+}
+
+function TaskBody(props: {
+  task: CrmTask;
+  save: (change: TaskChange, settled?: () => void) => void;
+  remove: { isPending: boolean; run: () => void };
+  onClose: () => void;
+  inPlace?: boolean;
+  details: React.ReactNode;
+}) {
+  const { task, save, remove } = props;
   return (
     <>
       <PanelHeader
@@ -125,7 +205,7 @@ function LoadedTask(props: { task: CrmTask; onClose: () => void; inPlace?: boole
       >
         <TaskContent task={task} onSave={save} />
         <div className={`flex flex-col gap-0.5 ${props.inPlace ? "" : "-mx-5 border-t px-5 pt-4"}`}>
-          <TaskDetails task={task} onSave={save} />
+          {props.details}
         </div>
       </div>
     </>

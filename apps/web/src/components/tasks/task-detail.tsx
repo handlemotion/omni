@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useDeleteTask } from "@/hooks/use-crm-tasks.ts";
+import { useDeleteCalendarTask } from "@/hooks/use-calendar-tasks.ts";
+import { useDeleteTask, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { useMember } from "@/hooks/use-session.ts";
+import { updateCalendarTaskMutation, type CalendarTask } from "@/lib/calendar-tasks.ts";
 import { CRM_WRITE } from "@/lib/crm-cache.ts";
 import { stableId } from "@/lib/crm-pending.ts";
 import {
@@ -20,11 +22,11 @@ import {
   type CrmTask,
   type TaskChange,
 } from "@/lib/crm-tasks.ts";
-import { crmErrorToast } from "./crm-errors.ts";
-import { DayValue, FieldRow, LinkValue, PlainValue } from "./record-fields.tsx";
-import { DAY } from "./record-list.tsx";
-import { AssigneePicker, RecordPicker, useMemberNames } from "./task-dialog.tsx";
-import { CHECK_CELL, Subtasks } from "./task-subtasks.tsx";
+import { crmErrorToast } from "@/components/crm/crm-errors.ts";
+import { DayValue, FieldRow, LinkValue, PlainValue } from "@/components/crm/record-fields.tsx";
+import { DAY } from "@/components/crm/record-list.tsx";
+import { AssigneePicker, RecordPicker, useMemberNames } from "@/components/crm/task-dialog.tsx";
+import { CHECK_CELL, Subtasks } from "@/components/crm/task-subtasks.tsx";
 
 const TITLE_MAX = 500;
 const BODY_MAX = 20_000;
@@ -54,6 +56,52 @@ export function useSaveTask(id: string) {
       .mutateAsync({ id, ...change })
       .catch((error: unknown) => crmErrorToast(error, "The task was not changed"))
       .finally(settled);
+}
+
+/** A task the calendar holds, as the panel's fields read it: a private one is on no record. */
+export const asPanelTask = (task: CalendarTask) =>
+  ({
+    ...task,
+    companyId: task.record?.kind === "company" ? task.record.id : null,
+    personId: task.record?.kind === "person" ? task.record.id : null,
+    dealId: task.record?.kind === "deal" ? task.record.id : null,
+    recordName: null,
+    recordDomain: null,
+  }) satisfies CrmTask;
+
+/**
+ * `useSaveTask` for a task the member owns in the calendar: its own fields save through the
+ * calendar, one save at a time; picking a record puts it on the CRM through the CRM's route.
+ */
+export function useSaveCalendarTask(id: string) {
+  const client = useQueryClient();
+  const base = updateCalendarTaskMutation(client, useMember().member.id);
+  const queue = stableId(id);
+  const update = useMutation({ ...base, scope: { id: `calendar-task:${queue}` } });
+  const link = useUpdateTask();
+  return (change: TaskChange, settled?: () => void) => {
+    const { companyId, personId, dealId, assigneeMemberId: _assignee, ...own } = change;
+    const record = companyId ?? personId ?? dealId;
+    const saved = record
+      ? link.mutateAsync({ id, companyId, personId, dealId })
+      : update.mutateAsync({ id, ...own });
+    void saved
+      .catch((error: unknown) => crmErrorToast(error, "The task was not changed"))
+      .finally(settled);
+  };
+}
+
+/** Deletes the calendar's task, then `onDeleted`. */
+export function useDeleteCalendarThisTask(id: string, onDeleted: () => void) {
+  const remove = useDeleteCalendarTask();
+  return {
+    isPending: remove.isPending,
+    run: () =>
+      remove.mutate(id, {
+        onSuccess: onDeleted,
+        onError: (error) => crmErrorToast(error, "The task was not deleted"),
+      }),
+  };
 }
 
 /** Deletes the task, then `onDeleted` (back to the list). */
@@ -172,8 +220,16 @@ function BodyField(props: { task: CrmTask; onSave: (body: string | null) => void
   );
 }
 
-/** Who, when and on what: the task's fields, one per row. */
-export function TaskDetails(props: { task: CrmTask; onSave: (change: TaskChange) => void }) {
+/**
+ * When, on what and who: the task's fields, one per row. A private task has no assignee; where
+ * the workspace has the CRM it can be added to a record.
+ */
+export function TaskDetails(props: {
+  task: CrmTask;
+  onSave: (change: TaskChange) => void;
+  isPrivate?: boolean;
+  canLink?: boolean;
+}) {
   const { task, onSave } = props;
   const names = useMemberNames();
   const record = taskRecord(task);
@@ -183,17 +239,6 @@ export function TaskDetails(props: { task: CrmTask; onSave: (change: TaskChange)
       <PlainValue label="Status">
         {task.completedAt ? `Done ${DAY.format(new Date(task.completedAt))}` : "Open"}
       </PlainValue>
-      <FieldRow label="Assignee">
-        <div className="w-full">
-          <AssigneePicker
-            inline
-            value={task.assigneeMemberId}
-            onChange={(assigneeMemberId) =>
-              assigneeMemberId !== task.assigneeMemberId && onSave({ assigneeMemberId })
-            }
-          />
-        </div>
-      </FieldRow>
       <DayValue
         label="Due"
         value={dayOf(task.dueAt) || null}
@@ -214,8 +259,8 @@ export function TaskDetails(props: { task: CrmTask; onSave: (change: TaskChange)
             </Button>
           }
         />
-      ) : (
-        <FieldRow label="Record">
+      ) : props.isPrivate && !props.canLink ? null : (
+        <FieldRow label={props.isPrivate ? "Add to CRM" : "Record"}>
           <div className="w-full">
             <RecordPicker
               label={false}
@@ -229,6 +274,19 @@ export function TaskDetails(props: { task: CrmTask; onSave: (change: TaskChange)
                   ...onRecord(picked.kind, picked.id),
                 });
               }}
+            />
+          </div>
+        </FieldRow>
+      )}
+      {!props.isPrivate && (
+        <FieldRow label="Assignee">
+          <div className="w-full">
+            <AssigneePicker
+              inline
+              value={task.assigneeMemberId}
+              onChange={(assigneeMemberId) =>
+                assigneeMemberId !== task.assigneeMemberId && onSave({ assigneeMemberId })
+              }
             />
           </div>
         </FieldRow>

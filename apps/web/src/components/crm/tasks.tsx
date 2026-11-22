@@ -54,7 +54,7 @@ import {
   TASK_PANEL_WIDTH,
   TaskPanel,
   useOpenTask,
-} from "./task-panel.tsx";
+} from "@/components/tasks/task-panel.tsx";
 import { TaskRail } from "./task-rail.tsx";
 
 /** Every task in the workspace: mine, everyone's (by assignee and due), or done. */

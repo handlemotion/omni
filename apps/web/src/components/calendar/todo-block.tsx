@@ -3,22 +3,19 @@ import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { CanvasButton } from "@/components/ui/canvas-button";
 import { endDrag, leadOf, startDrag } from "@/lib/calendar-drag.ts";
 import { HOUR_PX, type Placed, type Timed } from "@/lib/calendar-grid.ts";
-import type { CrmTask } from "@/lib/crm-tasks.ts";
+import type { Todo } from "@/lib/calendar-tasks.ts";
 
 /** A to-do as the grid holds it: its own span beside the events it overlaps. */
 export interface TodoItem extends Timed {
   kind: "todo";
-  task: CrmTask;
+  task: Todo;
 }
 
 const ROUND =
   "w-4.25 shrink-0 gap-x-0 overflow-hidden **:data-[slot=control-label]:hidden **:data-[slot=indicator]:rounded-full";
 
 /** A to-do's round check, alone. */
-export function TodoCheck(props: {
-  task: CrmTask;
-  onTodo?: (task: CrmTask, done: boolean) => void;
-}) {
+export function TodoCheck(props: { task: Todo; onTodo?: (task: Todo, done: boolean) => void }) {
   const done = !!props.task.completedAt;
   return (
     <CheckboxField
@@ -39,8 +36,8 @@ export function TodoCheck(props: {
 export function TodoBlock(props: {
   day: Date;
   placed: Placed<TodoItem>;
-  onTodo?: (task: CrmTask, done: boolean) => void;
-  onOpenTodo?: (task: CrmTask) => void;
+  onTodo?: (task: Todo, done: boolean) => void;
+  onOpenTodo?: (task: Todo) => void;
 }) {
   const { event: item, from, to, column, columns } = props.placed;
   const done = !!item.task.completedAt;
@@ -83,9 +80,9 @@ export function TodoBlock(props: {
 
 /** A dated to-do on its day: its check, then its title. */
 export function TodoChip(props: {
-  task: CrmTask;
-  onTodo?: (task: CrmTask, done: boolean) => void;
-  onOpenTodo?: (task: CrmTask) => void;
+  task: Todo;
+  onTodo?: (task: Todo, done: boolean) => void;
+  onOpenTodo?: (task: Todo) => void;
 }) {
   const { task } = props;
   const done = !!task.completedAt;

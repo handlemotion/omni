@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { parseCalendar } from "@omni/mail-core/calendar";
-import { applyCalendarPart, calendarArrivals, schema } from "@omni/db";
+import { applyCalendarPart, calendarArrivals, forMember, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -195,9 +195,10 @@ test("the thread shows the invitation with Yes, No and Maybe, and No answers it"
 
 test("a to-do added from a section's + is the member's, and checking a dated one on its day completes it", async () => {
   const { org, member, page, origin } = await invited();
-  await db.insert(schema.crmTasks).values({
+  await db.insert(schema.calendarTasks).values({
     orgId: org.id,
     title: "Send the brief",
+    ownerMemberId: member.id,
     assigneeMemberId: member.id,
     dueAt: new Date("2026-11-25T22:59:59Z"),
   });
@@ -212,9 +213,12 @@ test("a to-do added from a section's + is the member's, and checking a dated one
     .poll(async () =>
       (
         await db
-          .select({ title: schema.crmTasks.title, assignee: schema.crmTasks.assigneeMemberId })
-          .from(schema.crmTasks)
-          .where(eq(schema.crmTasks.title, "Book the room"))
+          .select({
+            title: schema.calendarTasks.title,
+            assignee: schema.calendarTasks.assigneeMemberId,
+          })
+          .from(schema.calendarTasks)
+          .where(eq(schema.calendarTasks.title, "Book the room"))
       ).map((t) => t.assignee),
     )
     .toEqual([member.id]);
@@ -228,9 +232,9 @@ test("a to-do added from a section's + is the member's, and checking a dated one
     .poll(async () =>
       (
         await db
-          .select({ done: schema.crmTasks.completedAt })
-          .from(schema.crmTasks)
-          .where(eq(schema.crmTasks.title, "Send the brief"))
+          .select({ done: schema.calendarTasks.completedAt })
+          .from(schema.calendarTasks)
+          .where(eq(schema.calendarTasks.title, "Send the brief"))
       ).map((t) => t.done !== null),
     )
     .toEqual([true]);
@@ -312,16 +316,18 @@ test("editing an overnight event keeps its end on the next day", async () => {
 
 test("a to-do past the first hundred still sits on its day", async () => {
   const { org, member, page, origin } = await invited();
-  await db.insert(schema.crmTasks).values([
+  await db.insert(schema.calendarTasks).values([
     ...Array.from({ length: 101 }, (_, i) => ({
       orgId: org.id,
       title: `Old ${i}`,
+      ownerMemberId: member.id,
       assigneeMemberId: member.id,
       dueAt: new Date(Date.UTC(2026, 9, 1, 12, i)),
     })),
     {
       orgId: org.id,
       title: "Send the brief",
+      ownerMemberId: member.id,
       assigneeMemberId: member.id,
       dueAt: new Date("2026-11-25T22:59:59Z"),
     },
@@ -535,7 +541,7 @@ test("a to-do shows in its section the moment Enter is pressed, before the Worke
   const { page, origin, org } = await invited();
   let release!: () => void;
   const released = new Promise<void>((resolve) => (release = resolve));
-  await page.route("**/api/crm/tasks", async (route) => {
+  await page.route("**/api/calendar/tasks", async (route) => {
     if (route.request().method() === "POST") await released;
     await route.continue().catch(() => undefined);
   });
@@ -550,7 +556,10 @@ test("a to-do shows in its section the moment Enter is pressed, before the Worke
   const row = section.getByRole("link", { name: "Water the plants" });
   await expect.poll(() => row.count()).toBe(1);
   const saved = () =>
-    db.select().from(schema.crmTasks).where(eq(schema.crmTasks.title, "Water the plants"));
+    db
+      .select()
+      .from(schema.calendarTasks)
+      .where(eq(schema.calendarTasks.title, "Water the plants"));
   expect(await saved()).toEqual([]);
   release();
   await expect.poll(async () => (await saved()).length).toBe(1);
@@ -561,9 +570,10 @@ test("a to-do shows in its section the moment Enter is pressed, before the Worke
 
 test("a to-do checked off stays in its section, crossed out", async () => {
   const { org, member, page, origin } = await invited();
-  await db.insert(schema.crmTasks).values({
+  await db.insert(schema.calendarTasks).values({
     orgId: org.id,
     title: "Call the printer",
+    ownerMemberId: member.id,
     assigneeMemberId: member.id,
   });
   await openWeek(page, origin, org.slug);
@@ -574,9 +584,9 @@ test("a to-do checked off stays in its section, crossed out", async () => {
     .poll(async () =>
       (
         await db
-          .select({ done: schema.crmTasks.completedAt })
-          .from(schema.crmTasks)
-          .where(eq(schema.crmTasks.title, "Call the printer"))
+          .select({ done: schema.calendarTasks.completedAt })
+          .from(schema.calendarTasks)
+          .where(eq(schema.calendarTasks.title, "Call the printer"))
       ).map((t) => t.done !== null),
     )
     .toEqual([true]);
@@ -603,9 +613,9 @@ test("a to-do checked off stays in its section, crossed out", async () => {
 const dueOf = async (orgId: string, title: string) =>
   (
     await db
-      .select({ dueAt: schema.crmTasks.dueAt })
-      .from(schema.crmTasks)
-      .where(and(eq(schema.crmTasks.orgId, orgId), eq(schema.crmTasks.title, title)))
+      .select({ dueAt: schema.calendarTasks.dueAt })
+      .from(schema.calendarTasks)
+      .where(and(eq(schema.calendarTasks.orgId, orgId), eq(schema.calendarTasks.title, title)))
   )[0]?.dueAt?.toISOString();
 
 test("an event dragged to another day and hour moves there, keeping its length", async () => {
@@ -648,9 +658,12 @@ test("an event dragged to another day and hour moves there, keeping its length",
 
 test("a to-do dragged onto an hour is due then and sits there; dragged to a day, it's due that day", async () => {
   const { org, member, page, origin } = await invited();
-  await db
-    .insert(schema.crmTasks)
-    .values({ orgId: org.id, title: "Call the printer", assigneeMemberId: member.id });
+  await db.insert(schema.calendarTasks).values({
+    orgId: org.id,
+    title: "Call the printer",
+    ownerMemberId: member.id,
+    assigneeMemberId: member.id,
+  });
   await openWeek(page, origin, org.slug);
   const row = page.getByRole("region", { name: "No date" }).locator("[data-todo]").first();
   await row.waitFor();
@@ -671,9 +684,12 @@ test("a to-do dragged onto an hour is due then and sits there; dragged to a day,
 
 test("a to-do opens beside the calendar, not in the CRM", async () => {
   const { org, member, page, origin } = await invited();
-  await db
-    .insert(schema.crmTasks)
-    .values({ orgId: org.id, title: "Draft Q1 plan", assigneeMemberId: member.id });
+  await db.insert(schema.calendarTasks).values({
+    orgId: org.id,
+    title: "Draft Q1 plan",
+    ownerMemberId: member.id,
+    assigneeMemberId: member.id,
+  });
   await openWeek(page, origin, org.slug);
   await page
     .getByRole("region", { name: "No date" })
@@ -746,9 +762,10 @@ test("the morning piece of an overnight event dragged an hour down moves the who
 
 test("the morning piece of a to-do due just before midnight dragged an hour down moves it an hour", async () => {
   const { org, member, page, origin } = await invited();
-  await db.insert(schema.crmTasks).values({
+  await db.insert(schema.calendarTasks).values({
     orgId: org.id,
     title: "Lock the doors",
+    ownerMemberId: member.id,
     assigneeMemberId: member.id,
     dueAt: new Date("2026-11-24T22:45:00.000Z"),
   });
@@ -788,9 +805,10 @@ test("keys on a to-do in the grid act on the to-do, not the selected event", asy
     "2026-11-24T09:00:00.000Z",
     "2026-11-24T10:00:00.000Z",
   ]);
-  await db.insert(schema.crmTasks).values({
+  await db.insert(schema.calendarTasks).values({
     orgId: org.id,
     title: "File expenses",
+    ownerMemberId: member.id,
     assigneeMemberId: member.id,
     dueAt: new Date("2026-11-24T22:59:59.999Z"),
   });
@@ -916,15 +934,16 @@ test("one scroll steps the month, one sideways swipe steps the week, and each ge
 
 test("a to-do dragged twice before its first save lands where it was dropped last", async () => {
   const { org, member, page, origin } = await invited();
-  await db.insert(schema.crmTasks).values({
+  await db.insert(schema.calendarTasks).values({
     orgId: org.id,
     title: "Water the plants",
+    ownerMemberId: member.id,
     assigneeMemberId: member.id,
     dueAt: new Date("2026-11-24T09:00:00.000Z"),
   });
   await openWeek(page, origin, org.slug);
   let patches = 0;
-  await page.route("**/api/crm/tasks/*", async (route) => {
+  await page.route("**/api/calendar/tasks/*", async (route) => {
     if (route.request().method() === "PATCH" && patches++ === 0) {
       await new Promise((r) => setTimeout(r, 1500));
     }
@@ -946,15 +965,16 @@ test("a to-do dragged twice before its first save lands where it was dropped las
 
 test("a to-do dropped back where it shows, while a later drop is still queued, ends there", async () => {
   const { org, member, page, origin } = await invited();
-  await db.insert(schema.crmTasks).values({
+  await db.insert(schema.calendarTasks).values({
     orgId: org.id,
     title: "Book the room",
+    ownerMemberId: member.id,
     assigneeMemberId: member.id,
     dueAt: new Date("2026-11-24T09:00:00.000Z"),
   });
   await openWeek(page, origin, org.slug);
   let patches = 0;
-  await page.route("**/api/crm/tasks/*", async (route) => {
+  await page.route("**/api/calendar/tasks/*", async (route) => {
     if (route.request().method() === "PATCH" && patches++ === 0) {
       await new Promise((r) => setTimeout(r, 2000));
     }
@@ -1030,9 +1050,12 @@ test("Delete pressed in an open to-do leaves the selected event alone", async ()
     "2026-11-24T09:00:00.000Z",
     "2026-11-24T10:00:00.000Z",
   ]);
-  await db
-    .insert(schema.crmTasks)
-    .values({ orgId: org.id, title: "Send the deck", assigneeMemberId: member.id });
+  await db.insert(schema.calendarTasks).values({
+    orgId: org.id,
+    title: "Send the deck",
+    ownerMemberId: member.id,
+    assigneeMemberId: member.id,
+  });
   await openWeek(page, origin, org.slug);
   await page
     .getByRole("region", { name: "No date" })
@@ -1056,9 +1079,12 @@ test("a to-do picked in the sidebar takes the place of an open event", async () 
     "2026-11-24T09:00:00.000Z",
     "2026-11-24T10:00:00.000Z",
   ]);
-  await db
-    .insert(schema.crmTasks)
-    .values({ orgId: org.id, title: "Book the venue", assigneeMemberId: member.id });
+  await db.insert(schema.calendarTasks).values({
+    orgId: org.id,
+    title: "Book the venue",
+    ownerMemberId: member.id,
+    assigneeMemberId: member.id,
+  });
   await openWeek(page, origin, org.slug);
   await page.getByRole("button", { name: /Review/ }).dblclick();
   await page.getByRole("button", { name: "Edit" }).waitFor();
@@ -1077,3 +1103,108 @@ async function freePort() {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
 }
+
+test("a private to-do never shows in the CRM's task list, and one on a record does", async () => {
+  const { org, member, page, origin } = await invited();
+  const crm = forMember(db, member.id).crm;
+  const deal = await crm.createDeal({ name: "Website redesign" });
+  if (deal.status !== "ok") throw new Error("seed");
+  const linked = await crm.createTask({
+    title: "Send the quote",
+    record: { dealId: deal.deal.id },
+  });
+  if (linked.status !== "ok") throw new Error("seed");
+  await db.insert(schema.calendarTasks).values({
+    orgId: org.id,
+    title: "Call the dentist",
+    ownerMemberId: member.id,
+    assigneeMemberId: member.id,
+  });
+
+  await openWeek(page, origin, org.slug);
+  const todos = page.getByRole("region", { name: "No date" });
+  await todos.getByRole("link", { name: "Call the dentist" }).waitFor();
+  await todos.getByRole("link", { name: "Send the quote" }).waitFor();
+
+  const crmPage = await page.context().newPage();
+  await crmPage.goto(new URL(`/${org.slug}/crm/tasks?assignee=anyone`, origin).toString());
+  const list = crmPage.getByRole("region", { name: "No due date" });
+  await list.getByText("Send the quote").waitFor();
+  expect(await list.getByText("Call the dentist").count()).toBe(0);
+});
+
+test("a private to-do is put on a deal from Add to CRM in its panel, and then shows the deal", async () => {
+  const { org, member, page, origin } = await invited();
+  const deal = await forMember(db, member.id).crm.createDeal({ name: "Rooftop shoot" });
+  if (deal.status !== "ok") throw new Error("seed");
+  const [task] = await db
+    .insert(schema.calendarTasks)
+    .values({
+      orgId: org.id,
+      title: "Scout the roof",
+      ownerMemberId: member.id,
+      assigneeMemberId: member.id,
+    })
+    .returning();
+  await page.goto(
+    new URL(`/${org.slug}/calendar?date=2026-11-24&view=week&task=${task!.id}`, origin).toString(),
+  );
+  const panel = page.getByRole("region", { name: "Task" });
+  await panel.getByText("Add to CRM").waitFor();
+  expect(await panel.getByText("Assignee").count()).toBe(0);
+  await panel.getByRole("combobox").fill("Roof");
+  await page.getByRole("option", { name: "Rooftop shoot" }).click();
+  await expect
+    .poll(async () => {
+      const [row] = await db
+        .select({ kind: schema.calendarTasks.recordKind, id: schema.calendarTasks.recordId })
+        .from(schema.calendarTasks)
+        .where(eq(schema.calendarTasks.id, task!.id));
+      return row;
+    })
+    .toEqual({ kind: "deal", id: deal.deal.id });
+  await panel.getByRole("link", { name: "Rooftop shoot" }).waitFor();
+  await panel.getByText("Assignee").waitFor();
+  expect(new URL(page.url()).pathname).toBe(`/${org.slug}/calendar`);
+});
+
+test("Open on a to-do's right-click menu in the grid opens it beside the calendar", async () => {
+  const { org, member, page, origin } = await invited();
+  await db.insert(schema.calendarTasks).values({
+    orgId: org.id,
+    title: "Print the call sheet",
+    ownerMemberId: member.id,
+    assigneeMemberId: member.id,
+    dueAt: new Date("2026-11-25T22:59:59Z"),
+  });
+  await openWeek(page, origin, org.slug);
+  await page.locator('[data-all-day="2026-11-25"] [data-todo]').click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Open" }).click();
+  const title = page.getByRole("region", { name: "Task" }).getByRole("textbox", { name: "Title" });
+  await expect.poll(() => title.inputValue()).toBe("Print the call sheet");
+  expect(new URL(page.url()).pathname).toBe(`/${org.slug}/calendar`);
+});
+
+test("a Personal space keeps its to-dos beside the calendar, with no CRM to add them to", async () => {
+  const { org, member, page, origin } = await invited();
+  await db.insert(schema.personalSpaces).values({ orgId: org.id, userId: member.userId });
+  const [task] = await db
+    .insert(schema.calendarTasks)
+    .values({
+      orgId: org.id,
+      title: "Renew the passport",
+      ownerMemberId: member.id,
+      assigneeMemberId: member.id,
+    })
+    .returning();
+  await page.goto(
+    new URL(`/${org.slug}/calendar?date=2026-11-24&view=week&task=${task!.id}`, origin).toString(),
+  );
+  await page
+    .getByRole("region", { name: "No date" })
+    .getByRole("link", { name: "Renew the passport" })
+    .waitFor();
+  const panel = page.getByRole("region", { name: "Task" });
+  await panel.getByText("Due").waitFor();
+  expect(await panel.getByText("Add to CRM").count()).toBe(0);
+});

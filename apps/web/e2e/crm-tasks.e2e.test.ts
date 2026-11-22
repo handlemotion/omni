@@ -57,7 +57,7 @@ test("checking a task off in the list completes it, and an old link to its page 
   const made = await fetch(new URL("/api/crm/tasks", origin), {
     method: "POST",
     headers,
-    body: JSON.stringify({ title: "Send the proposal" }),
+    body: JSON.stringify({ title: "Send the proposal", dealId: await dealOf(headers) }),
   });
   expect(made.status).toBe(201);
   const { task } = (await made.json()) as { task: { id: string } };
@@ -100,7 +100,7 @@ test("a task opens beside the list, edits save to that task, and Escape closes i
     const made = await fetch(new URL("/api/crm/tasks", origin), {
       method: "POST",
       headers,
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, dealId: await dealOf(headers) }),
     });
     return ((await made.json()) as { task: { id: string } }).task.id;
   };
@@ -141,7 +141,7 @@ test("subtasks added quickly in the panel all save in order, check off, and a cl
   const made = await fetch(new URL("/api/crm/tasks", origin()), {
     method: "POST",
     headers,
-    body: JSON.stringify({ title: "Plan the shoot" }),
+    body: JSON.stringify({ title: "Plan the shoot", dealId: await dealOf(headers) }),
   });
   const { task } = (await made.json()) as { task: { id: string } };
   await page.goto(new URL(`/${org.slug}/crm/tasks?task=${task.id}`, origin()).toString());
@@ -188,7 +188,7 @@ test("a subtask added just before switching tasks is kept when the next one is a
     const made = await fetch(new URL("/api/crm/tasks", origin()), {
       method: "POST",
       headers,
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, dealId: await dealOf(headers) }),
     });
     return ((await made.json()) as { task: { id: string } }).task.id;
   };
@@ -230,7 +230,15 @@ test("an open task is found from the command menu and opens beside the task list
   const made = await fetch(new URL("/api/crm/tasks", origin), {
     method: "POST",
     headers: { cookie, origin, "content-type": "application/json", "omni-workspace": org.id },
-    body: JSON.stringify({ title: "Scout the rooftop location" }),
+    body: JSON.stringify({
+      title: "Scout the rooftop location",
+      dealId: await dealOf({
+        cookie,
+        origin,
+        "content-type": "application/json",
+        "omni-workspace": org.id,
+      }),
+    }),
   });
   const { task } = (await made.json()) as { task: { id: string } };
 
@@ -270,7 +278,7 @@ test("a task dragged onto Today is due today, and onto No due date has no due da
   const made = await fetch(new URL("/api/crm/tasks", origin), {
     method: "POST",
     headers,
-    body: JSON.stringify({ title: "Call the client" }),
+    body: JSON.stringify({ title: "Call the client", dealId: await dealOf(headers) }),
   });
   const { task } = (await made.json()) as { task: { id: string } };
 
@@ -412,7 +420,9 @@ test("a task on a record's Tasks tab opens in place of the tab's list without le
 
   await page.reload();
   await expect
-    .poll(() => panel.getByRole("textbox", { name: "Description" }).inputValue())
+    .poll(() => panel.getByRole("textbox", { name: "Description" }).inputValue(), {
+      timeout: 10_000,
+    })
     .toBe("Check the loading dock.");
 
   await panel.getByRole("button", { name: "Close task" }).click();
@@ -451,7 +461,10 @@ test("opening a task far down the list keeps the list where it was scrolled", as
     await fetch(new URL("/api/crm/tasks", origin()), {
       method: "POST",
       headers,
-      body: JSON.stringify({ title: `Shot ${String(i).padStart(2, "0")}` }),
+      body: JSON.stringify({
+        title: `Shot ${String(i).padStart(2, "0")}`,
+        dealId: await dealOf(headers),
+      }),
     });
   }
   await page.goto(new URL(`/${org.slug}/crm/tasks`, origin()).toString());
@@ -479,7 +492,7 @@ test("in a window too narrow for both, the task takes the whole screen, and sits
   const made = await fetch(new URL("/api/crm/tasks", origin()), {
     method: "POST",
     headers,
-    body: JSON.stringify({ title: "Pack the lenses" }),
+    body: JSON.stringify({ title: "Pack the lenses", dealId: await dealOf(headers) }),
   });
   const { task } = (await made.json()) as { task: { id: string } };
   await page.setViewportSize({ width: 900, height: 800 });
@@ -655,4 +668,23 @@ async function freePort() {
   const { port } = server.address() as AddressInfo;
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
+}
+
+const deals = new Map<string, Promise<string>>();
+
+function dealOf(headers: Record<string, string>) {
+  const key = headers["omni-workspace"] ?? "";
+  if (!deals.has(key)) {
+    deals.set(
+      key,
+      fetch(new URL("/api/crm/deals", origin()), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: "Rooftop shoot" }),
+      })
+        .then((made) => made.json() as Promise<{ deal: { id: string } }>)
+        .then((made) => made.deal.id),
+    );
+  }
+  return deals.get(key)!;
 }

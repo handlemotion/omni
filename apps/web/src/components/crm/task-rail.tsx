@@ -13,7 +13,7 @@ import { crmErrorToast } from "./crm-errors.ts";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { RailRow, railPlace, type RailPlace } from "./rail-row.tsx";
 import { useMemberNames } from "./task-dialog.tsx";
-import { useOpenTask } from "./task-panel.tsx";
+import { useOpenTask } from "@/components/tasks/task-panel.tsx";
 
 type RailItem = { kind: "task"; task: CrmTask } | { kind: "done" };
 

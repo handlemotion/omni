@@ -2,7 +2,8 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { calendarTone, type CalendarEvent, type CalendarItem } from "@/lib/calendar.ts";
 import { timedTodo, TODO_MINUTES } from "@/lib/calendar-drag.ts";
 import { allDayOn, dayKey, placeDay, sameDay, type Timed } from "@/lib/calendar-grid.ts";
-import { dayOf, type CrmTask } from "@/lib/crm-tasks.ts";
+import type { Todo } from "@/lib/calendar-tasks.ts";
+import { dayOf } from "@/lib/crm-tasks.ts";
 import type { TodoItem } from "./todo-block.tsx";
 import type { Selection, WeekGridProps } from "./week-grid.tsx";
 
@@ -38,7 +39,7 @@ export function useHandlers(props: WeekGridProps) {
 /** An event or a timed to-do, placed on the hours. */
 export type GridItem = ({ kind: "event"; event: CalendarEvent } | TodoItem) & Timed;
 
-function itemsOf(events: readonly CalendarEvent[], todos: readonly CrmTask[]) {
+function itemsOf(events: readonly CalendarEvent[], todos: readonly Todo[]) {
   const items: GridItem[] = events.map((event) => ({
     kind: "event",
     event,
@@ -58,13 +59,13 @@ function itemsOf(events: readonly CalendarEvent[], todos: readonly CrmTask[]) {
   return items;
 }
 
-const NO_TODOS: readonly CrmTask[] = [];
+const NO_TODOS: readonly Todo[] = [];
 
 /** Each day's placed items, all-day events and dated to-dos, worked out once per change. */
 export function useLayout(
   days: readonly Date[],
   events: readonly CalendarEvent[],
-  todos: readonly CrmTask[] = NO_TODOS,
+  todos: readonly Todo[] = NO_TODOS,
 ) {
   return useMemo(() => {
     const items = itemsOf(events, todos);

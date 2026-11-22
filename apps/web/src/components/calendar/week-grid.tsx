@@ -6,7 +6,7 @@ import { CanvasButton } from "@/components/ui/canvas-button";
 import type { CalendarEvent, CalendarItem } from "@/lib/calendar.ts";
 import { calendarTone } from "@/lib/calendar.ts";
 import { endDrag, leadOf, startDrag, type Dragged, type Drop } from "@/lib/calendar-drag.ts";
-import type { CrmTask } from "@/lib/crm-tasks.ts";
+import type { Todo } from "@/lib/calendar-tasks.ts";
 import { useDropZone } from "./drop-zone.ts";
 import { TodoBlock, TodoChip } from "./todo-block.tsx";
 import {
@@ -48,14 +48,14 @@ export interface WeekGridProps {
   onCreate: (slot: Slot) => void;
   onMove: (event: CalendarEvent, minutes: number) => void;
   /** The member's open to-dos; each dated one sits on its day's all-day row. */
-  todos?: readonly CrmTask[];
-  onTodo?: (task: CrmTask, done: boolean) => void;
+  todos?: readonly Todo[];
+  onTodo?: (task: Todo, done: boolean) => void;
   /** A new event at the selection, from the grid's corner. */
   onNew?: () => void;
   /** Something the calendar dragged was let go on a day, or a time on it. */
   onDrop?: (item: Dragged, drop: Drop) => void;
   /** Opens a to-do beside the calendar. */
-  onOpenTodo?: (task: CrmTask) => void;
+  onOpenTodo?: (task: Todo) => void;
 }
 
 /** Whether the member may move it: an event made in Omni that their inbox organizes. */
@@ -178,7 +178,7 @@ interface PieceProps {
 const AllDayCell = memo(function AllDayCell(props: {
   day: Date;
   events: readonly CalendarEvent[];
-  todos: readonly CrmTask[];
+  todos: readonly Todo[];
   tones: ReadonlyMap<string, string>;
   picked: string | null;
   handlers: Handlers;

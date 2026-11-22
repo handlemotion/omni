@@ -8,22 +8,16 @@ import { contextMenuProps } from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/components/ui/link";
 import { TextField } from "@/components/ui/text-field";
-import { useHasCrm } from "@/hooks/use-crm.ts";
-import { useCreateTask, useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
-import { useMember } from "@/hooks/use-session.ts";
-import { useOpenTask } from "@/components/crm/task-panel.tsx";
+import {
+  useCalendarTasks,
+  useCreateCalendarTask,
+  useUpdateCalendarTask,
+} from "@/hooks/use-calendar-tasks.ts";
+import { useOpenTask } from "@/components/tasks/task-panel.tsx";
 import { endDrag, startDrag, timedTodo } from "@/lib/calendar-drag.ts";
 import { stableId } from "@/lib/crm-pending.ts";
-import {
-  dayOf,
-  dueAtOf,
-  dueGroup,
-  dueLabel,
-  type CrmTask,
-  type DueGroup,
-  MY_TODOS,
-  type TaskFilter,
-} from "@/lib/crm-tasks.ts";
+import type { Todo } from "@/lib/calendar-tasks.ts";
+import { dayOf, dueAtOf, dueGroup, dueLabel, type DueGroup } from "@/lib/crm-tasks.ts";
 
 const SECTIONS: { id: DueGroup; label: string; fixed: boolean }[] = [
   { id: "overdue", label: "Overdue", fixed: false },
@@ -32,39 +26,36 @@ const SECTIONS: { id: DueGroup; label: string; fixed: boolean }[] = [
   { id: "none", label: "No date", fixed: true },
 ];
 
-const MY_DONE = { status: "done", assignee: "me" } satisfies TaskFilter;
 const opened = Date.now();
 
-const doneSinceOpened = (task: CrmTask) =>
+const doneSinceOpened = (task: Todo) =>
   !!task.completedAt && Date.parse(task.completedAt) >= opened;
 
 /**
- * Every open to-do of the member's, all pages loaded, and the ones they checked off since the page
- * opened, still in place and marked done; none where the workspace has no tasks. Both lists are
- * the server's, so a to-do reopened, renamed or deleted elsewhere shows as it is now.
+ * Every open to-do the member owns or is assigned, all pages loaded, and the ones they checked
+ * off since the page opened, still in place and marked done. Both lists are the server's, so a
+ * to-do reopened, renamed or deleted elsewhere shows as it is now.
  */
 export function useMyTodos() {
-  const hasCrm = useHasCrm();
-  const open = useCrmTasks(MY_TODOS);
-  const done = useCrmTasks(MY_DONE);
+  const open = useCalendarTasks("open");
+  const done = useCalendarTasks("done");
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = open;
   useEffect(() => {
-    if (hasCrm && hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  }, [hasCrm, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   const openTasks = open.tasks;
   const finished = done.tasks;
   return useMemo(() => {
-    if (!hasCrm) return [];
     const openIds = new Set(openTasks.map((task) => task.id));
     const recent = finished.filter((task) => doneSinceOpened(task) && !openIds.has(task.id));
     return [...openTasks, ...recent];
-  }, [hasCrm, openTasks, finished]);
+  }, [openTasks, finished]);
 }
 
 /** Checks a to-do off, or opens it again. */
 export function useToggleTodo() {
-  const update = useUpdateTask();
-  return (task: CrmTask, done: boolean) =>
+  const update = useUpdateCalendarTask();
+  return (task: Todo, done: boolean) =>
     update.mutate(
       { id: task.id, done },
       { onError: (error) => crmErrorToast(error, "The to-do was not changed") },
@@ -85,11 +76,6 @@ function dueFor(section: DueGroup) {
 
 /** The to-dos beside the calendar, in fixed sections by when they're due. */
 export function TodoList() {
-  if (!useHasCrm()) return null;
-  return <Todos />;
-}
-
-function Todos() {
   const tasks = useMyTodos();
   const [adding, setAdding] = useState<DueGroup | null>(null);
   const now = new Date();
@@ -138,15 +124,13 @@ const ROUND =
 
 function NewTodo({ section, onDone }: { section: DueGroup; onDone: () => void }) {
   const [title, setTitle] = useState("");
-  const create = useCreateTask();
-  const { member } = useMember();
+  const create = useCreateCalendarTask();
   const save = () => {
     const trimmed = title.trim();
     if (!trimmed) return onDone();
     setTitle("");
-    create.create(
-      { title: trimmed, assigneeMemberId: member.id, dueAt: dueFor(section) },
-      (error) => crmErrorToast(error, "The to-do was not added"),
+    create.create({ title: trimmed, dueAt: dueFor(section) }, (error) =>
+      crmErrorToast(error, "The to-do was not added"),
     );
   };
   return (
@@ -173,14 +157,14 @@ function NewTodo({ section, onDone }: { section: DueGroup; onDone: () => void })
 
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
-function dueText(task: CrmTask) {
+function dueText(task: Todo) {
   const day = dueLabel(task.dueAt);
   if (!task.dueAt || !timedTodo(task)) return day;
   const at = clock.format(new Date(task.dueAt));
   return day === "Today" ? at : `${day} ${at}`;
 }
 
-function TodoRow({ task, overdue }: { task: CrmTask; overdue: boolean }) {
+function TodoRow({ task, overdue }: { task: Todo; overdue: boolean }) {
   const toggle = useToggleTodo();
   const open = useOpenTask();
   const done = !!task.completedAt;

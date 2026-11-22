@@ -20,6 +20,7 @@ import { applyFilePresence, clearFilePresence } from "./file-presence.ts";
 import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
 import { calendarChanged, calendarKeys } from "./calendar.ts";
+import { calendarTaskKeys } from "./calendar-tasks.ts";
 import { crmChangedElsewhere } from "./crm-cache.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
@@ -91,6 +92,7 @@ function crmChanged(client: QueryClient, kind: CrmEvent["kind"]) {
   if (kind === "deal") {
     void client.invalidateQueries({ queryKey: keys.storageTeamspaces() }, { cancelRefetch: false });
   }
+  if (kind === "task") void client.invalidateQueries({ queryKey: calendarTaskKeys.all() });
   crmChangedElsewhere(client);
 }
 
