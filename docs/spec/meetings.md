@@ -385,8 +385,10 @@ access covers the meeting page, its transcript, its notes, its actions, and its 
   workspace settings that close Drive's public links and outside sharing close these.
 - **Removing a grant**, an attendee's included, takes the access away. Owners and editors can.
 - **When the recorder leaves the workspace**, whoever receives their files (the person who
-  removed them, else the oldest owner) becomes the owner of the meetings they recorded. The
-  leaver keeps none of them, except as a `viewer` of a meeting they attended.
+  removed them, else the oldest owner) gets an `owner` grant on the meetings they owned. The
+  leaver keeps none of them, except as a `viewer` of a meeting they attended. Who recorded it
+  does not change. With no one to receive them (a sole owner's leave, which is refused), nothing
+  changes.
 - **Groups** show only the meetings the viewer can open; a group's summary and timeline are made
   from those meetings only, per viewer: a group page with a meeting you cannot open shows its
   date and title at most.

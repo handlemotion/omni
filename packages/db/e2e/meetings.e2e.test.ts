@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
-import { meetingsPipeline } from "../src/meetings.ts";
+import { handOverMemberMeetings, meetingsPipeline } from "../src/meetings.ts";
 import { members, storagePolicies, users } from "../src/schema/index.ts";
 import { setRole } from "./storage-support.ts";
 import { createOrg, createTestDatabase } from "./support.ts";
@@ -425,4 +425,20 @@ test("a step's tries are counted on the meeting until one goes through", async (
   await pipeline.fail(meetingId, "engine down", ["recording"]);
   expect(await pipeline.restartFailed(meetingId)).toBe("uploaded");
   expect(await pipeline.failedAttempt(meetingId)).toBe(1);
+});
+
+test("a leaver's meetings change hands only when someone receives them, and still name who recorded them", async () => {
+  const s = await studio();
+  const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address] }));
+
+  await handOverMemberMeetings(db, { memberId: s.dana.id, toMemberId: null });
+  expect(ok(await forMember(db, s.dana.id).meetings.get(meetingId)).role).toBe("owner");
+  expect((await forMember(db, s.ben.id).meetings.get(meetingId)).status).toBe("not_found");
+
+  for (let run = 0; run < 2; run++) {
+    await handOverMemberMeetings(db, { memberId: s.dana.id, toMemberId: s.ben.id });
+  }
+  expect(ok(await forMember(db, s.ben.id).meetings.get(meetingId)).role).toBe("owner");
+  expect(ok(await forUser(db, s.dana.userId).meetings.get(meetingId)).role).toBe("viewer");
+  expect((await meetingsPipeline(db).meeting(meetingId))?.recorder?.address).toBe(s.dana.address);
 });
