@@ -199,7 +199,11 @@ async function ensureSpacesForOwnGmail(db: Db) {
     join ${mailboxAccess} a on a.mailbox_id = m.id and a.role = 'owner'
     join ${members} om on om.id = a.member_id and om.organization_id = m.org_id
     where m.kind = 'personal' and m.provider = 'gmail' and m.status <> 'disabled'
-      and not exists (select 1 from ${personalSpaces} p2 where p2.user_id = om.user_id)
+      and not exists (
+        select 1 from ${personalSpaces} p2
+        join ${members} m2 on m2.organization_id = p2.org_id and m2.user_id = p2.user_id
+        where p2.user_id = om.user_id
+      )
       and not exists (
         select 1 from ${mailDomains} d
         where lower(split_part(m.address, '@', 2)) = d.domain

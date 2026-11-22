@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ensurePersonalSpace, forMember, schema } from "@omni/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createMailbox,
@@ -157,7 +157,7 @@ test("the daily cron deletes only accounts with no workspace, no way into one, a
   expect(await remaining(everyone)).toEqual(left);
 });
 
-test("an abandoned account's empty Personal space goes with it; one holding mail, a file, a CRM record, another member or a subscription keeps its owner", async () => {
+test("an abandoned account's empty Personal space goes with it; one holding mail, a file, a CRM record, a domain, another member or a subscription keeps its owner", async () => {
   const { db } = database;
   const gone = await signUp("personal-gone", 45);
   const goneSpace = await ensurePersonalSpace(db, gone.id);
@@ -191,10 +191,15 @@ test("an abandoned account's empty Personal space goes with it; one holding mail
   await db
     .insert(schema.subscriptions)
     .values({ id: randomUUID(), plan: "team", orgId: payingSpace, status: "active" });
+  const domain = await signUp("personal-domain", 45);
+  const domainSpace = await ensurePersonalSpace(db, domain.id);
+  await db
+    .insert(schema.mailDomains)
+    .values({ orgId: domainSpace, domain: `held-${domain.id}.test`, provider: "imap" });
 
   await runDaily();
 
-  const ids = [gone.id, kept.id, files.id, shared.id, crm.id, paying.id];
+  const ids = [gone.id, kept.id, files.id, shared.id, crm.id, paying.id, domain.id];
   expect(await remaining(ids)).toEqual(new Set(ids.slice(1)));
   const spaces = await db
     .select({ id: schema.organizations.id })
@@ -207,9 +212,30 @@ test("an abandoned account's empty Personal space goes with it; one holding mail
         sharedSpace,
         crmSpace,
         payingSpace,
+        domainSpace,
       ]),
     );
   expect(spaces.map((space) => space.id).toSorted()).toEqual(
-    [keptSpace, filesSpace, sharedSpace, crmSpace, payingSpace].toSorted(),
+    [keptSpace, filesSpace, sharedSpace, crmSpace, payingSpace, domainSpace].toSorted(),
   );
+});
+
+test("an abandoned account that left its Personal space leaves that workspace to the people in it", async () => {
+  const { db } = database;
+  const left = await signUp("personal-left", 45);
+  const space = await ensurePersonalSpace(db, left.id);
+  const heir = await createMember(db, space, `heir-${left.id}@omni.test`);
+  await db.update(schema.members).set({ role: "owner" }).where(eq(schema.members.id, heir.id));
+  await db
+    .delete(schema.members)
+    .where(and(eq(schema.members.organizationId, space), eq(schema.members.userId, left.id)));
+
+  await runDaily();
+
+  expect(await remaining([left.id])).toEqual(new Set());
+  const [still] = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, space));
+  expect(still?.id).toBe(space);
 });

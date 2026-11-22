@@ -4,6 +4,7 @@ import {
   advanceOrgSetup,
   DOMAIN_ADMIN_ROLES,
   ensurePersonalSpace,
+  ownPersonalSpace,
   findMemberDomain,
   listDomainAudit,
   listMemberDomains,
@@ -95,10 +96,7 @@ export const onboarding = new Hono<AppEnv>()
     const canCreateOrganization =
       !user.scopeOrgId && (await mayCreateOrganization(db, user.id, config.auth.signUp));
     const billing = { enabled: config.auth.billing !== undefined };
-    const [personal] = await db
-      .select({ orgId: schema.personalSpaces.orgId })
-      .from(schema.personalSpaces)
-      .where(eq(schema.personalSpaces.userId, user.id));
+    const personal = await ownPersonalSpace(db, user.id);
     const canCreatePersonalSpace = !personal && !user.scopeOrgId;
     if (!member) {
       return c.json({

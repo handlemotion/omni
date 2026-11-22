@@ -244,3 +244,34 @@ test("a company whose handle looks like a Personal space's does not block anyone
   await justMe(worker, jar);
   expect(await personalSpaces(user!.id)).toHaveLength(1);
 });
+
+test("someone who left their Personal space gets a new one, and the old one stays with its people", async () => {
+  const { db } = database;
+  const { jar, userId: ownerId, spaceId } = await signedUp("leaver@personal.test");
+  const heir = await signedUp("heir@personal.test");
+  await db.insert(schema.members).values({
+    id: randomUUID(),
+    organizationId: spaceId,
+    userId: heir.userId,
+    role: "owner",
+    createdAt: new Date(),
+  });
+  await db
+    .delete(schema.members)
+    .where(and(eq(schema.members.organizationId, spaceId), eq(schema.members.userId, ownerId)));
+
+  expect((await get(jar, "/onboarding")).body).toMatchObject({ canCreatePersonalSpace: true });
+  const again = await fetch(new URL("/api/onboarding/personal", worker.url), {
+    method: "POST",
+    headers: { origin: WEB_ORIGIN, cookie: jar.header },
+  });
+  expect(again.status).toBe(200);
+  const fresh = await ensurePersonalSpace(db, ownerId);
+  expect(fresh).not.toBe(spaceId);
+  expect(await personalSpaces(ownerId)).toEqual([expect.objectContaining({ id: fresh })]);
+  const [kept] = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, spaceId));
+  expect(kept?.id).toBe(spaceId);
+});

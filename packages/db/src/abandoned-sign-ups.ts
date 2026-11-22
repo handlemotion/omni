@@ -12,6 +12,7 @@ import {
   subscriptions,
   users,
 } from "./schema/auth.ts";
+import { mailDomains } from "./schema/domains.ts";
 import { personalSpaces, userEmails } from "./schema/identity.ts";
 import { grantsForUserRow, orgHoldsFiles } from "./storage.ts";
 
@@ -25,7 +26,8 @@ export const ABANDONED_SIGN_UP_BATCH = 500;
  * Deletes accounts that have no workspace and nothing that would give them one, created and last
  * signed in to before `idleSince`, oldest first, at most `limit`. Answers what it deleted.
  *
- * Kept: anyone in a company, or whose Personal space holds a mailbox, a file or a CRM record,
+ * Kept: anyone in a company, or whose Personal space holds a mailbox, a file, a CRM record or a
+ * domain lock (deleting it would release the domain),
  * has another member (deleting it would take their workspace), or has ever had a subscription
  * (deleting it would leave a Stripe customer billed with no account to cancel from); anyone with a
  * live invitation to their primary or any extra sign-in email (they may still accept it); anyone
@@ -58,6 +60,12 @@ export async function deleteAbandonedSignUps(
                   orgHasMailbox(sql`${members.organizationId}`),
                   orgHoldsFiles(sql`${members.organizationId}`),
                   orgHoldsCrmRecords(sql`${members.organizationId}`),
+                  exists(
+                    db
+                      .select({ one: sql`1` })
+                      .from(mailDomains)
+                      .where(eq(mailDomains.orgId, members.organizationId)),
+                  ),
                   exists(
                     db
                       .select({ one: sql`1` })
@@ -124,17 +132,22 @@ export async function deleteAbandonedSignUps(
       await tx.select({ id: users.id }).from(users).where(inArray(users.id, abandoned))
     ).map((row) => row.id);
     if (ids.length === 0) return [];
-    await tx
-      .delete(organizations)
-      .where(
-        inArray(
-          organizations.id,
-          tx
-            .select({ id: personalSpaces.orgId })
-            .from(personalSpaces)
-            .where(inArray(personalSpaces.userId, ids)),
-        ),
-      );
+    await tx.delete(organizations).where(
+      inArray(
+        organizations.id,
+        tx
+          .select({ id: personalSpaces.orgId })
+          .from(personalSpaces)
+          .innerJoin(
+            members,
+            and(
+              eq(members.organizationId, personalSpaces.orgId),
+              eq(members.userId, personalSpaces.userId),
+            ),
+          )
+          .where(inArray(personalSpaces.userId, ids)),
+      ),
+    );
     return tx
       .delete(users)
       .where(inArray(users.id, ids))
