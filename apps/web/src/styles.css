@@ -90,33 +90,18 @@
   --calendar-line: color-mix(in oklab, var(--border) 55%, transparent);
   --module-foreground: #ffffff;
   --primary-subtle-foreground: var(--primary);
-  /* A folder card's pocket (`folder-art.tsx`), after Drive's module mark in the brand blue: a
-     deeper back panel and a lighter, slightly clear front flap over the items standing in it,
-     each lit from above, with a darker edge. */
-  --folder-back: linear-gradient(
-    to bottom,
-    color-mix(in oklab, var(--primary) 70%, white),
-    color-mix(in oklab, var(--primary) 90%, black)
-  );
+  /* A folder card's pocket (`folder-art.tsx`), in a quiet grey: a back panel with a tab, a
+     lighter, slightly clear front flap over the items standing in it, each lit from above, with a
+     darker edge. */
+  --folder-back-top: color-mix(in oklab, var(--foreground) 6%, white);
+  --folder-back-bottom: color-mix(in oklab, var(--foreground) 11%, white);
   --folder-front: linear-gradient(
     to bottom,
-    color-mix(in oklab, color-mix(in oklab, var(--primary) 45%, white) 86%, transparent),
-    color-mix(in oklab, color-mix(in oklab, var(--primary) 80%, white) 94%, transparent)
+    color-mix(in oklab, color-mix(in oklab, var(--foreground) 2%, white) 86%, transparent),
+    color-mix(in oklab, color-mix(in oklab, var(--foreground) 5%, white) 94%, transparent)
   );
-  --folder-edge: color-mix(in oklab, var(--primary) 75%, black);
-  --folder-shine: color-mix(in oklab, white 55%, transparent);
-  /* The same pocket in grey, for a folder with nothing in it. */
-  --folder-empty-back: linear-gradient(
-    to bottom,
-    color-mix(in oklab, var(--foreground) 12%, white),
-    color-mix(in oklab, var(--foreground) 22%, white)
-  );
-  --folder-empty-front: linear-gradient(
-    to bottom,
-    color-mix(in oklab, color-mix(in oklab, var(--foreground) 4%, white) 86%, transparent),
-    color-mix(in oklab, color-mix(in oklab, var(--foreground) 12%, white) 94%, transparent)
-  );
-  --folder-empty-edge: color-mix(in oklab, var(--foreground) 45%, white);
+  --folder-edge: color-mix(in oklab, var(--foreground) 11%, white);
+  --folder-shine: color-mix(in oklab, white 75%, transparent);
   --chart-1: var(--primary);
   --chart-2: color-mix(in oklab, var(--primary) 80%, white);
   --chart-3: color-mix(in oklab, var(--primary) 60%, white);
@@ -200,7 +185,8 @@
   --color-primary-subtle-foreground: var(--primary-subtle-foreground);
   --color-folder-edge: var(--folder-edge);
   --color-folder-shine: var(--folder-shine);
-  --color-folder-empty-edge: var(--folder-empty-edge);
+  --color-folder-back-top: var(--folder-back-top);
+  --color-folder-back-bottom: var(--folder-back-bottom);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);

@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useId, useRef, useState, type CSSProperties } from "react";
 import { IconFolderFilled } from "@/components/icons/central";
 import { useStorageList } from "@/hooks/use-storage.ts";
 import { usePdfPages } from "@/hooks/use-storage-preview.ts";
@@ -25,10 +25,13 @@ const PEEK: readonly (readonly Spot[])[] = [
   ],
 ];
 
+const BACK =
+  "M0 5A5 5 0 0 1 5 0H33C37.5 0 38.5 1.5 40.5 3.5S44 7 48 7H95A5 5 0 0 1 100 12V95A5 5 0 0 1 95 100H5A5 5 0 0 1 0 95Z";
+
 /**
- * A folder drawn as a pocket, tinted blue: a back panel, its first few items standing in it as
- * cards, and a front flap over their lower half. Without `node` (a folder being named), or with
- * `peek` off, the pocket is empty; a folder with nothing in it, or one being named, is grey.
+ * A folder drawn as a grey pocket: a back panel with a tab, its first few items standing in it
+ * as cards, and a front flap over their lower half. Without `node` (a folder being named), or
+ * with `peek` off, the pocket is empty.
  */
 export function FolderArt(props: {
   node?: StorageNode;
@@ -42,13 +45,6 @@ export function FolderArt(props: {
   const contents = useStorageList({ parentId: node?.id ?? "" }, { enabled });
   const cards = enabled ? pick(contents.nodes) : [];
   const spots = PEEK[cards.length - 1] ?? [];
-  const empty = !node || (contents.isSuccess && contents.nodes.length === 0);
-  const back = empty
-    ? "border-folder-empty-edge/40 bg-(image:--folder-empty-back)"
-    : "border-folder-edge/40 bg-(image:--folder-back)";
-  const front = empty
-    ? "border-folder-empty-edge/40 bg-(image:--folder-empty-front)"
-    : "border-folder-edge/40 bg-(image:--folder-front)";
   return (
     <div
       aria-hidden
@@ -56,17 +52,42 @@ export function FolderArt(props: {
       className="relative aspect-square overflow-hidden rounded-lg"
     >
       <span ref={anchor} className="absolute inset-0" />
-      <span
-        className={`absolute inset-0 rounded-lg border ${back} inset-shadow-[0_1px_0] inset-shadow-folder-shine`}
-      />
+      <Back />
       {fileUrl &&
         cards.map((card, i) => (
           <Card key={card.id} node={card} url={fileUrl(card)} style={place(spots[i] ?? ONE)} />
         ))}
       <span
-        className={`absolute inset-x-0 top-[40%] bottom-0 rounded-lg border ${front} inset-shadow-[0_1px_0] inset-shadow-folder-shine backdrop-blur-sm`}
+        className={`absolute inset-x-0 top-[35%] bottom-0 rounded-lg border border-folder-edge bg-(image:--folder-front) inset-shadow-[0_1px_0] inset-shadow-folder-shine backdrop-blur-sm`}
       />
     </div>
+  );
+}
+
+function Back() {
+  const id = useId();
+  return (
+    <svg viewBox="0 0 100 100" className="absolute inset-0 size-full">
+      <defs>
+        <linearGradient id={`${id}fill`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="var(--folder-back-top)" />
+          <stop offset="1" stopColor="var(--folder-back-bottom)" />
+        </linearGradient>
+        <clipPath id={`${id}clip`}>
+          <path d={BACK} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${id}clip)`}>
+        <path d={BACK} fill={`url(#${id}fill)`} />
+        <path
+          d={BACK}
+          fill="none"
+          stroke="var(--folder-edge)"
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+        />
+      </g>
+    </svg>
   );
 }
 
