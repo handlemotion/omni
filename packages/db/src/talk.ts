@@ -1,6 +1,6 @@
 import type { Db } from "./client.ts";
 import { asTalkMember, isTeammateRole } from "./talk/core.ts";
-import { listMessages, react, recordFile, sendNote } from "./talk/messages.ts";
+import { fileOfMessage, listMessages, react, recordFile, sendNote } from "./talk/messages.ts";
 import { getThread, listPeople, openThread, readThread } from "./talk/threads.ts";
 
 export { NO_TALK, type NoTalk, type TalkMember } from "./talk/core.ts";
@@ -41,6 +41,8 @@ export function memberTalk(db: Db, memberId: string) {
       db.transaction((tx) =>
         asTalkMember(tx, memberId, (me) => recordFile(tx, me, threadId, file)),
       ),
+    fileOf: (messageId: string) =>
+      asTalkMember(db, memberId, (me) => fileOfMessage(db, me, messageId)),
     read: (threadId: string) => asTalkMember(db, memberId, (me) => readThread(db, me, threadId)),
     react: (messageId: string, emoji: string, on: boolean) =>
       db.transaction((tx) =>

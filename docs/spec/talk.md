@@ -93,6 +93,11 @@ The name, size and type are kept on the message because Talk reads no Storage ta
 message says what was sent. When the file is gone (trashed, deleted, grant removed), the card
 still says what it was and opening it answers not found, as any revoked share does.
 
+Opening a file is `GET /api/talk/messages/:id/file`: Talk checks the note is in one of your
+threads, then Storage's own doors decide. The sender is sent to the file's content through the
+member door, the recipient through the share link their grant opens (read fresh each time, since
+a link can be reset).
+
 Upload is one request: `POST /api/talk/threads/:id/files?name=…` with the bytes as the body and
 its `content-length`, up to `STORAGE_MAX_FILE_BYTES` and the workspace's storage limit, like
 saving a mail attachment to Drive. A failed grant or message aborts the upload, so no orphan
@@ -117,17 +122,20 @@ not leak.
 
 ## Realtime
 
-Online is the existing per-workspace realtime Durable Object, not a new service. The Worker tags
-a teammate's app socket `team` when it accepts it (never a sync or watch socket, never a
-freelancer). Then:
+Online is the existing per-workspace realtime Durable Object, not a new service. An app that
+shows Talk opens its socket with `?talk=1`; the Worker then tags it `team` when the member is a
+teammate (never on a sync or watch socket, never for a freelancer). Only those sockets count and
+hear Talk, so a client that has no Talk (iOS today, an older web build, the desktop's watch
+sockets) never shows its member as online, never swallows a push, and gets no event it does not
+know. Then:
 
 - `talk.online` `{ memberId, online }`: sent to the workspace's `team` sockets when a member's
-  first app socket opens and when their last one closes. `GET /people` reads the same set from
-  the object, so a fresh app starts right and events keep it right. A dropped socket goes
+  first `team` socket opens and when their last one closes. `GET /people` reads the same set
+  from the object, so a fresh app starts right and events keep it right. A dropped socket goes
   offline when the object sees it close.
-- `talk.message` `{ threadId, messageId, fromMemberId, preview }`: to both members' app
+- `talk.message` `{ threadId, messageId, fromMemberId, preview }`: to both members' `team`
   sockets (the sender's other devices too). `preview` is the first 120 characters of the note,
-  or the file's name. A recipient with no app socket open gets an Expo push when push is on.
+  or the file's name. A recipient with no `team` socket open gets an Expo push when push is on.
 - `talk.changed` `{ threadId }`: a reaction changed, to both members; a read, to the reader's own
   devices only.
 

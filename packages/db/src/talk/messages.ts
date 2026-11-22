@@ -234,3 +234,13 @@ export async function react(ex: Ex, me: TalkMember, messageId: string, emoji: st
     thread: { id: thread.id, otherMemberId: thread.otherMemberId },
   } satisfies ReactResult;
 }
+
+/** The Drive file a note in one of `me`'s threads carries, and whether `me` sent it. */
+export async function fileOfMessage(ex: Ex, me: TalkMember, messageId: string) {
+  const [row] = await ex
+    .select()
+    .from(talkMessages)
+    .where(and(eq(talkMessages.id, messageId), eq(talkMessages.orgId, me.orgId)));
+  if (!row?.fileNodeId || !(await threadOf(ex, me, row.threadId))) return NOT_FOUND;
+  return { status: "ok", nodeId: row.fileNodeId, sent: row.authorMemberId === me.id } as const;
+}

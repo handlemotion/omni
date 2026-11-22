@@ -7,12 +7,12 @@ import type {
   StorageChangedEvent,
   StorageDocEvent,
   StorageNodeSpace,
+  TalkEvent,
 } from "@omni/contracts";
 import {
   forMember,
   mailboxAudience,
   membersAccepting,
-  pushTokensFor,
   teamspaceAudience,
   type Db,
   type NotificationKind,
@@ -20,7 +20,6 @@ import {
 import { z } from "zod";
 import { openDb } from "./db.ts";
 import type { Config } from "./env.ts";
-import { createLogger } from "./log.ts";
 import {
   docAppendMessage,
   docPresenceMessage,
@@ -31,6 +30,15 @@ import {
   passOnComments,
   passOnRecords,
 } from "./realtime-docs.ts";
+import {
+  sendTalk,
+  onlineMembers,
+  TEAM_HEADER,
+  TEAM_TAG,
+  teamSocketClosed,
+  teamSocketOpened,
+} from "./realtime-talk.ts";
+import { sendExpoPush } from "./realtime-push.ts";
 import {
   driveAudience,
   filePresenceMessage,
@@ -130,8 +138,20 @@ export class Realtime extends DurableObject<Env> {
       : request.headers.has(WATCH_HEADER)
         ? watchTag(memberId)
         : memberId;
-    this.ctx.acceptWebSocket(server, [tag]);
+    const team = tag === memberId && request.headers.has(TEAM_HEADER);
+    this.ctx.acceptWebSocket(server, team ? [tag, TEAM_TAG] : [tag]);
+    if (team) teamSocketOpened(this.ctx, server, memberId);
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  /** The teammates with an app open in this workspace now (`docs/spec/talk.md`). */
+  async online() {
+    return onlineMembers(this.ctx) satisfies string[];
+  }
+
+  /** Sends a Talk event to these members' Talk apps; returns the members with none open. */
+  async talk(memberIds: string[], event: TalkEvent) {
+    return sendTalk(this.ctx, memberIds, event) satisfies string[];
   }
 
   /** Sends the event to these members' sockets; returns the members with none open. */
@@ -302,6 +322,7 @@ export class Realtime extends DurableObject<Env> {
   }
 
   override async webSocketClose(socket: WebSocket, code: number) {
+    teamSocketClosed(this.ctx, socket);
     if (isOutsider(this.ctx, socket)) return closeOutsider(this.ctx, socket, code);
     const presence = presenceOf(socket);
     const memberId = this.ctx.getTags(socket)[0];
@@ -311,6 +332,7 @@ export class Realtime extends DurableObject<Env> {
   }
 
   override async webSocketError(socket: WebSocket) {
+    teamSocketClosed(this.ctx, socket);
     if (isOutsider(this.ctx, socket)) return leavePresence(this.ctx, socket);
     const presence = presenceOf(socket);
     const memberId = this.ctx.getTags(socket)[0];
@@ -558,31 +580,4 @@ export async function notifyFailedActions(
   }
 }
 
-const EXPO_PUSH_TIMEOUT_MS = 10_000;
-
-async function sendExpoPush(
-  db: Db,
-  config: Config,
-  memberIds: string[],
-  message: { title: string; body: string },
-) {
-  const tokens = await pushTokensFor(db, memberIds);
-  if (tokens.length === 0) return;
-  const log = createLogger({ component: "realtime" });
-  try {
-    const response = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(config.EXPO_ACCESS_TOKEN
-          ? { authorization: `Bearer ${config.EXPO_ACCESS_TOKEN}` }
-          : {}),
-      },
-      body: JSON.stringify(tokens.map((t) => ({ to: t.expoToken, ...message, sound: "default" }))),
-      signal: AbortSignal.timeout(EXPO_PUSH_TIMEOUT_MS),
-    });
-    if (!response.ok) log.warn("expo.push_failed", { status: response.status });
-  } catch (error) {
-    log.warn("expo.push_failed", { error });
-  }
-}
+export { pushToMembers } from "./realtime-push.ts";

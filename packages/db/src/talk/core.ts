@@ -44,7 +44,13 @@ export async function loadTalkMember(ex: Ex, memberId: string) {
 export async function teammateOf(ex: Ex, me: TalkMember, memberId: string) {
   if (memberId === me.id) return null;
   const [row] = await ex
-    .select({ id: members.id, role: members.role, name: users.name, email: users.email })
+    .select({
+      id: members.id,
+      userId: members.userId,
+      role: members.role,
+      name: users.name,
+      email: users.email,
+    })
     .from(members)
     .innerJoin(users, eq(users.id, members.userId))
     .where(and(eq(members.id, memberId), eq(members.organizationId, me.orgId)));

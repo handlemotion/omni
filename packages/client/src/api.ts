@@ -14,8 +14,9 @@ export interface ApiOptions {
 /** The whole Worker, typed from its routes: `client.api.threads.$get({ query: {} })`. */
 export type Client = ReturnType<typeof hc<AppType>>;
 
-// WARNING: keep this typed by name; inferred, its type is too long for the declaration emitter (TS7056).
+// WARNING: keep these typed by name; the inferred route tree is too large for tsc to emit.
 const typedHc: (...args: Parameters<typeof hc>) => Client = (...args) => hc<AppType>(...args);
+
 /** The member-facing routes under `/api`. */
 export type Api = Client["api"];
 
@@ -25,7 +26,7 @@ export type Api = Client["api"];
  * `idempotency-key` header: reuse the same key when retrying the same intent. Every call asks
  * for the nested error shape; read a failure with `toApiError`.
  */
-export function createApi(options: ApiOptions) {
+export const createApi: (options: ApiOptions) => Api = (options) => {
   const { headers } = options;
   return typedHc(options.baseUrl, {
     headers: async () => ({
@@ -34,8 +35,8 @@ export function createApi(options: ApiOptions) {
     }),
     fetch: options.fetch,
     init: { credentials: "include" },
-  }).api satisfies Api;
-}
+  }).api;
+};
 
 export type Member = InferResponseType<Api["me"]["$get"], 200>;
 export type Mailbox = InferResponseType<Api["mailboxes"]["$get"], 200>["mailboxes"][number];

@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { areaOf } from "@omni/mail-core/telemetry";
 import { withSignInRequest } from "@omni/auth";
 import { REQUEST_ID_HEADER as SIGNED_REQUEST_ID_HEADER } from "@omni/crypto";
-import { orgSetupStep, schema } from "@omni/db";
+import { orgSetupStep, schema, talkRole } from "@omni/db";
 import { and, eq, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
@@ -22,10 +22,12 @@ import type { Config } from "./env.ts";
 import { portal } from "./crm/portal.ts";
 import { calendar } from "./calendar/routes.ts";
 import { crm } from "./crm/routes.ts";
+import { talk } from "./talk/routes.ts";
 import { answerThrown, apiError } from "./errors.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER, WATCH_HEADER } from "./realtime.ts";
 import { OUTSIDE_HEADER } from "./realtime-outside.ts";
+import { TEAM_HEADER } from "./realtime-talk.ts";
 import { account } from "./routes/account.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
@@ -126,8 +128,12 @@ const api = new Hono<AppEnv>()
     const headers = new Headers(c.req.raw.headers);
     headers.delete(OUTSIDE_HEADER);
     headers.set(MEMBER_HEADER, id);
+    headers.delete(TEAM_HEADER);
     if (c.req.query("watch") === "1") headers.set(WATCH_HEADER, "1");
-    else headers.delete(WATCH_HEADER);
+    else {
+      headers.delete(WATCH_HEADER);
+      if (c.req.query("talk") === "1" && talkRole(member.role)) headers.set(TEAM_HEADER, "1");
+    }
     const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
@@ -152,7 +158,8 @@ const api = new Hono<AppEnv>()
   .route("/", billingCards)
   .route("/storage", storage)
   .route("/crm", crm)
-  .route("/calendar", calendar);
+  .route("/calendar", calendar)
+  .route("/talk", talk);
 
 async function isPendingResend(c: Context<AppEnv>) {
   const body = (await c.req.raw

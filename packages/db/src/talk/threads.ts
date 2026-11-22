@@ -1,5 +1,7 @@
 import { and, eq, ne, sql } from "drizzle-orm";
+import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
+import { storageAddresses } from "../storage.ts";
 import { talkReads, talkThreads } from "../schema/talk.ts";
 import {
   isTeammateRole,
@@ -116,11 +118,25 @@ export async function openThread(ex: Ex, me: TalkMember, memberId: string) {
   } satisfies OpenThreadResult;
 }
 
-/** The thread, when `me` is in it, with who the other one is. */
-export async function getThread(ex: Ex, me: TalkMember, threadId: string) {
-  const thread = await threadOf(ex, me, threadId);
-  if (!thread) return NOT_FOUND;
-  return { status: "ok", thread: { id: thread.id, otherMemberId: thread.otherMemberId } } as const;
+/**
+ * The thread, when `me` is in it and the other one is still a teammate, with who they are and the
+ * address a file shared with them opens from in this workspace, scoped sessions included.
+ */
+export async function getThread(db: Db, me: TalkMember, threadId: string) {
+  const thread = await threadOf(db, me, threadId);
+  const other = thread ? await teammateOf(db, me, thread.otherMemberId) : null;
+  if (!thread || !other) return NOT_FOUND;
+  const inWorkspace = await storageAddresses(db, other.userId, me.orgId);
+  const primary = other.email.toLowerCase();
+  return {
+    status: "ok",
+    thread: { id: thread.id, otherMemberId: thread.otherMemberId },
+    other: {
+      name: other.name,
+      email: other.email,
+      shareTo: inWorkspace.includes(primary) ? primary : (inWorkspace[0] ?? primary),
+    },
+  } as const;
 }
 
 /** Reads the thread up to now. */

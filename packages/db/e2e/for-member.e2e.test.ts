@@ -364,6 +364,7 @@ describe("forMember isolation", () => {
       const talk = forMember(db, id).talk;
       expect((await talk.thread(threadId)).status).not.toBe("ok");
       expect((await talk.messages(threadId)).status).not.toBe("ok");
+      expect((await talk.fileOf(sent.message.id)).status).not.toBe("ok");
       expect((await talk.react(sent.message.id, "👍", true)).status).not.toBe("ok");
       const people = await talk.people();
       const threads = people.status === "ok" ? people.people.map((p) => p.threadId) : [];
