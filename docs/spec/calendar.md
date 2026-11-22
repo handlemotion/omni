@@ -186,8 +186,9 @@ zooms out to it, `M`, `W` and `D` pick the view, and a day's number in the month
 The arrows and Today beside them, all outlined buttons, step the view, each with its key on hover.
 The month view is one long page of weeks that scrolls freely, months running into each other (the
 1st of each labelled with its month); the title follows the month that fills most of the view, and
-the arrows and Today scroll it smoothly to a month's first week. Weekends are tinted lighter than
-a hover.
+the arrows and Today scroll it smoothly to a month's first week. `?date=` catches up once the
+scrolling stops, so passing months costs no navigation. Weekends are tinted lighter than a hover.
+The sidebar's month always takes six weeks' height, so nothing below it moves between months.
 
 **To-dos.** The sidebar's to-dos are the person's tasks (see "Tasks"): the ones they own and the
 ones assigned to them, in fixed sections: Today, Upcoming and No date always, Overdue when

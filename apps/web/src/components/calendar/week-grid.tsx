@@ -4,7 +4,6 @@ import { IconPlus } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { CanvasButton } from "@/components/ui/canvas-button";
 import type { CalendarEvent, CalendarItem } from "@/lib/calendar.ts";
-import { calendarTone } from "@/lib/calendar.ts";
 import { endDrag, leadOf, startDrag, type Dragged, type Drop } from "@/lib/calendar-drag.ts";
 import type { Todo } from "@/lib/calendar-tasks.ts";
 import { useDropZone } from "./drop-zone.ts";
@@ -421,7 +420,7 @@ const EventBlock = memo(function EventBlock(
   );
 });
 
-const Chip = memo(function Chip(
+export const Chip = memo(function Chip(
   props: PieceProps & { event: CalendarEvent; day?: Date; timed?: boolean },
 ) {
   const { event, selected, handlers } = props;
@@ -452,19 +451,3 @@ const Chip = memo(function Chip(
     </CanvasButton>
   );
 });
-
-/** An event as one line: all-day ones on the week's top row, every one in a month's day. */
-export function EventChip(
-  props: WeekGridProps & { event: CalendarEvent; day?: Date; timed?: boolean },
-) {
-  return (
-    <Chip
-      event={props.event}
-      day={props.day}
-      timed={props.timed}
-      tone={calendarTone(props.calendars, props.event.calendarId)}
-      selected={selectedKey(props.selection) === eventKey(props.event)}
-      handlers={props}
-    />
-  );
-}

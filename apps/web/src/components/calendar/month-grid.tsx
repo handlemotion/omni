@@ -1,21 +1,22 @@
 import { cn } from "cn";
 import { CanvasButton } from "@/components/ui/canvas-button";
-import type { CalendarEvent } from "@/lib/calendar.ts";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { calendarTone, type CalendarEvent } from "@/lib/calendar.ts";
+import type { Todo } from "@/lib/calendar-tasks.ts";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
   addDays,
   allDayOn,
   dayKey,
   eventKey,
   parseDayKey,
-  sameDay,
   startOfWeek,
 } from "@/lib/calendar-grid.ts";
 import { dayOf } from "@/lib/crm-tasks.ts";
 import { useDropZone } from "./drop-zone.ts";
 import { firstOf, monthOf } from "./month-span.ts";
 import { TodoChip } from "./todo-block.tsx";
-import { EventChip, type WeekGridProps } from "./week-grid.tsx";
+import { Chip, type WeekGridProps } from "./week-grid.tsx";
+import { selectedKey, useHandlers, type Handlers } from "./week-layout.ts";
 
 const SHOWN = 3;
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
@@ -33,6 +34,8 @@ const timedOn = (day: Date, events: readonly CalendarEvent[]) => {
 type MonthGridProps = WeekGridProps & {
   /** The shown day: its month leads the title and is scrolled to when it changes from outside. */
   anchor: Date;
+  /** The month most of the page shows now, ahead of the URL while it scrolls. */
+  shown: Date;
   /** Counts the arrows' and Today's presses: each scrolls to the anchor's month, even unchanged. */
   aimed: { at: string; count: number };
   onDay: (day: Date) => void;
@@ -94,6 +97,8 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
   latest.current = { props, weeks, first, last };
   const anchorKey = dayKey(props.anchor);
   const aimedAt = useRef(props.aimed.count);
+  const reported = useRef<string[]>([]);
+  const handled = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     const element = scroller.current;
@@ -105,7 +110,12 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
   useLayoutEffect(() => {
     const element = scroller.current;
     const aimedHere = props.aimed.at === anchorKey && aimedAt.current !== props.aimed.count;
-    if (!element || (shown.current === anchorKey && !aimedHere)) return;
+    const fresh = handled.current !== anchorKey;
+    handled.current = anchorKey;
+    const landed = reported.current.indexOf(anchorKey);
+    if (landed >= 0) reported.current.splice(0, landed + 1);
+    const settled = !fresh || shown.current === anchorKey || landed >= 0;
+    if (!element || (settled && !aimedHere)) return;
     if (props.aimed.at === anchorKey) aimedAt.current = props.aimed.count;
     const month = monthOf(props.anchor);
     const from = shown.current === null ? null : monthOf(parseDayKey(shown.current));
@@ -125,7 +135,7 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
       guided.current = false;
       element.dispatchEvent(new Event("scroll"));
     });
-  }, [anchorKey, props.anchor, props.aimed, first]);
+  }, [anchorKey, props.anchor, props.aimed]);
 
   useEffect(() => {
     const element = scroller.current;
@@ -148,6 +158,7 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
       const month = monthInView(element, now.weeks);
       if (month === null || month === monthOf(parseDayKey(shown.current ?? ""))) return;
       shown.current = dayKey(firstOf(month));
+      reported.current.push(shown.current);
       now.props.onMonth(firstOf(month));
     };
     const onScroll = () => {
@@ -172,6 +183,37 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
   return scroller;
 }
 
+interface DayItems {
+  events: CalendarEvent[];
+  todos: Todo[];
+}
+
+const same = <T,>(a: readonly T[], b: readonly T[]) =>
+  a.length === b.length && a.every((item, at) => item === b[at]);
+
+function useDayItems(props: MonthGridProps) {
+  const { days, events, todos } = props;
+  const before = useRef(new Map<string, DayItems>());
+  return useMemo(() => {
+    const byDay = new Map<string, DayItems>();
+    for (const day of days) {
+      const key = dayKey(day);
+      const onDay = [...allDayOn(day, events), ...timedOn(day, events)];
+      const dated = (todos ?? []).filter((task) => task.dueAt && dayOf(task.dueAt) === key);
+      if (onDay.length === 0 && dated.length === 0) continue;
+      const was = before.current.get(key);
+      byDay.set(
+        key,
+        was && same(was.events, onDay) && same(was.todos, dated)
+          ? was
+          : { events: onDay, todos: dated },
+      );
+    }
+    before.current = byDay;
+    return byDay;
+  }, [days, events, todos]);
+}
+
 /**
  * The months as one long page of weeks that scrolls freely, each day with its first events and
  * dated to-dos; a day's number opens it, and so does its "more" when it holds more than fit.
@@ -183,7 +225,16 @@ export function MonthGrid(props: MonthGridProps) {
     [props.days],
   );
   const scroller = useMonthScroll(props, weeks);
-  const month = props.anchor.getMonth();
+  const handlers = useHandlers(props);
+  const latest = useRef(props.onDay);
+  useLayoutEffect(() => {
+    latest.current = props.onDay;
+  });
+  const onDay = useCallback((day: Date) => latest.current(day), []);
+  const byDay = useDayItems(props);
+  const month = props.shown.getMonth();
+  const today = dayKey(props.now);
+  const picked = selectedKey(props.selection);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="grid grid-cols-7 border-b">
@@ -198,32 +249,80 @@ export function MonthGrid(props: MonthGridProps) {
         className="relative min-h-0 flex-1 overflow-y-auto [container-type:size] [overflow-anchor:none]"
       >
         {weeks.map((week) => (
-          <div
+          <MonthWeek
             key={week[0]?.getTime()}
-            data-week={week[0] && dayKey(week[0])}
-            className="grid h-[calc(100cqh/6)] grid-cols-7"
-          >
-            {week.map((day) => (
-              <MonthDay key={day.getTime()} day={day} {...props} month={month} />
-            ))}
-          </div>
+            week={week}
+            byDay={byDay}
+            inMonth={week.map((day) => (day.getMonth() === month ? "1" : "0")).join("")}
+            today={week.some((day) => dayKey(day) === today) ? today : null}
+            picked={
+              week.some((day) => byDay.get(dayKey(day))?.events.some((e) => eventKey(e) === picked))
+                ? picked
+                : null
+            }
+            calendars={props.calendars}
+            handlers={handlers}
+            onDay={onDay}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function MonthDay(props: MonthGridProps & { day: Date; month: number }) {
-  const { day } = props;
-  const events = [...allDayOn(day, props.events), ...timedOn(day, props.events)];
-  const todos = (props.todos ?? []).filter(
-    (task) => task.dueAt && dayOf(task.dueAt) === dayKey(day),
+const NONE: DayItems = { events: [], todos: [] };
+
+const MonthWeek = memo(function MonthWeek(props: {
+  week: readonly Date[];
+  byDay: ReadonlyMap<string, DayItems>;
+  inMonth: string;
+  today: string | null;
+  picked: string | null;
+  calendars: MonthGridProps["calendars"];
+  handlers: Handlers;
+  onDay: (day: Date) => void;
+}) {
+  const first = props.week[0];
+  return (
+    <div
+      data-week={first && dayKey(first)}
+      className="grid h-[calc(100cqh/6)] grid-cols-7 [content-visibility:auto]"
+    >
+      {props.week.map((day, at) => {
+        const items = props.byDay.get(dayKey(day)) ?? NONE;
+        return (
+          <MonthDay
+            key={day.getTime()}
+            day={day}
+            items={items}
+            inMonth={props.inMonth[at] === "1"}
+            today={dayKey(day) === props.today}
+            picked={items.events.some((e) => eventKey(e) === props.picked) ? props.picked : null}
+            calendars={props.calendars}
+            handlers={props.handlers}
+            onDay={props.onDay}
+          />
+        );
+      })}
+    </div>
   );
-  const items = events.length + todos.length;
-  const more = Math.max(0, items - SHOWN);
-  const today = sameDay(day, props.now);
+});
+
+const MonthDay = memo(function MonthDay(props: {
+  day: Date;
+  items: DayItems;
+  inMonth: boolean;
+  today: boolean;
+  picked: string | null;
+  calendars: MonthGridProps["calendars"];
+  handlers: Handlers;
+  onDay: (day: Date) => void;
+}) {
+  const { day, items, handlers } = props;
+  const { events, todos } = items;
+  const more = Math.max(0, events.length + todos.length - SHOWN);
   const weekend = day.getDay() === 0 || day.getDay() === 6;
-  const zone = useDropZone(day, false, props.onDrop);
+  const zone = useDropZone(day, false, handlers.onDrop);
   return (
     <div
       data-month-day={dayKey(day)}
@@ -239,17 +338,29 @@ function MonthDay(props: MonthGridProps & { day: Date; month: number }) {
         onClick={() => props.onDay(day)}
         className={cn(
           "mb-1 grid h-5 min-w-5 place-items-center self-start rounded-md px-1 text-xs tabular-nums",
-          day.getMonth() === props.month ? "text-foreground" : "text-subtle-foreground",
-          today && "bg-module-calendar font-medium text-primary-foreground",
+          props.inMonth ? "text-foreground" : "text-subtle-foreground",
+          props.today && "bg-module-calendar font-medium text-primary-foreground",
         )}
       >
         {day.getDate() === 1 ? monthDay.format(day) : day.getDate()}
       </CanvasButton>
       {events.slice(0, SHOWN).map((event) => (
-        <EventChip key={eventKey(event)} event={event} timed {...props} />
+        <Chip
+          key={eventKey(event)}
+          event={event}
+          timed
+          tone={calendarTone(props.calendars, event.calendarId)}
+          selected={props.picked === eventKey(event)}
+          handlers={handlers}
+        />
       ))}
       {todos.slice(0, Math.max(0, SHOWN - events.length)).map((task) => (
-        <TodoChip key={task.id} task={task} onTodo={props.onTodo} onOpenTodo={props.onOpenTodo} />
+        <TodoChip
+          key={task.id}
+          task={task}
+          onTodo={handlers.onTodo}
+          onOpenTodo={handlers.onOpenTodo}
+        />
       ))}
       {more > 0 && (
         <CanvasButton
@@ -261,4 +372,4 @@ function MonthDay(props: MonthGridProps & { day: Date; month: number }) {
       )}
     </div>
   );
-}
+});

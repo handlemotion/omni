@@ -1042,6 +1042,58 @@ test("resizing the window keeps the month's weeks where they were", async () => 
   expect(shownDate(page)).toBe("2026-11-24");
 });
 
+test("an event clicked in a visible week outside the month's six takes Enter", async () => {
+  const { org, page, origin } = await invited();
+  await page.goto(new URL(`/${org.slug}/calendar?date=2026-12-01&view=month`, origin).toString());
+  const first = page.locator('[data-month-day="2026-12-01"]');
+  await first.waitFor();
+  const box = await first.boundingBox();
+  await page.mouse.move((box?.x ?? 0) + 20, (box?.y ?? 0) + 20);
+  await page.mouse.wheel(0, -(box?.height ?? 100));
+  const chip = page
+    .locator('[data-month-day="2026-11-24"]')
+    .getByRole("button", { name: /Acme × Studio: kickoff/ });
+  await chip.click();
+  expect(shownDate(page)).toBe("2026-12-01");
+  await page.keyboard.press("Enter");
+  await page.getByRole("complementary", { name: "Acme × Studio: kickoff" }).waitFor();
+});
+
+test("scrolling fast through months never pulls the page back", async () => {
+  const { org, page, origin } = await invited();
+  await page.goto(new URL(`/${org.slug}/calendar?date=2026-11-24&view=month`, origin).toString());
+  const day = page.locator('[data-month-day="2026-11-24"]');
+  await day.waitFor();
+  await page.evaluate(() => {
+    const scroller = document.querySelector("[data-week]")?.parentElement as HTMLElement;
+    const seen: number[] = [];
+    (window as unknown as { seen: number[] }).seen = seen;
+    scroller.addEventListener("scroll", () => seen.push(scroller.scrollTop));
+  });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+  const box = await day.boundingBox();
+  await page.mouse.move((box?.x ?? 0) + 20, (box?.y ?? 0) + 20);
+  for (let i = 0; i < 60; i++) await page.mouse.wheel(0, (box?.height ?? 100) / 2);
+  await expect.poll(() => shownDate(page)).not.toBe("2026-11-24");
+  await page.waitForTimeout(800);
+  const seen = await page.evaluate(() => (window as unknown as { seen: number[] }).seen);
+  const back = seen.filter((top, at) => at > 0 && top < (seen[at - 1] ?? 0) - 1);
+  expect(back).toEqual([]);
+});
+
+test("the sidebar month keeps one height whether its month spans four, five or six weeks", async () => {
+  const { org, page, origin } = await invited();
+  const heights: number[] = [];
+  for (const date of ["2021-02-10", "2012-02-10", "2026-11-10"]) {
+    await page.goto(new URL(`/${org.slug}/calendar?date=${date}&view=week`, origin).toString());
+    const month = page.getByRole("application", { name: /Month/ });
+    await month.waitFor();
+    heights.push((await month.boundingBox())?.height ?? 0);
+  }
+  expect(new Set(heights).size).toBe(1);
+});
+
 test("one sideways swipe steps the week, and each gesture steps once", async () => {
   const { org, page, origin } = await invited();
   await page.goto(new URL(`/${org.slug}/calendar?date=2026-11-24&view=week`, origin).toString());

@@ -86,50 +86,52 @@ export function MiniMonth() {
             <IconChevronDown />
           </AriaButton>
         </header>
-        <CalendarGrid
-          weekdayStyle="narrow"
-          className="-mx-2.5 w-[calc(100%+--spacing(5))] border-collapse"
-        >
-          <CalendarGridHeader>
-            {(day) => (
-              <CalendarHeaderCell className="h-7 text-xs font-normal text-muted-foreground">
-                {day}
-              </CalendarHeaderCell>
-            )}
-          </CalendarGridHeader>
-          <CalendarGridBody>
-            {(date) => {
-              const shown = inShown(date, from, view);
-              return (
-                <CalendarCell
-                  date={date}
-                  className={({ isOutsideMonth, isFocusVisible, isHovered }) =>
-                    cn(
-                      "flex h-7 cursor-default items-center justify-center text-xs tabular-nums outline-hidden",
-                      isOutsideMonth ? "text-subtle-foreground" : "text-foreground",
-                      shown && "bg-secondary",
-                      shown?.first && "rounded-s-md",
-                      shown?.last && "rounded-e-md",
-                      !shown && isHovered && "rounded-md bg-hover",
-                      isFocusVisible && "rounded-md ring-2 ring-ring",
-                    )
-                  }
-                >
-                  {({ formattedDate }) => (
-                    <span
-                      className={cn(
-                        "grid size-6 place-items-center rounded-md",
-                        date.compare(now) === 0 && "bg-module-calendar text-primary-foreground",
-                      )}
-                    >
-                      {formattedDate}
-                    </span>
-                  )}
-                </CalendarCell>
-              );
-            }}
-          </CalendarGridBody>
-        </CalendarGrid>
+        <div className="min-h-[calc(7*--spacing(7))]">
+          <CalendarGrid
+            weekdayStyle="narrow"
+            className="-mx-2.5 w-[calc(100%+--spacing(5))] border-collapse"
+          >
+            <CalendarGridHeader>
+              {(day) => (
+                <CalendarHeaderCell className="h-7 text-xs font-normal text-muted-foreground">
+                  {day}
+                </CalendarHeaderCell>
+              )}
+            </CalendarGridHeader>
+            <CalendarGridBody>
+              {(date) => {
+                const shown = inShown(date, from, view);
+                return (
+                  <CalendarCell
+                    date={date}
+                    className={({ isOutsideMonth, isFocusVisible, isHovered }) =>
+                      cn(
+                        "flex h-7 cursor-default items-center justify-center text-xs tabular-nums outline-hidden",
+                        isOutsideMonth ? "text-subtle-foreground" : "text-foreground",
+                        shown && "bg-secondary",
+                        shown?.first && "rounded-s-md",
+                        shown?.last && "rounded-e-md",
+                        !shown && isHovered && "rounded-md bg-hover",
+                        isFocusVisible && "rounded-md ring-2 ring-ring",
+                      )
+                    }
+                  >
+                    {({ formattedDate }) => (
+                      <span
+                        className={cn(
+                          "grid size-6 place-items-center rounded-md",
+                          date.compare(now) === 0 && "bg-module-calendar text-primary-foreground",
+                        )}
+                      >
+                        {formattedDate}
+                      </span>
+                    )}
+                  </CalendarCell>
+                );
+              }}
+            </CalendarGridBody>
+          </CalendarGrid>
+        </div>
       </Calendar>
     </div>
   );

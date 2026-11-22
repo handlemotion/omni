@@ -25,6 +25,8 @@ const ANSWER_KEYS: Record<string, CalendarAnswer> = {
 
 interface Keys {
   events: readonly CalendarEvent[];
+  /** The events `]` and `[` step through: those in view, where that is fewer than all. */
+  stepping?: readonly CalendarEvent[];
   selection: Selection;
   setSelection: (selection: Selection) => void;
   open: (event: CalendarEvent) => void;
@@ -145,7 +147,9 @@ function maybeable(keys: Keys) {
 }
 
 function step(keys: Keys, direction: 1 | -1) {
-  const ordered = keys.events.toSorted((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const ordered = (keys.stepping ?? keys.events).toSorted(
+    (a, b) => Date.parse(a.start) - Date.parse(b.start),
+  );
   const current = selectedEvent(keys);
   const index = current ? ordered.indexOf(current) : direction > 0 ? -1 : ordered.length;
   const next = ordered[index + direction];
