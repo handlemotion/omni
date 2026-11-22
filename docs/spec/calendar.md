@@ -141,19 +141,20 @@ view, as Amie's do: the month; then its week (`W48`); then the day (`Tue 24`). A
 zooms out to it, the last one picks the view, and a day's number in the month opens that day.
 The arrows and Today beside them step the view, each with its key on hover.
 
-**To-dos.** The calendar's to-dos are the workspace's tasks (`crm.md`, Tasks) assigned to the
-person, in fixed sections: Today, Upcoming and No date always, Overdue when something is late.
-A section's title shows a `+` on hover that opens an empty row to type into; Enter adds the to-do
-with the section's due day (today, tomorrow, none) and opens the next row, Esc drops it. Each is
-checked off in place, where it stays, checked and struck through, until the page is reloaded. A dated one also sits on its day's all-day row, where checking it completes
-it. A Personal space has no tasks yet, so it shows none. A to-do due at a time of day (anything
-but the end of a day, which is how a due day alone is stored) sits on the hours as a dashed block
-of half an hour. To-dos and the person's own events drag (the browser's native drag and drop, so
-it can't collide with Drive's): onto the hours, an event keeps its length and a to-do becomes due
-at that minute; onto a day's all-day row or a month day, an event keeps its time of day and a
-to-do is due that day. The to-do's due time is the one record, so moving it here or editing it
-in the CRM moves it in both. Pressing a to-do opens the CRM's task panel beside the calendar
-(`?task=`), not the CRM.
+**To-dos.** The sidebar's to-dos are the person's tasks (see "Tasks"): the ones they own and the
+ones assigned to them, in fixed sections: Today, Upcoming and No date always, Overdue when
+something is late. A section's title shows a `+` on hover that opens an empty row to type into;
+Enter adds a private to-do with the section's due day (today, tomorrow, none) and opens the next
+row, Esc drops it. Each is checked off in place, where it stays, checked and struck through,
+until the page is reloaded. A dated one also sits on its day's all-day row, where checking it
+completes it. A to-do due at a time of day (anything but the end of a day, which is how a due day
+alone is stored) sits on the hours as a dashed block of half an hour. To-dos and the person's own
+events drag (the browser's native drag and drop, so it can't collide with Drive's): onto the
+hours, an event keeps its length and a to-do becomes due at that minute; onto a day's all-day row
+or a month day, an event keeps its time of day and a to-do is due that day. The to-do's due time
+is the one record, so moving it here or editing it in the CRM moves it in both. Pressing a to-do
+opens the task panel beside the calendar (`?task=`), never the CRM; a task on a CRM record shows
+that record in the panel, as a link.
 
 Overlapping events share the column side by side. A declined event is drawn faint and struck through, a
 tentative one hatched, an unanswered invitation outlined.
@@ -208,6 +209,50 @@ people, no places. The link reads the calendars and hours its owner chose, can b
 gets a new token when it is reset. A busy block is any confirmed or tentative event that counts as
 busy, an answered Yes or Maybe, or an unanswered invitation; a declined one is free.
 
+## Tasks
+
+A task is the calendar's, like a message is Talk's: it belongs to a person first, and the CRM is
+one place it can be used. A task the person makes is **private**: only its owner sees it,
+whatever their role. Putting it on a CRM company, person or deal makes it the workspace's: anyone
+who can open that record sees it, and only then can it be **assigned** to a teammate who can open
+the record too. Taking it off its record makes it private to its owner again, and its assignee
+becomes its owner.
+
+- **Where a person sees tasks.** The calendar shows everyone the tasks they own and the ones
+  assigned to them, CRM or not, in every workspace, a Personal space included, with or without
+  the CRM. The CRM shows the tasks on records the person can open: a record's Tasks tab, and the
+  task list (`/crm/tasks`), which lists linked tasks only. A private task never shows in the CRM.
+- **One panel.** The same task panel opens beside the calendar and beside the CRM's lists: the
+  title and its check, the description, the subtasks, then the fields: due, and for a task on a
+  record, the record (a link to it) and the assignee. A private task's panel has a "Add to CRM"
+  field that picks a record (only when the workspace has the CRM); a linked one can be moved to
+  another record or taken off it.
+- **Who may change a task.** A private task: its owner. A linked one: anyone who can open its
+  record (as the CRM's tasks are today), plus its owner and its assignee.
+- **Leaving.** A member removed from a workspace takes their private tasks with them (deleted).
+  Their linked tasks stay on their records, unassigned and owned by nobody, as the CRM's are today.
+- **Deleting a record** deletes the tasks on it, as today.
+
+### The move from `crm_tasks`
+
+Today tasks are the CRM's (`crm_tasks`), visible to the whole workspace, and the calendar shows
+them only where the CRM is on. They move to the calendar without a stop, expand then contract
+(AGENTS.md "Database"):
+
+1. **Expand.** `calendar_tasks` is made beside `crm_tasks`. The Worker writes every task change to
+   both, keyed by the same id, and still reads `crm_tasks`. A job copies `crm_tasks` rows
+   `calendar_tasks` lacks or holds older (`updated_at`), idempotently, every minute until a pass
+   copies nothing.
+2. **Switch.** The Worker reads `calendar_tasks` and keeps writing both, so a rollback still
+   finds `crm_tasks` whole.
+3. **Contract**, once production reads `calendar_tasks` only: stop writing `crm_tasks`, drop it.
+
+Existing tasks keep their id, record, assignee, dates and subtasks. One on a record stays the
+workspace's, owned by its creator. One on no record becomes private: owned by its assignee, else
+its creator, else (neither left) the workspace's owner. So an unlinked task someone assigned to a
+teammate becomes that teammate's alone; the person who made it no longer sees it. That is the
+change this section makes, not a side effect.
+
 ## Twined with the other modules
 
 The join keys are the address, the message and the meeting's iCalendar identity. Nothing below
@@ -224,10 +269,16 @@ sees nothing they could not open on its own.
 | CRM → Calendar      | A person, company or deal shows its past and upcoming meetings         | Calendar's door gains `meetingsWith`, read through `forUser`, as mail's `threadsWith` is               |
 | Calendar → Drive    | "Notes" opens the meeting's Omni doc, made the first time              | Storage's door makes the doc; the deal's teamspace when the meeting is on one deal, else My files      |
 | Calendar → agents   | `calendar_events` and `calendar_find_times`                           | MCP tools through the calendar's door, scope `calendar:read`                                           |
+| CRM → Calendar      | A record's tasks; tasks put on, moved between and taken off records    | The CRM checks the member may open the record, then reads and writes the tasks through the calendar's surface (`tasksOn`, `linkTask`, `unlinkTask`) |
 
 - **The calendar uses mail and storage.** It reads mail's attachments, threads and mailboxes,
   and asks Storage to make a doc. It never reads the CRM: the event panel asks the CRM itself,
   so the CRM can read the calendar without a loop.
+- **The CRM uses calendar for tasks.** The calendar's door gives a member only their own tasks
+  (owned or assigned). Linked tasks are the CRM's to show: it decides who may open the record,
+  then calls the calendar's surface for the tasks on it. The calendar never reads the CRM, so a
+  task stores its record as a kind and an id, with no foreign key into the CRM's tables; deleting a
+  record deletes its tasks through the same surface.
 - **The CRM uses calendar.** `meetingsWith({ addresses, domains, before | after, limit })` gives
   the events on calendars the viewer can see whose attendees or organizer match, with each
   event's calendar and answer. A person's addresses ask for theirs; a company's add its domains;
@@ -321,6 +372,7 @@ Every table is `calendar_*` and carries `org_id`.
 | `calendar_sweep`          | name, cursor_at, cursor_id                                                                                                                                                                                                                                                 | The sweep's place.                                                                        |
 | `calendar_member_prefs`   | member_id, calendar_id, color, hidden                                                                                                                                                                                                                                      | Per person.                                                                               |
 | `calendar_availability`   | id, org_id, member_id, token_hash, calendar_ids, time_zone, hours, days, enabled                                                                                                                                                                                           | One per member and workspace. The token is stored hashed.                                 |
+| `calendar_tasks`          | id, org_id, owner_member_id, title, body, subtasks, due_at, completed_at, completed_by_member_id, assignee_member_id, record_kind, record_id, created_by_member_id, created_at, updated_at                                                                                    | Private while `record_kind` is null: `owner_member_id` not null and the assignee is the owner (checks). Indexed on (owner_member_id, due_at) and (assignee_member_id, due_at) where open, and on (org_id, record_kind, record_id). |
 | `calendar_notes`          | org_id, uid, recurrence_id, node_id, created_by_member_id                                                                                                                                                                                                                  | Unique on (org_id, uid, recurrence_id). `node_id` cascades with the doc.                  |
 
 - `message_id` is the message that last set the event, `on delete set null`: a pruned message
@@ -347,6 +399,8 @@ days, errors as `{ error, code }`.
 | `GET /free-busy?from=&to=&addresses=`               | Busy blocks for the member's own calendars and for teammates' inboxes the member can see.            |
 | `POST /events/:id/notes`                            | `{ teamspaceId? }`. Finds or makes the meeting's notes doc and returns its node id.                  |
 | `GET /availability` · `PUT /availability` · `POST /availability/reset` | The member's availability link, its settings, and a new token.                      |
+| `GET /tasks?status=&due=` · `POST /tasks`           | The member's tasks: owned or assigned, open soonest due first or `done` latest first. Make a private task. |
+| `GET /tasks/:id` · `PATCH /tasks/:id` · `DELETE`    | A task the member owns or is assigned. Change, complete or reopen (`done`), delete. A linked task's record and assignee change through the CRM's routes. |
 | `GET /api/availability/:token`                      | Public. Free and busy for the next 14 days, no titles. 404 when off or reset.                        |
 
 - Writes publish `{ type: "calendar.changed", calendarIds }` to the sockets of each calendar's
@@ -440,6 +494,11 @@ per AGENTS.md "Migrations number in stack order"; K4's migration goes on top of 
 | K2b | Free/busy, availability links and the public page, the MCP tools                                             | K2             |
 | K3  | The web views: week and day, keys, calendars, the event panel, the invitation card in threads               | K2             |
 | K4  | Twined: `meetingsWith`, meetings on CRM records and deals, notes docs in Drive                              | K3             |
+| T0  | Tasks: this section, and `crm.md` and `modules.md` to match                                                    | main           |
+| T1  | `calendar_tasks` (migration 0075), the calendar's task door and surface, the copy job, the Worker writing both tables | T0         |
+| T2  | `/api/calendar/tasks`; the CRM's task routes read through the calendar's surface; reads switch to `calendar_tasks` | T1         |
+| T3  | Web: one task panel for calendar and CRM, "Add to CRM", the calendar's to-dos from `/api/calendar/tasks`, the CRM lists only linked tasks | T2 |
+| T4  | Contract: stop writing `crm_tasks`, drop it                                                                     | T3 in production |
 
 Each layer is done when its e2e tests pass against the local stack and it has been run by hand.
 Each test is named for the bug it catches.
@@ -482,6 +541,18 @@ Each test is named for the bug it catches.
 - Run against the local stack with `pnpm stack:serve`: create, move, resize, delete and answer by
   keys and by mouse; an invitation card in a thread; calendars toggled.
 
+**T1 to T4. Tasks**
+
+- A private task is not in another member's calendar, an owner's or admin's included, nor in the
+  CRM's lists, nor in `crm_tasks` reads.
+- A linked task shows to a member who can open its record and not to one who cannot; taking it
+  off its record hides it from them again.
+- Assigning a private task is refused; assigning a linked one to a member who cannot open the
+  record is refused.
+- A removed member's private tasks are gone and their linked tasks stay, unassigned.
+- The copy job run twice ends in the same rows; a task changed in `crm_tasks` after a copy is
+  copied again; a task written by the new Worker reads the same from both tables.
+
 **K4. Twined**
 
 - A deal's meetings are the ones on calendars the viewer can see, and a teammate who cannot open
@@ -494,6 +565,9 @@ Each test is named for the bug it catches.
   rather than CalDAV, and the Calendar → CRM link reads `meetingsWith`.
 - `v1.md`: Calendar leaves its non-goals.
 - `mcp.md`: the `calendar:read` scope and the two tools, with K2b.
+- `crm.md`, Tasks: tasks are the calendar's; the CRM shows and assigns the ones on its records
+  (T0).
+- `modules.md`: the CRM uses the calendar for tasks as well as meetings (T0).
 
 ## Open questions
 
@@ -503,3 +577,7 @@ Each test is named for the bug it catches.
 - [ ] Working hours: per availability link in v1. A workspace default later?
 - [ ] CalDAV spike against Purelymail: which of `sync-collection`, `ctag` and `ETag` it supports.
 - [ ] Recording: Workers AI Whisper as the default, or AssemblyAI for speakers from the start.
+- [ ] A linked task's assignee who later loses access to its record: unassign it then, or keep it
+      in their calendar? v1: it stays in their calendar until someone reassigns it.
+- [ ] Tasks for agents: a `calendar_tasks` MCP tool for the person's own tasks, beside the CRM's
+      `crm_tasks` for linked ones.

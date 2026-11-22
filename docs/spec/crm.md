@@ -60,8 +60,9 @@ mail and the files the workspace already has in Omni.
 - **Note.** Text on one company, person or deal.
 - **Contract.** A title, a status (`draft`, `sent`, `signed`, `ended`), three dates and a
   file, on a deal or a company.
-- **Task.** A title, notes, an assignee, a due time, done or open, on one company, person or
-  deal, or on none.
+- **Task.** The calendar's (`calendar.md`, Tasks): a title, notes, a due time, done or open. On
+  one company, person or deal it is the workspace's and can be assigned; on none it is private to
+  its owner and the CRM never shows it.
 - **Milestone.** A checkpoint on a deal: a title, a description, a target day, a status
   (`planned`, `in_progress`, `done`) and a place in the deal's order.
 - **Deliverable.** Something a deal hands over: a title, a description, maybe a milestone of the
@@ -268,9 +269,14 @@ One list, newest first, of four kinds of item:
 
 ### Tasks
 
-- `crm_tasks` holds them: on at most one record (a check constraint), cascading with it.
-  Assigned to the creator unless the request says otherwise (`assigneeMemberId: null` is
-  nobody); a removed member leaves their tasks unassigned.
+- Tasks are the calendar's (`calendar.md`, Tasks): `calendar_tasks`, read and written through the
+  calendar's surface once the CRM has checked the member may open the record. The CRM shows only
+  tasks on records: a task on none is private to its owner and never in the CRM. Until the move is
+  done (`calendar.md`, "The move from `crm_tasks`") they are written to `crm_tasks` too.
+- A task on a record is assigned to its creator unless the request says otherwise
+  (`assigneeMemberId: null` is nobody), and only to a member who can open the record. A removed
+  member leaves their tasks unassigned. Taking a task off its record (`PATCH { record: null }`)
+  makes it private to its owner, and its assignee becomes its owner.
 - `due_at` is a moment. A client picking a day sends the end of that day in its own time zone,
   so "overdue" (`due_at < now()`) is the same answer on every client.
 - Done is `completed_at`, with who did it. `PATCH { done }` sets or clears it; completing a done
@@ -295,7 +301,9 @@ One list, newest first, of four kinds of item:
   fields.
 - The command menu (⌘K) finds open tasks by title, so the task list has no search of its own.
 - New, in every CRM header, makes a task, company, person or deal. A task first asks which record
-  it is on, unless the page is that record's, which it starts on and can change.
+  it is on, unless the page is that record's, which it starts on and can change. A task made in
+  the CRM is always on a record.
+- The task panel is the calendar's, the same beside the CRM's lists and beside the calendar.
 - Writes publish `crm.changed` with kind `task`, plus the record's kind. Tasks write no timeline
   events yet. Not yet: reminders, recurring tasks, several records per task, MCP tools.
 

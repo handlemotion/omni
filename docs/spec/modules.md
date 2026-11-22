@@ -22,7 +22,7 @@ same address a person signs in with.
 | Storage          | My files, Shared, sharing by address and by link          | 5 of 6 layers merged (#296 to #304); the web screens left  |
 | CRM              | Companies, people, deals, contracts                       | Specified: `docs/spec/crm.md`                              |
 | Client dashboard | Clients sign in, get deliverables, sign contracts         | Direction set, not scheduled                               |
-| Calendar         | Week and day views, invitations from mail, availability   | Specified: `docs/spec/calendar.md`                         |
+| Calendar         | Month, week and day views, invitations from mail, tasks   | Specified: `docs/spec/calendar.md`                         |
 
 ## Principles
 
@@ -98,6 +98,7 @@ job, and each row is a reference, read through the far side's door.
 | CRM → client            | The client signs in and sees their project, deliverables and contracts.                             | A deal guest, by address, through `forUser`                                                                | Later          |
 | CRM → your phone        | The company's contacts in your own address book.                                                    | One-way CardDAV export by the mail service                                                    | Later          |
 | Calendar → CRM          | Meetings with a person, company or deal on their record.                                            | Calendar's door gains `meetingsWith`, by attendee address, at read time                       | With Calendar  |
+| Calendar → CRM          | Tasks on a person, company or deal: shown to whoever can open it, and assignable there.              | Tasks are the calendar's; the CRM reads and writes the ones on its records through the calendar's surface | With Tasks     |
 | Every module → search   | One search box over mail, files and records.                                                        | Each module's surface offers a search; the Worker merges them                                 | Later          |
 
 ## DAV
