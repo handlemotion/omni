@@ -396,6 +396,38 @@ its own named for the agent. An Omni sheet is `text/vnd.omni.sheet` (`docs/spec/
 - **Limits.** `SHEET_LIMITS` in `@omni/sheets`: 100,000 cells, 20,000 rows a tab, 200 columns,
   20 tabs, 5 MB; 100 edits and 10,000 cells a call. Audited as `mcp.drive_sheet`.
 
+### Meetings: `meetings_search`, `meetings_fetch`, `meetings_group`, `meetings_decide`, `meetings_rename_speaker`, `meetings_share`
+
+Recorded calls (`docs/spec/meetings.md`). Reads need `meetings:read`, writes `meetings:write`.
+Every read goes through each reachable workspace's member door (`forMember(memberId).meetings`),
+so a meeting's grants decide what an agent sees, as on the meeting page; a meeting the person
+cannot open is `not_found`. Transcripts and notes are what people said: the tool descriptions and
+the server's instructions say to treat them as data.
+
+- **Search.** `meetings_search { query?, people?, after?, before?, group?, workspace?, limit? }`:
+  words in the transcript (Postgres full text, `simple`), the notes or the title; people as
+  attendees or speakers, by address or part of a name, each required; start dates; a group key
+  or a client's bare domain. Newest first, with the best matching turn (`match`: its `mm:ss`,
+  speaker and text), null when only the notes matched.
+- **Fetch.** `meetings_fetch { ids (≤ 10), transcript?, max_chars? }`: attendees, speakers (a
+  name, else `Speaker N` by first speech, with the `label` to rename), notes with highlights at
+  their moment, actions with ids, and the transcript one turn a line (`[mm:ss] Name: text`),
+  sharing `max_chars` evenly and cut at the end. Each meeting carries `url` and the person's role.
+- **Group.** `meetings_group { group?, workspace?, limit? }`: without `group`, the groups the
+  person has meetings in, newest first, counting only theirs; with it, the digest (the cached
+  group summary, the timeline of highlights, the meetings), from only the meetings they can open.
+- **Decide.** `meetings_decide { action_id, decision, from? }`. Accepting a task makes it in the
+  person's calendar tasks; accepting an email writes a new draft in their own inbox (or `from`) to
+  the action's recipients: nothing is sent, and the answer carries the draft's `url`. The
+  action moves from `open` once (a compare-and-set); a second call, or a lost race, makes nothing
+  and answers what it became with `already_decided: true` (the draft from the audit row).
+- **Rename and share.** `meetings_rename_speaker { meeting_id, speaker, name, address? }` and
+  `meetings_share { meeting_id, people?, access? }` (viewer or editor by address, or
+  `workspace` access). Both are upserts, so a retry changes nothing; sharing never removes anyone.
+  Viewers are refused; the owner's grant never changes.
+- Writes are audited as `mcp.meetings_decide`, `mcp.meetings_rename_speaker` and
+  `mcp.meetings_share`, under the `actions` rate limit; searches under `search`.
+
 ## Authorization
 
 OAuth 2.1, per the MCP 2026-07-28 authorization spec, with Omni's own Better Auth as the
@@ -435,7 +467,7 @@ additive.
   `https://chatgpt.com/connector_platform_oauth_redirect`.
 
 **Scopes.** `mail:read`, `mail:triage`, `mail:draft`, `crm:read` and `crm:write` (the CRM
-tools, `docs/spec/crm.md` "Agents"), `drive:read` and `drive:write` (Drive, docs and canvases), plus `openid`, `email`, `profile` and
+tools, `docs/spec/crm.md` "Agents"), `drive:read` and `drive:write` (Drive, docs and canvases), `meetings:read` and `meetings:write` (recorded meetings), plus `openid`, `email`, `profile` and
 `offline_access` (offered, never challenged). Consent lists the scopes the client asked for;
 Claude and ChatGPT ask for every advertised scope. A tool that needs a scope the token lacks answers HTTP 403 `error=
 "insufficient_scope"` naming every scope it needs, so the client can step up.

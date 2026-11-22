@@ -8,6 +8,7 @@ import {
   type MeetingRecord,
   type MeetingsOnQuery,
 } from "./meetings/crm.ts";
+import { findMeetings, type MeetingsFilter } from "./meetings/find.ts";
 import * as pipeline from "./meetings/pipeline.ts";
 import {
   getAction,
@@ -39,6 +40,7 @@ export {
 } from "./meetings/core.ts";
 export { MEETINGS_PAGE_MAX, type MeetingView } from "./meetings/read.ts";
 export type { MeetingRecord, MeetingRecordKind, MeetingsOnQuery } from "./meetings/crm.ts";
+export type { MeetingsFilter } from "./meetings/find.ts";
 export type { MeetingChange, StartMeeting } from "./meetings/write.ts";
 export { recurrenceKey, type MeetingEventChoice, type StartRecording } from "./meetings/bind.ts";
 export type {
@@ -68,7 +70,9 @@ export function memberMeetings(db: Db, memberId: string) {
     ...doors(db, actor),
     groups: async (page: Parameters<typeof listGroups>[2] = {}) =>
       listGroups(db, await actor(), page),
-    groupDigest: async (groupKey: string) => groupDigest(db, await actor(), groupKey),
+    groupDigest: async (groupKey: string, limit?: number) =>
+      groupDigest(db, await actor(), groupKey, limit),
+    find: async (filter: MeetingsFilter) => findMeetings(db, await actor(), filter),
     action: async (actionId: string) => getAction(db, await actor(), actionId),
     on: async (query: MeetingsOnQuery) => meetingsOn(db, await actor(), query),
     setRecord: async (meetingId: string, record: MeetingRecord | null) =>

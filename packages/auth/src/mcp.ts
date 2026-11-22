@@ -20,6 +20,14 @@ export const DRIVE_READ_SCOPE = "drive:read";
 /** Write and edit docs in Drive, never delete: `drive_create_doc`, `drive_edit_doc`. */
 export const DRIVE_WRITE_SCOPE = "drive:write";
 
+/** Read recorded meetings: `meetings_search`, `meetings_fetch`, `meetings_group`. */
+export const MEETINGS_READ_SCOPE = "meetings:read";
+/**
+ * Decide a meeting's actions (a task, or a follow-up as a draft: never sent), rename its speakers
+ * and share it: `meetings_decide`, `meetings_rename_speaker`, `meetings_share`.
+ */
+export const MEETINGS_WRITE_SCOPE = "meetings:write";
+
 /**
  * Sync Storage with the desktop app's Finder folder. Only the first-party Omni
  * Desktop client holds it: it is not among the scopes a registered agent may ask for.
@@ -44,6 +52,8 @@ export const MCP_SCOPES = [
   CRM_WRITE_SCOPE,
   DRIVE_READ_SCOPE,
   DRIVE_WRITE_SCOPE,
+  MEETINGS_READ_SCOPE,
+  MEETINGS_WRITE_SCOPE,
 ] as const;
 
 /** The access-token claim naming the one workspace a grant reaches; absent for every workspace. */

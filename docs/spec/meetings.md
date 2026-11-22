@@ -526,14 +526,21 @@ and the CRM's `uses` gains `meetings`.
 
 ## Agents
 
-With the `meetings:read` scope:
+Six MCP tools (`docs/spec/mcp.md`, "Meetings"), each reading through the member door so a
+meeting's grants decide what an agent sees:
 
-| Tool              | What                                                                     |
-| ----------------- | ------------------------------------------------------------------------ |
-| `meetings_search` | Meetings by words in their transcripts and notes, people, dates and deal |
-| `meetings_fetch`  | Up to 5 meetings: notes, actions and the transcript with names and times |
+| Tool                      | Scope            | What                                                                                     |
+| ------------------------- | ---------------- | ---------------------------------------------------------------------------------------- |
+| `meetings_search`         | `meetings:read`  | Meetings by words in their transcripts and notes, people, dates and group                |
+| `meetings_fetch`          | `meetings:read`  | Up to 10 meetings: notes, actions and the transcript with names and times, and a `url`   |
+| `meetings_group`          | `meetings:read`  | The groups, or one group (a series or a client's domain) with its summary and timeline   |
+| `meetings_decide`         | `meetings:write` | Accept or dismiss an action: a task into the calendar, an email as a draft, never sent   |
+| `meetings_rename_speaker` | `meetings:write` | Name a speaker on every line                                                             |
+| `meetings_share`          | `meetings:write` | Share with addresses as viewer or editor, or open to the workspace                       |
 
-Transcripts are what people said: the server's instructions tell agents to treat them as data.
+Writes are idempotent: deciding an action again makes nothing new and answers what it became;
+renaming and sharing are upserts. Transcripts are what people said: the tools and the server's
+instructions tell agents to treat them as data, and to decide or share only what the person asked.
 
 ## Cost
 
@@ -590,7 +597,7 @@ the rest. The migration in M2 numbers on top of whatever is on `main` then.
 | M4  | Desktop: the recorder (Core Audio tap, ScreenCaptureKit, WASAPI), the spool and upload, the pill, the tray and the start notification                                                                                                                                                        | M3         |
 | M5  | Web (Rodrigo, from Figma): the Meetings module, Record in the event panel, the browser recorder                                                                                                                                                                                              | M3         |
 | M6  | CRM: the Meetings tab on a deal, meetings in timelines                                                                                                                                                                                                                                       | M5         |
-| M7  | MCP: `meetings_search`, `meetings_fetch`                                                                                                                                                                                                                                                     | M3         |
+| M7  | MCP: `meetings_search`, `meetings_fetch`, `meetings_group`, `meetings_decide`, `meetings_rename_speaker`, `meetings_share`, scopes `meetings:read` and `meetings:write`                                                                                                                      | M3         |
 
 What each layer must prove:
 
@@ -602,6 +609,8 @@ What each layer must prove:
   meeting its reader cannot open; a teamspace member reaches no recording through Drive.
 - M3: a recording stopped mid-transcription and retried ends with one transcript, one set of
   actions and one block in the doc.
+- M7: through `/mcp`, an agent reaches no meeting its person cannot open, and deciding an action
+  twice makes one task or one draft, never sent.
 - M4: killing the app mid-meeting and opening it again finishes the upload with nothing missing.
 
 **Later:** a live transcript on the streaming endpoint; the iPhone; an optional bot; Ask across

@@ -295,6 +295,13 @@ export async function getAction(ex: Ex, actor: MeetingsActor | null, actionId: s
     status: "ok" as const,
     role,
     meetingTitle: meeting.title,
-    action: { id: action.id, kind: action.kind, payload: action.payload, state: action.state },
+    action: {
+      id: action.id,
+      meetingId: action.meetingId,
+      kind: action.kind,
+      payload: action.payload,
+      state: action.state,
+      taskId: action.taskId,
+    },
   }));
 }

@@ -19,6 +19,10 @@ import {
   mailboxes as schemaMailboxes,
   mailboxFolders,
   mailDomains,
+  meetingsAttendees,
+  meetingsGrants,
+  meetingsMeetings,
+  meetingsSegments,
   members,
   messageLocations,
   notifications,
@@ -26,6 +30,7 @@ import {
   threadState,
   threadTags as threadTagsTable,
   threads,
+  users as schemaUsers,
 } from "../src/schema/index.ts";
 import { notifyMemberJoined } from "../src/notifications.ts";
 import { raiseStoragePeak } from "../src/storage/billing.ts";
@@ -1120,4 +1125,91 @@ test("thread filters match by sender, participant, dates, attachments, mine, sta
   expect(
     (await reads.search("walrus", { filters: { from: "stripe.com" } })).map((h) => h.threadId),
   ).toEqual([stripe.threadId]);
+});
+
+test("meetings find: only meetings the member can open, in their own workspace, whoever is granted elsewhere", async () => {
+  const t = crypto.randomUUID().slice(0, 8);
+  const home = await createOrg(db, `find-home-${t}`);
+  const away = await createOrg(db, `find-away-${t}`);
+  const address = `dana-${t}@studio.test`;
+  const [user] = await db
+    .insert(schemaUsers)
+    .values({ id: crypto.randomUUID(), name: "Dana", email: address, emailVerified: true })
+    .returning();
+  const join = async (orgId: string, userId: string, role = "member") => {
+    const [row] = await db
+      .insert(members)
+      .values({
+        id: crypto.randomUUID(),
+        organizationId: orgId,
+        userId,
+        role,
+        createdAt: new Date(),
+      })
+      .returning();
+    return row!;
+  };
+  const dana = await join(home.id, user!.id);
+  await join(away.id, user!.id);
+  const teammate = async (role = "member") => {
+    const [u] = await db
+      .insert(schemaUsers)
+      .values({
+        id: crypto.randomUUID(),
+        name: role,
+        email: `${role}-${crypto.randomUUID().slice(0, 8)}@studio.test`,
+        emailVerified: true,
+      })
+      .returning();
+    return join(home.id, u!.id, role);
+  };
+  const ben = await teammate();
+  const fran = await teammate("freelancer");
+
+  const meeting = async (orgId: string, text: string, attendee: string, recordedBy?: string) => {
+    const [row] = await db
+      .insert(meetingsMeetings)
+      .values({
+        orgId,
+        title: text,
+        groupKey: "domain:client.test",
+        recordedByMemberId: recordedBy ?? null,
+        consentAt: new Date(),
+        status: "ready",
+      })
+      .returning();
+    await db
+      .insert(meetingsSegments)
+      .values({ meetingId: row!.id, orgId, seq: 0, startMs: 0, endMs: 1000, text });
+    await db
+      .insert(meetingsAttendees)
+      .values({ meetingId: row!.id, orgId, address: `a-${t}@client.test`, name: attendee });
+    return row!.id;
+  };
+  const mine = await meeting(home.id, `presupuesto ${t}`, "Mary_Jane", dana.id);
+  const lookalike = await meeting(home.id, `presupuesto ${t}`, "MaryXJane", dana.id);
+  const granted = await meeting(away.id, `presupuesto ${t}`, "Mary_Jane");
+  await db
+    .insert(meetingsGrants)
+    .values({ meetingId: granted, orgId: away.id, address, role: "viewer" });
+
+  const ids = async (
+    memberId: string,
+    filter: Parameters<ReturnType<typeof forMember>["meetings"]["find"]>[0],
+  ) => {
+    const found = await forMember(db, memberId).meetings.find(filter);
+    return found.status === "ok" ? found.meetings.map((m) => m.id).toSorted() : found.status;
+  };
+  expect(await ids(dana.id, { words: `presupuesto ${t}` })).toEqual([mine, lookalike].toSorted());
+  expect(await ids(dana.id, { people: ["mary_jane"] })).toEqual([mine]);
+  expect(await ids(ben.id, { words: `presupuesto ${t}` })).toEqual([]);
+  expect(await ids(ben.id, {})).toEqual([]);
+  expect(await ids(fran.id, {})).toEqual([]);
+
+  await db
+    .update(meetingsMeetings)
+    .set({ access: "workspace" })
+    .where(eq(meetingsMeetings.id, mine));
+  expect(await ids(ben.id, { people: ["mary_jane"] })).toEqual([mine]);
+  expect(await ids(fran.id, {})).toEqual([]);
 });

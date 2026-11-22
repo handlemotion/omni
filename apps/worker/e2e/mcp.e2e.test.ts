@@ -54,7 +54,8 @@ const at = (path: string) => new URL(path, worker.url);
 
 const NAVIGATION = { accept: "text/html", "sec-fetch-mode": "navigate" };
 
-const AGENT_SCOPES = "mail:read mail:triage mail:draft crm:read crm:write drive:read drive:write";
+const AGENT_SCOPES =
+  "mail:read mail:triage mail:draft crm:read crm:write drive:read drive:write meetings:read meetings:write";
 
 function challenged(response: Response) {
   return /scope="([^"]*)"/.exec(response.headers.get("www-authenticate") ?? "")?.[1]?.split(" ");
