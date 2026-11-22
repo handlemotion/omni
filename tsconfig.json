@@ -6,6 +6,7 @@
     { "path": "./packages/ai" },
     { "path": "./packages/crypto" },
     { "path": "./packages/docs" },
+    { "path": "./packages/canvas" },
     { "path": "./packages/contracts" },
     { "path": "./packages/auth" },
     { "path": "./apps/mail" },

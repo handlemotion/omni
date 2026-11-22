@@ -143,8 +143,8 @@ Y.Doc
   every time: an element whose `parent` is gone moves to the top level. When two concurrent
   regroupings form a cycle, the element with the lowest id leaves it. A group with fewer than
   two children dissolves, and a connector end bound to a missing element uses its `at`. The fix
-  is written to the file at the next save; the Yjs document is not rewritten behind people's
-  backs.
+  is written to the file at the next save, and into the live document only with the next change
+  made through `rewriteCanvas` (an agent's edit, a restore); nothing rewrites it on its own.
 - **Undo is your own.** Each tab's `Y.UndoManager` tracks only its own origin, so undo never
   takes back someone else's work or an agent's.
 - **Presence.** Each person's awareness holds their name, colour, cursor in board coordinates,
@@ -235,7 +235,7 @@ Yjs itself (30 KB gzip) is already loaded for docs and counts toward none of the
   string writer `renderSvg(scene)` both call them, so the editor, an export and a thumbnail draw
   the same board. Text is laid out from a table of the app font's advance widths, kept in the
   package. It needs no DOM measuring, so the Worker wraps the same lines a browser does.
-- **Target.** 5,000 elements pan and zoom at 60 frames a second on a 2023 laptop, and a canvas of
+- **Target.** 2,000 elements pan and zoom at 60 frames a second on a 2023 laptop, and a canvas of
   that size opens in under a second from its latest snap.
 
 ## Drive files on a canvas
@@ -384,32 +384,40 @@ Canvas "Roof repair" · 24 elements · 2 frames · board 0,0 to 3200,900
 
 ## Code
 
-| Where                                     | What                                                                                                                                                                                                                                  |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/canvas` (`@omni/canvas`)        | No I/O, no DOM. `CANVAS_TYPE`, `isOmniCanvas`, the scene schema (zod), `sceneToJson`/`sceneFromJson`, `seedCanvas`, `liveScene`, `rewriteCanvas`, `applyCanvasOps`, `canvasText`, `canvasOutline`, geometry, text layout, `renderSvg` |
-| `apps/worker/src/storage/`                | The `canvas` text reader, the canvas thumbnail, `createCanvas` and `editCanvas` beside `createDoc` and `editDoc`; `LiveFile` takes the type's reader                                                                                  |
-| `apps/worker/src/mcp/`                    | The two tools; `drive_fetch` reads a canvas's outline                                                                                                                                                                                 |
-| `packages/db`                             | Images upload into a canvas as they do into a doc                                                                                                                                                                                     |
-| `apps/web/src/components/storage/canvas/` | The editor (Rodrigo, from Figma)                                                                                                                                                                                                      |
+| Where                                     | What                                                                                                                                                                                                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/canvas` (`@omni/canvas`)        | No I/O, no DOM. `CANVAS_TYPE`, `isOmniCanvas`, the scene schema (zod), `sceneToJson`/`sceneFromJson`, `seedCanvas`, `liveScene`, `rewriteCanvas`, `applyCanvasOps`, `canvasText`, `canvasOutline`; with K4, geometry, text layout and `renderSvg` |
+| `apps/worker/src/storage/`                | The `canvas` text reader, the canvas thumbnail, `createCanvas` and `editCanvas` beside `createDoc` and `editDoc`; `LiveFile` takes the type's reader                                                                                              |
+| `apps/worker/src/mcp/`                    | The two tools; `drive_fetch` reads a canvas's outline                                                                                                                                                                                             |
+| `packages/db`                             | Images upload into a canvas as they do into a doc                                                                                                                                                                                                 |
+| `apps/web/src/components/storage/canvas/` | The editor (Rodrigo, from Figma)                                                                                                                                                                                                                  |
 
 `@omni/canvas` is pure logic, like `@omni/docs`, and is proven the same way: through the
 Worker's e2e tests on the real stack, which run it end to end. It gets no unit tests of its own.
 
 ## Limits
 
-| What                 | Limit                                                                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Elements on a canvas | 5,000                                                                                                                                       |
-| Body                 | 2 MB of JSON                                                                                                                                |
-| Text in one element  | 5,000 characters                                                                                                                            |
-| Board                | Coordinates within ±1,000,000; sizes from 1 to 100,000                                                                                      |
-| Nesting              | Frames at the top level only; groups up to 4 deep                                                                                           |
-| File tiles           | 100 on a canvas                                                                                                                             |
-| Images               | Drive's upload limit each; drawn from thumbnails                                                                                            |
-| Zoom                 | 5% to 800%                                                                                                                                  |
-| Agents               | 200 operations a call, 500 new elements a call, a `scene` up to 2 MB; the `actions` rate limit; refused in a workspace whose plan is unpaid |
+| What                 | Limit                                                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Elements on a canvas | 2,000                                                                                                                |
+| Body                 | 400 KB of JSON                                                                                                       |
+| Text in one element  | 5,000 characters                                                                                                     |
+| Board                | Coordinates within ±1,000,000; sizes from 1 to 100,000                                                               |
+| Nesting              | Frames at the top level only; groups up to 4 deep                                                                    |
+| File tiles           | 100 on a canvas                                                                                                      |
+| Images               | Drive's upload limit each; drawn from thumbnails                                                                     |
+| Zoom                 | 5% to 800%                                                                                                           |
+| Agents               | 200 operations a call, a `scene` up to 400 KB; the `actions` rate limit; refused in a workspace whose plan is unpaid |
 
-A change that would pass a limit is refused whole, in the editor and for agents alike.
+The element and body limits come from the live layer: a live document starts from one record
+holding its whole state (a seed, or a snap), and a record must stay under 1 MiB. A canvas's
+state is about 1.85 times its JSON body (a 2,000-element board of short stickies: 270 KB of JSON,
+500 KB of state), so a 400 KB body leaves room for its history.
+
+A change that would take a canvas past a limit is refused whole, in the editor and for agents
+alike. Two people editing at once can still take a board just past the element, tile or body
+limit together; it stays readable and editable, and only changes that would grow it further are
+refused, so anyone can bring it back under.
 
 ## Not in this change
 
@@ -431,13 +439,13 @@ A change that would pass a limit is refused whole, in the editor and for agents 
 
 One stack, rooted on `main` once #705 to #707 merge. Each layer is one PR, through `gh stack`.
 
-| #   | Layer                                                                                                            | Depends on   |
-| --- | ---------------------------------------------------------------------------------------------------------------- | ------------ |
-| 0   | This spec                                                                                                        |              |
-| K1  | `@omni/canvas`: type, scene, JSON, the Yjs model, rewrite, ops, text, outline, geometry, `renderSvg`, proven by K2 and K3's e2e | 0            |
-| K2  | Storage: the type in Drive, the text reader, image uploads, thumbnails, the live layer taking the type's reader  | K1, #705–707 |
-| K3  | Agents: `drive_create_canvas`, `drive_edit_canvas`, `drive_fetch` outline                                        | K2           |
-| K4  | Web: the editor, file tiles, export (Rodrigo, from the Figma frames)                                             | K2           |
+| #   | Layer                                                                                                                                                     | Depends on   |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| 0   | This spec                                                                                                                                                 |              |
+| K1  | `@omni/canvas`: type, scene, JSON, the Yjs model, rewrite, ops, text, outline, proven by K2 and K3's e2e                                                  | 0            |
+| K2  | Storage: the type in Drive, the text reader, image uploads, link pages                                                                                    | K1, #705–707 |
+| K3  | Agents: the live layer taking the type's reader, `drive_create_canvas`, `drive_edit_canvas`, `drive_fetch` outline                                        | K2           |
+| K4  | Web: the editor, file tiles, export; geometry, text layout, `renderSvg` and thumbnails, which share the editor's drawing (Rodrigo, from the Figma frames) | K2           |
 
 K3 and K4 are independent of each other. K4 waits for Figma; K1 to K3 do not.
 
@@ -455,7 +463,8 @@ K3 and K4 are independent of each other. K4 waits for Figma; K1 to K3 do not.
     `drive_fetch` returns the outline with ids and boxes.
   - Refs: one call adds two stickies with refs and connects them by ref; the answer maps both.
   - A miss (an id that is not there) changes nothing and answers with the outline.
-  - Limits: the 5,001st element, the 201st operation and an unpaid workspace are refused whole.
+  - Limits: the 2,001st element and the 201st operation are refused whole. (An unpaid workspace
+    is refused by the gate the doc tools share, `ready` in `apps/worker/src/mcp/drive-write.ts`.)
 - `apps/worker/e2e/drive-canvas-live.e2e.test.ts`, on the real realtime socket and S2:
   - A tab moves sticky A and types in sticky B without saving. `drive_fetch` shows both with
     `unsaved_edits: true`.
