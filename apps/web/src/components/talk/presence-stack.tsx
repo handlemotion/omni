@@ -1,8 +1,8 @@
 import { cn } from "cn";
-import type { CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useTalkPeople } from "@/hooks/use-talk.ts";
+import { usePrefetchThread, useTalkPeople } from "@/hooks/use-talk.ts";
 import { stackOf, type TalkPerson } from "@/lib/talk.ts";
 import { EVERYONE, talkWindow, useTalkWindow } from "@/lib/talk-window.ts";
 import { pictureUrl } from "@/lib/urls.ts";
@@ -47,6 +47,7 @@ const label = (person: TalkPerson) =>
 
 function StackFace(props: { person: TalkPerson; open: boolean }) {
   const { person, open } = props;
+  const prefetch = usePrefetchThread();
   return (
     <Button
       intent="plain"
@@ -55,7 +56,10 @@ function StackFace(props: { person: TalkPerson; open: boolean }) {
       aria-label={label(person)}
       aria-pressed={open}
       data-talk-face={person.memberId}
-      onPointerEnter={(event) => event.pointerType === "mouse" && talkWindow.hover(person.memberId)}
+      onPointerEnter={(event) => {
+        prefetch(person);
+        if (event.pointerType === "mouse") talkWindow.hover(person.memberId);
+      }}
       onPointerLeave={(event) => event.pointerType === "mouse" && talkWindow.leave()}
       onPress={() =>
         open && talkWindow.state().pinned ? talkWindow.close() : talkWindow.open(person.memberId)
@@ -110,6 +114,21 @@ function Everyone(props: { more: number; open: boolean }) {
   );
 }
 
+function usePrefetchUnread(people: TalkPerson[] | undefined) {
+  const prefetch = usePrefetchThread();
+  useEffect(() => {
+    const unread = people?.filter((p) => p.unread > 0 && p.threadId) ?? [];
+    if (unread.length === 0) return;
+    const run = () => unread.forEach(prefetch);
+    if (typeof requestIdleCallback !== "function") {
+      const timer = setTimeout(run, 200);
+      return () => clearTimeout(timer);
+    }
+    const idle = requestIdleCallback(run, { timeout: 2_000 });
+    return () => cancelIdleCallback(idle);
+  }, [people, prefetch]);
+}
+
 /**
  * The workspace's teammates in the title bar, online or not (offline ones dimmed): up to three
  * faces, then `+n` for everyone. Nothing when there is nobody else, or the workspace has no Talk.
@@ -117,6 +136,7 @@ function Everyone(props: { more: number; open: boolean }) {
 export function PresenceStack() {
   const { data: people } = useTalkPeople();
   const openId = useTalkWindow();
+  usePrefetchUnread(people);
   if (!people?.length) return null;
   const { shown, more } = stackOf(people);
   if (shown.length === 0) return null;

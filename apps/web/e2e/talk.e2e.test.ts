@@ -314,8 +314,434 @@ test("the stack shows who is online, and a note and a file reach the teammate's 
   await kofi.setViewportSize({ width: 600, height: wide.height });
   await kofiStack.waitFor({ state: "detached" });
   await composer.fill("While you were narrow");
+  const stored = ana.waitForResponse(
+    (r) => r.request().method() === "POST" && r.url().endsWith("/messages"),
+  );
   await composer.press("Enter");
+  await stored;
   await bubble("While you were narrow").waitFor();
   await kofi.setViewportSize(wide);
   await kofiStack.getByRole("button", { name: "Ana Lima, 1 unread" }).waitFor();
+});
+
+test("a note reaches an open window with older notes loaded without refetching it, and shows once to its sender", async () => {
+  const people = await team("talk-arrive");
+  const cookie = await signIn({ url: new URL(origin()) }, db, people.ana.email);
+  const post = (path: string, body?: unknown) =>
+    fetch(new URL(`/api/talk${path}`, origin()), {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json", origin: WEB_ORIGIN },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+  const { thread } = await post("/threads", { memberId: people.ben.memberId });
+  for (let i = 0; i < 70; i++) await post(`/threads/${thread.id}/messages`, { body: `Old ${i}` });
+
+  const ana = await open(people.ana.email);
+  const kofi = await open(people.ben.email);
+  await kofi.getByRole("button", { name: /^Ana Lima/ }).click();
+  const kofiWindow = kofi.getByRole("region", { name: "Conversation with Ana Lima" });
+  await kofiWindow.getByText("Old 69", { exact: true }).waitFor();
+  const loading = Promise.withResolvers<void>();
+  await kofi.route("**/api/talk/threads/*/messages?before=*", async (route) => {
+    await loading.promise;
+    await route.fallback();
+  });
+  await kofiWindow.getByRole("button", { name: "Earlier" }).click();
+  await post(`/threads/${thread.id}/messages`, { body: "While older ones load" });
+  await kofiWindow.getByText("While older ones load", { exact: true }).waitFor();
+  loading.resolve();
+  await kofiWindow.getByText("Old 0", { exact: true }).waitFor();
+  await kofi.unroute("**/api/talk/threads/*/messages?before=*");
+  expect(await kofiWindow.getByText("While older ones load", { exact: true }).count()).toBe(1);
+  const fetched: string[] = [];
+  kofi.on("request", (request) => {
+    if (
+      request.method() === "GET" &&
+      /\/api\/talk\/(people|threads\/[^/]+\/messages)/.test(request.url())
+    ) {
+      fetched.push(request.url());
+    }
+  });
+
+  await ana.getByRole("button", { name: /^Kofi Mensah/ }).click();
+  const anaWindow = ana.getByRole("region", { name: "Conversation with Kofi Mensah" });
+  const composer = anaWindow.getByRole("textbox", { name: "Note to Kofi Mensah" });
+  await composer.fill("Fresh one");
+  await composer.press("Enter");
+  await kofiWindow.getByText("Fresh one", { exact: true }).waitFor();
+  await anaWindow.getByText("Fresh one", { exact: true }).waitFor();
+  await kofi.waitForTimeout(1_000);
+  expect(fetched).toEqual([]);
+  expect(await anaWindow.getByText("Fresh one", { exact: true }).count()).toBe(1);
+  expect(await kofiWindow.getByText("Old 0", { exact: true }).count()).toBe(1);
+
+  const fresh = kofiWindow.getByText("Fresh one", { exact: true });
+  await fresh.hover();
+  await fresh.locator("..").getByRole("button", { name: "React 👍" }).click();
+  await anaWindow.getByRole("button", { name: "👍 1" }).waitFor();
+  expect(fetched).toEqual([]);
+
+  await anaWindow.getByRole("button", { name: "Close" }).click();
+  await anaWindow.waitFor({ state: "detached" });
+  const answered = Promise.withResolvers<void>();
+  const stored = ana.waitForResponse(
+    (r) => r.request().method() === "POST" && r.url().endsWith("/messages"),
+  );
+  await ana.route("**/api/talk/threads/*/messages", async (route) => {
+    if (route.request().method() === "POST") {
+      await answered.promise;
+      return route.fallback();
+    }
+    const empty = await route.fetch();
+    answered.resolve();
+    await stored;
+    await ana.waitForTimeout(300);
+    await route.fulfill({ response: empty });
+  });
+  await ana
+    .getByRole("group", { name: "Teammates" })
+    .getByRole("button", { name: /^Cyra Holt/ })
+    .click();
+  const toCyra = ana.getByRole("region", { name: "Conversation with Cyra Holt" });
+  await toCyra.getByRole("textbox").fill("First to Cyra");
+  await toCyra.getByRole("textbox").press("Enter");
+  await toCyra.getByText("First to Cyra", { exact: true }).waitFor();
+  await ana.unroute("**/api/talk/threads/*/messages");
+});
+
+test("realtime that comes late or out of order never misorders notes or hides a newer unread one", async () => {
+  const people = await team("talk-late");
+  const cookie = await signIn({ url: new URL(origin()) }, db, people.ana.email);
+  const post = (path: string, body?: unknown) =>
+    fetch(new URL(`/api/talk${path}`, origin()), {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json", origin: WEB_ORIGIN },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+  const { thread } = await post("/threads", { memberId: people.ben.memberId });
+  await post(`/threads/${thread.id}/messages`, { body: "Hello" });
+
+  const kofiCookie = await signIn({ url: new URL(origin()) }, db, people.ben.email);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  contexts.push(context);
+  await context.addCookies(
+    kofiCookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin() };
+    }),
+  );
+  let swap: string | null = null;
+  let holdReads = false;
+  const heldReads: string[] = [];
+  const readHeld = Promise.withResolvers<void>();
+  const readSeen: Array<PromiseWithResolvers<void>> = [];
+  const holding = (preview: string) => ({
+    preview,
+    frames: [] as string[],
+    held: Promise.withResolvers<void>(),
+  });
+  const fourth = holding("Fourth");
+  const late = holding("Reacted first");
+  const sixthNote = holding("Sixth");
+  const mine = holding("Mine, earlier");
+  const holds = [fourth, late, sixthNote, mine];
+  const deliver: Array<(frame: string) => void> = [];
+  const watched = {
+    messageId: "",
+    frames: [] as string[],
+    added: Promise.withResolvers<void>(),
+    removed: Promise.withResolvers<void>(),
+  };
+  const watchedReaction = (
+    event: { reactions?: { messageId: string; reactions: unknown[] } },
+    text: string,
+  ) => {
+    if (!watched.messageId || event.reactions?.messageId !== watched.messageId) return null;
+    if (event.reactions.reactions.length === 0) return (watched.removed.resolve(), "dropped");
+    watched.frames.push(text);
+    watched.added.resolve();
+    return "held";
+  };
+  const dropReactions = { of: "" };
+  const routed = (text: string) => {
+    const event = JSON.parse(text) as {
+      type?: string;
+      preview?: string;
+      read?: boolean;
+      reactions?: { messageId: string; reactions: unknown[] };
+    };
+    if (dropReactions.of && event.reactions?.messageId === dropReactions.of) return "dropped";
+    const reaction = event.type === "talk.changed" ? watchedReaction(event, text) : null;
+    if (reaction) return reaction;
+    if (event.type === "talk.changed" && event.read) {
+      readSeen.at(-1)?.resolve();
+      if (!holdReads) return "send";
+      heldReads.push(text);
+      readHeld.resolve();
+      return "held";
+    }
+    if (event.type !== "talk.message") return "send";
+    if (event.preview === "First") return (void (swap = text), "held");
+    if (event.preview === "Missed") return "dropped";
+    const hold = holds.find((h) => h.preview === event.preview && h.frames.length === 0);
+    if (!hold) return event.preview === "Second" ? "then-swap" : "send";
+    hold.frames.push(text);
+    hold.held.resolve();
+    return "held";
+  };
+  await context.routeWebSocket(/\/api\/realtime/, (ws) => {
+    const server = ws.connectToServer();
+    deliver.push((frame) => ws.send(frame));
+    ws.onMessage((frame) => server.send(frame));
+    server.onMessage((frame) => {
+      const way = routed(String(frame));
+      if (way === "held" || way === "dropped") return;
+      ws.send(frame);
+      if (way === "then-swap" && swap) ws.send(swap);
+    });
+  });
+  const kofi = await context.newPage();
+  await kofi.goto(new URL("/inbox", origin()).toString());
+  const stack = kofi.getByRole("group", { name: "Teammates" });
+  await stack.getByRole("button", { name: /^Ana Lima/ }).click();
+  const window = kofi.getByRole("region", { name: "Conversation with Ana Lima" });
+  await window.getByText("Hello", { exact: true }).waitFor();
+
+  await post(`/threads/${thread.id}/messages`, { body: "First" });
+  await post(`/threads/${thread.id}/messages`, { body: "Second" });
+  await window.getByText("First", { exact: true }).waitFor();
+  const shown = await window.locator("p").allInnerTexts();
+  expect(shown.indexOf("First")).toBeLessThan(shown.indexOf("Second"));
+
+  await kofi.keyboard.press("Escape");
+  await window.waitFor({ state: "detached" });
+  await kofi.mouse.move(4, 400);
+  holdReads = true;
+  const read = await fetch(new URL(`/api/talk/threads/${thread.id}/read`, origin()), {
+    method: "PUT",
+    headers: { cookie: kofiCookie, origin: WEB_ORIGIN },
+  });
+  expect(read.status).toBe(204);
+  await readHeld.promise;
+  await post(`/threads/${thread.id}/messages`, { body: "Third" });
+  await stack.getByRole("button", { name: "Ana Lima, 1 unread" }).waitFor();
+  for (const frame of heldReads) for (const send of deliver) send(frame);
+  await kofi.waitForTimeout(1_000);
+  await stack.getByRole("button", { name: "Ana Lima, 1 unread" }).waitFor();
+
+  await post(`/threads/${thread.id}/messages`, { body: "Fourth" });
+  await fourth.held.promise;
+  const wide = kofi.viewportSize()!;
+  await kofi.setViewportSize({ width: 600, height: wide.height });
+  await stack.waitFor({ state: "detached" });
+  await kofi.setViewportSize(wide);
+  await stack.getByRole("button", { name: "Ana Lima, 2 unread" }).waitFor();
+  deliver.at(-1)!(fourth.frames[0]!);
+  await kofi.waitForTimeout(1_000);
+  await stack.getByRole("button", { name: "Ana Lima, 2 unread" }).waitFor();
+
+  await stack.getByRole("button", { name: /^Ana Lima/ }).click();
+  await window.getByText("Hello", { exact: true }).waitFor();
+  const removed = Promise.withResolvers<void>();
+  const answered: Promise<unknown>[] = [];
+  const bothSent = Promise.withResolvers<void>();
+  await kofi.route("**/api/talk/messages/*/reactions/*", async (route) => {
+    const method = route.request().method();
+    if (method === "DELETE") removed.resolve();
+    if (method === "PUT") await Promise.race([removed.promise, kofi.waitForTimeout(1_500)]);
+    await route.fallback();
+  });
+  kofi.on("request", (request) => {
+    if (!request.url().includes("/reactions/")) return;
+    answered.push(request.response());
+    if (answered.length === 2) bothSent.resolve();
+  });
+  const hello = window.getByText("Hello", { exact: true });
+  await hello.hover();
+  await hello.locator("..").getByRole("button", { name: "React 👍" }).click();
+  await window.getByRole("button", { name: "👍 1" }).click();
+  await bothSent.promise;
+  await Promise.all(answered);
+  const page = (await fetch(new URL(`/api/talk/threads/${thread.id}/messages`, origin()), {
+    headers: { cookie },
+  }).then((r) => r.json())) as { messages: { body: string; reactions: unknown[] }[] };
+  expect(page.messages.find((m) => m.body === "Hello")!.reactions).toEqual([]);
+
+  await kofi.keyboard.press("Escape");
+  await window.waitFor({ state: "detached" });
+  await kofi.mouse.move(4, 400);
+  await post(`/threads/${thread.id}/messages`, { body: "Missed" });
+  await kofi.setViewportSize({ width: 600, height: wide.height });
+  await stack.waitFor({ state: "detached" });
+  await kofi.setViewportSize(wide);
+  await stack.waitFor();
+  await post(`/threads/${thread.id}/messages`, { body: "After" });
+  await stack.getByRole("button", { name: /^Ana Lima, \d unread/ }).waitFor();
+  await stack.getByRole("button", { name: /^Ana Lima/ }).click();
+  await window.getByText("After", { exact: true }).waitFor();
+  await window.getByText("Missed", { exact: true }).waitFor();
+
+  const { message } = await post(`/threads/${thread.id}/messages`, { body: "Reacted first" });
+  await late.held.promise;
+  const reacted = await fetch(
+    new URL(`/api/talk/messages/${message.id}/reactions/${encodeURIComponent("👍")}`, origin()),
+    { method: "PUT", headers: { cookie, origin: WEB_ORIGIN } },
+  );
+  expect(reacted.status).toBe(204);
+  const early = window.getByText("Reacted first", { exact: true }).locator("..");
+  await early.getByRole("button", { name: "👍 1" }).waitFor();
+  deliver.at(-1)!(late.frames[0]!);
+  await kofi.waitForTimeout(1_000);
+  await early.getByRole("button", { name: "👍 1" }).waitFor();
+
+  await kofi.keyboard.press("Escape");
+  await window.waitFor({ state: "detached" });
+  await kofi.mouse.move(4, 400);
+  const peopleHeld = Promise.withResolvers<void>();
+  const peopleRelease = Promise.withResolvers<void>();
+  let holdPeople = true;
+  await kofi.route("**/api/talk/people", async (route) => {
+    if (!holdPeople) return route.fallback();
+    holdPeople = false;
+    const before = await route.fetch();
+    peopleHeld.resolve();
+    await peopleRelease.promise;
+    await route.fulfill({ response: before }).catch(() => {});
+  });
+  await post(`/threads/${thread.id}/messages`, { body: "Fifth" });
+  await peopleHeld.promise;
+  const seen = Promise.withResolvers<void>();
+  readSeen.push(seen);
+  holdReads = false;
+  const readAll = await fetch(new URL(`/api/talk/threads/${thread.id}/read`, origin()), {
+    method: "PUT",
+    headers: { cookie: kofiCookie, origin: WEB_ORIGIN },
+  });
+  expect(readAll.status).toBe(204);
+  await seen.promise;
+  await kofi.waitForTimeout(300);
+  peopleRelease.resolve();
+  await kofi.waitForTimeout(1_000);
+  await stack.getByRole("button", { name: "Ana Lima, offline", exact: true }).waitFor();
+
+  await stack.getByRole("button", { name: /^Ana Lima/ }).click();
+  await window.getByText("Fifth", { exact: true }).waitFor();
+  const pageHeld = Promise.withResolvers<void>();
+  const pageRelease = Promise.withResolvers<void>();
+  let holdPage = true;
+  await kofi.route(`**/api/talk/threads/${thread.id}/messages`, async (route) => {
+    if (!holdPage || route.request().method() !== "GET") return route.fallback();
+    holdPage = false;
+    const older = await route.fetch();
+    pageHeld.resolve();
+    await pageRelease.promise;
+    await route.fulfill({ response: older });
+  });
+  const sixth = (await post(`/threads/${thread.id}/messages`, { body: "Sixth" })).message;
+  await sixthNote.held.promise;
+  const reactTo = (emoji: string) =>
+    fetch(
+      new URL(`/api/talk/messages/${sixth.id}/reactions/${encodeURIComponent(emoji)}`, origin()),
+      { method: "PUT", headers: { cookie, origin: WEB_ORIGIN } },
+    );
+  expect((await reactTo("👍")).status).toBe(204);
+  await pageHeld.promise;
+  deliver.at(-1)!(sixthNote.frames[0]!);
+  const bubble = window.getByText("Sixth", { exact: true }).locator("..");
+  await bubble.waitFor();
+  expect((await reactTo("🎉")).status).toBe(204);
+  await bubble.getByRole("button", { name: "🎉 1" }).waitFor();
+  pageRelease.resolve();
+  await kofi.waitForTimeout(1_000);
+  await bubble.getByRole("button", { name: "🎉 1" }).waitFor();
+  await bubble.getByRole("button", { name: "👍 1" }).waitFor();
+
+  await kofi.keyboard.press("Escape");
+  await window.waitFor({ state: "detached" });
+  await kofi.mouse.move(4, 400);
+  const kofiPost = await fetch(new URL(`/api/talk/threads/${thread.id}/messages`, origin()), {
+    method: "POST",
+    headers: { cookie: kofiCookie, "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ body: "Mine, earlier" }),
+  });
+  expect(kofiPost.status).toBe(201);
+  await mine.held.promise;
+  heldReads.length = 0;
+  const readLater = Promise.withResolvers<void>();
+  readSeen.push(readLater);
+  holdReads = true;
+  const readMine = await fetch(new URL(`/api/talk/threads/${thread.id}/read`, origin()), {
+    method: "PUT",
+    headers: { cookie: kofiCookie, origin: WEB_ORIGIN },
+  });
+  expect(readMine.status).toBe(204);
+  await readLater.promise;
+  holdReads = false;
+  await post(`/threads/${thread.id}/messages`, { body: "Seventh" });
+  await stack.getByRole("button", { name: "Ana Lima, 1 unread" }).waitFor();
+  deliver.at(-1)!(mine.frames[0]!);
+  deliver.at(-1)!(heldReads[0]!);
+  await kofi.waitForTimeout(1_000);
+  await stack.getByRole("button", { name: "Ana Lima, 1 unread" }).waitFor();
+
+  await stack.getByRole("button", { name: /^Ana Lima/ }).click();
+  const eighth = (await post(`/threads/${thread.id}/messages`, { body: "Eighth" })).message;
+  const fire = window.getByText("Eighth", { exact: true }).locator("..");
+  await fire.waitFor();
+  watched.messageId = eighth.id;
+  const fireOn = (method: string) =>
+    fetch(
+      new URL(`/api/talk/messages/${eighth.id}/reactions/${encodeURIComponent("🔥")}`, origin()),
+      { method, headers: { cookie, origin: WEB_ORIGIN } },
+    );
+  expect((await fireOn("PUT")).status).toBe(204);
+  await watched.added.promise;
+  expect((await fireOn("DELETE")).status).toBe(204);
+  await watched.removed.promise;
+  await kofi.setViewportSize({ width: 600, height: wide.height });
+  await stack.waitFor({ state: "detached" });
+  const refetched = kofi.waitForResponse(
+    (r) => r.request().method() === "GET" && r.url().includes(`/threads/${thread.id}/messages`),
+  );
+  await kofi.setViewportSize(wide);
+  await stack.waitFor();
+  if (!(await window.isVisible())) await stack.getByRole("button", { name: /^Ana Lima/ }).click();
+  await refetched;
+  await fire.waitFor();
+  deliver.at(-1)!(watched.frames[0]!);
+  await kofi.waitForTimeout(1_000);
+  expect(await fire.getByRole("button", { name: /^🔥/ }).count()).toBe(0);
+
+  watched.messageId = "";
+  dropReactions.of = eighth.id;
+  const pageAnswered = Promise.withResolvers<void>();
+  const pageGo = Promise.withResolvers<void>();
+  let holdNextPage = false;
+  await kofi.route(`**/api/talk/threads/${thread.id}/messages`, async (route) => {
+    if (!holdNextPage || route.request().method() !== "GET") return route.fallback();
+    holdNextPage = false;
+    const answer = await route.fetch();
+    pageAnswered.resolve();
+    await pageGo.promise;
+    await route.fulfill({ response: answer });
+  });
+  const thumbs = await fetch(
+    new URL(`/api/talk/messages/${eighth.id}/reactions/${encodeURIComponent("👍")}`, origin()),
+    { method: "PUT", headers: { cookie, origin: WEB_ORIGIN } },
+  );
+  expect(thumbs.status).toBe(204);
+  holdNextPage = true;
+  await kofi.setViewportSize({ width: 600, height: wide.height });
+  await stack.waitFor({ state: "detached" });
+  await kofi.setViewportSize(wide);
+  await stack.waitFor();
+  if (!(await window.isVisible())) await stack.getByRole("button", { name: /^Ana Lima/ }).click();
+  await pageAnswered.promise;
+  await fire.hover();
+  await fire.getByRole("button", { name: "React 🎉" }).click();
+  await fire.getByRole("button", { name: "🎉 1" }).waitFor();
+  pageGo.resolve();
+  await kofi.waitForTimeout(1_000);
+  await fire.getByRole("button", { name: "🎉 1" }).waitFor();
+  await fire.getByRole("button", { name: "👍 1" }).waitFor();
 });

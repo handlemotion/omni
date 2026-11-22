@@ -71,7 +71,7 @@ All tables carry `org_id`, cascade with the workspace, and are named `talk_*`.
 - `talk_messages`: `id` (uuidv7, so ids sort by time), `org_id`, `thread_id`, `author_member_id`,
   `body` (text, at most 4,000 characters) and/or a file: `file_node_id` (Storage node, set null
   when the node is deleted for good), `file_name`, `file_size`, `file_mime`. At least one of body
-  and file. `created_at`.
+  and file. `reactions_version` (goes up with each change to its reactions). `created_at`.
 - `talk_reactions`: (`message_id`, `member_id`, `emoji`), `org_id`, `created_at`. An emoji is
   one grapheme of at most 16 bytes; a person has at most 8 different ones on a note.
 - `talk_reads`: (`thread_id`, `member_id`), `org_id`, `read_at`. Unread is the other person's
@@ -127,7 +127,7 @@ Under `/api/talk`, member sessions only, behind the plan's read-only gate like e
 | --------------------------------------- | ----------------------------------------------------------------------- |
 | `GET /people`                           | Teammates with picture, online now, their thread id and unread count    |
 | `POST /threads` `{ memberId }`          | The thread with that teammate, made on first use (idempotent)           |
-| `GET /threads/:id/messages?before=`     | Newest notes first, 50 a page, with reactions; `before` is a message id |
+| `GET /threads/:id/messages?before=`     | Newest notes first, 50 a page (`limit` up to 100), with reactions       |
 | `POST /threads/:id/messages` `{ body }` | A note                                                                  |
 | `POST /threads/:id/files?name=`         | A file, as above                                                        |
 | `PUT /threads/:id/read`                 | Reads it up to now                                                      |
@@ -150,15 +150,35 @@ know. Then:
   first `team` socket opens and when their last one closes. `GET /people` reads the same set
   from the object, so a fresh app starts right and events keep it right. A dropped socket goes
   offline when the object sees it close.
-- `talk.message` `{ threadId, messageId, fromMemberId, preview }`: to both members' `team`
-  sockets (the sender's other devices too). `preview` is the first 120 characters of the note,
-  or the file's name. A recipient with no `team` socket open gets an Expo push when push is on.
-- `talk.changed` `{ threadId }`: a reaction changed, to both members; a read, to the reader's own
-  devices only.
+- `talk.message` `{ threadId, messageId, fromMemberId, preview, message }`: to both members'
+  `team` sockets (the sender's other devices too). `preview` is the first 120 characters of the
+  note, or the file's name; `message` is the note as `GET …/messages` answers it. A recipient
+  with no `team` socket open gets an Expo push when push is on. The Worker sends it after
+  answering the sender, so a send never waits on the realtime object.
+- `talk.changed` `{ threadId, reactions?, read? }`: a reaction changed, to both members, with
+  `reactions: { messageId, reactions, version }` as the note now has them. A note's
+  `reactionsVersion` (also on every note a page returns) goes up with each change to its reactions,
+  under one lock per note, so a client keeps the highest and skips an older snapshot; a read, to the reader's own
+  devices only, with `read: true` and `readAt`, how far it read.
 
-Clients refetch what an event names; the event is never the source of truth. Every write is a
-row with its own id, so a retried request at most adds a note again; reactions and reads are
-upserts.
+A client applies what an event carries to the thread it has loaded: a note goes on top (once,
+by id), reactions replace the note's, a read clears that thread's unread count (or refetches the counts when a note went by after
+`readAt`), notes take their place by id so out-of-order events still show in order, a note from the
+other one adds to it. It never refetches a whole thread for one note. An event that carries
+nothing (an older Worker) makes it refetch what the event names, the thread's newest page for a
+note. A reconnect refetches Talk, so a missed event is caught up. Every write is a row with its
+own id, so a retried request at most adds a note again; reactions and reads are upserts.
+
+## Speed
+
+- **Sending** shows the note at once, before the server answers; the stored note takes its
+  place, and a failed one is taken away and its text goes back to the composer.
+- **Opening** a window shows its thread from memory when loaded in the last minutes. Resting on
+  a face starts loading it before the peek opens, and threads with unread notes load in idle
+  time, so a note that arrived while the window was closed is there when it opens. A closed
+  window keeps only the thread's newest page, so opening it again draws one page.
+- **Scrolling back** loads the next, larger page (100 notes) once `Earlier` comes within a
+  screen of view, before the reader reaches it.
 
 ## Deferred
 

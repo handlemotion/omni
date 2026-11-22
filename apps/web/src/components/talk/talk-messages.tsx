@@ -1,20 +1,23 @@
 import { cn } from "cn";
-import { Fragment } from "react";
+import { Fragment, memo, startTransition, useCallback, useEffect, useState } from "react";
 import { FileGlyph } from "@/components/storage/file-glyph";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { useReact } from "@/hooks/use-talk.ts";
 import { fileType } from "@/lib/file-kind.ts";
-import { fileUrl, isImage, type TalkMessage } from "@/lib/talk.ts";
+import { fileUrl, isImage, reacting, type TalkMessage } from "@/lib/talk.ts";
+import { isPending } from "@/lib/talk-cache.ts";
 
 const GAP_MS = 60 * 60_000;
 const QUICK = ["👍", "❤️", "😂", "🎉"];
 
+const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+const dayFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
 const timeLine = (at: Date, now = new Date()) => {
-  const time = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const time = timeFormat.format(at);
   if (at.toDateString() === now.toDateString()) return time;
-  const day = at.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  return `${day}, ${time}`;
+  return `${dayFormat.format(at)}, ${time}`;
 };
 
 const bytes = (size: number) =>
@@ -26,16 +29,31 @@ const bytes = (size: number) =>
 
 const typeOf = (name: string) => name.split(".").at(-1)?.toUpperCase() ?? "File";
 
-function useToggle(message: TalkMessage, meId: string) {
-  const toggle = useReact(message.threadId);
+type SetReaction = (messageId: string, emoji: string, on: boolean) => void;
+
+function useToggle(message: TalkMessage, meId: string, react: SetReaction) {
   const has = (emoji: string) =>
     message.reactions.some((r) => r.emoji === emoji && r.memberIds.includes(meId));
-  const set = (emoji: string, on: boolean) => toggle.mutate({ messageId: message.id, emoji, on });
+  const set = (emoji: string, on: boolean) => {
+    if (!isPending(message.id)) react(message.id, emoji, on);
+  };
   return { has, set };
 }
 
-function Reactions(props: { message: TalkMessage; meId: string; mine: boolean }) {
-  const { has, set } = useToggle(props.message, props.meId);
+function useAfterPaint() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => startTransition(() => setReady(true)), []);
+  return ready;
+}
+
+interface NoteProps {
+  message: TalkMessage;
+  meId: string;
+  react: SetReaction;
+}
+
+function Reactions(props: NoteProps & { mine: boolean }) {
+  const { has, set } = useToggle(props.message, props.meId, props.react);
   if (props.message.reactions.length === 0) return null;
   return (
     <div
@@ -68,8 +86,8 @@ function Reactions(props: { message: TalkMessage; meId: string; mine: boolean })
   );
 }
 
-function QuickReactions(props: { message: TalkMessage; meId: string; mine: boolean }) {
-  const { has, set } = useToggle(props.message, props.meId);
+function QuickReactions(props: NoteProps & { mine: boolean }) {
+  const { has, set } = useToggle(props.message, props.meId, props.react);
   return (
     <span
       className={cn(
@@ -137,9 +155,10 @@ function Attachment(props: { message: TalkMessage; mine: boolean }) {
   );
 }
 
-function Note(props: { message: TalkMessage; meId: string; tail: boolean }) {
+const Note = memo(function Note(props: NoteProps & { tail: boolean }) {
   const { message } = props;
   const mine = message.authorMemberId === props.meId;
+  const quick = useAfterPaint();
   return (
     <div
       className={cn(
@@ -151,7 +170,7 @@ function Note(props: { message: TalkMessage; meId: string; tail: boolean }) {
       <div
         className={cn("relative flex min-w-0 flex-col gap-0.5", mine ? "items-end" : "items-start")}
       >
-        <QuickReactions message={message} meId={props.meId} mine={mine} />
+        {quick && <QuickReactions {...props} mine={mine} />}
         {message.body && (
           <p
             className={cn(
@@ -163,14 +182,20 @@ function Note(props: { message: TalkMessage; meId: string; tail: boolean }) {
           </p>
         )}
         {message.file && <Attachment message={message} mine={mine} />}
-        <Reactions message={message} meId={props.meId} mine={mine} />
+        <Reactions {...props} mine={mine} />
       </div>
     </div>
   );
-}
+});
 
 /** A thread's notes as bubbles, oldest first, a time line wherever an hour passes. */
-export function TalkMessages(props: { messages: TalkMessage[]; meId: string }) {
+export function TalkMessages(props: { messages: TalkMessage[]; meId: string; threadId: string }) {
+  const { mutate } = useReact(props.threadId);
+  const { meId } = props;
+  const react = useCallback<SetReaction>(
+    (messageId, emoji, on) => mutate(reacting({ messageId, emoji, on, meId })),
+    [mutate, meId],
+  );
   const ordered = props.messages.toReversed();
   return (
     <div className="flex flex-col gap-1 px-3.5 pt-3 pb-4">
@@ -187,7 +212,7 @@ export function TalkMessages(props: { messages: TalkMessage[]; meId: string }) {
                 {timeLine(new Date(at))}
               </p>
             )}
-            <Note message={message} meId={props.meId} tail={tail} />
+            <Note message={message} meId={meId} tail={tail} react={react} />
           </Fragment>
         );
       })}

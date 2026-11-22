@@ -76,8 +76,6 @@ export async function threadOf(ex: Ex, me: TalkMember, threadId: string) {
   return { ...row, otherMemberId: row.memberAId === me.id ? row.memberBId : row.memberAId };
 }
 
-export type TalkThreadRow = NonNullable<Awaited<ReturnType<typeof threadOf>>>;
-
 /** Runs `fn` as the member, or answers `no_talk`. */
 export async function asTalkMember<T>(ex: Ex, memberId: string, fn: (m: TalkMember) => Promise<T>) {
   const member = await loadTalkMember(ex, memberId);

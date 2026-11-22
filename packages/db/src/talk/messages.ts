@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { talkMessages, talkReactions, talkThreads } from "../schema/talk.ts";
-import { NOT_FOUND, threadOf, type Ex, type TalkMember, type TalkThreadRow } from "./core.ts";
+import { NOT_FOUND, threadOf, type Ex, type TalkMember } from "./core.ts";
 
 export const TALK_BODY_MAX = 4_000;
 export const TALK_PAGE_MAX = 100;
@@ -28,6 +28,8 @@ export interface TalkMessage {
   body: string | null;
   file: TalkFile | null;
   reactions: TalkReaction[];
+  /** Goes up with every change to the reactions; a client keeps the highest it has seen. */
+  reactionsVersion: number;
   createdAt: Date;
 }
 
@@ -51,6 +53,7 @@ const toMessage = (row: MessageRow, reactions: TalkReaction[] = []) =>
     body: row.body,
     file: fileOf(row),
     reactions,
+    reactionsVersion: row.reactionsVersion,
     createdAt: row.createdAt,
   }) satisfies TalkMessage;
 
@@ -61,27 +64,33 @@ export const previewOf = (message: Pick<TalkMessage, "body" | "file">) => {
   return preview.length > TALK_PREVIEW_MAX ? `${preview.slice(0, TALK_PREVIEW_MAX - 1)}…` : preview;
 };
 
-/** The thread's notes, newest first, `before` a message id when paging back. */
+/**
+ * The thread's notes, newest first, `before` a message id when paging back. The thread check and
+ * the page go out together (one round trip on a pipelining client), then the reactions of exactly
+ * the notes shown; the page is dropped unread when `me` is not one of the two.
+ */
 export async function listMessages(
   ex: Ex,
   me: TalkMember,
   threadId: string,
   page: { before?: string | null; limit?: number } = {},
 ) {
-  const thread = await threadOf(ex, me, threadId);
-  if (!thread) return NOT_FOUND;
   const limit = Math.min(Math.max(page.limit ?? 50, 1), TALK_PAGE_MAX);
-  const rows = await ex
-    .select()
-    .from(talkMessages)
-    .where(
-      and(
-        eq(talkMessages.threadId, thread.id),
-        page.before ? lt(talkMessages.id, page.before) : undefined,
-      ),
-    )
-    .orderBy(desc(talkMessages.id))
-    .limit(limit + 1);
+  const inPage = and(
+    eq(talkMessages.threadId, threadId),
+    eq(talkMessages.orgId, me.orgId),
+    page.before ? lt(talkMessages.id, page.before) : undefined,
+  );
+  const [thread, rows] = await Promise.all([
+    threadOf(ex, me, threadId),
+    ex
+      .select()
+      .from(talkMessages)
+      .where(inPage)
+      .orderBy(desc(talkMessages.id))
+      .limit(limit + 1),
+  ]);
+  if (!thread) return NOT_FOUND;
   const shown = rows.slice(0, limit);
   const reactions = await reactionsOf(
     ex,
@@ -90,33 +99,41 @@ export async function listMessages(
   return {
     status: "ok",
     thread: { id: thread.id, otherMemberId: thread.otherMemberId },
-    messages: shown.map((row) => toMessage(row, reactions.get(row.id))),
+    messages: shown.map((row) => ({
+      ...toMessage(row, reactions.byMessage.get(row.id)),
+      reactionsVersion: reactions.versions.get(row.id) ?? row.reactionsVersion,
+    })),
     more: rows.length > limit,
   } as const;
 }
 
 async function reactionsOf(ex: Ex, messageIds: string[]) {
   const byMessage = new Map<string, TalkReaction[]>();
-  if (messageIds.length === 0) return byMessage;
+  const versions = new Map<string, number>();
+  if (messageIds.length === 0) return { byMessage, versions };
+  // WARNING: one statement, so each note's reactions and version come from the same snapshot.
   const rows = await ex
     .select({
-      messageId: talkReactions.messageId,
+      messageId: talkMessages.id,
+      version: talkMessages.reactionsVersion,
       emoji: talkReactions.emoji,
       memberIds: sql<
         string[]
       >`array_agg(${talkReactions.memberId} order by ${talkReactions.createdAt})`,
-      first: sql<Date>`min(${talkReactions.createdAt})`,
     })
-    .from(talkReactions)
-    .where(inArray(talkReactions.messageId, messageIds))
-    .groupBy(talkReactions.messageId, talkReactions.emoji)
+    .from(talkMessages)
+    .leftJoin(talkReactions, eq(talkReactions.messageId, talkMessages.id))
+    .where(inArray(talkMessages.id, messageIds))
+    .groupBy(talkMessages.id, talkMessages.reactionsVersion, talkReactions.emoji)
     .orderBy(sql`min(${talkReactions.createdAt})`);
   for (const row of rows) {
+    versions.set(row.messageId, row.version);
+    if (row.emoji === null) continue;
     const list = byMessage.get(row.messageId) ?? [];
     list.push({ emoji: row.emoji, memberIds: row.memberIds });
     byMessage.set(row.messageId, list);
   }
-  return byMessage;
+  return { byMessage, versions };
 }
 
 export type SendResult =
@@ -127,29 +144,34 @@ export type SendResult =
 async function insertMessage(
   ex: Ex,
   me: TalkMember,
-  thread: TalkThreadRow,
+  threadId: string,
   values: Partial<Pick<MessageRow, "body" | "fileNodeId" | "fileName" | "fileSize" | "fileMime">>,
 ) {
   // WARNING: stamp the note from the thread row, locked till commit, so a reader never passes it.
   const [stamp] = await ex
     .update(talkThreads)
     .set({ lastMessageAt: sql`greatest(clock_timestamp(), ${talkThreads.lastMessageAt})` })
-    .where(eq(talkThreads.id, thread.id))
-    .returning({ at: talkThreads.lastMessageAt });
+    .where(
+      and(
+        eq(talkThreads.id, threadId),
+        eq(talkThreads.orgId, me.orgId),
+        sql`${me.id} in (${talkThreads.memberAId}, ${talkThreads.memberBId})`,
+      ),
+    )
+    .returning({
+      at: talkThreads.lastMessageAt,
+      a: talkThreads.memberAId,
+      b: talkThreads.memberBId,
+    });
+  if (!stamp) return NOT_FOUND;
   const [row] = await ex
     .insert(talkMessages)
-    .values({
-      orgId: me.orgId,
-      threadId: thread.id,
-      authorMemberId: me.id,
-      createdAt: stamp!.at!,
-      ...values,
-    })
+    .values({ orgId: me.orgId, threadId, authorMemberId: me.id, createdAt: stamp.at!, ...values })
     .returning();
   return {
     status: "ok",
     message: toMessage(row!),
-    thread: { id: thread.id, otherMemberId: thread.otherMemberId },
+    thread: { id: threadId, otherMemberId: stamp.a === me.id ? stamp.b : stamp.a },
   } satisfies SendResult;
 }
 
@@ -157,9 +179,7 @@ async function insertMessage(
 export async function sendNote(ex: Ex, me: TalkMember, threadId: string, body: string) {
   const text = body.trim();
   if (!text || text.length > TALK_BODY_MAX) return { status: "invalid_body" } as const;
-  const thread = await threadOf(ex, me, threadId);
-  if (!thread) return NOT_FOUND;
-  return insertMessage(ex, me, thread, { body: text });
+  return insertMessage(ex, me, threadId, { body: text });
 }
 
 /**
@@ -172,9 +192,7 @@ export async function recordFile(
   threadId: string,
   file: { nodeId: string; name: string; size: number; mimeType: string | null },
 ) {
-  const thread = await threadOf(ex, me, threadId);
-  if (!thread) return NOT_FOUND;
-  return insertMessage(ex, me, thread, {
+  return insertMessage(ex, me, threadId, {
     fileNodeId: file.nodeId,
     fileName: file.name,
     fileSize: file.size,
@@ -192,7 +210,14 @@ export const isEmoji = (value: string) => {
 };
 
 export type ReactResult =
-  | { status: "ok"; thread: { id: string; otherMemberId: string } }
+  | {
+      status: "ok";
+      thread: { id: string; otherMemberId: string };
+      /** The note's reactions as they now are. */
+      reactions: TalkReaction[];
+      /** The note's reaction version after this change: a later change has a higher one. */
+      reactionsVersion: number;
+    }
   | typeof NOT_FOUND
   | { status: "invalid_emoji" }
   | { status: "too_many_reactions" };
@@ -210,9 +235,8 @@ export async function react(ex: Ex, me: TalkMember, messageId: string, emoji: st
   if (!isEmoji(emoji)) return { status: "invalid_emoji" } satisfies ReactResult;
   const thread = await messageThread(ex, me, messageId);
   if (!thread) return NOT_FOUND satisfies ReactResult;
-  await ex.execute(
-    sql`select pg_advisory_xact_lock(hashtext(${`talk-react:${messageId}:${me.id}`}))`,
-  );
+  // WARNING: one lock per note, not per person, so each snapshot below has every committed reaction.
+  await ex.execute(sql`select pg_advisory_xact_lock(hashtext(${`talk-react:${messageId}`}))`);
   const mine = and(eq(talkReactions.messageId, messageId), eq(talkReactions.memberId, me.id));
   if (!on) {
     await ex.delete(talkReactions).where(and(mine, eq(talkReactions.emoji, emoji)));
@@ -229,9 +253,19 @@ export async function react(ex: Ex, me: TalkMember, messageId: string, emoji: st
       .values({ orgId: me.orgId, messageId, memberId: me.id, emoji })
       .onConflictDoNothing();
   }
+  const [[bumped], now] = await Promise.all([
+    ex
+      .update(talkMessages)
+      .set({ reactionsVersion: sql`${talkMessages.reactionsVersion} + 1` })
+      .where(eq(talkMessages.id, messageId))
+      .returning({ version: talkMessages.reactionsVersion }),
+    reactionsOf(ex, [messageId]),
+  ]);
   return {
     status: "ok",
     thread: { id: thread.id, otherMemberId: thread.otherMemberId },
+    reactions: now.byMessage.get(messageId) ?? [],
+    reactionsVersion: bumped!.version,
   } satisfies ReactResult;
 }
 

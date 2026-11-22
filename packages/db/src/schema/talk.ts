@@ -4,6 +4,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -56,6 +57,8 @@ export const talkMessages = pgTable(
     fileName: text("file_name"),
     fileSize: bigint("file_size", { mode: "number" }),
     fileMime: text("file_mime"),
+    /** Goes up by one with every change to the note's reactions, so clients keep the newest. */
+    reactionsVersion: integer("reactions_version").notNull().default(0),
     createdAt: createdAt(),
   },
   (t) => [

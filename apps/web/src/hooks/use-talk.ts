@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   reactMutation,
   readThread,
@@ -9,6 +9,7 @@ import {
   talkPeopleQuery,
   talkThreadQuery,
 } from "../lib/talk.ts";
+import { keepNewestPage } from "../lib/talk-cache.ts";
 
 /** Your teammates, with who is online and your threads with them. */
 export function useTalkPeople() {
@@ -27,7 +28,26 @@ export function useTalkThreadId(
   return person.threadId ?? made.data?.id;
 }
 
+/**
+ * `prefetch(person)`: starts loading the thread with them as the pointer reaches their face, so the
+ * peek a beat later opens on its notes. A thread loaded in the last minutes is left as it is.
+ */
+export function usePrefetchThread() {
+  const client = useQueryClient();
+  return useCallback(
+    (person: { threadId: string | null }) => {
+      if (person.threadId) void client.prefetchInfiniteQuery(talkMessagesQuery(person.threadId));
+    },
+    [client],
+  );
+}
+
+/** The thread's notes while its window is open; closing it keeps only the newest page. */
 export function useTalkMessages(threadId: string | undefined) {
+  const client = useQueryClient();
+  useEffect(() => {
+    if (threadId) return () => void keepNewestPage(client, threadId);
+  }, [client, threadId]);
   return useInfiniteQuery({ ...talkMessagesQuery(threadId ?? ""), enabled: !!threadId });
 }
 

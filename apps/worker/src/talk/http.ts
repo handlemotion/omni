@@ -34,10 +34,19 @@ export async function announce(c: Context<AppEnv>, memberIds: string[], event: T
 }
 
 /**
- * Delivers a new note: both members' apps hear it (the sender's other devices too), and the
- * recipient, when no app of theirs is open, gets a push.
+ * Delivers a new note, after the response: both members' apps hear it, the note itself included
+ * (the sender's other devices too), and the recipient, when no app of theirs is open, gets a push.
+ * The sender's request does not wait on the realtime object.
  */
-export async function deliver(
+export function deliver(
+  c: Context<AppEnv>,
+  thread: { id: string; otherMemberId: string },
+  message: TalkMessage,
+) {
+  c.executionCtx.waitUntil(delivered(c, thread, message));
+}
+
+async function delivered(
   c: Context<AppEnv>,
   thread: { id: string; otherMemberId: string },
   message: TalkMessage,
@@ -49,13 +58,9 @@ export async function deliver(
     messageId: message.id,
     fromMemberId: c.var.member.id,
     preview,
+    message: wireMessage(message),
   });
   const away = offline.filter((id) => id === thread.otherMemberId);
   if (away.length === 0 || !c.var.config.EXPO_PUSH_ENABLED) return;
-  c.executionCtx.waitUntil(
-    pushToMembers(c.var.db, c.var.config, away, {
-      title: c.var.user.email,
-      body: preview,
-    }),
-  );
+  await pushToMembers(c.var.db, c.var.config, away, { title: c.var.user.email, body: preview });
 }

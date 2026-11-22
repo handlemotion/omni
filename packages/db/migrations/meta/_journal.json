@@ -519,6 +519,13 @@
       "when": 1795321728845,
       "tag": "0073_talk",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1795338447554,
+      "tag": "0074_exotic_sentry",
+      "breakpoints": true
     }
   ]
 }

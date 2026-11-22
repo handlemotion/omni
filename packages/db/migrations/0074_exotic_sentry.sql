@@ -1,0 +1,1 @@
+ALTER TABLE "talk_messages" ADD COLUMN "reactions_version" integer DEFAULT 0 NOT NULL;

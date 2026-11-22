@@ -148,6 +148,6 @@ export const talkFiles = new Hono<AppEnv>()
         : storageRefused(c, sent.status);
     }
     announceDrives(c, [folder.made, node]);
-    await deliver(c, sent.thread, sent.message);
+    deliver(c, sent.thread, sent.message);
     return c.json({ message: wireMessage(sent.message) } satisfies TalkMessageResponse, 201);
   });

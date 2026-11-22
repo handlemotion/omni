@@ -122,6 +122,7 @@ test("a note reaches the two in the thread, and nobody else in the workspace", a
     messageId: sent.body.message.id,
     fromMemberId: ana.id,
     preview: "Dropping the deck now",
+    message: sent.body.message,
   });
   await anaSocket.until(isNote);
   await settle();
@@ -295,7 +296,14 @@ test("reactions reach both and come back on the note", async () => {
   const note = await api(ana.cookie, "POST", `/threads/${threadId}/messages`, { body: "shipped" });
   const path = `/messages/${note.body.message.id}/reactions/${encodeURIComponent("🎉")}`;
   expect((await api(ben.cookie, "PUT", path)).status).toBe(204);
-  await anaSocket.until((e) => e.type === "talk.changed" && e.threadId === threadId);
+  const changed = await anaSocket.until(
+    (e) => e.type === "talk.changed" && e.threadId === threadId,
+  );
+  expect(changed.reactions).toEqual({
+    messageId: note.body.message.id,
+    reactions: [{ emoji: "🎉", memberIds: [ben.id] }],
+    version: 1,
+  });
   const page = await api(ana.cookie, "GET", `/threads/${threadId}/messages`);
   expect(page.body.messages[0].reactions).toEqual([{ emoji: "🎉", memberIds: [ben.id] }]);
   expect(

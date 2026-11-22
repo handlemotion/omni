@@ -51,14 +51,21 @@ export const talk = new Hono<AppEnv>()
   .post("/threads/:id/messages", zValidator("json", talkNoteBodySchema), async (c) => {
     const sent = await memberTalk(c).sendNote(c.req.param("id"), c.req.valid("json").body);
     if (sent.status !== "ok") return refused(c, sent);
-    await deliver(c, sent.thread, sent.message);
+    deliver(c, sent.thread, sent.message);
     return c.json({ message: wireMessage(sent.message) } satisfies TalkMessageResponse, 201);
   })
 
   .put("/threads/:id/read", async (c) => {
     const read = await memberTalk(c).read(c.req.param("id"));
     if (read.status !== "ok") return refused(c, read);
-    await announce(c, [c.var.member.id], { type: "talk.changed", threadId: c.req.param("id") });
+    c.executionCtx.waitUntil(
+      announce(c, [c.var.member.id], {
+        type: "talk.changed",
+        threadId: c.req.param("id"),
+        read: true,
+        readAt: read.readAt.toISOString(),
+      }),
+    );
     return c.body(null, 204);
   })
 
@@ -71,9 +78,16 @@ async function reaction(c: Context<AppEnv>, on: boolean) {
   const emoji = decodeURIComponent(c.req.param("emoji") ?? "");
   const done = await memberTalk(c).react(c.req.param("id") ?? "", emoji, on);
   if (done.status !== "ok") return refused(c, done);
-  await announce(c, [c.var.member.id, done.thread.otherMemberId], {
-    type: "talk.changed",
-    threadId: done.thread.id,
-  });
+  c.executionCtx.waitUntil(
+    announce(c, [c.var.member.id, done.thread.otherMemberId], {
+      type: "talk.changed",
+      threadId: done.thread.id,
+      reactions: {
+        messageId: c.req.param("id") ?? "",
+        reactions: done.reactions,
+        version: done.reactionsVersion,
+      },
+    }),
+  );
   return c.body(null, 204);
 }

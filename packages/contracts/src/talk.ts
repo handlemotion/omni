@@ -56,6 +56,8 @@ export const talkMessageSchema = z.object({
   body: z.string().nullable(),
   file: talkFileSchema.nullable(),
   reactions: z.array(talkReactionSchema),
+  /** Goes up with every change to the reactions: keep the highest. Older Workers send none. */
+  reactionsVersion: z.number().int().nonnegative().optional(),
   createdAt: isoDate,
 });
 
@@ -82,8 +84,10 @@ export const talkMessageResponseSchema = z.object({ message: talkMessageSchema }
 /**
  * Realtime, on the workspace's socket (teammates only). `talk.online`: a teammate's first app
  * opened or their last one closed. `talk.message`: a note in one of your threads, yours from
- * another device included. `talk.changed`: a thread's reactions, or your own read, changed.
- * Refetch what they name.
+ * another device included; it carries the note, so an open window shows it without a fetch (an
+ * older Worker sends no `message`: refetch the thread's newest page). `talk.changed`: a thread's
+ * reactions, or your own read, changed; `read` marks the latter, with `readAt` as how far it read, and `reactions` carries a note's
+ * reactions as they now are, with the note's `version` after the change (a lower one is stale). Refetch what an event names when it carries nothing.
  */
 export const talkOnlineEventSchema = z.object({
   type: z.literal("talk.online"),
@@ -96,10 +100,20 @@ export const talkMessageEventSchema = z.object({
   messageId: id,
   fromMemberId: id,
   preview: z.string(),
+  message: talkMessageSchema.optional(),
 });
 export const talkChangedEventSchema = z.object({
   type: z.literal("talk.changed"),
   threadId: id,
+  read: z.literal(true).optional(),
+  readAt: isoDate.optional(),
+  reactions: z
+    .object({
+      messageId: id,
+      reactions: z.array(talkReactionSchema),
+      version: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
 });
 export const talkEventSchema = z.discriminatedUnion("type", [
   talkOnlineEventSchema,

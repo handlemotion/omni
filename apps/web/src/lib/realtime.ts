@@ -24,6 +24,9 @@ import { crmChangedElsewhere } from "./crm-cache.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
 import { setOnline } from "./talk.ts";
+import { addMessage, fetchNewest, noteWentBy, setReactions, threadRead } from "./talk-cache.ts";
+import { talkWindow } from "./talk-window.ts";
+import { inBackground } from "./desktop-notifications.ts";
 
 const TITLE_BAR_MIN = 768;
 const FLUSH_MS = 150;
@@ -66,6 +69,18 @@ const isTalkEvent = (event: RealtimeEvent): event is TalkEvent => event.type.sta
 function onFileEvent(orgId: string, event: FileEvent) {
   if (event.type === "file.presence") return applyFilePresence(orgId, event);
   for (const listener of docListeners) listener(event);
+}
+
+function talkChanged(client: QueryClient, event: Extract<TalkEvent, { type: "talk.changed" }>) {
+  if (event.read) return threadRead(client, event.threadId, event.readAt);
+  const { reactions } = event;
+  if (reactions) {
+    const { messageId, version } = reactions;
+    if (setReactions(client, event.threadId, messageId, reactions.reactions, version)) return;
+    return void fetchNewest(client, event.threadId).catch(() => {});
+  }
+  void client.invalidateQueries({ queryKey: keys.talkPeople() });
+  void client.invalidateQueries({ queryKey: keys.talkMessages(event.threadId) });
 }
 
 type CrmEvent = Extract<RealtimeEvent, { type: "crm.changed" }>;
@@ -215,9 +230,12 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
 
   const onTalk = (event: TalkEvent) => {
     if (event.type === "talk.online") return setOnline(client, event.memberId, event.online);
-    void client.invalidateQueries({ queryKey: keys.talkPeople() });
-    void client.invalidateQueries({ queryKey: keys.talkMessages(event.threadId) });
-    if (event.type === "talk.message") for (const listener of talkListeners) listener(event);
+    if (event.type === "talk.changed") return talkChanged(client, event);
+    if (event.message) addMessage(client, { reactionsVersion: 0, ...event.message });
+    else void fetchNewest(client, event.threadId).catch(() => {});
+    const looking = talkWindow.get() === event.fromMemberId && !inBackground();
+    noteWentBy(client, { ...event, createdAt: event.message?.createdAt }, looking);
+    for (const listener of talkListeners) listener(event);
   };
 
   const connect = (orgId: string) =>
@@ -247,7 +265,8 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       void recheckPendingSends(client);
     }
     if (orgId === activeOrgId) {
-      void client.invalidateQueries({ queryKey: keys.talk() }, { cancelRefetch: false });
+      // WARNING: a Talk fetch already in flight may predate the socket; start it again after.
+      void client.invalidateQueries({ queryKey: keys.talk() });
     }
   };
   const wide = window.matchMedia(`(min-width: ${TITLE_BAR_MIN}px)`);
