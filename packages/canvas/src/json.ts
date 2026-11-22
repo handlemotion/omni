@@ -1,4 +1,5 @@
 import {
+  CANVAS_MAX_BYTES,
   CANVAS_MAX_ELEMENTS,
   CANVAS_MAX_TEXT,
   CANVAS_MAX_FILES,
@@ -55,14 +56,28 @@ export function sceneProblem(scene: Scene) {
   return null;
 }
 
+function utf8Length(text: string) {
+  let length = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    length += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+  }
+  return length;
+}
+
 /**
  * Why changing `before` into `after` is refused for the canvas's size (more than
- * `CANVAS_MAX_ELEMENTS` elements, `CANVAS_MAX_FILES` tiles, or `CANVAS_MAX_TEXT` characters in
- * one element), or null. Only growth past a limit
+ * `CANVAS_MAX_BYTES` of JSON, `CANVAS_MAX_ELEMENTS` elements, `CANVAS_MAX_FILES` tiles, or
+ * `CANVAS_MAX_TEXT` characters in one element), or null. Only growth past a limit
  * is refused: a board people took past one by editing at once stays readable and editable, and
  * can shrink.
  */
 export function limitProblem(before: Scene, after: Scene) {
+  const bytes = (scene: Scene) => utf8Length(sceneToJson(scene));
+  const size = bytes(after);
+  if (size > CANVAS_MAX_BYTES && size > bytes(before)) {
+    return `A canvas holds at most ${CANVAS_MAX_BYTES / 1000} KB; this would make ${Math.ceil(size / 1000)} KB.`;
+  }
   const tiles = (scene: Scene) =>
     scene.elements.filter((element) => element.kind === "file").length;
   const count = after.elements.length;

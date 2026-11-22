@@ -457,7 +457,7 @@ test("a connector a tab joined to itself is freed where it is drawn, and an agen
 
 test("a board two tabs took past the body limit together can be shrunk by an agent, but not grown", async () => {
   const long = (label: string) => label.padEnd(4_900, ".");
-  const base = Array.from({ length: 78 }, (_, i) => ({
+  const base = Array.from({ length: 76 }, (_, i) => ({
     id: `s${i}`,
     kind: "sticky" as const,
     box: [(i % 10) * 300, Math.floor(i / 10) * 300, 200, 200] as [number, number, number, number],
@@ -480,7 +480,7 @@ test("a board two tabs took past the body limit together can be shrunk by an age
   const two = await tab(ana.jar, node.id);
   await two.join(epoch);
   const adds = (who: string) =>
-    [1, 2, 3].map(
+    [1, 2, 3, 4].map(
       (n) => ({ op: "add", kind: "sticky", text: long(`${who}${n}`) }) satisfies CanvasOp,
     );
   const first = one.change(adds("one"));
@@ -507,7 +507,10 @@ test("a board two tabs took past the body limit together can be shrunk by an age
     id: node.id,
     ops: [{ op: "add", kind: "sticky", text: long("more") }],
   });
-  expect(grown).toMatchObject({ error: expect.stringContaining("larger than 400 KB") });
+  expect(grown).toMatchObject({ error: expect.stringContaining("at most 400 KB") });
+  expect(() => one.change([{ op: "add", kind: "sticky", text: long("tab") }])).toThrow(
+    "at most 400 KB",
+  );
   one.ws.close();
   two.ws.close();
 });

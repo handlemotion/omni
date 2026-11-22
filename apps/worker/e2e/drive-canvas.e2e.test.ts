@@ -591,3 +591,32 @@ test("arranging a group of lines together with the elements they join is refused
   expect(arranged.error).toMatch(/joins "(.+)": move/);
   expect((await body(ana, made.canvas.id)).text).toBe(before);
 });
+
+test("placing something beside a group moved earlier in the same call uses where the group is now", async () => {
+  const { ana, agent } = await person();
+  const made = (await call(agent, "drive_create_canvas", {
+    name: "Move then place",
+    ops: [
+      { op: "add", kind: "sticky", text: "A", at: { x: 0, y: 0 }, ref: "a" },
+      { op: "add", kind: "sticky", text: "B", at: { x: 300, y: 0 }, ref: "b" },
+      { op: "connect", from: "a", to: "b", ref: "inner" },
+      { op: "group", ids: ["a", "b", "inner"], ref: "pair" },
+    ],
+  })) as Answer & { canvas: { id: string }; created: Record<string, string> };
+  expect(made).not.toHaveProperty("error");
+  const edited = await call(agent, "drive_edit_canvas", {
+    id: made.canvas.id,
+    ops: [
+      { op: "move", ids: [made.created.pair], by: { dx: -1000, dy: 0 } },
+      {
+        op: "add",
+        kind: "sticky",
+        text: "Next",
+        place: { near: made.created.pair, side: "right" },
+      },
+    ],
+  });
+  expect(edited).not.toHaveProperty("error");
+  const { elements } = (await body(ana, made.canvas.id)).scene;
+  expect(byText(elements, "Next").box).toEqual([-460, 0, 200, 200]);
+});

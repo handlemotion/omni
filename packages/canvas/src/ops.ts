@@ -499,12 +499,12 @@ export function applyCanvasOps(scene: Scene, ops: CanvasOp[]) {
   for (const [index, op] of ops.entries()) {
     try {
       apply(board, op);
+      board.redrawEnds();
     } catch (error) {
       if (!(error instanceof OpError)) throw error;
       return failed(`Operation ${index + 1} (${op.op}): ${error.message}`);
     }
   }
-  board.redrawEnds();
   const elements = paintOrder(
     board.elements.map((element, i) => ({ element, z: String(i).padStart(6, "0") })),
   );
