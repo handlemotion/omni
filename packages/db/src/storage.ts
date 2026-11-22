@@ -264,11 +264,15 @@ export function memberStorage(db: Db, memberId: string) {
     ...signingOperations(db, door, memberId),
     ...teamspaceOperations(db, () => loadMember(db, memberId)),
     async changes(
-      space: Exclude<StorageSpace, "teamspace">,
-      page: { cursor?: StorageSyncCursor | null; limit?: number } = {},
+      from: { space: Exclude<StorageSpace, "teamspace"> } | { teamspaceId: string },
+      page: { cursor?: StorageSyncCursor | null; limit?: number; teamspaces?: boolean } = {},
     ) {
-      const drive = await door.root(db, space);
-      return drive ? listChanges(db, drive, memberId, page) : ({ status: "not_found" } as const);
+      const drive =
+        "teamspaceId" in from
+          ? await door.teamspace(db, from.teamspaceId)
+          : await door.root(db, from.space);
+      if (!drive) return { status: "not_found" } as const;
+      return listChanges(db, drive, { memberId, teamspaces: page.teamspaces ?? false }, page);
     },
     async usage() {
       const member = await loadMember(db, memberId);

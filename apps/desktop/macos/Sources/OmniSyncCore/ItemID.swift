@@ -15,6 +15,8 @@ public enum ItemID: Hashable, Sendable {
     case workspace(orgId: String)
     /// `space:<orgId>:<personal|shared>`, `My files` or `Shared`.
     case space(orgId: String, space: Space)
+    /// `teamspace:<orgId>:<teamspaceId>`, a teamspace the person is in, beside `My files`.
+    case teamspace(orgId: String, teamspaceId: String)
     /// `<orgId>:<nodeId>`, a Storage file or folder.
     case node(orgId: String, nodeId: String)
 
@@ -38,6 +40,9 @@ public enum ItemID: Hashable, Sendable {
         case ("space", 3):
             guard Self.isPart(parts[1]), let space = Space(rawValue: parts[2]) else { return nil }
             self = .space(orgId: parts[1], space: space)
+        case ("teamspace", 3):
+            guard Self.isPart(parts[1]), Self.isPart(parts[2]) else { return nil }
+            self = .teamspace(orgId: parts[1], teamspaceId: parts[2])
         case (_, 2):
             guard Self.isPart(parts[0]), Self.isPart(parts[1]) else { return nil }
             self = .node(orgId: parts[0], nodeId: parts[1])
@@ -53,6 +58,7 @@ public enum ItemID: Hashable, Sendable {
         case .trash: .trashContainer
         case let .workspace(orgId): NSFileProviderItemIdentifier("ws:\(orgId)")
         case let .space(orgId, space): NSFileProviderItemIdentifier("space:\(orgId):\(space.rawValue)")
+        case let .teamspace(orgId, teamspaceId): NSFileProviderItemIdentifier("teamspace:\(orgId):\(teamspaceId)")
         case let .node(orgId, nodeId): NSFileProviderItemIdentifier("\(orgId):\(nodeId)")
         }
     }
@@ -61,16 +67,22 @@ public enum ItemID: Hashable, Sendable {
     public var orgId: String? {
         switch self {
         case .root, .workingSet, .trash: nil
-        case let .workspace(orgId), let .space(orgId, _), let .node(orgId, _): orgId
+        case let .workspace(orgId), let .space(orgId, _), let .teamspace(orgId, _), let .node(orgId, _): orgId
         }
     }
 
-    /// A node's parent in Finder: its folder, or its drive's space folder at the top level.
+    /// A node's parent in Finder: its folder, or its drive's folder at the top level (its
+    /// teamspace's, or `My files` or `Shared`).
     public static func parent(of node: StorageNode) -> ItemID {
         if let parentId = node.parentId { return .node(orgId: node.orgId, nodeId: parentId) }
+        if node.space == .teamspace, let teamspaceId = node.teamspaceId {
+            return .teamspace(orgId: node.orgId, teamspaceId: teamspaceId)
+        }
         return .space(orgId: node.orgId, space: Space(rawValue: node.space.rawValue) ?? .shared)
     }
 
     // A workspace id `ws` would make `ws:<id>` ambiguous with a node; Storage ids are UUIDs.
-    private static func isPart(_ part: String) -> Bool { !part.isEmpty && part != "ws" && part != "space" }
+    private static func isPart(_ part: String) -> Bool {
+        !part.isEmpty && part != "ws" && part != "space" && part != "teamspace"
+    }
 }

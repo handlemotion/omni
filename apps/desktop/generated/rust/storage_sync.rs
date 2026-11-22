@@ -338,6 +338,9 @@ pub struct StorageSyncWorkspace {
     pub name: String,
 
     pub org_id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teamspaces: Option<Vec<StorageSyncTeamspace>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -345,6 +348,15 @@ pub struct StorageSyncDrive {
     pub revision: i64,
 
     pub space: Space,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StorageSyncTeamspace {
+    pub id: String,
+
+    pub name: String,
+
+    pub revision: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

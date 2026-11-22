@@ -6,6 +6,8 @@ import {
   storageLocks,
   storageNodes,
   storageSyncState,
+  storageTeamspaceMembers,
+  storageTeamspaces,
   storageTombstones,
 } from "../schema/storage.ts";
 import {
@@ -15,6 +17,7 @@ import {
   pageSize,
   personalDrive,
   sharedDrive,
+  teamspaceDrive,
   toNode,
   type Drive,
   type NodeRow,
@@ -90,7 +93,15 @@ const after = (
 ) =>
   cursor ? sql`(${table.revision}, ${idColumn}) > (${cursor.revision}, ${cursor.id})` : undefined;
 
-async function stillSyncedOf(ex: Db, orgId: string, readerMemberId: string, ids: string[]) {
+const memberTeamspaceIds = (memberId: string) => sql`(select ${storageTeamspaceMembers.teamspaceId}
+  from ${storageTeamspaceMembers} where ${storageTeamspaceMembers.memberId} = ${memberId})`;
+
+async function stillSyncedOf(
+  ex: Db,
+  orgId: string,
+  reader: { memberId: string; teamspaces: boolean },
+  ids: string[],
+) {
   if (ids.length === 0) return new Set<string>();
   const rows = await ex
     .select({ id: storageNodes.id })
@@ -99,7 +110,13 @@ async function stillSyncedOf(ex: Db, orgId: string, readerMemberId: string, ids:
       and(
         inArray(storageNodes.id, ids),
         eq(storageNodes.orgId, orgId),
-        or(eq(storageNodes.space, "shared"), eq(storageNodes.ownerMemberId, readerMemberId)),
+        or(
+          eq(storageNodes.space, "shared"),
+          eq(storageNodes.ownerMemberId, reader.memberId),
+          reader.teamspaces
+            ? sql`${storageNodes.teamspaceId} in ${memberTeamspaceIds(reader.memberId)}`
+            : undefined,
+        ),
       ),
     );
   return new Set(rows.map((row) => row.id));
@@ -111,12 +128,13 @@ const before = (a: StorageSyncCursor, b: StorageSyncCursor) =>
 /**
  * Changes to `drive` after `cursor`, in revision order: nodes live and in Trash, and tombstones.
  * No cursor lists the whole drive. Each node comes once, as it is now: a node changed twice
- * since the cursor shows only at its last revision.
+ * since the cursor shows only at its last revision. `reader.teamspaces`: the reader syncs the
+ * teamspaces they are in, so a node now in one of them is not gone for them.
  */
 export async function listChanges(
   db: Db,
   drive: Drive,
-  readerMemberId: string,
+  reader: { memberId: string; teamspaces: boolean },
   page: { cursor?: StorageSyncCursor | null; limit?: number },
 ) {
   const cursor = page.cursor ?? null;
@@ -137,7 +155,7 @@ export async function listChanges(
       const stillSynced = await stillSyncedOf(
         tx,
         drive.orgId,
-        readerMemberId,
+        reader,
         taken.flatMap((entry) => (entry.row ? [] : [entry.id])),
       );
       const trashed = await trashedOf(
@@ -251,6 +269,12 @@ export interface StorageSyncDrive {
   revision: number;
 }
 
+export interface StorageSyncTeamspace {
+  id: string;
+  name: string;
+  revision: number;
+}
+
 export interface StorageSyncWorkspace {
   orgId: string;
   name: string;
@@ -258,6 +282,23 @@ export interface StorageSyncWorkspace {
   /** The person's member in it: the drives below are this member's. */
   memberId: string;
   drives: StorageSyncDrive[];
+  /** The teamspaces the member is in, by name: each syncs as a folder of its own. */
+  teamspaces: StorageSyncTeamspace[];
+}
+
+async function syncedTeamspaces(ex: Db, memberIds: string[]) {
+  if (memberIds.length === 0) return [];
+  return ex
+    .select({
+      id: storageTeamspaces.id,
+      orgId: storageTeamspaces.orgId,
+      name: storageTeamspaces.name,
+      memberId: storageTeamspaceMembers.memberId,
+    })
+    .from(storageTeamspaceMembers)
+    .innerJoin(storageTeamspaces, eq(storageTeamspaces.id, storageTeamspaceMembers.teamspaceId))
+    .where(inArray(storageTeamspaceMembers.memberId, memberIds))
+    .orderBy(sql`lower(${storageTeamspaces.name})`, asc(storageTeamspaces.id));
 }
 
 /**
@@ -287,7 +328,12 @@ export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: st
     const shared: Drive = sharedDrive(row.orgId);
     return row.personal ? [mine] : [mine, shared];
   };
-  const revisions = await driveRevisions(db, rows.flatMap(drivesOf));
+  const teamspaces = await syncedTeamspaces(
+    db,
+    rows.map((row) => row.memberId),
+  );
+  const teamspaceDrives = teamspaces.map((t) => teamspaceDrive(t.orgId, t.id));
+  const revisions = await driveRevisions(db, [...rows.flatMap(drivesOf), ...teamspaceDrives]);
   return rows.map((row) => ({
     orgId: row.orgId,
     name: row.name,
@@ -300,6 +346,13 @@ export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: st
           revision: revisions.get(driveKey(drive)) ?? 0,
         }) satisfies StorageSyncDrive,
     ),
+    teamspaces: teamspaces
+      .filter((t) => t.memberId === row.memberId)
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        revision: revisions.get(driveKey(teamspaceDrive(t.orgId, t.id))) ?? 0,
+      })),
   })) satisfies StorageSyncWorkspace[];
 }
 

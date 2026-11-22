@@ -47,9 +47,15 @@ public final class SyncClient: Sendable {
     }
 
     /// One page of a drive's change feed after `cursor`; no cursor lists the whole drive.
-    /// `limit` is capped by the server (200).
+    /// `limit` is capped by the server (200). `teamspaces=1`: this provider syncs the teamspaces
+    /// the person is in, so a node moved into one is not gone (an older Worker ignores it).
     public func changes(_ drive: Drive, cursor: String?, limit: Int? = nil) async throws -> StorageSyncChangesResponse {
-        try await json(get("\(drive.orgId)/changes", ["space": drive.space.rawValue, "cursor": cursor, "limit": limit.map(String.init)]))
+        let from: [String: String?] = switch drive.place {
+        case let .space(space): ["space": space.rawValue]
+        case let .teamspace(teamspaceId): ["teamspace": teamspaceId]
+        }
+        let query = from.merging(["teamspaces": "1", "cursor": cursor, "limit": limit.map(String.init)]) { a, _ in a }
+        return try await json(get("\(drive.orgId)/changes", query))
     }
 
     /// One node; `404` when it is gone or in Trash.
@@ -58,9 +64,13 @@ public final class SyncClient: Sendable {
         return answer.node
     }
 
-    /// One page of a folder, or of a space's top level when `parentId` is nil.
-    public func list(orgId: String, space: Space, parentId: String?, cursor: String?, limit: Int? = nil) async throws -> StorageListResponse {
-        let place: [String: String?] = parentId.map { ["parent": $0] } ?? ["space": space.rawValue]
+    /// One page of a folder, or, when `parentId` is nil, of a teamspace's top level (`teamspaceId`)
+    /// or else a space's.
+    public func list(
+        orgId: String, space: Space, teamspaceId: String? = nil, parentId: String?, cursor: String?, limit: Int? = nil
+    ) async throws -> StorageListResponse {
+        let top: [String: String?] = teamspaceId.map { ["teamspace": $0] } ?? ["space": space.rawValue]
+        let place: [String: String?] = parentId.map { ["parent": $0] } ?? top
         return try await json(get("\(orgId)/nodes", place.merging(["cursor": cursor, "limit": limit.map(String.init)]) { a, _ in a }))
     }
 

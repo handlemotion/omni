@@ -171,6 +171,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                   ws.drives.contains(where: { $0.space == space })
             else { throw NSFileProviderError(.noSuchItem) }
             return Item(orgId: orgId, space: space)
+        case let .teamspace(orgId, _):
+            guard let ws = try await sync.workspaces().first(where: { $0.orgId == orgId }),
+                  let found = Item.drives(of: ws).first(where: { $0.id == id })
+            else { throw NSFileProviderError(.noSuchItem) }
+            return found
         case let .node(orgId, nodeId):
             return Item(node: try await sync.client.node(orgId: orgId, id: nodeId))
         }
@@ -187,14 +192,14 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             return existing
         }
         if template.contentType == .folder {
-            let body = StorageCreateFolderBody(name: name, parentId: place.parentId, space: place.space, teamspaceId: nil)
+            let body = StorageCreateFolderBody(name: name, parentId: place.parentId, space: place.space, teamspaceId: place.teamspaceId)
             return try await sync.client.createFolder(orgId: place.orgId, body)
         }
         guard let contents else { throw NSFileProviderError(.cannotSynchronize) }
         let mime = UTType(filenameExtension: (name as NSString).pathExtension)?.preferredMIMEType
         let uploader = Uploader(sync: sync, orgId: place.orgId, key: template.itemIdentifier.rawValue)
         return try await uploader.send(try await Uploader.measure(contents), open: { size, sha256 in
-            let body = StorageOpenUploadBody(mimeType: mime, name: name, parentId: place.parentId, sha256: sha256, size: size, space: place.space, teamspaceId: nil)
+            let body = StorageOpenUploadBody(mimeType: mime, name: name, parentId: place.parentId, sha256: sha256, size: size, space: place.space, teamspaceId: place.teamspaceId)
             return try await sync.client.openUpload(orgId: place.orgId, body)
         }, progress: progress)
     }
@@ -217,7 +222,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             let place = try Sync.place(of: parent)
             // A move between workspaces is refused, as in the app; Finder offers a copy instead.
             guard place.orgId == orgId else { throw NSFileProviderError(.cannotSynchronize) }
-            node = try await sync.client.change(orgId: orgId, id: nodeId, StorageChangeNodeBody(name: nil, icon: nil, parentId: place.parentId, space: place.space, teamspaceId: nil), ifRevision: revision)
+            node = try await sync.client.change(orgId: orgId, id: nodeId, StorageChangeNodeBody(name: nil, icon: nil, parentId: place.parentId, space: place.space, teamspaceId: place.teamspaceId), ifRevision: revision)
             revision = node.revision
         }
         if fields.contains(.filename), item.filename != node.name {
@@ -269,7 +274,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                     let body = StorageOpenUploadBody(
                         mimeType: node.mimeType, name: name, parentId: node.parentId, sha256: sha256, size: size,
                         space: node.parentId == nil ? Space(rawValue: node.space.rawValue) : nil,
-                        teamspaceId: nil
+                        teamspaceId: node.parentId == nil ? node.teamspaceId : nil
                     )
                     return try await sync.client.openUpload(orgId: orgId, body)
                 },

@@ -90,9 +90,12 @@ because their state and cookies live in its cookie jar.
   folder, what changed since this anchor, give me this file's bytes, here is a change the person
   made.
 - **One domain, "Omni"**, one entry in Finder's sidebar. Its root holds a folder per workspace
-  the person turned sync on for, named after the workspace; each holds `My files` and, in a
-  company, `Shared`. Those top two levels are made up by the provider, not Storage nodes: they
-  cannot be renamed, moved or deleted in Finder, and nothing can be dropped beside them. Storage's
+  the person turned sync on for, named after the workspace; each holds `My files`, `Shared` in a
+  company, and a folder per teamspace the person is in (`docs/spec/teamspaces.md`), named after
+  it (` (2)` when the name is taken, without case, beside the others). Those top two levels are
+  made up by the provider, not Storage nodes: they cannot be renamed, moved or deleted in Finder,
+  and nothing can be dropped beside them. A teamspace the person leaves, or that is deleted,
+  leaves its folder. Storage's
   access rules are unchanged: the server decides.
 - A move between two workspaces' folders is refused, as in the app ("Not in v1");
   Finder then offers a copy, which is an upload to the other workspace.
@@ -158,8 +161,8 @@ Existing rows get `revision` in a backfill migration step that is safe to run tw
 
 | Route                                         | Does                                                                                                                                                                                                                                              |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /sync/drives`                            | Every workspace the person belongs to, with its name and its drives: `personal`, and `shared` in a company, each with its current revision.                                                                                                       |
-| `GET /sync/:orgId/changes?space=&cursor=&limit=`     | Nodes of that drive with `revision > cursor`, in order, live and trashed, plus tombstones as `{ id, node: null, gone }`: `gone` is false when the node moved to another drive the caller syncs (that feed reports it), true otherwise; where the node is now decides. An older Worker leaves `gone` out, and the client looks the node up. Answers `nextCursor` and `more`. No cursor: the whole drive, paged. A cursor older than tombstone retention: `410 cursor_expired`, and the provider re-enumerates. |
+| `GET /sync/drives`                            | Every workspace the person belongs to, with its name and its drives: `personal`, and `shared` in a company, each with its current revision, and `teamspaces`: those the person is in, `{ id, name, revision }` (absent from an older Worker).                                                                                                       |
+| `GET /sync/:orgId/changes?space=&cursor=&limit=` (`?teamspace=<id>` for a teamspace, `teamspaces=1` from a provider that syncs them) | Nodes of that drive with `revision > cursor`, in order, live and trashed, plus tombstones as `{ id, node: null, gone }`: `gone` is false when the node moved to another drive the caller syncs (that feed reports it; a teamspace counts only with `teamspaces=1`, so an older provider still deletes it), true otherwise; where the node is now decides. An older Worker leaves `gone` out, and the client looks the node up. Answers `nextCursor` and `more`. No cursor: the whole drive, paged. A cursor older than tombstone retention: `410 cursor_expired`, and the provider re-enumerates. |
 | `GET /sync/:orgId/nodes/:id`                       | One node, for the provider's item lookup.                                                                                                                                                                                                         |
 | `POST /files/:id/versions` (`ifContentVersion`, `sha256`), then `POST /uploads/:id/complete?ifContentVersion=` | Replaces a file's bytes in place: on complete, the node keeps its id, name and sharing, takes the new object, and its `content_version` goes up; the old object is deleted after the row commits. A stale `ifContentVersion` answers `409 version_conflict` and stores nothing. |
 | `PATCH /nodes/:id`, `DELETE /nodes/:id` gain `ifRevision` (optional) | The same guard for rename, move and trash. Without it they behave as today.                                                                                                                                             |
@@ -173,7 +176,9 @@ token picks the member. Rate limit: `RATE_LIMIT_STORAGE_SYNC`, per token.
 ### Realtime
 
 The workspace's Durable Object gains `{ type: "storage.changed", space }`, sent after any commit
-that bumps a revision. The Tauri shell holds one such websocket per synced workspace (bearer
+that bumps a revision (with `teamspaceId` for a teamspace, to the sockets of whoever reaches it),
+and `{ type: "storage.teamspaces" }` when a teamspace is made, renamed or deleted or someone joins
+or leaves one. The Tauri shell holds one such websocket per synced workspace (bearer
 token, `src-tauri/src/sync/watch.rs`) while it runs, window open or not, and signals the provider
 on each message, a burst counting as one; while a socket is down it signals every 60 seconds
 instead. The provider skips a drive whose `/sync/drives` revision has not moved since it last read
@@ -422,7 +427,8 @@ edges. Schema changes go through `db:generate`, never a hand-written migration.
 ### The File Provider extension
 
 - **Identifiers.** A Storage node is `<orgId>:<nodeId>`. The made-up levels are
-  `ws:<orgId>`, `space:<orgId>:personal` and `space:<orgId>:shared`. The root is the system's
+  `ws:<orgId>`, `space:<orgId>:personal`, `space:<orgId>:shared` and
+  `teamspace:<orgId>:<teamspaceId>`. The root is the system's
   `.rootContainer`. Parse, never guess: a node id alone does not say which workspace to call.
 - **Item version.** `contentVersion` is the node's `content_version`, `metadataVersion` its
   `revision`, both as the decimal string's bytes. A folder's content version is constant.
@@ -431,7 +437,7 @@ edges. Schema changes go through `db:generate`, never a hand-written migration.
   meaning Trash. Every node can be excluded from sync; "Remove Download" is the system's own default from macOS 13.
 - **Enumeration.** A folder's first listing is `GET /nodes?parent=` paged to the end. Changes
   come from the working-set enumerator only: its sync anchor is a small JSON map,
-  `{ "<orgId>:<space>": <cursor> }`, one entry per synced drive, and `enumerateChanges` walks
+  `{ "<orgId>:<space>": <cursor> }` (`<orgId>:teamspace:<id>` for a teamspace), one entry per synced drive, and `enumerateChanges` walks
   each drive's `/changes` from its cursor. A `410` on any drive answers
   `NSFileProviderError(.syncAnchorExpired)` and the system starts over: the working set's
   `enumerateItems` then lists every live node of every drive (each feed from no cursor), so the

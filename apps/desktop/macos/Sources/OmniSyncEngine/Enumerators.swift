@@ -3,8 +3,8 @@ import OmniSyncClient
 import OmniSyncCore
 @preconcurrency import StorageSync
 
-/// Lists one container: the root (a folder per synced workspace), a workspace (its spaces), a
-/// space or a folder (`GET /nodes`, paged to the end). Changes are the working set's job.
+/// Lists one container: the root (a folder per synced workspace), a workspace (its spaces and
+/// teamspaces), a space, a teamspace or a folder (`GET /nodes`, paged to the end). Changes are the working set's job.
 public final class FolderEnumerator: NSObject, NSFileProviderEnumerator {
     private let container: ItemID
     private let load: () throws -> Sync
@@ -55,9 +55,14 @@ public final class FolderEnumerator: NSObject, NSFileProviderEnumerator {
             guard let workspace = try await sync.workspaces().first(where: { $0.orgId == orgId }) else {
                 throw NSFileProviderError(.noSuchItem)
             }
-            return (workspace.drives.map { Item(orgId: orgId, space: $0.space) }, nil)
+            return (Item.drives(of: workspace), nil)
         case let .space(orgId, space):
             let page = try await sync.client.list(orgId: orgId, space: space, parentId: nil, cursor: cursor, limit: pageSize)
+            return (page.nodes.map(Item.init(node:)), page.nextCursor)
+        case let .teamspace(orgId, teamspaceId):
+            let page = try await sync.client.list(
+                orgId: orgId, space: .personal, teamspaceId: teamspaceId, parentId: nil, cursor: cursor, limit: pageSize
+            )
             return (page.nodes.map(Item.init(node:)), page.nextCursor)
         case let .node(orgId, nodeId):
             let page = try await sync.client.list(orgId: orgId, space: .personal, parentId: nodeId, cursor: cursor, limit: pageSize)
@@ -142,7 +147,7 @@ public final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
             do {
                 let sync = try load()
                 let workspaces = try await sync.workspaces(fresh: from == nil)
-                let drives = workspaces.flatMap { ws in ws.drives.map { Drive(orgId: ws.orgId, space: $0.space) } }.sorted()
+                let drives = workspaces.flatMap { Drive.of($0).map { $0.drive } }.sorted()
                 if from == nil { observer.didEnumerate(Self.levels(workspaces)) }
                 // A drive switched off since the last page is skipped, not the ones after it.
                 let at = from ?? ListingPage(drive: "", cursor: nil)
@@ -188,9 +193,7 @@ public final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
     }
 
     private static func levels(_ workspaces: [StorageSyncWorkspace]) -> [Item] {
-        workspaces.flatMap { workspace in
-            [Item(workspace: workspace)] + workspace.drives.map { Item(orgId: workspace.orgId, space: $0.space) }
-        }
+        workspaces.flatMap { workspace in [Item(workspace: workspace)] + Item.drives(of: workspace) }
     }
 
     private static func changes(
@@ -199,14 +202,21 @@ public final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
         observer: NSFileProviderChangeObserver
     ) async throws -> (SyncAnchor, Bool, Bool) {
         let workspaces = try await sync.workspaces(fresh: true)
-        let drives = workspaces.flatMap { ws in ws.drives.map { (Drive(orgId: ws.orgId, space: $0.space), $0.revision) } }
-        var anchor = old.keeping(Set(drives.map(\.0)))
+        let drives = workspaces.flatMap { Drive.of($0) }
+        let current = Set(drives.map { $0.drive })
+        var anchor = old.keeping(current)
 
         // A workspace switched off or left: its folder goes, and with it everything inside.
         let kept = Set(workspaces.map(\.orgId))
         let gone = Set(old.cursors.keys.compactMap { $0.split(separator: ":").first.map(String.init) })
             .subtracting(kept)
         if !gone.isEmpty { observer.didDeleteItems(withIdentifiers: gone.map { ItemID.workspace(orgId: $0).identifier }) }
+        // A teamspace left or deleted in a workspace still synced: its folder goes the same way.
+        let leftTeamspaces = old.drives.subtracting(current).filter { drive in
+            guard kept.contains(drive.orgId), case .teamspace = drive.place else { return false }
+            return true
+        }
+        if !leftTeamspaces.isEmpty { observer.didDeleteItems(withIdentifiers: leftTeamspaces.map(\.item.identifier)) }
         // The made-up levels, in case a workspace was renamed or switched on.
         observer.didUpdate(levels(workspaces))
 
@@ -215,7 +225,7 @@ public final class WorkingSetEnumerator: NSObject, NSFileProviderEnumerator {
         // was last read to the end is not asked at all.
         let client = sync.client
         var pages = 0
-        for (drive, revision) in drives.sorted(by: { $0.0 < $1.0 }) where !anchor.isCurrent(drive, at: revision) {
+        for (drive, revision) in drives.sorted(by: { $0.drive < $1.drive }) where !anchor.isCurrent(drive, at: revision) {
             if pages == pagesPerCall { return (anchor, true, false) }
             var next: Task<StorageSyncChangesResponse, Error>? = Task { [cursor = anchor.cursor(for: drive)] in
                 try await client.changes(drive, cursor: cursor, limit: pageSize)

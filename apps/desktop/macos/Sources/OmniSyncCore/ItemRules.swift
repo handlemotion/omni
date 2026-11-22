@@ -23,15 +23,15 @@ public func contentVersion(of version: NSFileProviderItemVersion) -> Int? {
     String(data: version.contentVersion, encoding: .utf8).flatMap { Int($0) }
 }
 
-/// What Finder lets the person do. The made-up levels can be read and listed, and a space folder
-/// takes new children; a locked file is read only. Delete means Trash on the server. Any node's
+/// What Finder lets the person do. The made-up levels can be read and listed, and a space or
+/// teamspace folder takes new children (it is not renamed, moved or deleted from Finder); a locked file is read only. Delete means Trash on the server. Any node's
 /// download can be removed ("Remove Download") and the node kept off this computer.
 public func capabilities(of item: ItemID, node: StorageNode? = nil) -> NSFileProviderItemCapabilities {
     let browse: NSFileProviderItemCapabilities = [.allowsReading, .allowsContentEnumerating]
     switch item {
     case .root, .workingSet, .trash, .workspace:
         return browse
-    case .space:
+    case .space, .teamspace:
         return browse.union(.allowsAddingSubItems)
     case .node:
         let local: NSFileProviderItemCapabilities = [.allowsExcludingFromSync]

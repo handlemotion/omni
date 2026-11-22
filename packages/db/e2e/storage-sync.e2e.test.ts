@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
-import { forMember } from "../src/for-member.ts";
+import { forMember, forUser } from "../src/for-member.ts";
 import { storageTombstones } from "../src/schema/index.ts";
 import {
   handOverMemberStorage,
@@ -18,13 +18,15 @@ afterAll(teardown);
 
 async function drain(
   storage: MemberStorage,
-  space: "personal" | "shared",
+  from: "personal" | "shared" | { teamspaceId: string },
   cursor: StorageSyncCursor | null = null,
   limit = 2,
+  teamspaces = false,
 ) {
   const changes: StorageChange[] = [];
+  const drive = typeof from === "string" ? { space: from } : from;
   for (let page = 0; page < 100; page++) {
-    const result = await storage.changes(space, { cursor, limit });
+    const result = await storage.changes(drive, { cursor, limit, teamspaces });
     if (result.status !== "ok") throw new Error(`changes: ${result.status}`);
     changes.push(...result.changes);
     cursor = result.nextCursor;
@@ -170,6 +172,43 @@ test("a node moved into one member's My files is moved for them and gone for the
   ]);
 });
 
+test("a teamspace a member is in syncs as its own drive, and a node moved into it is not gone for a reader who syncs it", async () => {
+  const org = await createOrg(db, "sync-teamspaces");
+  const ana = await createMember(db, org.id, "ana");
+  const bo = await createMember(db, org.id, "bo");
+  const anas = forMember(db, ana.id).storage;
+  const made = await anas.createTeamspace({ name: "Studio" });
+  if (made.status !== "ok") throw new Error(made.status);
+  const studio = { teamspaceId: made.teamspace.id };
+  await anas.createTeamspace({ name: "Archive", private: true });
+  const bos = forMember(db, bo.id).storage;
+  const elsewhere = await bos.createTeamspace({ name: "Bo's" });
+  if (elsewhere.status !== "ok") throw new Error(elsewhere.status);
+
+  const brief = await addFile(anas, studio, "brief.txt");
+  const draft = await addFile(anas, { space: "personal" }, "draft.txt");
+  const [first] = await forUser(db, ana.userId).storage.syncWorkspaces();
+  expect(first?.teamspaces.map((t) => t.name)).toEqual(["Archive", "Studio"]);
+  expect(first?.teamspaces.find((t) => t.name === "Studio")?.revision).toBe(brief.revision);
+  expect(summary((await drain(anas, studio)).changes)).toEqual([
+    { id: brief.id, name: "brief.txt", inTrash: false },
+  ]);
+
+  const old = await drain(anas, "personal");
+  const synced = await drain(anas, "personal", null, 2, true);
+  expect((await anas.move(draft.id, studio)).status).toBe("ok");
+  expect(summary((await drain(anas, "personal", old.cursor)).changes)).toEqual([
+    { id: draft.id, deleted: true, gone: true },
+  ]);
+  expect(summary((await drain(anas, "personal", synced.cursor, 2, true)).changes)).toEqual([
+    { id: draft.id, deleted: true, gone: false },
+  ]);
+  const [after] = await forUser(db, ana.userId).storage.syncWorkspaces();
+  expect(after?.teamspaces.find((t) => t.name === "Studio")?.revision).toBeGreaterThan(
+    brief.revision,
+  );
+});
+
 test("a node that moved away and was later handed over is not gone for whoever has it now", async () => {
   const org = await createOrg(db, "sync-handed-back");
   const ana = await createMember(db, org.id, "ana");
@@ -209,11 +248,11 @@ test("a cursor behind swept tombstones expires; one past them does not", async (
   const swept = await sweepStorageTombstones(db, { before: new Date(Date.now() - 86_400_000) });
   expect(swept.deleted).toBeGreaterThanOrEqual(1);
 
-  expect(await storage.changes("personal", { cursor: behind.cursor })).toEqual({
+  expect(await storage.changes({ space: "personal" }, { cursor: behind.cursor })).toEqual({
     status: "cursor_expired",
   });
-  expect((await storage.changes("personal", { cursor: past.cursor })).status).toBe("ok");
-  expect((await storage.changes("personal", {})).status).toBe("ok");
+  expect((await storage.changes({ space: "personal" }, { cursor: past.cursor })).status).toBe("ok");
+  expect((await storage.changes({ space: "personal" }, {})).status).toBe("ok");
 });
 
 test("rename, move and trash with a stale revision change nothing", async () => {

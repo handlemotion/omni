@@ -149,7 +149,12 @@ export const storageSync = new Hono<AppEnv>()
       caller.workspace,
     ).storage.syncWorkspaces();
     return c.json({
-      workspaces: workspaces.map(({ orgId, name, drives }) => ({ orgId, name, drives })),
+      workspaces: workspaces.map(({ orgId, name, drives, teamspaces }) => ({
+        orgId,
+        name,
+        drives,
+        teamspaces,
+      })),
     } satisfies StorageSyncDrivesResponse);
   })
 
@@ -157,10 +162,13 @@ export const storageSync = new Hono<AppEnv>()
   .use("/:orgId/*", requireWritableWorkspace)
 
   .get("/:orgId/changes", zValidator("query", storageSyncChangesQuerySchema), async (c) => {
-    const { space, cursor, limit } = c.req.valid("query");
-    const result = await memberStorage(c).changes(space, {
+    const { space, teamspace, teamspaces, cursor, limit } = c.req.valid("query");
+    const drive = teamspace ? { teamspaceId: teamspace } : space ? { space } : null;
+    if (!drive) return refused(c, "not_found");
+    const result = await memberStorage(c).changes(drive, {
       cursor: decodeCursor(cursor, syncCursor),
       limit,
+      teamspaces: teamspaces === "1",
     });
     if (result.status === "cursor_expired") {
       return apiError(c, "cursor_expired", "list the drive again without a cursor");

@@ -85,15 +85,20 @@ export function insiders(ctx: DurableObjectState, tag?: string) {
 }
 
 /**
- * Who hears that a drive changed: the teamspace's members (`reaching`), everyone for Shared, the
- * owner's app and sync sockets for My files.
+ * Who hears that a drive changed: the app and sync sockets of whoever reaches the teamspace
+ * (`reaching`), everyone for Shared, the owner's app and sync sockets for My files.
  */
 export function driveAudience(
   ctx: DurableObjectState,
   ownerMemberId: string | null,
   reaching: Set<string> | null,
 ) {
-  if (reaching) return insiders(ctx).filter((socket) => reaching.has(ctx.getTags(socket)[0] ?? ""));
+  if (reaching) {
+    return insiders(ctx).filter((socket) => {
+      const tag = ctx.getTags(socket)[0] ?? "";
+      return reaching.has(tag.startsWith("sync:") ? tag.slice("sync:".length) : tag);
+    });
+  }
   if (ownerMemberId === null) return insiders(ctx);
   return [...insiders(ctx, ownerMemberId), ...insiders(ctx, `sync:${ownerMemberId}`)];
 }
@@ -109,14 +114,17 @@ export function audience(ctx: DurableObjectState, at: Editing) {
   });
 }
 
-/** Tells every app socket in the workspace, not sync, watch or outsider ones, `storage.teamspaces`. */
+/**
+ * Tells every app and sync socket in the workspace (no watch or outsider one) that its
+ * teamspaces changed: an app reads them again, a sync provider its drives.
+ */
 export function sendTeamspacesChanged(ctx: DurableObjectState) {
   const message = JSON.stringify({
     type: "storage.teamspaces",
   } satisfies StorageTeamspacesChangedEvent);
   for (const socket of insiders(ctx)) {
     const tag = ctx.getTags(socket)[0];
-    if (!tag || tag.startsWith("sync:") || tag.startsWith("watch:")) continue;
+    if (!tag || tag.startsWith("watch:")) continue;
     try {
       socket.send(message);
     } catch {}

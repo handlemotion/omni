@@ -64,7 +64,8 @@ My files and Shared keep working as they are, for every client, while teamspaces
    sidebar lists them, and My files and Shared only while they hold something; a new CRM deal
    makes its teamspace. Search, Trash, the agent's Drive tools and moves between drives include
    teamspaces.
-2. **Next.** Desktop sync and iOS list teamspaces. My files and Shared move into teamspaces once
+2. **Next.** Desktop sync and iOS list teamspaces (desktop: a folder per teamspace the person is
+   in, beside My files and Shared, `docs/spec/desktop.md`). My files and Shared move into teamspaces once
    (a private teamspace per member who has files, an open "Shared" teamspace), in an idempotent
    job.
 3. **Last.** Once no client reads them, the `personal` and `shared` drives go.

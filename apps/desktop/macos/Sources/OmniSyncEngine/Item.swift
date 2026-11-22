@@ -3,7 +3,7 @@ import OmniSyncCore
 @preconcurrency import StorageSync
 import UniformTypeIdentifiers
 
-/// One thing in Finder: a made-up level (a workspace's folder, `My files`, `Shared`) or a
+/// One thing in Finder: a made-up level (a workspace's folder, `My files`, `Shared`, a teamspace) or a
 /// Storage node. Everything it says comes from the server's answer, never from a guess.
 ///
 /// Every attribute is worked out once, when the item is made: the system reads them many times
@@ -52,6 +52,21 @@ public final class Item: NSObject, NSFileProviderItem {
     /// A synced workspace's folder at the root, named after the workspace.
     public convenience init(workspace: StorageSyncWorkspace) {
         self.init(level: .workspace(orgId: workspace.orgId), name: workspace.name, parent: .root)
+    }
+
+    /// A teamspace the person is in, inside its workspace's folder, under `name`
+    /// (`teamspaceFolderNames`).
+    public convenience init(orgId: String, teamspaceId: String, name: String) {
+        self.init(level: .teamspace(orgId: orgId, teamspaceId: teamspaceId), name: name, parent: .workspace(orgId: orgId))
+    }
+
+    /// The folders inside a workspace's: `My files`, `Shared` in a company, and each teamspace.
+    public static func drives(of workspace: StorageSyncWorkspace) -> [Item] {
+        let names = teamspaceFolderNames(workspace.teamspaces ?? [])
+        return workspace.drives.map { Item(orgId: workspace.orgId, space: $0.space) }
+            + (workspace.teamspaces ?? []).map {
+                Item(orgId: workspace.orgId, teamspaceId: $0.id, name: names[$0.id] ?? $0.name)
+            }
     }
 
     /// `My files` or `Shared` inside a workspace's folder.

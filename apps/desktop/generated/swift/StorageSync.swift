@@ -17,6 +17,7 @@
 //   let storageUploadResponse = try StorageUploadResponse(json)
 //   let storageUsage = try StorageUsage(json)
 //   let storageSyncDrive = try StorageSyncDrive(json)
+//   let storageSyncTeamspace = try StorageSyncTeamspace(json)
 //   let storageSyncWorkspace = try StorageSyncWorkspace(json)
 //   let storageSyncDrivesResponse = try StorageSyncDrivesResponse(json)
 //   let storageSyncChange = try StorageSyncChange(json)
@@ -1183,17 +1184,20 @@ public struct StorageSyncWorkspace: Codable, Equatable {
     public let drives: [StorageSyncDrive]
     public let name: String
     public let orgId: String
+    public let teamspaces: [StorageSyncTeamspace]?
 
     public enum CodingKeys: String, CodingKey {
         case drives = "drives"
         case name = "name"
         case orgId = "orgId"
+        case teamspaces = "teamspaces"
     }
 
-    public init(drives: [StorageSyncDrive], name: String, orgId: String) {
+    public init(drives: [StorageSyncDrive], name: String, orgId: String, teamspaces: [StorageSyncTeamspace]?) {
         self.drives = drives
         self.name = name
         self.orgId = orgId
+        self.teamspaces = teamspaces
     }
 }
 
@@ -1218,12 +1222,14 @@ public extension StorageSyncWorkspace {
     func with(
         drives: [StorageSyncDrive]? = nil,
         name: String? = nil,
-        orgId: String? = nil
+        orgId: String? = nil,
+        teamspaces: [StorageSyncTeamspace]?? = nil
     ) -> StorageSyncWorkspace {
         return StorageSyncWorkspace(
             drives: drives ?? self.drives,
             name: name ?? self.name,
-            orgId: orgId ?? self.orgId
+            orgId: orgId ?? self.orgId,
+            teamspaces: teamspaces ?? self.teamspaces
         )
     }
 
@@ -1283,6 +1289,70 @@ public extension StorageSyncDrive {
         return StorageSyncDrive(
             revision: revision ?? self.revision,
             space: space ?? self.space
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
+}
+
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - StorageSyncTeamspace
+public struct StorageSyncTeamspace: Codable, Equatable {
+    public let id: String
+    public let name: String
+    public let revision: Int
+
+    public enum CodingKeys: String, CodingKey {
+        case id = "id"
+        case name = "name"
+        case revision = "revision"
+    }
+
+    public init(id: String, name: String, revision: Int) {
+        self.id = id
+        self.name = name
+        self.revision = revision
+    }
+}
+
+// MARK: StorageSyncTeamspace convenience initializers and mutators
+
+public extension StorageSyncTeamspace {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(StorageSyncTeamspace.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        id: String? = nil,
+        name: String? = nil,
+        revision: Int? = nil
+    ) -> StorageSyncTeamspace {
+        return StorageSyncTeamspace(
+            id: id ?? self.id,
+            name: name ?? self.name,
+            revision: revision ?? self.revision
         )
     }
 

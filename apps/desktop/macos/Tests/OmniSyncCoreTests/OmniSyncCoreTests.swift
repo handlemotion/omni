@@ -14,13 +14,14 @@ private func node(
     space: StorageNodeSpace = .personal,
     contentVersion: Int? = 3,
     revision: Int? = 41,
-    lockedAt: String? = nil
+    lockedAt: String? = nil,
+    teamspaceId: String? = nil
 ) -> StorageNode {
     StorageNode(
         contentSha256: nil, contentVersion: contentVersion, createdAt: "2026-11-16T00:00:00Z",
         createdByMemberId: nil, id: id, kind: kind, lockedAt: lockedAt, mimeType: nil, name: "a.txt",
         orgId: org, ownerMemberId: nil, parentId: parentId, revision: revision, size: 1, space: space,
-        teamOnly: nil, teamspaceId: nil, trashedAt: nil, updatedAt: "2026-11-16T00:00:00Z"
+        teamOnly: nil, teamspaceId: teamspaceId, trashedAt: nil, updatedAt: "2026-11-16T00:00:00Z"
     )
 }
 
@@ -28,14 +29,17 @@ private func node(
     for item in [
         ItemID.root, .workingSet, .trash, .workspace(orgId: org),
         .space(orgId: org, space: .personal), .space(orgId: org, space: .shared),
-        .node(orgId: org, nodeId: nodeId),
+        .teamspace(orgId: org, teamspaceId: nodeId), .node(orgId: org, nodeId: nodeId),
     ] {
         #expect(ItemID(item.identifier) == item)
     }
 }
 
 @Test func malformedIdentifiersAreRefusedInsteadOfCallingAGuessedWorkspace() {
-    for raw in ["", nodeId, "ws:", "space:\(org):trash", "space:\(org)", ":\(nodeId)", "\(org):", "a:b:c"] {
+    for raw in [
+        "", nodeId, "ws:", "space:\(org):trash", "space:\(org)", ":\(nodeId)", "\(org):", "a:b:c",
+        "teamspace:\(org):", "teamspace::\(nodeId)", "teamspace:\(org)", "teamspace:\(nodeId)",
+    ] {
         #expect(ItemID(NSFileProviderItemIdentifier(raw)) == nil, "\(raw)")
     }
 }
@@ -43,6 +47,57 @@ private func node(
 @Test func topLevelNodesSitInTheirSpaceFolderNotTheWorkspaceRoot() {
     #expect(ItemID.parent(of: node(space: .shared)) == .space(orgId: org, space: .shared))
     #expect(ItemID.parent(of: node(parentId: "p")) == .node(orgId: org, nodeId: "p"))
+}
+
+@Test func aTeamspacesTopLevelNodesSitInItsFolderNotInShared() {
+    #expect(ItemID.parent(of: node(space: .teamspace, teamspaceId: "t1")) == .teamspace(orgId: org, teamspaceId: "t1"))
+    #expect(ItemID.parent(of: node(parentId: "p", space: .teamspace, teamspaceId: "t1")) == .node(orgId: org, nodeId: "p"))
+}
+
+@Test func aTeamspaceFolderTakesNewFilesButIsNotRenamedMovedOrDeletedFromFinder() {
+    let caps = capabilities(of: .teamspace(orgId: org, teamspaceId: "t1"))
+    #expect(caps.contains(.allowsAddingSubItems))
+    #expect(!caps.contains(.allowsRenaming) && !caps.contains(.allowsReparenting) && !caps.contains(.allowsDeleting))
+}
+
+@Test func teamspaceFolderNamesNeverClashWithEachOtherOrMyFilesAndShared() {
+    let spaces = [
+        StorageSyncTeamspace(id: "1", name: "Shared", revision: 0),
+        StorageSyncTeamspace(id: "2", name: "Studio", revision: 0),
+        StorageSyncTeamspace(id: "3", name: "studio", revision: 0),
+        StorageSyncTeamspace(id: "4", name: "My Files", revision: 0),
+    ]
+    #expect(teamspaceFolderNames(spaces) == ["1": "Shared (2)", "2": "Studio", "3": "studio (2)", "4": "My Files (2)"])
+}
+
+@Test func aTeamspaceKeepsItsOwnCursorAndOneLeftIsDropped() throws {
+    let mine = Drive(orgId: org, space: .personal)
+    let studio = Drive(orgId: org, teamspaceId: "t1")
+    let left = Drive(orgId: org, teamspaceId: "t2")
+    var anchor = SyncAnchor()
+    anchor.set("c1", for: mine)
+    anchor.set("c2", for: studio)
+    anchor.set("c3", for: left)
+    let read = try SyncAnchor(anchor.anchor)
+    #expect(read.drives == [mine, studio, left])
+    let next = read.keeping([mine, studio])
+    #expect(next.cursor(for: studio) == "c2")
+    #expect(next.cursor(for: left) == nil)
+    #expect(studio.item == .teamspace(orgId: org, teamspaceId: "t1"))
+    #expect(Drive(key: studio.key) == studio && Drive(key: mine.key) == mine)
+    #expect(Drive(key: "\(org):teamspace:") == nil && Drive(key: "\(org):trash") == nil)
+}
+
+@Test func aWorkspaceSyncsItsTeamspacesBesideItsSpacesAndAnOlderServerHasNone() {
+    let drives = [StorageSyncDrive(revision: 4, space: .personal)]
+    let now = StorageSyncWorkspace(
+        drives: drives, name: "Acme", orgId: org,
+        teamspaces: [StorageSyncTeamspace(id: "t1", name: "Studio", revision: 9)]
+    )
+    #expect(Drive.of(now).map { $0.drive } == [Drive(orgId: org, space: .personal), Drive(orgId: org, teamspaceId: "t1")])
+    #expect(Drive.of(now).map { $0.revision } == [4, 9])
+    let older = StorageSyncWorkspace(drives: drives, name: "Acme", orgId: org, teamspaces: nil)
+    #expect(Drive.of(older).map { $0.drive } == [Drive(orgId: org, space: .personal)])
 }
 
 @Test func renamingAFileDoesNotLookLikeNewContent() {

@@ -119,6 +119,7 @@ test("a sync token reaches the person's own drives and nothing else", async () =
       { space: "personal", revision: anas.revision },
       { space: "shared", revision: shared.revision },
     ],
+    teamspaces: [],
   });
   const own = drives.body.workspaces.find((w: { orgId: string }) => w.orgId !== acme.id);
   expect(own.drives).toEqual([{ space: "personal", revision: 0 }]);
@@ -252,7 +253,12 @@ async function listen(token: string, orgId: string) {
   const socket = new WebSocket(url, {
     headers: { authorization: `Bearer ${token}` },
   } as unknown as string[]);
-  const received: { type: string; space: string; parentIds?: (string | null)[] }[] = [];
+  const received: {
+    type: string;
+    space: string;
+    teamspaceId?: string;
+    parentIds?: (string | null)[];
+  }[] = [];
   const waiters = new Set<() => void>();
   socket.addEventListener("message", (e) => {
     received.push(JSON.parse(String(e.data)));
@@ -312,6 +318,76 @@ test("a change pings the drives it touched, on the sockets of those who sync the
   anaHears.socket.close();
   boHears.socket.close();
 });
+
+test("a teamspace its person is in syncs as a drive of its own, heard live, and a move into it is not gone", async () => {
+  const acme = await stack.company(`spaces-${randomUUID().slice(0, 6)}`);
+  const ana = await stack.member(acme.id);
+  const bo = await stack.member(acme.id);
+  const made = await stack.api(ana.jar, "POST", "/teamspaces", { name: "Studio" });
+  expect(made.status).toBe(201);
+  const studio = made.body.teamspace.id as string;
+  const brief = await stack.upload(ana.jar, { teamspaceId: studio }, "brief.txt", bytes("b"));
+  const draft = await stack.upload(ana.jar, { space: "personal" }, "draft.txt", bytes("d"));
+  const [anaToken, boToken] = [await connect(ana), await connect(bo)];
+
+  const drives = await sync(anaToken, "GET", "/drives");
+  const own = drives.body.workspaces.find((w: { orgId: string }) => w.orgId === acme.id);
+  expect(own.teamspaces).toEqual([{ id: studio, name: "Studio", revision: brief.revision }]);
+  const bos = await sync(boToken, "GET", "/drives");
+  expect(bos.body.workspaces[0].teamspaces).toEqual([]);
+
+  const feed = await sync(anaToken, "GET", `/${acme.id}/changes?teamspace=${studio}`);
+  expect(feed.status).toBe(200);
+  expect(feed.body.changes.map((change: { node: { name: string } }) => change.node.name)).toEqual([
+    "brief.txt",
+  ]);
+  expect((await sync(anaToken, "GET", `/${acme.id}/changes?space=teamspace`)).status).toBe(400);
+  expect((await sync(anaToken, "GET", `/${acme.id}/changes`)).status).toBe(400);
+
+  const hears = await listen(anaToken, acme.id);
+  const folder = await sync(anaToken, "POST", `/${acme.id}/folders`, {
+    name: "Cuts",
+    teamspaceId: studio,
+  });
+  expect(folder.status).toBe(201);
+  expect(await hears.until("teamspace")).toEqual([
+    {
+      type: "storage.changed",
+      space: "teamspace",
+      teamspaceId: studio,
+      parentIds: [null, folder.body.node.id],
+    },
+  ]);
+  expect(
+    (await stack.api(ana.jar, "PATCH", `/teamspaces/${studio}`, { name: "Atelier" })).status,
+  ).toBe(200);
+  await expect
+    .poll(() => hears.received.some((event) => event.type === "storage.teamspaces"))
+    .toBe(true);
+  hears.socket.close();
+
+  const old = await drain(anaToken, acme.id, "personal");
+  const synced = await drainSyncing(anaToken, acme.id, "personal");
+  const moved = await sync(anaToken, "PATCH", `/${acme.id}/nodes/${draft.id}`, {
+    teamspaceId: studio,
+  });
+  expect(moved.status).toBe(200);
+  const tombstone = { id: draft.id, node: null, inTrash: false };
+  expect((await drain(anaToken, acme.id, "personal", old.cursor)).changes).toMatchObject([
+    { ...tombstone, gone: true },
+  ]);
+  expect((await drainSyncing(anaToken, acme.id, "personal", synced.cursor)).changes).toMatchObject([
+    { ...tombstone, gone: false },
+  ]);
+});
+
+async function drainSyncing(token: string, orgId: string, space: string, cursor?: string) {
+  const query = new URLSearchParams({ space, teamspaces: "1", ...(cursor ? { cursor } : {}) });
+  const answer = await sync(token, "GET", `/${orgId}/changes?${query}`);
+  expect(answer.status).toBe(200);
+  expect(answer.body.more).toBe(false);
+  return { changes: answer.body.changes, cursor: answer.body.nextCursor as string };
+}
 
 test("a move names the folders it left and entered, so apps refetch only those", async () => {
   const acme = await stack.company(`folders-${randomUUID().slice(0, 6)}`);

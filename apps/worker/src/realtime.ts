@@ -63,8 +63,8 @@ import { closeOutsider, leavePresence } from "./realtime-presence.ts";
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
 /**
- * Set (by the Worker) on a desktop sync provider's socket: it hears `storage.changed` and nothing
- * else, since its token reaches Storage alone. Such a socket is tagged `sync:<memberId>`.
+ * Set (by the Worker) on a desktop sync provider's socket: it hears `storage.changed` and
+ * `storage.teamspaces` alone, since its token reaches Storage alone. Tagged `sync:<memberId>`.
  */
 export const SYNC_HEADER = "x-omni-sync";
 const syncTag = (memberId: string) => `sync:${memberId}`;

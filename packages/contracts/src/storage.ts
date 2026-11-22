@@ -569,11 +569,18 @@ export const storageSyncDriveSchema = z.object({
   revision: z.number().int().nonnegative(),
 });
 
+/** A teamspace the person is in, synced as a folder of its own, and its revision now. */
+export const storageSyncTeamspaceSchema = storageSyncDriveSchema
+  .omit({ space: true })
+  .extend({ id, name: z.string() });
+
 export const storageSyncWorkspaceSchema = z.object({
   orgId: id,
   name: z.string(),
   /** `personal`, and `shared` in a company. */
   drives: z.array(storageSyncDriveSchema),
+  /** The teamspaces the person is in, by name. Absent from an older Worker. */
+  teamspaces: z.array(storageSyncTeamspaceSchema).optional(),
 });
 
 /** `GET /sync/drives`: every workspace the person belongs to, and its drives. */
@@ -581,8 +588,19 @@ export const storageSyncDrivesResponseSchema = z.object({
   workspaces: z.array(storageSyncWorkspaceSchema),
 });
 
-/** `GET /sync/:orgId/changes?space=&cursor=&limit=`. No cursor: the whole drive, paged. */
-export const storageSyncChangesQuerySchema = z.object({ space: storageSpaceSchema, ...page });
+/**
+ * `GET /sync/:orgId/changes?space=&cursor=&limit=`, or `?teamspace=` for a teamspace's feed.
+ * No cursor: the whole drive, paged. `teamspaces=1` says the caller syncs the teamspaces it is
+ * in: a node that moved into one of them is not `gone` for it.
+ */
+export const storageSyncChangesQuerySchema = z
+  .object({
+    space: storageSpaceSchema.optional(),
+    teamspace: id.optional(),
+    teamspaces: z.literal("1").optional(),
+    ...page,
+  })
+  .refine((query) => exactlyOne(query.space, query.teamspace), "give space or teamspace");
 
 /**
  * One change to a drive, in revision order. `node` is the node as it is now. `inTrash` says
@@ -630,7 +648,7 @@ export const storageRevisionGuardQuerySchema = z.object({
  */
 export const storageChangedEventSchema = z.object({
   type: z.literal("storage.changed"),
-  /** `teamspace` goes to the web app only, never to a sync provider. */
+  /** `teamspace` reaches a sync provider too: it syncs the teamspaces its person is in. */
   space: storageNodeSpaceSchema,
   /** The teamspace that changed, when `space` is `teamspace`. */
   teamspaceId: id.optional(),
@@ -638,8 +656,8 @@ export const storageChangedEventSchema = z.object({
 });
 
 /**
- * On the workspace's realtime socket for the web app: a teamspace was made, renamed, opened or
- * closed, given an icon or deleted, or someone joined or left one. Read `GET /teamspaces` again.
+ * On the workspace's realtime socket (app and sync provider): a teamspace was made, changed or
+ * deleted, or someone joined or left one. Read `GET /teamspaces` (`GET /sync/drives`) again.
  */
 export const storageTeamspacesChangedEventSchema = z.object({
   type: z.literal("storage.teamspaces"),
@@ -719,6 +737,7 @@ export const STORAGE_SYNC_NATIVE_TYPES = {
   StorageUploadResponse: storageUploadResponseSchema,
   StorageUsage: storageUsageSchema,
   StorageSyncDrive: storageSyncDriveSchema,
+  StorageSyncTeamspace: storageSyncTeamspaceSchema,
   StorageSyncWorkspace: storageSyncWorkspaceSchema,
   StorageSyncDrivesResponse: storageSyncDrivesResponseSchema,
   StorageSyncChange: storageSyncChangeSchema,

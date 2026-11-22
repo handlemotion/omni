@@ -37,10 +37,11 @@ public struct Sync {
         return try await drives.get(fresh: fresh) { try await client.drives() }.workspaces.filter { on.contains($0.orgId) }
     }
 
-    /// What a node's parent is on the server: a folder, or the top of a space.
+    /// What a node's parent is on the server: a folder, or the top of a space or a teamspace.
     public static func place(of parent: ItemID) throws -> Place {
         switch parent {
         case let .space(orgId, space): return Place(orgId: orgId, parentId: nil, space: space)
+        case let .teamspace(orgId, teamspaceId): return Place(orgId: orgId, parentId: nil, space: nil, teamspaceId: teamspaceId)
         case let .node(orgId, nodeId): return Place(orgId: orgId, parentId: nodeId, space: nil)
         // Nothing can be dropped beside the made-up levels.
         case .root, .workingSet, .trash, .workspace: throw NSFileProviderError(.cannotSynchronize)
@@ -48,11 +49,19 @@ public struct Sync {
     }
 }
 
-/// Where a new node goes: into a folder (`parentId`), or at the top of a space.
+/// Where a new node goes: into a folder (`parentId`), or at the top of a space or a teamspace.
 public struct Place: Hashable, Sendable {
     public let orgId: String
     public let parentId: String?
     public let space: Space?
+    public let teamspaceId: String?
+
+    public init(orgId: String, parentId: String?, space: Space?, teamspaceId: String? = nil) {
+        self.orgId = orgId
+        self.parentId = parentId
+        self.space = space
+        self.teamspaceId = teamspaceId
+    }
 }
 
 /// The `Sync` built from the current `sync.json`, and when that file last changed.
@@ -217,7 +226,10 @@ public actor FolderIndex {
         var names: [String: StorageNode] = [:]
         var cursor: String?
         repeat {
-            let page = try await client.list(orgId: place.orgId, space: place.space ?? .personal, parentId: place.parentId, cursor: cursor, limit: pageSize)
+            let page = try await client.list(
+                orgId: place.orgId, space: place.space ?? .personal, teamspaceId: place.teamspaceId,
+                parentId: place.parentId, cursor: cursor, limit: pageSize
+            )
             for node in page.nodes { names[node.name.lowercased()] = node }
             cursor = page.nextCursor
         } while cursor != nil
