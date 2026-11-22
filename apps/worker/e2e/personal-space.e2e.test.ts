@@ -1,11 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  ensurePersonalSpace,
-  PersonalSpaceError,
-  saveMailbox,
-  schema,
-  transferDomain,
-} from "@omni/db";
+import { ensurePersonalSpace, saveMailbox, schema, transferDomain } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
@@ -146,7 +140,7 @@ test("with no company the Personal space is the default; setup still creates a c
   ]);
 });
 
-test("a Personal space refuses invitations, members, teams and being deleted", async () => {
+test("a Personal space takes invitations, teams and being deleted, like any workspace", async () => {
   const { jar, spaceId } = await signedUp("owner@personal.test");
   await signedUp("friend@personal.test");
   const active = await authPost(worker, jar, "/organization/set-active", {
@@ -154,38 +148,32 @@ test("a Personal space refuses invitations, members, teams and being deleted", a
   });
   expect(active.status).toBe(200);
 
-  expect((await invite(worker, jar, { email: "friend@personal.test" })).status).toBe(404);
-  const refusals = [
-    await authPost(worker, jar, "/organization/create-team", {
-      name: "support",
-      organizationId: spaceId,
-    }),
-    await authPost(worker, jar, "/organization/delete", { organizationId: spaceId }),
-  ];
-  for (const response of refusals) {
-    expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ code: "PERSONAL_SPACE" });
-  }
+  expect((await invite(worker, jar, { email: "friend@personal.test" })).status).toBe(200);
+  const team = await authPost(worker, jar, "/organization/create-team", {
+    name: "support",
+    organizationId: spaceId,
+  });
+  expect(team.status).toBe(200);
 
   const { db } = database;
   expect(
     await db
-      .select()
+      .select({ email: schema.invitations.email })
       .from(schema.invitations)
       .where(eq(schema.invitations.organizationId, spaceId)),
-  ).toEqual([]);
+  ).toEqual([{ email: "friend@personal.test" }]);
   expect(
     await db.select().from(schema.teams).where(eq(schema.teams.organizationId, spaceId)),
-  ).toEqual([]);
-  expect(
-    await db.select().from(schema.members).where(eq(schema.members.organizationId, spaceId)),
   ).toHaveLength(1);
+
+  const deleted = await authPost(worker, jar, "/organization/delete", { organizationId: spaceId });
+  expect(deleted.status).toBe(200);
   expect(
     await db.select().from(schema.organizations).where(eq(schema.organizations.id, spaceId)),
-  ).toHaveLength(1);
+  ).toEqual([]);
 });
 
-test("a Personal space holds no shared mailbox, but takes a personal one", async () => {
+test("a Personal space holds shared mailboxes and personal ones", async () => {
   const { db } = database;
   const { spaceId } = await signedUp("mail@personal.test");
   const [member] = await db
@@ -203,16 +191,20 @@ test("a Personal space holds no shared mailbox, but takes a personal one", async
       credentialsEnc: "not-a-real-ciphertext",
       ownerMemberId: member!.id,
     });
-  await expect(mailbox("shared", "team@personal.test")).rejects.toBeInstanceOf(PersonalSpaceError);
+  await expect(mailbox("shared", "team@personal.test")).resolves.toEqual(expect.any(String));
   await expect(mailbox("personal", "me@gmail.test")).resolves.toEqual(expect.any(String));
   const rows = await db
     .select({ address: schema.mailboxes.address, kind: schema.mailboxes.kind })
     .from(schema.mailboxes)
-    .where(eq(schema.mailboxes.orgId, spaceId));
-  expect(rows).toEqual([{ address: "me@gmail.test", kind: "personal" }]);
+    .where(eq(schema.mailboxes.orgId, spaceId))
+    .orderBy(schema.mailboxes.address);
+  expect(rows).toEqual([
+    { address: "me@gmail.test", kind: "personal" },
+    { address: "team@personal.test", kind: "shared" },
+  ]);
 });
 
-test("a company cannot hand its domain to a Personal space", async () => {
+test("a company can hand its domain to a Personal space", async () => {
   const { db } = database;
   const { jar, spaceId } = await signedUp("mover@personal.test");
   const created = await authPost(worker, jar, "/organization/create", {
@@ -226,12 +218,12 @@ test("a company cannot hand its domain to a Personal space", async () => {
 
   expect(
     await transferDomain(db, { fromOrgId: companyId, toOrgId: spaceId, domain: "mover-co.test" }),
-  ).toEqual({ ok: false, reason: "personal_space" });
+  ).toMatchObject({ ok: true });
   const [lock] = await db
     .select({ orgId: schema.mailDomains.orgId })
     .from(schema.mailDomains)
     .where(eq(schema.mailDomains.domain, "mover-co.test"));
-  expect(lock?.orgId).toBe(companyId);
+  expect(lock?.orgId).toBe(spaceId);
 });
 
 test("a company whose handle looks like a Personal space's does not block anyone's sign-in", async () => {

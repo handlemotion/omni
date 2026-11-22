@@ -63,17 +63,18 @@ test("a member of another company gets nothing through the member door, by id or
   expect(ok(await forUser(db, anaRow!.userId).crm.projects()).projects).toEqual([]);
 });
 
-test("a Personal space has no CRM", async () => {
+test("a Personal space has a CRM, shared with whoever joins it", async () => {
   const person = await createPerson(db, "solo@crm-personal.test");
   const orgId = await ensurePersonalSpace(db, person.id);
   const [member] = await db.select().from(members).where(eq(members.organizationId, orgId));
   const crm = forMember(db, member!.id).crm;
 
-  expect((await crm.listCompanies()).status).toBe("no_crm");
-  expect((await crm.stages()).status).toBe("no_crm");
-  expect((await crm.addPerson({ name: "Ana", address: "ana@acme.test" })).status).toBe("no_crm");
-  expect((await crm.createDeal({ name: "Side gig" })).status).toBe("no_crm");
-  expect((await crm.lookup({ addresses: ["ana@acme.test"] })).status).toBe("no_crm");
+  expect((await crm.addPerson({ name: "Ana", address: "ana@acme.test" })).status).toBe("ok");
+  expect((await crm.createDeal({ name: "Side gig" })).status).toBe("ok");
+  const hire = await createMember(db, orgId, "First hire");
+  const found = await forMember(db, hire.id).crm.lookup({ addresses: ["ana@acme.test"] });
+  expect(found.status).toBe("ok");
+  expect(JSON.stringify(found)).toContain("Ana");
 });
 
 test("removing a member is not blocked by their deals and notes, which stay with no owner", async () => {

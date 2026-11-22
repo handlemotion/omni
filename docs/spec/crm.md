@@ -36,7 +36,7 @@ scopes keep `crm`.
 - Reminders, record merging, imports.
 - Stored "last contacted" facts, and sharing a personal mailbox's activity with the workspace.
 - AI on records.
-- A CRM in a Personal space. The iOS app.
+- The iOS app.
 
 ## What we take from Attio and Twenty
 
@@ -207,7 +207,7 @@ deliverable in review, the team's write, is what the gate refuses.
 ## API
 
 All under `/api/crm` on the Worker, for the active workspace. Shapes live in
-`@omni/contracts/crm.ts`. Lists are cursor paged. A Personal space answers `404 NO_CRM`.
+`@omni/contracts/crm.ts`. Lists are cursor paged. Every workspace has a CRM, a Personal space included.
 
 | Route                                                                      | Does                                                                                                                           |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -374,9 +374,8 @@ Thread ids from `crm_fetch` go to the mail `fetch` tool, which applies mail's ow
 text is written by teammates, and names and titles can come from mail: the server's
 instructions keep telling agents to treat it as data.
 
-- A token reaches the company workspaces its grant does: its one workspace, or every company
-  the person belongs to (`workspace` narrows a read; a write to one of several must name it). A
-  Personal space has no CRM, so a token that reaches only one gets a tool error.
+- A token reaches the workspaces its grant does: its one workspace, or every workspace the
+  person belongs to (`workspace` narrows a read; a write to one of several must name it).
 - Every row carries `kind`, `id`, `workspace` and a `url` on the web app
   (`/<workspace slug>/crm/people/<id>`, `…/companies/<id>`, `…/deals/<id>`), which agents cite.
 - Tasks: `crm_tasks` lists them (open by default, soonest due first) with their record,
@@ -457,7 +456,7 @@ Each test below is named for the bug it catches.
 **C1. CRM in `@omni/db`**
 
 - A member of another company gets nothing through the member door, by id or by list.
-- A Personal space has no CRM.
+- A Personal space has a CRM, and whoever joins it shares it.
 - Two adds of one address at the same moment make one person.
 - `ana@acme.com` makes Acme with `acme.com`; `bea@acme.com` joins it; `x@gmail.com` makes no
   company.

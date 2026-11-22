@@ -20,8 +20,6 @@ function answer(c: Context<AppEnv>, result: CrmSharingResult) {
         "forbidden",
         "a personal mailbox's owner sets its sharing; a shared inbox's, owners and admins",
       );
-    case "no_crm":
-      return apiError(c, "no_crm", "a Personal space has no CRM");
   }
 }
 

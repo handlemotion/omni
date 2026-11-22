@@ -75,9 +75,6 @@ export async function placeFor(
       error: `Name a \`workspace\`: ${workspaces.map((w) => `${w.name} (${w.id})`).join(", ")}.`,
     };
   }
-  if (input.space === "shared" && chosen.personal) {
-    return { error: "A personal workspace has no Shared drive. Use `my_files`." };
-  }
   const place: StoragePlace = { space: input.space === "shared" ? "shared" : "personal" };
   return { place, orgId: chosen.id };
 }

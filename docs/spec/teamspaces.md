@@ -11,7 +11,7 @@ folders inside them. A CRM deal gets its own private teamspace whose members are
 people.
 
 "Workspace" stays the company (an organization, `org_id`). "Personal space" stays the Just me
-workspace. The new thing is a teamspace in code and a **space** in the UI.
+workspace, which has teamspaces like any other. The new thing is a teamspace in code and a **space** in the UI.
 
 ## The sidebar
 

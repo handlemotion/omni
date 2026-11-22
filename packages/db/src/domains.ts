@@ -12,7 +12,6 @@ import {
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { countMailboxesOnDomain, type InboxAuditAction } from "./mail.ts";
-import { workspaceKind } from "./personal-space.ts";
 import {
   auditEvents,
   type DomainCheck,
@@ -323,9 +322,7 @@ export const recordChallengeState: (
   return input.ok ? "restored" : "lost";
 };
 
-export type HandOverResult =
-  | { ok: true }
-  | { ok: false; reason: "not_locked" | "has_mailboxes" | "personal_space" };
+export type HandOverResult = { ok: true } | { ok: false; reason: "not_locked" | "has_mailboxes" };
 
 /**
  * Gives up `orgId`'s lock on `domain`: anyone can claim it again. Refused while the org has
@@ -383,9 +380,6 @@ export async function transferDomain(
 ) {
   const now = input.now ?? new Date();
   return db.transaction<HandOverResult>(async (tx) => {
-    if ((await workspaceKind(tx, input.toOrgId)) === "personal") {
-      return { ok: false, reason: "personal_space" } as const;
-    }
     if ((await countMailboxesOnDomain(tx as unknown as Db, input.fromOrgId, input.domain)) > 0) {
       return { ok: false, reason: "has_mailboxes" } as const;
     }

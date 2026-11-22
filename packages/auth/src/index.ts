@@ -27,9 +27,10 @@ import {
   moduleLifecycle,
   type ModuleLifecycle,
 } from "./module-lifecycle.ts";
-import { ensureGranteeSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
+import { ensureGranteeSpaceQuietly } from "./personal-space.ts";
 import { mcpPlugins } from "./mcp.ts";
 import {
+  endScopedSessions,
   newSessionScope,
   noteSignInAddress,
   recordSessionScope,
@@ -412,20 +413,13 @@ export function createAuth(env: AuthEnv) {
         teams: { enabled: true, defaultTeam: { enabled: false } },
         roles: { owner: ownerAc, admin: adminAc, member: memberAc, freelancer: freelancerAc },
         organizationHooks: {
-          ...personalSpaceHooks(env.db),
           ...(env.billing && {
-            beforeCreateInvitation: async (input) => {
-              await personalSpaceHooks(env.db).beforeCreateInvitation(input);
-              await planCapHooks(env.db).beforeCreateInvitation(input);
-            },
-            beforeAddMember: async (input) => {
-              await personalSpaceHooks(env.db).beforeAddMember(input);
-              await planCapHooks(env.db).beforeAddMember(input);
-            },
+            beforeCreateInvitation: planCapHooks(env.db).beforeCreateInvitation,
+            beforeAddMember: planCapHooks(env.db).beforeAddMember,
             beforeAcceptInvitation: planCapHooks(env.db).beforeAcceptInvitation,
           }),
           beforeDeleteOrganization: async (input) => {
-            await personalSpaceHooks(env.db).beforeDeleteOrganization(input);
+            await endScopedSessions(env.db, input.organization.id);
             await beforeDeleteWorkspace(env.db, env.modules)(input);
           },
           beforeRemoveMember: beforeRemoveMember(env.db, env.modules),

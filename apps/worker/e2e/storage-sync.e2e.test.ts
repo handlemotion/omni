@@ -122,7 +122,10 @@ test("a sync token reaches the person's own drives and nothing else", async () =
     teamspaces: [],
   });
   const own = drives.body.workspaces.find((w: { orgId: string }) => w.orgId !== acme.id);
-  expect(own.drives).toEqual([{ space: "personal", revision: 0 }]);
+  expect(own.drives).toEqual([
+    { space: "personal", revision: 0 },
+    { space: "shared", revision: 0 },
+  ]);
   expect(own.orgId).not.toBe(other.id);
 
   const mine = await drain(token, acme.id, "personal");

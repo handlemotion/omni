@@ -91,7 +91,7 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
           and(
             eq(storageNodes.orgId, member.orgId),
             isNotNull(storageNodes.trashedAt),
-            or(member.personal ? mine : or(mine, shared), inTeamspaces),
+            or(mine, shared, inTeamspaces),
             after,
           ),
         )

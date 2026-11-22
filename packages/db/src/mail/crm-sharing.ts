@@ -8,7 +8,6 @@ import {
   mailboxes,
   members,
   messages,
-  personalSpaces,
   teams,
   threadParticipants,
   threads,
@@ -47,8 +46,7 @@ export interface SharedActivity {
 export type CrmSharingResult =
   | { status: "ok"; level: CrmSharingLevel }
   | { status: "not_found" }
-  | { status: "forbidden" }
-  | { status: "no_crm" };
+  | { status: "forbidden" };
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
@@ -57,13 +55,12 @@ async function memberOf(db: Db, memberId: string) {
     .select({
       orgId: members.organizationId,
       role: members.role,
-      personal: sql<boolean>`exists (select 1 from ${personalSpaces} where ${personalSpaces.orgId} = ${members.organizationId})`,
     })
     .from(members)
     .where(eq(members.id, memberId));
   if (!row) return null;
   const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
-  return { orgId: row.orgId, personal: row.personal, admin };
+  return { orgId: row.orgId, admin };
 }
 
 async function mayManage(db: Db, memberId: string, mailboxId: string) {
@@ -77,7 +74,6 @@ async function mayManage(db: Db, memberId: string, mailboxId: string) {
     .from(mailboxes)
     .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, member.orgId)));
   if (!mailbox) return { status: "not_found" } as const;
-  if (member.personal) return { status: "no_crm" } as const;
   const allowed = mailbox.kind === "personal" ? mailbox.owns : member.admin;
   if (!allowed) return { status: "forbidden" } as const;
   return { status: "ok", orgId: member.orgId } as const;
@@ -195,7 +191,7 @@ export function memberCrmSharing(db: Db, memberId: string) {
       const domains = normalized(options.domains);
       if (addresses.length === 0 && domains.length === 0) return [] satisfies SharedActivity[];
       const member = await memberOf(db, memberId);
-      if (!member || member.personal) return [] satisfies SharedActivity[];
+      if (!member) return [] satisfies SharedActivity[];
       const limit = Math.min(Math.max(Math.trunc(options.limit ?? 50), 1), SHARED_ACTIVITY_MAX);
       const rows = await activityRows(
         db,

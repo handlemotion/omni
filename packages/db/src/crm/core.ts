@@ -2,7 +2,6 @@ import { and, asc, eq, inArray, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
 import { crmEvents, crmProjectMembers } from "../schema/crm.ts";
-import { personalSpaces } from "../schema/identity.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
 
 /** A Drizzle database or a transaction on one. */
@@ -60,7 +59,7 @@ async function projectsOf(ex: Ex, orgId: string, userId: string) {
   return [...new Set(rows.map((row) => row.dealId))];
 }
 
-/** The member when their workspace is a company; null in a Personal space or when they are gone. */
+/** The member; null when they are gone. */
 export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | null> = async (
   ex,
   memberId,
@@ -71,11 +70,10 @@ export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | nu
       orgId: members.organizationId,
       role: members.role,
       userId: members.userId,
-      personal: sql<boolean>`exists (select 1 from ${personalSpaces} where ${personalSpaces.orgId} = ${members.organizationId})`,
     })
     .from(members)
     .where(eq(members.id, memberId));
-  if (!row || row.personal) return null;
+  if (!row) return null;
   const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
   const projects =
     !admin && hasRole(row.role, FREELANCER_ROLE)

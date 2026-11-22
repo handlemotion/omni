@@ -126,11 +126,13 @@ test("adding an address twice answers the same person; giving it to someone else
   });
 });
 
-test("a Personal space answers 404 no_crm", async () => {
+test("a Personal space has a CRM", async () => {
   const jar = new CookieJar();
   await signIn(stack.worker, stack.db, "solo@personal.test", jar);
   await justMe(stack.worker, jar);
-  const listed = await stack.api(jar, "GET", "/companies");
-  expect(listed.status).toBe(404);
-  expect(listed.body).toMatchObject({ code: "NO_CRM" });
+  const added = await stack.api(jar, "POST", "/people", { name: "Ana", address: "ana@solo.test" });
+  expect(added.status).toBe(201);
+  const listed = await stack.api(jar, "GET", "/people");
+  expect(listed.status).toBe(200);
+  expect(JSON.stringify(listed.body)).toContain("ana@solo.test");
 });

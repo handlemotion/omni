@@ -174,8 +174,8 @@ test("another workspace never sees a company's shared activity", async () => {
   );
 });
 
-test("a Personal space shares nothing", async () => {
-  const { org, ana } = await company("share-personal");
+test("a Personal space shares its mail with the teammates it invites", async () => {
+  const { ana } = await company("share-personal");
   const personalOrg = await ensurePersonalSpace(db, ana.userId);
   const [inPersonal] = await db
     .select({ id: members.id })
@@ -184,14 +184,13 @@ test("a Personal space shares nothing", async () => {
   const gmail = await personalMailbox(personalOrg, inPersonal!.id, `ana-${Date.now()}@gmail.test`);
   await mail(personalOrg, gmail.id, { from: "cy@client.test", to: gmail.address, subject: "Hi" });
   expect(await forMember(db, inPersonal!.id).setCrmSharing(gmail.id, "subjects")).toEqual({
-    status: "no_crm",
+    status: "ok",
+    level: "subjects",
   });
-  await db
-    .insert(mailboxCrmSharing)
-    .values({ mailboxId: gmail.id, orgId: personalOrg, level: "subjects" });
-  const teammate = await createMember(db, org.id, "Teammate");
-  expect(await forMember(db, teammate.id).sharedActivityWith(query)).toEqual([]);
-  expect(await forMember(db, inPersonal!.id).sharedActivityWith(query)).toEqual([]);
+  const hire = await createMember(db, personalOrg, "First hire");
+  expect(await forMember(db, hire.id).sharedActivityWith(query)).toEqual([
+    expect.objectContaining({ subject: "Hi" }),
+  ]);
 });
 
 test("nothing in an item names the thread, and the key pages stably, newest first", async () => {

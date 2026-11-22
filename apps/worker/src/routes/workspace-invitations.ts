@@ -15,7 +15,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 import { requireCap } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
-import { logInboxAction, requireCompanyManager } from "../inbox-admin.ts";
+import { logInboxAction, requireManager } from "../inbox-admin.ts";
 import { mailboxPlacement, provisionMailbox } from "../provision-mailbox.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
@@ -40,7 +40,7 @@ const limitInvites = createMiddleware<AppEnv>(async (c, next) => {
 });
 
 export const workspaceInvitations = new Hono<AppEnv>()
-  .use("/workspace/invitations", requireCompanyManager)
+  .use("/workspace/invitations", requireManager)
 
   .post("/workspace/invitations", limitInvites, zValidator("json", invitationBody), async (c) => {
     const { db, member } = c.var;
@@ -118,7 +118,7 @@ export const workspaceInvitations = new Hono<AppEnv>()
       inbox: inbox ? { mailboxId: inbox.mailboxId, address: inbox.address } : null,
     });
   })
-  .use("/workspace/invitations/*", requireCompanyManager)
+  .use("/workspace/invitations/*", requireManager)
 
   .post("/workspace/invitations/:id/resend", limitInvites, async (c) => {
     const { db, member } = c.var;

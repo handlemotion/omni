@@ -60,8 +60,8 @@ export interface MisplacedMailbox {
 /**
  * Mailboxes in the wrong workspace, both ways:
  * - Personal-space mailboxes that belong to a company now: their domain, or a parent of it, is
- *   locked by a company their owner is a member of. The closest lock wins. A mailbox whose owner
- *   is not a member there stays until they join.
+ *   locked by a company their owner (the mailbox's, not the space's) is a member of. The
+ *   closest lock wins. A mailbox whose owner is not a member there stays until they join.
  * - A company's Gmail account on an address no company has locked: its owner's Personal space.
  *   An owner who has no Personal space yet gets one from `ensureSpacesForOwnGmail` first.
  */
@@ -83,8 +83,9 @@ export async function listMisplacedMailboxes(db: Db) {
       c.org_id as target_org_id, cm.id as target_member_id
     from closest c
     join ${mailboxes} m on m.id = c.mailbox_id
-    join ${personalSpaces} ps on ps.org_id = m.org_id
-    join ${members} cm on cm.organization_id = c.org_id and cm.user_id = ps.user_id
+    join ${mailboxAccess} oa on oa.mailbox_id = m.id and oa.role = 'owner'
+    join ${members} om on om.id = oa.member_id and om.organization_id = m.org_id
+    join ${members} cm on cm.organization_id = c.org_id and cm.user_id = om.user_id
     union all
     -- A company's Gmail account whose address no company has locked (gmail.com, an unclaimed
     -- domain) is its owner's own: it goes to their Personal space. Gmail only:

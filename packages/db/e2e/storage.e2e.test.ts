@@ -28,24 +28,19 @@ afterAll(teardown);
 const names = (result: { status: string; nodes?: { name: string }[] }) =>
   result.nodes?.map((node) => node.name);
 
-test("a Personal space has My files and no Shared", async () => {
+test("a Personal space has a Shared drive its members all reach", async () => {
   const person = await createPerson(db, "solo@personal.test");
   const orgId = await ensurePersonalSpace(db, person.id);
   const [member] = await db.select().from(members).where(eq(members.organizationId, orgId));
   const storage = forMember(db, member!.id).storage;
 
   expect((await storage.createFolder({ space: "personal" }, "Mine")).status).toBe("ok");
-  expect((await storage.list({ space: "shared" })).status).toBe("not_found");
-  expect((await storage.createFolder({ space: "shared" }, "Team")).status).toBe("not_found");
-  expect(
-    (await storage.openUpload({ space: "shared" }, { name: "a.txt", size: 1, limitBytes: null }))
-      .status,
-  ).toBe("not_found");
-  const [stray] = await db
-    .insert(storageNodes)
-    .values({ orgId, space: "shared", kind: "folder", name: "Stray" })
-    .returning();
-  expect(await storage.node(stray!.id)).toBeNull();
+  expect((await storage.createFolder({ space: "shared" }, "Team")).status).toBe("ok");
+  const hire = await createMember(db, orgId, "First hire");
+  const listed = await forMember(db, hire.id).storage.list({ space: "shared" });
+  expect(listed.status).toBe("ok");
+  expect(JSON.stringify(listed)).toContain("Team");
+  expect(JSON.stringify(listed)).not.toContain("Mine");
 });
 
 test("in Shared every member reads and writes, and only the uploader or an admin trashes or takes out", async () => {

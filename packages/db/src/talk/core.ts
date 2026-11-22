@@ -1,7 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
-import { personalSpaces } from "../schema/identity.ts";
 import { talkThreads } from "../schema/talk.ts";
 
 export type Ex = Pick<Db, "select" | "insert" | "update" | "delete" | "execute">;
@@ -32,11 +31,10 @@ export async function loadTalkMember(ex: Ex, memberId: string) {
       orgId: members.organizationId,
       userId: members.userId,
       role: members.role,
-      personal: sql<boolean>`exists (select 1 from ${personalSpaces} where ${personalSpaces.orgId} = ${members.organizationId})`,
     })
     .from(members)
     .where(eq(members.id, memberId));
-  if (!row || row.personal || !isTeammateRole(row.role)) return null;
+  if (!row || !isTeammateRole(row.role)) return null;
   return { id: row.id, orgId: row.orgId, userId: row.userId } satisfies TalkMember;
 }
 

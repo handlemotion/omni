@@ -1,6 +1,5 @@
 import { and, asc, eq, gt, inArray, notExists, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import { isCompany } from "./personal-space.ts";
 import { invitations, members, organizations, users } from "./schema/auth.ts";
 import { userEmails } from "./schema/identity.ts";
 
@@ -70,7 +69,6 @@ export const listPendingInvitations: (
       eq(invitations.status, "pending"),
       gt(invitations.expiresAt, new Date()),
       inArray(sql`lower(${invitations.email})`, verifiedAddresses(db, userId)),
-      isCompany(db, invitations.organizationId),
       scopeOrgId ? eq(invitations.organizationId, scopeOrgId) : undefined,
       notExists(
         db

@@ -51,9 +51,9 @@ and rules (`docs/spec/modules.md`), because it owns tables and reads Storage thr
 
 ## Who may use it
 
-- **Teammates only.** Members of a company workspace who are not freelancers. A freelancer is
+- **Teammates only.** Members of a workspace who are not freelancers. A freelancer is
   in a workspace to work on their projects: they neither see who is online nor get threads.
-  A Personal space has nobody to talk to.
+  A Personal space has Talk once someone joins it.
 - **One thread per pair.** A thread belongs to exactly two members of one workspace. Only those
   two read it, write to it or react in it; nobody else, an owner or admin included, can open it,
   learn it exists or see its unread count. No admin view.
@@ -78,7 +78,7 @@ All tables carry `org_id`, cascade with the workspace, and are named `talk_*`.
   notes after `read_at`.
 
 Reads and writes go through `forMember(db, memberId).talk`, which loads the member, refuses a
-freelancer or a Personal space, and reaches only threads the member is one of the two in. The
+freelancer, and reaches only threads the member is one of the two in. The
 door takes the other person as a member id and checks they are a teammate in the same workspace.
 
 ## Files go into Drive

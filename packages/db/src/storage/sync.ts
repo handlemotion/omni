@@ -1,7 +1,6 @@
 import { and, asc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, organizations } from "../schema/auth.ts";
-import { personalSpaces } from "../schema/identity.ts";
 import {
   storageLocks,
   storageNodes,
@@ -312,7 +311,6 @@ export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: st
       name: organizations.name,
       slug: organizations.slug,
       memberId: members.id,
-      personal: sql<boolean>`exists (select 1 from ${personalSpaces} where ${personalSpaces.orgId} = ${organizations.id})`,
     })
     .from(members)
     .innerJoin(organizations, eq(organizations.id, members.organizationId))
@@ -326,7 +324,7 @@ export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: st
   const drivesOf = (row: (typeof rows)[number]) => {
     const mine: Drive = personalDrive(row.orgId, row.memberId);
     const shared: Drive = sharedDrive(row.orgId);
-    return row.personal ? [mine] : [mine, shared];
+    return [mine, shared];
   };
   const teamspaces = await syncedTeamspaces(
     db,

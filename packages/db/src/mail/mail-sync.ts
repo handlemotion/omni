@@ -6,7 +6,6 @@ import { rederiveParticipants } from "./thread-participants.ts";
 import { reconcileThreads } from "./thread-reconcile.ts";
 import { syncableMailbox } from "./inbox-admin.ts";
 import { ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
-import { assertCompany } from "../personal-space.ts";
 import {
   mailActions,
   mailboxAccess,
@@ -746,7 +745,6 @@ export async function saveMailbox(
     throw new Error("a shared mailbox needs someone on it");
   }
   return db.transaction(async (tx) => {
-    if (input.kind === "shared") await assertCompany(tx, input.orgId, "a shared mailbox");
     const [row] = await tx
       .insert(mailboxes)
       .values({

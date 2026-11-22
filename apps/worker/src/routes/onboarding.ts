@@ -373,7 +373,6 @@ export const onboarding = new Hono<AppEnv>()
 const HAND_OVER_REFUSALS = {
   has_mailboxes: "still has mailboxes in this workspace",
   not_locked: "is not set up by this workspace",
-  personal_space: "cannot move to a Personal space",
 } as const;
 
 function handOverRefusal(reason: keyof typeof HAND_OVER_REFUSALS, domain: string) {

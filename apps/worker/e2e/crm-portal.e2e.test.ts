@@ -108,7 +108,8 @@ test("a client signs in with no workspace and reaches only their project on the 
   expect(approved.body.deliverables[0]).toMatchObject({ status: "approved", reviewedByEmail: bob });
 
   expect((await call(bobJar, "GET", `/portal/projects/${app}`)).status).toBe(404);
-  expect((await call(bobJar, "GET", "/crm/deals")).status).toBeGreaterThanOrEqual(400);
+  const ownCrm = await call(bobJar, "GET", "/crm/deals");
+  expect(JSON.stringify(ownCrm.body)).not.toContain("Website");
   expect((await call(bobJar, "GET", `/crm/deals/${website}`)).status).toBeGreaterThanOrEqual(400);
 
   const carolJar = await signedIn(carol);

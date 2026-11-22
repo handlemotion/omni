@@ -9,14 +9,14 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { requireCompanyManager } from "../inbox-admin.ts";
+import { requireManager } from "../inbox-admin.ts";
 import { zValidator } from "../validator.ts";
 
 const descriptionBody = z.object({ description: z.string().max(MAX_ROLE_DESCRIPTION) });
 
 export const aiSettings = new Hono<AppEnv>()
-  .use("/workspace/ai", requireCompanyManager)
-  .use("/workspace/ai/*", requireCompanyManager)
+  .use("/workspace/ai", requireManager)
+  .use("/workspace/ai/*", requireManager)
 
   .get("/workspace/ai", async (c) => {
     const { db, member } = c.var;

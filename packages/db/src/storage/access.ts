@@ -1,7 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
-import { personalSpaces } from "../schema/identity.ts";
 import { storageGrants, storagePolicies, type StorageGuest } from "../schema/storage.ts";
 import { ensurePersonalSpace } from "../personal-space.ts";
 import { companyForAddress } from "../session-scopes.ts";
@@ -90,8 +89,6 @@ export interface StorageMember {
   userId: string;
   /** Owner or admin of the workspace. */
   admin: boolean;
-  /** The workspace is a Personal space: it has My files and no Shared. */
-  personal: boolean;
   /**
    * A freelancer reaches My files and what is shared with them by address (their projects'
    * folders), never the rest of Shared.
@@ -109,7 +106,6 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
       orgId: members.organizationId,
       userId: members.userId,
       role: members.role,
-      personal: sql<boolean>`exists (select 1 from ${personalSpaces} where ${personalSpaces.orgId} = ${members.organizationId})`,
     })
     .from(members)
     .where(eq(members.id, memberId));
@@ -122,7 +118,6 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
     orgId: row.orgId,
     userId: row.userId,
     admin,
-    personal: row.personal,
     freelancer,
   };
 };
@@ -158,7 +153,7 @@ export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
         return viaGrants ? grantDoor(member.userId).access(ex, chain) : null;
       }
       const mine = node.space === "personal" && node.ownerMemberId === member.id;
-      const shared = node.space === "shared" && !member.personal && !member.freelancer;
+      const shared = node.space === "shared" && !member.freelancer;
       if (!mine && !shared && !teamspace) return null;
       return memberAccess(chain, mine || takesOut(member, node, teamspace?.role === "owner"));
     },
@@ -174,7 +169,7 @@ export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
       const member = await loadMember(ex, memberId);
       if (!member) return null;
       if (space === "personal") return personalDrive(member.orgId, member.id);
-      return member.personal || member.freelancer ? null : sharedDrive(member.orgId);
+      return member.freelancer ? null : sharedDrive(member.orgId);
     },
     async teamspace(ex, teamspaceId) {
       const member = await loadMember(ex, memberId);
@@ -186,7 +181,7 @@ export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
       const member = await loadMember(ex, memberId);
       if (!member) return [];
       const legacy: Drive[] = [personalDrive(member.orgId, member.id)];
-      if (!member.personal && !member.freelancer) legacy.push(sharedDrive(member.orgId));
+      if (!member.freelancer) legacy.push(sharedDrive(member.orgId));
       return [...legacy, ...(await teamspaceDrives(ex, member))];
     },
     async actor(ex, orgId) {

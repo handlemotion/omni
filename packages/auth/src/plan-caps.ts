@@ -1,5 +1,5 @@
 import { PLAN_LIMITS, TRIAL_PLAN } from "@omni/contracts";
-import { capUsage, schema, workspacePlan, type Db } from "@omni/db";
+import { capUsage, schema, workspaceKind, workspacePlan, type Db } from "@omni/db";
 import { APIError } from "better-auth/api";
 import { count, eq } from "drizzle-orm";
 
@@ -8,6 +8,7 @@ function refuse(message: string) {
 }
 
 async function roomForMember(db: Db, orgId: string, held: number) {
+  if ((await workspaceKind(db, orgId)) === "personal") return;
   const plan = await workspacePlan(db, orgId);
   const max = PLAN_LIMITS[plan ?? TRIAL_PLAN].members;
   if (held + 1 > max) {
@@ -18,7 +19,7 @@ async function roomForMember(db: Db, orgId: string, held: number) {
 /**
  * The organization hooks that hold a workspace to its plan's members (members plus invitations
  * still open; a workspace still setting up, before a trial or plan, to the trial plan's). Only
- * with billing on.
+ * with billing on. A Personal space has no plan yet, so no cap.
  * An invitation is counted when it is sent, so accepting one needs only that the members
  * themselves still fit: a plan moved down meanwhile cannot be passed by old invitations.
  */

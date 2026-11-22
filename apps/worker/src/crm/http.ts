@@ -172,7 +172,7 @@ function answerFor(refusal: CrmRefusal) {
   if (isPlanRefusal(refusal)) return PLAN_ANSWERS[refusal.status];
   switch (refusal.status) {
     case "no_crm":
-      return { code: "no_crm", message: "a Personal space has no CRM" } satisfies Answer;
+      return { code: "no_crm", message: "no CRM for this member" } satisfies Answer;
     case "not_found":
       return { code: "not_found", message: "not found" } satisfies Answer;
     case "forbidden":

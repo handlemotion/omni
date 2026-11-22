@@ -15,7 +15,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { logInboxAction, requireCompanyManager } from "../inbox-admin.ts";
+import { logInboxAction, requireManager } from "../inbox-admin.ts";
 import { callMailService } from "../mail-service.ts";
 import { fromMailService } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
@@ -61,8 +61,8 @@ export async function removeInbox(c: Context<AppEnv>, mailboxId: string, hostedO
 const people = z.array(z.string().min(1)).min(1).max(500);
 
 export const workspaceInboxes = new Hono<AppEnv>()
-  .use("/workspace/inboxes/*", requireCompanyManager)
-  .use("/workspace/events", requireCompanyManager)
+  .use("/workspace/inboxes/*", requireManager)
+  .use("/workspace/events", requireManager)
 
   .delete("/workspace/inboxes/:id", limitPerMember("provision"), (c) =>
     removeInbox(c, c.req.param("id"), false),

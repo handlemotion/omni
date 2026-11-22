@@ -1,7 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, organizations } from "../schema/auth.ts";
-import { personalSpaces } from "../schema/identity.ts";
 import { storageGrants, storageNodes, storageTeamspaces, storageTexts } from "../schema/storage.ts";
 import {
   grantAddresses,
@@ -38,8 +37,6 @@ export interface ContextWorkspace {
   name: string;
   slug: string;
   memberId: string;
-  /** A Personal space: My files only, no Shared. */
-  personal: boolean;
 }
 
 /**
@@ -99,7 +96,6 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
         name: organizations.name,
         slug: organizations.slug,
         memberId: members.id,
-        personal: sql<boolean>`exists (select 1 from ${personalSpaces} where ${personalSpaces.orgId} = ${organizations.id})`,
       })
       .from(members)
       .innerJoin(organizations, eq(organizations.id, members.organizationId))

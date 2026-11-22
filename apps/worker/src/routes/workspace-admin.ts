@@ -14,7 +14,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { canManage, logInboxAction, requireCompanyManager } from "../inbox-admin.ts";
+import { canManage, logInboxAction, requireManager } from "../inbox-admin.ts";
 import { mailboxPlacement, provisionMailbox } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
@@ -58,10 +58,10 @@ const sharedInboxBody = mailboxPlacement.extend({
 });
 
 export const workspaceAdmin = new Hono<AppEnv>()
-  .use("/workspace/members/*", requireCompanyManager)
-  .use("/workspace/members", requireCompanyManager)
-  .use("/workspace/inboxes", requireCompanyManager)
-  .use("/workspace/shared-inboxes", requireCompanyManager)
+  .use("/workspace/members/*", requireManager)
+  .use("/workspace/members", requireManager)
+  .use("/workspace/inboxes", requireManager)
+  .use("/workspace/shared-inboxes", requireManager)
 
   .get("/workspace/members", async (c) =>
     c.json({ members: await listWorkspaceMembers(c.var.db, c.var.member.orgId) }),
@@ -138,14 +138,14 @@ export const workspaceAdmin = new Hono<AppEnv>()
     return c.json({ people });
   })
 
-  .put("/workspace/shared-inboxes/:id/people/:memberId", requireCompanyManager, async (c) =>
+  .put("/workspace/shared-inboxes/:id/people/:memberId", requireManager, async (c) =>
     answerMembership(
       c,
       await addMailboxMember(c.var.db, manager(c), c.req.param("id"), c.req.param("memberId")),
     ),
   )
 
-  .delete("/workspace/shared-inboxes/:id/people/:memberId", requireCompanyManager, async (c) => {
+  .delete("/workspace/shared-inboxes/:id/people/:memberId", requireManager, async (c) => {
     const mailboxId = c.req.param("id");
     const memberId = c.req.param("memberId");
     await keepLastInbox(c, mailboxId, memberId);

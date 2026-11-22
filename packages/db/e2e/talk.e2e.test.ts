@@ -60,7 +60,7 @@ test("a member of another workspace can neither open a thread with us nor read o
   expect(ok(await eve.people()).people).toEqual([]);
 });
 
-test("freelancers and Personal spaces have no Talk, and a freelancer is nobody's teammate", async () => {
+test("freelancers have no Talk, a freelancer is nobody's teammate, and a Personal space has Talk", async () => {
   const { ana, cy } = await team("talk-freelancer");
   await setRole(db, cy.id, "freelancer");
   const freelancer = forMember(db, cy.id).talk;
@@ -73,7 +73,9 @@ test("freelancers and Personal spaces have no Talk, and a freelancer is nobody's
   const solo = await createPerson(db, "solo@talk-personal.test");
   const orgId = await ensurePersonalSpace(db, solo.id);
   const [member] = await db.select().from(members).where(eq(members.organizationId, orgId));
-  expect((await forMember(db, member!.id).talk.people()).status).toBe("no_talk");
+  const hire = await createMember(db, orgId, "First hire");
+  const people = ok(await forMember(db, member!.id).talk.people()).people.map((p) => p.memberId);
+  expect(people).toContain(hire.id);
 });
 
 test("a pair has one thread, whoever opens it first and however often", async () => {

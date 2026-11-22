@@ -7,14 +7,6 @@ export type WorkspaceKind = "personal" | "company";
 
 type Executor = Pick<Db, "select">;
 
-/** Thrown when something only a company may have is asked of a Personal space. */
-export class PersonalSpaceError extends Error {
-  constructor(what: string) {
-    super(`a Personal space cannot have ${what}`);
-    this.name = "PersonalSpaceError";
-  }
-}
-
 /**
  * Creates `userId`'s Personal space and their owner membership if missing, and returns its id.
  * Idempotent and safe under concurrency: a per-user advisory lock serializes callers, and the
@@ -50,11 +42,6 @@ export async function workspaceKind(db: Executor, orgId: string) {
     .from(personalSpaces)
     .where(eq(personalSpaces.orgId, orgId));
   return (row ? "personal" : "company") satisfies WorkspaceKind;
-}
-
-/** Throws `PersonalSpaceError` when `orgId` is a Personal space. */
-export async function assertCompany(db: Executor, orgId: string, what: string) {
-  if ((await workspaceKind(db, orgId)) === "personal") throw new PersonalSpaceError(what);
 }
 
 /** SQL condition: the organization id in `orgId` is a company, not a Personal space. */

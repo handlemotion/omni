@@ -1143,9 +1143,9 @@ describe("the CRM", () => {
 
     const personal = await ensurePersonalSpace(db, member.userId);
     const personalOnly = (await connect(jar, { scope, workspace: personal })).access_token;
-    const none = await tool(personalOnly, "crm_search", { query: "Pat" });
-    expect(none.isError).toBe(true);
-    expect(none.text).toContain("Personal space");
+    const none = await tool<Found>(personalOnly, "crm_search", { query: "Pat" });
+    expect(none.isError).toBeFalsy();
+    expect(none.data.people).toEqual([]);
   });
 
   test("crm_write adds a person that crm_fetch then reads, with their thread", async () => {

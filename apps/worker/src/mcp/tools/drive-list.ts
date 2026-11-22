@@ -93,7 +93,7 @@ async function overview(context: ToolContext, drive: StorageContext) {
           teamspace: t.name,
         })),
       { workspace_id: w.id, workspace: w.name, space: "my_files" as const },
-      ...(w.personal ? [] : [{ workspace_id: w.id, workspace: w.name, space: "shared" as const }]),
+      { workspace_id: w.id, workspace: w.name, space: "shared" as const },
     ]),
     shared_with_you: opened.map((found) => item(context.webAppURL, found)),
   });

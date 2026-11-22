@@ -318,7 +318,7 @@ const isFreelancer = (member: CrmMember): member is Freelancer => member.project
  * teammate; deleting for good and editing stages are for owners and admins. A freelancer
  * reaches only their projects (`docs/spec/crm.md`, "Project access"): each operation names the
  * gate it opens to them, and one that names none answers them `not_found`. Nothing reaches
- * another workspace, and in a Personal space every call answers `{ status: "no_crm" }`.
+ * another workspace, and a member who is gone gets `{ status: "no_crm" }`.
  */
 export function memberCrm(db: Db, memberId: string) {
   const door: CrmDoor = { db, memberId };
@@ -508,3 +508,4 @@ export function userCrm(db: Db, userId: string, scopeOrgId?: string | null) {
 
 export type MemberCrm = ReturnType<typeof memberCrm>;
 export type UserCrm = ReturnType<typeof userCrm>;
+export * from "./crm/for-platform.ts";

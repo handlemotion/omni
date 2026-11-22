@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { greenmail, type OnboardingStack, startOnboardingStack } from "./onboarding-stack.ts";
 import { BILLING_SECRETS, PLAN_PRICES } from "./stripe-events.ts";
-import { authPost, createMailbox } from "./support.ts";
+import { authPost, CookieJar, createMailbox, justMe, signIn } from "./support.ts";
 
 let stack: OnboardingStack;
 beforeAll(async () => {
@@ -206,4 +206,27 @@ test("a month's meter counts each key once, refuses past the allowance, and a re
     .from(schema.usageClaims)
     .where(eq(schema.usageClaims.orgId, owner.orgId));
   expect(rows.map((r) => r.amount).reduce((a, b) => a + b, 0)).toBe(105);
+});
+
+test("a Personal space, which has no plan yet, is held to no member cap", async () => {
+  const jar = new CookieJar();
+  const email = `solo-${tag()}@gmail.test`;
+  await signIn(stack.worker, stack.database.db, email, jar);
+  const orgId = await justMe(stack.worker, jar);
+  const [owner] = await stack.database.db
+    .select({ userId: schema.members.userId })
+    .from(schema.members)
+    .where(eq(schema.members.organizationId, orgId));
+  await stack.database.db.insert(schema.invitations).values(
+    Array.from({ length: 15 }, () => ({
+      id: randomUUID(),
+      organizationId: orgId,
+      email: `held-${tag()}@elsewhere.test`,
+      role: "member",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 86_400_000),
+      inviterId: owner!.userId,
+    })),
+  );
+  expect((await invite(jar)).status).toBe(200);
 });

@@ -2,7 +2,6 @@ import type { CrmChangedKind } from "@omni/contracts";
 import {
   forMember,
   type MemberCrm,
-  isCompany,
   schema,
   type CrmCompany,
   type CrmDeal,
@@ -22,12 +21,11 @@ export interface CrmWorkspace {
   memberId: string;
 }
 
-const NO_CRM =
-  "There is no CRM here: only company workspaces have one, and a Personal space does not.";
+const NO_CRM = "There is no CRM here: you are not a member of that workspace.";
 
 /**
- * The company workspaces the call reaches: the grant's one workspace, or the one `workspace`
- * names, or every company the user belongs to. Membership is read live on every call.
+ * The workspaces the call reaches: the grant's one workspace, or the one `workspace`
+ * names, or every workspace the user belongs to. Membership is read live on every call.
  */
 export const crmWorkspaces: (
   context: ToolContext,
@@ -54,7 +52,6 @@ export const crmWorkspaces: (
       and(
         eq(schema.members.userId, context.caller.userId),
         target ? eq(schema.members.organizationId, target) : undefined,
-        isCompany(db, schema.organizations.id),
       ),
     )
     .orderBy(schema.members.createdAt, schema.organizations.id);
