@@ -133,6 +133,7 @@ export function CalendarPage(props: {
     setScrolled({ first, under: dayKey(anchor) });
     window.clearTimeout(sync.current);
     sync.current = window.setTimeout(() => {
+      if (dayKey(first) === lastAnchor.current) return;
       written.current.push(dayKey(first));
       go({ date: first });
     }, SYNC_MS);

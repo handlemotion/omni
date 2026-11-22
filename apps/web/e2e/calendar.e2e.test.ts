@@ -1155,6 +1155,38 @@ test("after scrolling a month and back, a month picked in the sidebar scrolls th
     .toBeLessThan(1);
 });
 
+test("scrolling away and back before the URL catches up leaves no stale write behind", async () => {
+  const { org, page, origin } = await invited();
+  await page.goto(new URL(`/${org.slug}/calendar?date=2026-12-01&view=month`, origin).toString());
+  const first = page.locator('[data-month-day="2026-12-01"]');
+  await first.waitFor();
+  const box = await first.boundingBox();
+  const row = box?.height ?? 100;
+  await page.mouse.move((box?.x ?? 0) + 20, (box?.y ?? 0) + 20);
+  for (let i = 0; i < 5; i++) await page.mouse.wheel(0, row);
+  await page.getByRole("heading", { name: "January 2027" }).first().waitFor();
+  for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -row);
+  await page.waitForTimeout(800);
+  expect(shownDate(page)).toBe("2026-12-01");
+  const sidebar = page.getByRole("application", { name: /Month/ });
+  const atTop = (week: string) =>
+    page
+      .locator(`[data-week="${week}"]`)
+      .evaluate((el) =>
+        Math.abs(
+          el.getBoundingClientRect().top - (el.parentElement?.getBoundingClientRect().top ?? 0),
+        ),
+      );
+  await sidebar.getByRole("button", { name: "Previous month" }).click();
+  await sidebar.getByRole("grid").getByText("1", { exact: true }).first().click();
+  await expect.poll(() => shownDate(page)).toBe("2026-11-01");
+  await expect.poll(() => atTop("2026-10-26")).toBeLessThan(1);
+  await sidebar.getByRole("button", { name: "Next month" }).click();
+  await sidebar.getByRole("grid").getByText("1", { exact: true }).first().click();
+  await expect.poll(() => shownDate(page)).toBe("2026-12-01");
+  await expect.poll(() => atTop("2026-11-30")).toBeLessThan(1);
+});
+
 test("one sideways swipe steps the week, and each gesture steps once", async () => {
   const { org, page, origin } = await invited();
   await page.goto(new URL(`/${org.slug}/calendar?date=2026-11-24&view=week`, origin).toString());
