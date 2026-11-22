@@ -4,6 +4,7 @@ import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople } from "../schema/
 import { crmTasks } from "../schema/crm/tasks.ts";
 import { NOT_FOUND, pageSize, type CrmMember, type CrmRecordRef, type Ex } from "./core.ts";
 import { recordExists } from "./notes.ts";
+import { mirrorTask } from "./task-mirror.ts";
 
 /** A step of a task's checklist. */
 export interface CrmSubtask {
@@ -281,6 +282,7 @@ export const createTask: (
       createdByMemberId: member.id,
     })
     .returning({ id: crmTasks.id });
+  await mirrorTask(tx, member.orgId, made!.id);
   return { status: "ok", task: (await readTask(tx, member.orgId, made!.id))! };
 };
 
@@ -328,7 +330,10 @@ export const updateTask: (
   const refused = await checkReferences(tx, member, patch);
   if (refused) return refused;
   const set = setFor(member, current, patch, title);
-  if (Object.keys(set).length > 0) await tx.update(crmTasks).set(set).where(eq(crmTasks.id, id));
+  if (Object.keys(set).length > 0) {
+    await tx.update(crmTasks).set(set).where(eq(crmTasks.id, id));
+    await mirrorTask(tx, member.orgId, id);
+  }
   return { status: "ok", task: (await readTask(tx, member.orgId, id))! };
 };
 
@@ -340,5 +345,6 @@ export const deleteTask: (
   const task = await readTask(tx, member.orgId, id);
   if (!task) return NOT_FOUND;
   await tx.delete(crmTasks).where(eq(crmTasks.id, id));
+  await mirrorTask(tx, member.orgId, id);
   return { status: "ok", task };
 };

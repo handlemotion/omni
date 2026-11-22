@@ -1,4 +1,5 @@
 import {
+  copyTasksToCalendar,
   crmMembersOf,
   endExpiredContracts,
   settleSentContracts,
@@ -87,7 +88,23 @@ export function settleContracts(db: Db, log: Logger) {
   });
 }
 
-/** The CRM's every-minute work: contracts whose signing finished or was voided settle. */
+/**
+ * Copies the tasks `crm_tasks` holds that the calendar lacks or holds older
+ * (`docs/spec/calendar.md`, "The move from `crm_tasks`"). The CRM runs it: the calendar never
+ * reads the CRM's tables.
+ */
+export function copyTasks(db: Db, log: Logger) {
+  return Effect.gen(function* () {
+    const { copied } = yield* retried("copy_tasks", () => copyTasksToCalendar(db));
+    if (copied > 0) log.info("crm.tasks_copied", { count: copied });
+    return copied;
+  });
+}
+
+/**
+ * The CRM's every-minute work: contracts whose signing finished or was voided settle, and tasks
+ * the calendar lacks are copied to it.
+ */
 export function crmMinute(env: Env) {
   const log = createLogger({ component: "crm", requestId: crypto.randomUUID() });
   return runJob(
@@ -95,7 +112,8 @@ export function crmMinute(env: Env) {
       const db = yield* scopedDb(env);
       const settled = yield* settleContracts(db, log);
       yield* announceContracts(env, db, log, settled);
-      return { settled: settled.length };
+      const copied = yield* copyTasks(db, log);
+      return { settled: settled.length, copied };
     }),
   );
 }

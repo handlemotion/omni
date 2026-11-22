@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { dropTasksOn } from "../calendar.ts";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
 import { memberStorage } from "../storage.ts";
@@ -521,5 +522,7 @@ export const deleteDeal: (tx: Ex, member: CrmMember, id: string) => Promise<Dele
     .delete(crmDeals)
     .where(and(eq(crmDeals.orgId, member.orgId), eq(crmDeals.id, id)))
     .returning({ id: crmDeals.id });
-  return deleted.length > 0 ? { status: "ok" } : NOT_FOUND;
+  if (deleted.length === 0) return NOT_FOUND;
+  await dropTasksOn(tx, member.orgId, "deal", [id]);
+  return { status: "ok" };
 };

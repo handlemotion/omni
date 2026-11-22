@@ -445,7 +445,7 @@ per AGENTS.md "Migrations number in stack order"; K4's migration goes on top of 
 | K3  | The web views: week and day, keys, calendars, the event panel, the invitation card in threads                                             | K2               |
 | K4  | Twined: `meetingsWith`, meetings on CRM records and deals, notes docs in Drive                                                            | K3               |
 | T0  | Tasks: this section, and `crm.md` and `modules.md` to match                                                                               | main             |
-| T1  | `calendar_tasks` (migration 0075), the calendar's task door and surface, the copy job, the Worker writing both tables                     | T0               |
+| T1  | `calendar_tasks` (migration 0077), the calendar's task door and surface, the copy job (run by the CRM, which owns `crm_tasks`), the Worker writing both tables                     | T0               |
 | T2  | `/api/calendar/tasks`; the CRM's task routes read through the calendar's surface; reads switch to `calendar_tasks`                        | T1               |
 | T3  | Web: one task panel for calendar and CRM, "Add to CRM", the calendar's to-dos from `/api/calendar/tasks`, the CRM lists only linked tasks | T2               |
 | T4  | Contract: stop writing `crm_tasks`, drop it                                                                                               | T3 in production |

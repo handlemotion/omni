@@ -1,5 +1,10 @@
 import type { BillingConfig, ModuleLifecycle } from "@omni/auth";
-import { deleteWorkspaceStorage, handOverMemberStorage, type Db } from "@omni/db";
+import {
+  deleteWorkspaceStorage,
+  handOverMemberStorage,
+  releaseCalendarTasks,
+  type Db,
+} from "@omni/db";
 import type Stripe from "stripe";
 import { calendarArrived, calendarMinute } from "./calendar/jobs.ts";
 import { crmDaily, crmMinute } from "./crm/jobs.ts";
@@ -74,6 +79,7 @@ const calendar: Module = {
   name: "calendar",
   minute: calendarMinute,
   mailArrived: calendarArrived,
+  memberRemoved: (db, { orgId, memberId }) => releaseCalendarTasks(db, { orgId, memberId }),
 };
 
 export const modules: readonly Module[] = [mail, storage, crm, calendar];

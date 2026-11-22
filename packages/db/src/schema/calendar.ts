@@ -1,9 +1,11 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -227,4 +229,68 @@ export const calendarMemberPrefs = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [primaryKey({ columns: [t.memberId, t.calendarId] })],
+);
+
+/** What a task can be on in the CRM. The CRM checks the record; the calendar keeps only its id. */
+export const calendarTaskRecordKind = pgEnum("calendar_task_record_kind", [
+  "company",
+  "person",
+  "deal",
+]);
+
+/**
+ * A to-do (`docs/spec/calendar.md`, "Tasks"). Private to its owner while it is on no record; on a
+ * CRM record it is the workspace's, seen by whoever can open that record, and assignable. The
+ * record is kept as a kind and an id, with no key into the CRM's tables: the CRM deletes a
+ * record's tasks through the calendar's surface. Open while `completed_at` is null.
+ */
+export const calendarTasks = pgTable(
+  "calendar_tasks",
+  {
+    id: id(),
+    orgId: orgId(),
+    /** Cascades: a removed member's private tasks go with them; their linked ones are let go first. */
+    ownerMemberId: text("owner_member_id").references(() => members.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    body: text("body"),
+    /** Its checklist, in order: each step's own id, its text, and whether it is done. */
+    subtasks: jsonb("subtasks")
+      .$type<{ id: string; title: string; done: boolean }[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    dueAt: timestamptz("due_at"),
+    completedAt: timestamptz("completed_at"),
+    completedByMemberId: text("completed_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    assigneeMemberId: text("assignee_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    recordKind: calendarTaskRecordKind("record_kind"),
+    recordId: text("record_id"),
+    createdByMemberId: text("created_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("calendar_tasks_record_whole", sql`(${t.recordKind} is null) = (${t.recordId} is null)`),
+    check(
+      "calendar_tasks_private_is_owned",
+      sql`${t.recordKind} is not null or (${t.ownerMemberId} is not null and (${t.assigneeMemberId} is null or ${t.assigneeMemberId} = ${t.ownerMemberId}))`,
+    ),
+    index("calendar_tasks_owner_open_due_idx")
+      .on(t.ownerMemberId, t.dueAt.asc().nullsLast(), t.id)
+      .where(sql`${t.completedAt} is null`),
+    index("calendar_tasks_assignee_open_due_idx")
+      .on(t.assigneeMemberId, t.dueAt.asc().nullsLast(), t.id)
+      .where(sql`${t.completedAt} is null`),
+    index("calendar_tasks_record_idx").on(t.orgId, t.recordKind, t.recordId),
+    index("calendar_tasks_org_open_due_idx")
+      .on(t.orgId, t.dueAt.asc().nullsLast(), t.id)
+      .where(sql`${t.completedAt} is null and ${t.recordKind} is not null`),
+    index("calendar_tasks_completed_by_member_id_idx").on(t.completedByMemberId),
+    index("calendar_tasks_created_by_member_id_idx").on(t.createdByMemberId),
+  ],
 );

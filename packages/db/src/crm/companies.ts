@@ -1,4 +1,5 @@
 import { isWebmailDomain } from "@omni/mail-core/addresses";
+import { dropTasksOn } from "../calendar.ts";
 import { and, asc, eq, isNotNull, isNull, sql, type AnyColumn } from "drizzle-orm";
 import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople, crmStages } from "../schema/crm.ts";
 import { CONTRACT_SIGNED, type ContractSigned } from "./contract-status.ts";
@@ -389,7 +390,9 @@ export const deleteCompany: (
     .delete(crmCompanies)
     .where(and(eq(crmCompanies.orgId, member.orgId), eq(crmCompanies.id, id)))
     .returning({ id: crmCompanies.id });
-  return deleted.length > 0 ? { status: "ok" } : NOT_FOUND;
+  if (deleted.length === 0) return NOT_FOUND;
+  await dropTasksOn(tx, member.orgId, "company", [id]);
+  return { status: "ok" };
 };
 
 export const addCompanyDomain: (

@@ -1,4 +1,5 @@
 import { companyFromAddress, parseAddress } from "@omni/mail-core/addresses";
+import { dropTasksOn } from "../calendar.ts";
 import { and, asc, eq, exists, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { crmDealPeople, crmDeals, crmPeople, crmPersonEmails, crmStages } from "../schema/crm.ts";
 import {
@@ -417,5 +418,7 @@ export const deletePerson: (
     .delete(crmPeople)
     .where(and(eq(crmPeople.orgId, member.orgId), eq(crmPeople.id, id)))
     .returning({ id: crmPeople.id });
-  return deleted.length > 0 ? { status: "ok" } : NOT_FOUND;
+  if (deleted.length === 0) return NOT_FOUND;
+  await dropTasksOn(tx, member.orgId, "person", [id]);
+  return { status: "ok" };
 };
