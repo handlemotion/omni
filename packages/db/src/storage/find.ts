@@ -18,11 +18,20 @@ export function inDrives(drives: Drive[], alias: string) {
   );
 }
 
-function firstLiveMatches(drives: Drive[], pattern: string) {
+/** What a search keeps besides the name, applied before its limit. */
+export interface StorageSearchFilter {
+  /** Leave out the member's My files. */
+  teamOnly?: boolean;
+  /** Only files of this type, and folders. */
+  type?: string;
+}
+
+function firstLiveMatches(drives: Drive[], pattern: string, type: string | undefined) {
+  const ofType = type ? sql`and (n.kind = 'folder' or n.mime_type = ${type})` : sql``;
   return sql`select c.id from (
     select n.id, n.kind, lower(n.name) as sort_name, n.parent_id from ${storageNodes} n
       where (${inDrives(drives, "n")}) and n.trashed_at is null and not n.attached
-        and n.name ilike ${pattern}
+        and n.name ilike ${pattern} ${ofType}
       order by n.kind, sort_name, n.id offset 0
   ) c
   where not exists (
@@ -46,15 +55,17 @@ export function findOperations(db: Db, door: Door) {
     return found.filter((drive): drive is Drive => drive !== null);
   };
   return {
-    async search(query: string) {
+    async search(query: string, filter: StorageSearchFilter = {}) {
       const text = query.trim();
-      const reach = await drives();
+      const reach = (await drives()).filter((d) => !filter.teamOnly || d.space !== "personal");
       if (!text || !reach.length) return [] satisfies StorageNode[];
       const rows = await db
         .select(nodeColumns)
         .from(storageNodes)
         .leftJoin(storageLocks, lockJoin)
-        .where(sql`${storageNodes.id} in (${firstLiveMatches(reach, `%${likeEscaped(text)}%`)})`)
+        .where(
+          sql`${storageNodes.id} in (${firstLiveMatches(reach, `%${likeEscaped(text)}%`, filter.type)})`,
+        )
         .orderBy(storageNodes.kind, sql`lower(${storageNodes.name})`, storageNodes.id);
       return rows.map(toNode) satisfies StorageNode[];
     },

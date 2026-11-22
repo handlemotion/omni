@@ -108,6 +108,56 @@ test("a new contract takes its title from the uploaded PDF and its dates from th
   expect(contracts[0].documentNodeId).toBeTruthy();
 });
 
+test("a new contract references a PDF the team keeps elsewhere in Drive, which stays where it lives", async () => {
+  const team = await workspace("contract-from-drive");
+  const { deal } = await team.api("POST", "/deals", { name: "Website rebuild" });
+  const legal = await team.call("POST", "/api/storage/folders", { space: "shared", name: "Legal" });
+  const page = await team.page(`/files/shared/${legal.node.id}`);
+  await uploadHere(page, "MSA Acme.pdf");
+  await page.goto(team.url("/files/my"));
+  await uploadHere(page, "MSA Acme mine.pdf");
+
+  await page.goto(team.url(`/crm/deals/${deal.id}`));
+  await page.getByRole("tab", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: "New contract" }).click();
+  const dialog = page.getByRole("dialog", { name: "New contract" });
+  await dialog.getByRole("button", { name: "From Drive" }).click();
+  const picker = page.getByRole("dialog", { name: "Choose file" });
+  await picker.getByRole("searchbox").fill("MSA Acme");
+  const rows = picker.getByRole("row");
+  await expect.poll(() => rows.allInnerTexts(), { timeout: 15_000 }).toEqual(["MSA Acme.pdf"]);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/contract-from-drive-picker.png` });
+  await rows.first().click();
+  await expect.poll(() => rows.first().getAttribute("aria-selected")).toBe("true");
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/contract-from-drive-picked.png` });
+  await picker.getByRole("button", { name: "Choose" }).click();
+  await picker.waitFor({ state: "hidden" });
+
+  const title = dialog.getByRole("textbox", { name: "Title" });
+  await expect.poll(() => title.inputValue()).toBe("MSA Acme");
+  await dialog.getByText("MSA Acme.pdf").waitFor();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/contract-from-drive-chosen.png` });
+  await dialog.getByRole("button", { name: "Create draft" }).click();
+  await page.getByText("MSA Acme", { exact: true }).waitFor();
+
+  const { contracts } = await team.api("GET", `/contracts?deal=${deal.id}`);
+  const { nodes } = await team.call("GET", "/api/storage/search?q=MSA%20Acme.pdf");
+  const msa = nodes.find((node: { name: string }) => node.name === "MSA Acme.pdf");
+  expect(contracts.map((c: { documentNodeId: string }) => c.documentNodeId)).toEqual([msa.id]);
+  expect(msa.parentId).toBe(legal.node.id);
+});
+
+async function uploadHere(page: Page, name: string) {
+  await page.getByRole("button", { name: "Upload", exact: true }).first().waitFor();
+  await page
+    .locator("input[type=file]:not([webkitdirectory])")
+    .first()
+    .setInputFiles({ name, mimeType: "application/pdf", buffer: PDF });
+  await page.getByRole("row", { name: new RegExp(name.replace(".", "\\.")) }).waitFor({
+    timeout: 30_000,
+  });
+}
+
 test("a deal's People + opens a search of the workspace's people and adds the one chosen", async () => {
   const team = await workspace("deal-people");
   await team.api("POST", "/people", { name: "Paola Pacheco", address: "paola@up.test" });
@@ -162,8 +212,8 @@ async function workspace(slug: string) {
   await db.insert(schema.orgSetup).values({ orgId: org.id, step: "complete" });
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
-  const api = async (method: string, path: string, body?: unknown) => {
-    const response = await fetch(new URL(`/api/crm${path}`, origin), {
+  const call = async (method: string, path: string, body?: unknown) => {
+    const response = await fetch(new URL(path, origin), {
       method,
       headers: { cookie, origin, "content-type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
@@ -173,8 +223,11 @@ async function workspace(slug: string) {
     // oxlint-disable-next-line typescript/no-explicit-any -- test reads of JSON answers
     return (text ? JSON.parse(text) : null) as any;
   };
+  const url = (path: string) => new URL(`/${org.slug}${path}`, origin).toString();
   return {
-    api,
+    api: (method: string, path: string, body?: unknown) => call(method, `/api/crm${path}`, body),
+    call,
+    url,
     async page(path: string) {
       const context = await browser.newContext({
         locale: "en-US",
@@ -189,7 +242,7 @@ async function workspace(slug: string) {
         }),
       );
       const page = await context.newPage();
-      await page.goto(new URL(`/${org.slug}${path}`, origin).toString());
+      await page.goto(url(path));
       return page;
     },
   };

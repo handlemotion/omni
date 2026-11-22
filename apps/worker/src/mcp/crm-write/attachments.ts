@@ -28,7 +28,9 @@ export const contractSchema = z
       .min(1)
       .nullable()
       .optional()
-      .describe("Its document: a file in the Shared drive."),
+      .describe(
+        "Its document: any file in the workspace's drives (not My files), from `drive_search`. It stays where it lives.",
+      ),
     effective_on: z.iso.date().nullable().optional(),
     expires_on: z.iso.date().nullable().optional(),
   })

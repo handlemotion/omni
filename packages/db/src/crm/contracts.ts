@@ -40,7 +40,10 @@ export interface CrmContract {
   dealId: string | null;
   title: string;
   status: ContractStatus;
-  /** A file in Shared; null when none was attached, or its draft file was purged from Trash. */
+  /**
+   * A file in the workspace's drives, wherever it lives; null when none was attached, or its draft
+   * file was purged from Trash.
+   */
   documentNodeId: string | null;
   signedAt: Date | null;
   /** The Storage signature request it went out with from Omni; null when sent by hand. */
@@ -146,10 +149,17 @@ function datesRefusal(effectiveOn: string | null, expiresOn: string | null) {
   return null;
 }
 
+/**
+ * The team's, not someone's own: a file in one of the workspace's drives, wherever it sits there,
+ * never in a member's My files (`docs/spec/contracts.md`, "In the CRM").
+ */
+export const teamDrive = (node: { space: string }) => node.space !== "personal";
+
+/** A file the member opens in one of the workspace's drives, out of Trash. */
 export async function usableDocument(tx: Ex, member: CrmMember, nodeId: string) {
   const found = await memberStorage(tx as Db, member.id).node(nodeId);
   return Boolean(
-    found && found.node.kind === "file" && found.node.space === "shared" && !found.node.trashedAt,
+    found && found.node.kind === "file" && teamDrive(found.node) && !found.node.trashedAt,
   );
 }
 
@@ -366,7 +376,7 @@ export const updateContract: (
   await involveAndFile(tx, member, current, contract!, patch.memberIds);
   if (move.lock) {
     const locked = await memberStorage(tx as Db, member.id).lock(move.lock);
-    if (locked.status !== "ok" || locked.node.space !== "shared") {
+    if (locked.status !== "ok" || !teamDrive(locked.node)) {
       refuse(invalid("documentNodeId"));
     }
   }

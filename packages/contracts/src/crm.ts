@@ -136,7 +136,7 @@ export const crmContractSchema = z.object({
   dealId: id.nullable(),
   title: z.string(),
   status: crmContractStatusSchema,
-  /** A file in Shared; use `/api/storage` on it. Locked once the contract is signed. */
+  /** A file in the workspace's drives, wherever it lives; use `/api/storage` on it. Locked once signed. */
   documentNodeId: id.nullable(),
   signedAt: isoDate.nullable(),
   /** `YYYY-MM-DD`. */
@@ -359,7 +359,7 @@ export const crmCreateContractBodySchema = z
     title: name,
     companyId: id.optional(),
     dealId: id.optional(),
-    /** A file in Shared. */
+    /** A file in the workspace's drives (not My files), referenced where it lives. */
     documentNodeId: id.nullable().optional(),
     effectiveOn: day.nullable().optional(),
     expiresOn: day.nullable().optional(),
@@ -394,7 +394,7 @@ export const crmUpdateContractBodySchema = z.object({
  * contract out for signature from Omni answers `signature_open`; one with its copy, `contract_signed`.
  */
 export const crmSignedCopyBodySchema = z.object({
-  /** The executed copy, a PDF in Shared (upload it into the record's folder first). */
+  /** The executed copy: a PDF in the workspace's drives, uploaded or already there. */
   nodeId: id,
   /** When it was signed; now when left out. */
   signedAt: isoDate.optional(),

@@ -126,8 +126,9 @@ export const keys = {
   /** Every folder's contents. */
   storageLists: () => [...storage(), "list"] as const,
   storageTrash: () => [...storage(), "trash"] as const,
-  /** Drive's Search for one query. */
-  storageSearch: (q: string) => [...storage(), "search", q] as const,
+  /** Drive's Search for one query, and its filter when it has one. */
+  storageSearch: (q: string, filter?: { drive?: string; type?: string }) =>
+    [...storage(), "search", q, ...(filter ? [filter] : [])] as const,
   storageIcons: (space: string) => [...storage(), "icons", space] as const,
   storageUsage: () => [...storage(), "usage"] as const,
   /** Where a node is now: its folder and space. */

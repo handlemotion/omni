@@ -8,6 +8,7 @@ import {
   contractEvent,
   loadContract,
   lockRecords,
+  teamDrive,
   usableDocument,
   withProgress,
   type ContractResult,
@@ -18,7 +19,7 @@ import { NOT_FOUND, refuse, type CrmMember, type Ex } from "./core.ts";
 import { cleanName } from "./records.ts";
 
 export interface SignedCopyInput {
-  /** The executed copy: a PDF in Shared. */
+  /** The executed copy: a PDF in the workspace's drives, wherever it lives. */
   nodeId: string;
   /** When it was signed; now when left out, or the recorded date on a contract already signed. */
   signedAt?: Date;
@@ -96,7 +97,7 @@ export const recordSignedCopy: (
   const storage = memberStorage(tx as Db, member.id);
   for (const nodeId of new Set([documentNodeId, input.nodeId])) {
     const locked = await storage.lock(nodeId);
-    if (locked.status !== "ok" || locked.node.space !== "shared") refuse(invalid("nodeId"));
+    if (locked.status !== "ok" || !teamDrive(locked.node)) refuse(invalid("nodeId"));
   }
   const copy = { signedNodeId: input.nodeId, signers, elsewhere: true };
   if (signing) {

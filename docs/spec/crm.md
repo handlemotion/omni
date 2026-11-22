@@ -97,16 +97,20 @@ Each member sees the links whose file they can open in Drive (not in Trash, not 
 files); deleting the file for good, or the record, removes the link. The first link makes the
 record's folder, as the first upload does.
 
-**Store the contract.** A contract starts as a draft with its file. When the client signs on
-their own side (their supplier portal, another e-signature service, paper), a member may mark it
-sent, then uploads the executed PDF as its signed copy (`POST /contracts/:id/signed-copy`): it
-lands in the record's folder, and the member enters the day it was signed and who signed (names,
-addresses optional; the deal's people are suggested). The contract becomes `signed` with that
-copy as `signedNodeId` and the signers as `signedBy`, the draft stays as its document, and both
-files are locked: they cannot be renamed, moved or deleted by anyone but an owner or admin
-unlocking them first. A contract marked signed without its copy takes one later and keeps its
-date. A contract out for signature from Omni refuses one (void it first), and so does one that
-already has its signed copy. From there it is tracked like any signed contract, through expiry.
+**Store the contract.** A contract starts as a draft with its file: one uploaded into the
+record's folder, one already there, or any file the team keeps elsewhere in Drive, picked From
+Drive and referenced where it lives (`docs/spec/contracts.md`, "In the CRM"). A referenced file
+is not moved or copied, and is locked where it lives once signed; a file in someone's My files is
+refused. When the client signs on their own side (their supplier portal, another e-signature
+service, paper), a member may mark it sent, then gives the executed PDF as its signed copy
+(`POST /contracts/:id/signed-copy`), uploaded into the record's folder or picked From Drive, and
+enters the day it was signed and who signed (names, addresses optional; the deal's people are
+suggested). The contract becomes `signed` with that copy as `signedNodeId` and the signers as
+`signedBy`, the draft stays as its document, and both files are locked: they cannot be renamed,
+moved or deleted by anyone but an owner or admin unlocking them first. A contract marked signed
+without its copy takes one later and keeps its date. A contract out for signature from Omni
+refuses one (void it first), and so does one that already has its signed copy. From there it is
+tracked like any signed contract, through expiry.
 
 **Sign the contract in Omni.** A draft whose file is a PDF is sent for signature from the deal:
 the member names the signers (the deal's people are suggested), and the contract goes out
@@ -356,8 +360,9 @@ instructions keep telling agents to treat it as data.
   `contracts` with each one's signing progress (signers, viewed and signed times).
   `crm_write`'s `files` links Drive nodes the person can open, or unlinks them; nothing moves.
   `crm_write`'s `contract` adds a draft on a company or deal or changes its title, document
-  (a file in Shared) and dates. Sending for signature, voiding, and marking a contract sent or
-  signed reach people outside Omni or bind the company, so they stay with a person in the app.
+  (any file in the workspace's drives, not My files, referenced where it lives) and dates.
+  Sending for signature, voiding, and marking a contract sent or signed reach people outside Omni
+  or bind the company, so they stay with a person in the app.
 - Paging: an empty `query` or any filter makes `crm_search` list records by name, and
   `next_cursor` (opaque: where each kind stopped in each workspace) pages through the rest with
   the same filters. A bare `query` is a ranked match and does not page. Kinds a member may not
@@ -445,6 +450,8 @@ Each test below is named for the bug it catches.
 - Marking a contract signed locks its file in the same request; a failure leaves neither done.
 - Purging a draft's trashed file leaves the contract without a document and the purge succeeds.
 - A signed contract cannot be deleted.
+- A contract's document or signed copy picked From Drive stays where it lives, and is locked
+  there once signed; one in My files is refused.
 
 **C4. Agents**
 

@@ -1,6 +1,6 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { IconUpload } from "@/components/icons/central";
+import { IconFolder, IconUpload } from "@/components/icons/central";
 import { storageErrorToast } from "@/components/storage/storage-errors";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/field";
@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { useRecordFolder } from "@/hooks/use-crm.ts";
 import { useStorageList } from "@/hooks/use-storage.ts";
 import { storageChanged } from "@/lib/storage.ts";
+import { storageNodeQuery } from "@/lib/storage-comments.ts";
 import { uploadFile } from "@/lib/storage-upload.ts";
+import { ContractDriveDialog } from "./contract-drive-dialog.tsx";
 
 /** The record a contract is on. */
 export type Owner = { companyId: string } | { dealId: string };
@@ -58,13 +60,25 @@ function useContractUpload(owner: Owner) {
   return { pending, run };
 }
 
+type Choice = { id: string; name: string };
+
+function useChoices(folderFiles: Choice[], value: string | null, picked: Choice | null) {
+  const outside = !!value && value !== picked?.id && !folderFiles.some((f) => f.id === value);
+  const node = useQuery({ ...storageNodeQuery(value ?? ""), enabled: outside });
+  const extra = value === picked?.id ? picked : outside ? node.data?.node : null;
+  return extra && !folderFiles.some((f) => f.id === extra.id)
+    ? [...folderFiles, { id: extra.id, name: extra.name }]
+    : folderFiles;
+}
+
 /**
- * A file from the record's folder, or a PDF uploaded into it (making the folder first). With no
- * file in the folder yet, only the upload button shows.
+ * A file from the record's folder, one the team keeps elsewhere in Drive (referenced where it
+ * lives), or a PDF uploaded into the folder (making the folder first). With no file to choose yet,
+ * only the buttons show.
  */
 export function FilePicker(props: {
   label?: string;
-  /** Only PDFs from the folder, as for a signed copy. */
+  /** Only PDFs, as for a signed copy. */
   pdfOnly?: boolean;
   owner: Owner;
   folderId: string | null;
@@ -73,36 +87,51 @@ export function FilePicker(props: {
   onChange: (id: string | null, name: string | null) => void;
 }) {
   const [folderId, setFolderId] = useState(props.folderId);
-  const files = useFolderFiles(folderId, !!props.pdfOnly);
+  const [picked, setPicked] = useState<Choice | null>(null);
+  const [browsing, setBrowsing] = useState(false);
+  const files = useChoices(useFolderFiles(folderId, !!props.pdfOnly), props.value, picked);
   const upload = useContractUpload(props.owner);
-  const button = (
-    <FileTrigger
-      acceptedFileTypes={["application/pdf"]}
-      onSelect={(list) => {
-        const file = list?.[0];
-        if (!file) return;
-        void upload.run(file, folderId).then((done) => {
-          if (!done) return;
-          setFolderId(done.folderId);
-          props.onChange(done.nodeId, file.name);
-        });
-      }}
-    >
-      <Button
-        intent="outline"
-        isPending={upload.pending}
-        className={files.length ? "" : "self-start"}
-      >
-        <IconUpload data-slot="icon" />
-        Upload PDF
+  const buttons = (
+    <div className="flex gap-2 self-start">
+      <Button intent="outline" onPress={() => setBrowsing(true)}>
+        <IconFolder data-slot="icon" />
+        From Drive
       </Button>
-    </FileTrigger>
+      <FileTrigger
+        acceptedFileTypes={["application/pdf"]}
+        onSelect={(list) => {
+          const file = list?.[0];
+          if (!file) return;
+          void upload.run(file, folderId).then((done) => {
+            if (!done) return;
+            setFolderId(done.folderId);
+            props.onChange(done.nodeId, file.name);
+          });
+        }}
+      >
+        <Button intent="outline" isPending={upload.pending}>
+          <IconUpload data-slot="icon" />
+          Upload PDF
+        </Button>
+      </FileTrigger>
+      {browsing && (
+        <ContractDriveDialog
+          title={props.label ?? "Choose file"}
+          pdfOnly={props.pdfOnly}
+          onClose={() => setBrowsing(false)}
+          onPick={(node) => {
+            setPicked({ id: node.id, name: node.name });
+            props.onChange(node.id, node.name);
+          }}
+        />
+      )}
+    </div>
   );
-  if (!files.length) return button;
+  if (!files.length) return buttons;
   return (
-    <div className="flex items-end gap-2">
+    <div className="flex flex-col gap-2">
       <Select
-        className="min-w-0 flex-1"
+        className="min-w-0"
         value={props.value}
         onChange={(id) => props.onChange(id, files.find((file) => file.id === id)?.name ?? null)}
         placeholder="None"
@@ -117,7 +146,7 @@ export function FilePicker(props: {
           )}
         </SelectContent>
       </Select>
-      {button}
+      {buttons}
     </div>
   );
 }

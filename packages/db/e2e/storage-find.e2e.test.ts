@@ -83,3 +83,32 @@ test("Cluster glyphs are the member's own top-level folders only", async () => {
   expect((await mine.setIcon(design.id, null)).status).toBe("ok");
   expect(await mine.folderIcons("personal")).toEqual({});
 });
+
+test("A team-only, typed search finds a Shared PDF behind a full page of My files and other types", async () => {
+  const org = await createOrg(db, "find-team");
+  const ana = await createMember(db, org.id, "ana");
+  const mine = forMember(db, ana.id).storage;
+  for (let i = 0; i < STORAGE_FIND_LIMIT; i += 1) {
+    await addFile(
+      mine,
+      { space: "personal" },
+      `a-msa-${String(i).padStart(2, "0")}.pdf`,
+      10,
+      "application/pdf",
+    );
+  }
+  await addFile(mine, { space: "shared" }, "b-msa.docx", 10, "application/msword");
+  const legal = await addFolder(mine, { space: "shared" }, "MSA archive");
+  await addFile(mine, { space: "shared" }, "z-msa.pdf", 10, "application/pdf");
+
+  expect(names(await mine.search("msa"))).not.toContain("z-msa.pdf");
+  expect(names(await mine.search("msa", { teamOnly: true, type: "application/pdf" }))).toEqual([
+    legal.name,
+    "z-msa.pdf",
+  ]);
+  expect(names(await mine.search("msa", { teamOnly: true }))).toEqual([
+    legal.name,
+    "b-msa.docx",
+    "z-msa.pdf",
+  ]);
+});

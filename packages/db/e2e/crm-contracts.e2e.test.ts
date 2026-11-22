@@ -51,6 +51,55 @@ test("two first folder calls to one deal at once make one folder, and a trashed 
   expect(await names(storage, companyFolder)).toEqual(["Website"]);
 });
 
+test("a deal's contract references a team file where it lives, signed copy too, and never one in My files", async () => {
+  const { crm, storage } = await company("crm-contract-in-place");
+  const deal = ok(await crm.createDeal({ name: "Rebrand" })).deal;
+  const folder = ok(await crm.dealFolder(deal.id)).nodeId;
+  const legal = await addFolder(storage, { space: "shared" }, "Legal");
+  const msa = await addFile(storage, { parentId: legal.id }, "MSA", 10, "application/pdf");
+  const mine = await addFile(storage, { space: "personal" }, "Mine.pdf", 10, "application/pdf");
+
+  expect(
+    await crm.createContract({ title: "MSA", dealId: deal.id, documentNodeId: mine.id }),
+  ).toEqual({ status: "invalid_contract", param: "documentNodeId" });
+  const contract = ok(
+    await crm.createContract({ title: "MSA", dealId: deal.id, documentNodeId: msa.id }),
+  ).contract;
+  expect(contract.documentNodeId).toBe(msa.id);
+  expect((await storage.node(msa.id))?.node.parentId).toBe(legal.id);
+  expect(await names(storage, folder)).toEqual([]);
+
+  expect(
+    await crm.recordSignedCopy(contract.id, {
+      nodeId: mine.id,
+      signers: [{ name: "Bea", email: null }],
+    }),
+  ).toEqual({ status: "invalid_contract", param: "nodeId" });
+  const executed = await addFile(
+    storage,
+    { parentId: legal.id },
+    "MSA signed.pdf",
+    10,
+    "application/pdf",
+  );
+  const signed = ok(
+    await crm.recordSignedCopy(contract.id, {
+      nodeId: executed.id,
+      signers: [{ name: "Bea", email: "bea@client.test" }],
+    }),
+  ).contract;
+  expect(signed).toMatchObject({
+    status: "signed",
+    documentNodeId: msa.id,
+    signedNodeId: executed.id,
+  });
+  for (const id of [msa.id, executed.id]) {
+    const { node } = (await storage.node(id))!;
+    expect([node.parentId, node.lockedAt !== null]).toEqual([legal.id, true]);
+  }
+  expect(await names(storage, folder)).toEqual([]);
+});
+
 test("marking a contract signed locks its file in the same transaction; a refused lock leaves it unsigned", async () => {
   const { crm, storage } = await company("crm-sign");
   const deal = ok(await crm.createDeal({ name: "Rebrand" })).deal;

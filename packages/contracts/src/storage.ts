@@ -156,8 +156,15 @@ export const storageTrashResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
-/** `GET /search?q=`: what a name holds, ignoring case. */
-export const storageSearchQuerySchema = z.object({ q: z.string().trim().min(1).max(255) });
+/**
+ * `GET /search?q=`: what a name holds, ignoring case. `drive=team` leaves out My files; `type`
+ * keeps only files of that type, and folders, to browse into. Both apply before the limit.
+ */
+export const storageSearchQuerySchema = z.object({
+  q: z.string().trim().min(1).max(255),
+  drive: z.literal("team").optional(),
+  type: z.string().trim().min(1).max(255).optional(),
+});
 /**
  * Drive's `GET /search`, folders first, then by name: live nodes across the member's My files
  * and, in a company, Shared. Not paged.

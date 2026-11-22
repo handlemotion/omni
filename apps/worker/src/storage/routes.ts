@@ -125,7 +125,8 @@ export const storage = new Hono<AppEnv>()
   .on(["GET", "POST"], "/zip", (c) => zip(c, memberStorage(c).archive))
 
   .get("/search", zValidator("query", storageSearchQuerySchema), async (c) => {
-    const nodes = await memberStorage(c).search(c.req.valid("query").q);
+    const { q, drive, type } = c.req.valid("query");
+    const nodes = await memberStorage(c).search(q, { teamOnly: drive === "team", type });
     return c.json({ nodes: nodes.map(wireNode) } satisfies StorageFindResponse);
   })
 

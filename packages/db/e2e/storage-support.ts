@@ -10,8 +10,14 @@ type Uploader = Pick<
   "openUpload" | "recordUploadPart" | "completeUpload" | "createFolder"
 >;
 
-export async function addFile(storage: Uploader, place: StoragePlace, name: string, size = 10) {
-  const opened = await storage.openUpload(place, { name, size, limitBytes: null });
+export async function addFile(
+  storage: Uploader,
+  place: StoragePlace,
+  name: string,
+  size = 10,
+  mimeType: string | null = null,
+) {
+  const opened = await storage.openUpload(place, { name, size, mimeType, limitBytes: null });
   if (opened.status !== "ok") throw new Error(`open: ${opened.status}`);
   await storage.recordUploadPart(opened.upload.id, { partNumber: 1, etag: "etag-1", size });
   const done = await storage.completeUpload(opened.upload.id, { limitBytes: null });
