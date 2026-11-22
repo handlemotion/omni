@@ -120,6 +120,10 @@ CRM's minute job records the contract `signed` with that copy (`signedNodeId`). 
 back to `draft`. A signed contract with an end date shows when it ends within 30 days, and the
 daily job ends it after that date.
 
+Next, in `docs/spec/contracts.md`: the document becomes an Omni contract in Drive, with named
+drafts, attribution and sending from the file, and a contract record references it, or any file
+in the workspace's drives, where it lives.
+
 **Plan a project.** A deal's plan is its milestones and deliverables, the way Linear plans a
 project: milestones in an order the team drags, each with a target day, and the deliverables
 under them. A deliverable's file is a Drive file the member can open, usually in the deal's
