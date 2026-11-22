@@ -2,34 +2,28 @@ import { cn } from "cn";
 import { CanvasButton } from "@/components/ui/canvas-button";
 import { calendarTone, type CalendarEvent } from "@/lib/calendar.ts";
 import type { Todo } from "@/lib/calendar-tasks.ts";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
-  addDays,
-  allDayOn,
-  dayKey,
-  eventKey,
-  parseDayKey,
-  startOfWeek,
-} from "@/lib/calendar-grid.ts";
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { addDays, dayKey, eventKey, parseDayKey, startOfWeek } from "@/lib/calendar-grid.ts";
 import { dayOf } from "@/lib/crm-tasks.ts";
 import { useDropZone } from "./drop-zone.ts";
+import { weekLanes, type LanePiece } from "./month-lanes.ts";
 import { firstOf, monthOf } from "./month-span.ts";
 import { TodoChip } from "./todo-block.tsx";
 import { Chip, type WeekGridProps } from "./week-grid.tsx";
 import { selectedKey, useHandlers, type Handlers } from "./week-layout.ts";
 
-const SHOWN = 3;
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 const monthDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const WEEK_MS = 7 * 86_400_000;
-
-const timedOn = (day: Date, events: readonly CalendarEvent[]) => {
-  const start = day.getTime();
-  const end = addDays(day, 1).getTime();
-  return events
-    .filter((e) => !e.allDay && Date.parse(e.start) < end && Date.parse(e.end) > start)
-    .toSorted((a, b) => Date.parse(a.start) - Date.parse(b.start));
-};
 
 type MonthGridProps = WeekGridProps & {
   /** The shown day: its month leads the title and is scrolled to when it changes from outside. */
@@ -182,7 +176,7 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
   return scroller;
 }
 
-interface DayItems {
+interface WeekItems {
   events: CalendarEvent[];
   todos: Todo[];
 }
@@ -190,27 +184,60 @@ interface DayItems {
 const same = <T,>(a: readonly T[], b: readonly T[]) =>
   a.length === b.length && a.every((item, at) => item === b[at]);
 
-function useDayItems(props: MonthGridProps) {
-  const { days, events, todos } = props;
-  const before = useRef(new Map<string, DayItems>());
+const NO_TODOS: readonly Todo[] = [];
+
+function useWeekItems(props: MonthGridProps, weeks: readonly (readonly Date[])[]) {
+  const { events } = props;
+  const todos = props.todos ?? NO_TODOS;
+  const before = useRef(new Map<string, WeekItems>());
   return useMemo(() => {
-    const byDay = new Map<string, DayItems>();
-    for (const day of days) {
-      const key = dayKey(day);
-      const onDay = [...allDayOn(day, events), ...timedOn(day, events)];
-      const dated = (todos ?? []).filter((task) => task.dueAt && dayOf(task.dueAt) === key);
-      if (onDay.length === 0 && dated.length === 0) continue;
+    const byWeek = new Map<string, WeekItems>();
+    for (const week of weeks) {
+      const first = week[0];
+      if (!first) continue;
+      const from = first.getTime();
+      const to = addDays(first, 7).getTime();
+      const fromKey = dayKey(first);
+      const toKey = dayKey(addDays(first, 7));
+      const inWeek = events.filter((e) =>
+        e.allDay
+          ? !!e.startDay && !!e.endDay && e.startDay < toKey && e.endDay > fromKey
+          : Date.parse(e.start) < to && Date.parse(e.end) > from,
+      );
+      const dated = todos.filter(
+        (t) => t.dueAt && dayOf(t.dueAt) >= fromKey && dayOf(t.dueAt) < toKey,
+      );
+      if (inWeek.length === 0 && dated.length === 0) continue;
+      const key = dayKey(first);
       const was = before.current.get(key);
-      byDay.set(
+      byWeek.set(
         key,
-        was && same(was.events, onDay) && same(was.todos, dated)
+        was && same(was.events, inWeek) && same(was.todos, dated)
           ? was
-          : { events: onDay, todos: dated },
+          : { events: inWeek, todos: dated },
       );
     }
-    before.current = byDay;
-    return byDay;
-  }, [days, events, todos]);
+    before.current = byWeek;
+    return byWeek;
+  }, [weeks, events, todos]);
+}
+
+const LANE_PX = 22;
+const LANES_TOP_PX = 28;
+
+function useFit(scroller: RefObject<HTMLDivElement | null>) {
+  const [fit, setFit] = useState(3);
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    const measure = () =>
+      setFit(Math.max(1, Math.floor((rowHeight(element) - LANES_TOP_PX) / LANE_PX)));
+    measure();
+    const resized = new ResizeObserver(measure);
+    resized.observe(element);
+    return () => resized.disconnect();
+  }, [scroller]);
+  return fit;
 }
 
 /**
@@ -230,7 +257,8 @@ export function MonthGrid(props: MonthGridProps) {
     latest.current = props.onDay;
   });
   const onDay = useCallback((day: Date) => latest.current(day), []);
-  const byDay = useDayItems(props);
+  const byWeek = useWeekItems(props, weeks);
+  const fit = useFit(scroller);
   const month = props.shown.getMonth();
   const today = dayKey(props.now);
   const picked = selectedKey(props.selection);
@@ -247,33 +275,34 @@ export function MonthGrid(props: MonthGridProps) {
         ref={scroller}
         className="relative min-h-0 flex-1 overflow-y-auto [container-type:size] [overflow-anchor:none]"
       >
-        {weeks.map((week) => (
-          <MonthWeek
-            key={week[0]?.getTime()}
-            week={week}
-            byDay={byDay}
-            inMonth={week.map((day) => (day.getMonth() === month ? "1" : "0")).join("")}
-            today={week.some((day) => dayKey(day) === today) ? today : null}
-            picked={
-              week.some((day) => byDay.get(dayKey(day))?.events.some((e) => eventKey(e) === picked))
-                ? picked
-                : null
-            }
-            calendars={props.calendars}
-            handlers={handlers}
-            onDay={onDay}
-          />
-        ))}
+        {weeks.map((week) => {
+          const items = byWeek.get(dayKey(week[0] ?? props.now)) ?? NONE;
+          return (
+            <MonthWeek
+              key={week[0]?.getTime()}
+              week={week}
+              items={items}
+              fit={fit}
+              inMonth={week.map((day) => (day.getMonth() === month ? "1" : "0")).join("")}
+              today={week.some((day) => dayKey(day) === today) ? today : null}
+              picked={items.events.some((e) => eventKey(e) === picked) ? picked : null}
+              calendars={props.calendars}
+              handlers={handlers}
+              onDay={onDay}
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
-const NONE: DayItems = { events: [], todos: [] };
+const NONE: WeekItems = { events: [], todos: [] };
 
 const MonthWeek = memo(function MonthWeek(props: {
   week: readonly Date[];
-  byDay: ReadonlyMap<string, DayItems>;
+  items: WeekItems;
+  fit: number;
   inMonth: string;
   today: string | null;
   picked: string | null;
@@ -281,35 +310,77 @@ const MonthWeek = memo(function MonthWeek(props: {
   handlers: Handlers;
   onDay: (day: Date) => void;
 }) {
-  const first = props.week[0];
+  const { week, items, fit } = props;
+  const lanes = useMemo(() => weekLanes(week, items.events, items.todos, fit), [week, items, fit]);
+  const first = week[0];
   return (
     <div
       data-week={first && dayKey(first)}
-      className="grid h-[calc(100cqh/6)] grid-cols-7 [content-visibility:auto]"
+      className="relative grid h-[calc(100cqh/6)] grid-cols-7 [content-visibility:auto]"
     >
-      {props.week.map((day, at) => {
-        const items = props.byDay.get(dayKey(day)) ?? NONE;
-        return (
-          <MonthDay
-            key={day.getTime()}
-            day={day}
-            items={items}
-            inMonth={props.inMonth[at] === "1"}
-            today={dayKey(day) === props.today}
-            picked={items.events.some((e) => eventKey(e) === props.picked) ? props.picked : null}
-            calendars={props.calendars}
-            handlers={props.handlers}
-            onDay={props.onDay}
-          />
-        );
-      })}
+      {week.map((day, at) => (
+        <MonthDay
+          key={day.getTime()}
+          day={day}
+          at={at}
+          pieces={lanes.pieces.filter((piece) => piece.from === at)}
+          more={lanes.more[at] ?? { count: 0, lane: 0 }}
+          inMonth={props.inMonth[at] === "1"}
+          today={dayKey(day) === props.today}
+          picked={props.picked}
+          calendars={props.calendars}
+          handlers={props.handlers}
+          onDay={props.onDay}
+        />
+      ))}
     </div>
   );
 });
 
+const placeAt = (lane: number, from: number, to: number) => ({
+  top: LANES_TOP_PX + lane * LANE_PX,
+  left: `calc(${from} * 100% / 7 + 4px)`,
+  width: `calc(${to - from} * 100% / 7 - 7px)`,
+});
+
+function MonthPiece(props: {
+  piece: LanePiece;
+  picked: string | null;
+  calendars: MonthGridProps["calendars"];
+  handlers: Handlers;
+}) {
+  const { piece, handlers } = props;
+  const { item } = piece;
+  const style = placeAt(piece.lane, piece.from, piece.to);
+  if (item.kind === "todo") {
+    return (
+      <div className="absolute" style={style}>
+        <TodoChip task={item.task} onTodo={handlers.onTodo} onOpenTodo={handlers.onOpenTodo} />
+      </div>
+    );
+  }
+  return (
+    <Chip
+      event={item.event}
+      timed
+      tone={calendarTone(props.calendars, item.event.calendarId)}
+      selected={props.picked === item.key}
+      handlers={handlers}
+      className={cn(
+        "absolute h-5 py-0 text-sm",
+        piece.before && "rounded-s-none",
+        piece.after && "rounded-e-none",
+      )}
+      style={style}
+    />
+  );
+}
+
 const MonthDay = memo(function MonthDay(props: {
   day: Date;
-  items: DayItems;
+  at: number;
+  pieces: LanePiece[];
+  more: { count: number; lane: number };
   inMonth: boolean;
   today: boolean;
   picked: string | null;
@@ -317,9 +388,7 @@ const MonthDay = memo(function MonthDay(props: {
   handlers: Handlers;
   onDay: (day: Date) => void;
 }) {
-  const { day, items, handlers } = props;
-  const { events, todos } = items;
-  const more = Math.max(0, events.length + todos.length - SHOWN);
+  const { day, handlers, more } = props;
   const weekend = day.getDay() === 0 || day.getDay() === 6;
   const zone = useDropZone(day, false, handlers.onDrop);
   return (
@@ -327,7 +396,7 @@ const MonthDay = memo(function MonthDay(props: {
       data-month-day={dayKey(day)}
       {...zone.handlers}
       className={cn(
-        "flex min-h-0 min-w-0 flex-col gap-0.5 overflow-hidden border-b border-l border-calendar-line p-1 first:border-l-0",
+        "flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-l border-calendar-line p-1 first:border-l-0",
         weekend && "bg-calendar-weekend",
         zone.over && "bg-primary-subtle",
       )}
@@ -336,37 +405,29 @@ const MonthDay = memo(function MonthDay(props: {
         aria-label={`Open ${day.toDateString()}`}
         onClick={() => props.onDay(day)}
         className={cn(
-          "mb-1 grid h-5 min-w-5 place-items-center self-start rounded-md px-1 text-xs tabular-nums",
+          "grid h-5 min-w-5 place-items-center self-start rounded-md px-1 text-xs tabular-nums",
           props.inMonth ? "text-foreground" : "text-subtle-foreground",
           props.today && "bg-module-calendar font-medium text-primary-foreground",
         )}
       >
         {day.getDate() === 1 ? monthDay.format(day) : day.getDate()}
       </CanvasButton>
-      {events.slice(0, SHOWN).map((event) => (
-        <Chip
-          key={eventKey(event)}
-          event={event}
-          timed
-          tone={calendarTone(props.calendars, event.calendarId)}
-          selected={props.picked === eventKey(event)}
+      {props.pieces.map((piece) => (
+        <MonthPiece
+          key={`${piece.item.key}:${piece.from}`}
+          piece={piece}
+          picked={props.picked}
+          calendars={props.calendars}
           handlers={handlers}
         />
       ))}
-      {todos.slice(0, Math.max(0, SHOWN - events.length)).map((task) => (
-        <TodoChip
-          key={task.id}
-          task={task}
-          onTodo={handlers.onTodo}
-          onOpenTodo={handlers.onOpenTodo}
-        />
-      ))}
-      {more > 0 && (
+      {more.count > 0 && (
         <CanvasButton
           onClick={() => props.onDay(day)}
-          className="self-start rounded-md px-1.5 text-xs text-muted-foreground hover:bg-hover"
+          className="absolute flex h-5 items-center rounded-md px-1.5 text-sm text-muted-foreground hover:bg-hover"
+          style={placeAt(more.lane, props.at, props.at + 1)}
         >
-          {more} more
+          {more.count} more
         </CanvasButton>
       )}
     </div>

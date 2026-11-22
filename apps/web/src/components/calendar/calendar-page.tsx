@@ -12,6 +12,7 @@ import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { warmCalendarWindow, type CalendarEvent } from "@/lib/calendar.ts";
 import type { Todo } from "@/lib/calendar-tasks.ts";
 import {
+  DEFAULT_VIEW,
   dayKey,
   eventKey,
   nextHalfHour,
@@ -79,7 +80,7 @@ export function CalendarPage(props: {
   calendar?: string;
   task?: string;
 }) {
-  const view = props.view ?? "week";
+  const view = props.view ?? DEFAULT_VIEW;
   const anchor = parseDayKey(props.date);
   const at = anchor.getTime();
   const span = useMonthSpan(anchor);

@@ -1,5 +1,13 @@
 import { cn } from "cn";
-import { memo, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import {
+  memo,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type CSSProperties,
+  type MouseEvent,
+} from "react";
 import { IconPlus } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { CanvasButton } from "@/components/ui/canvas-button";
@@ -420,8 +428,10 @@ const EventBlock = memo(function EventBlock(
   );
 });
 
+type ChipPlace = Partial<Pick<ComponentProps<"button">, "className" | "style">>;
+
 export const Chip = memo(function Chip(
-  props: PieceProps & { event: CalendarEvent; day?: Date; timed?: boolean },
+  props: PieceProps & ChipPlace & { event: CalendarEvent; day?: Date; timed?: boolean },
 ) {
   const { event, selected, handlers } = props;
   return (
@@ -430,10 +440,11 @@ export const Chip = memo(function Chip(
       aria-pressed={selected}
       className={cn(
         "relative truncate rounded-md ps-3 pe-1.5 py-0.5 text-start text-xs font-medium",
+        props.className,
         selected && "ring-2 ring-(--tone)",
         answerLook(event),
       )}
-      style={toneStyle(props.tone, event)}
+      style={{ ...toneStyle(props.tone, event), ...props.style }}
       draggable={ownEvent(event)}
       onDragStart={(e) => startDrag(e, { kind: "event", event, day: props.day })}
       onDragEnd={endDrag}

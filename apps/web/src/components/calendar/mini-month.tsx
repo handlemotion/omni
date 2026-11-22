@@ -15,7 +15,13 @@ import { IconChevronDown, IconChevronUp } from "@/components/icons/central";
 import { AriaButton } from "@/components/ui/aria-button";
 import { useWheelStep } from "@/hooks/use-wheel-step.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
-import { dayKey, parseDayKey, startOfWeek, type CalendarView } from "@/lib/calendar-grid.ts";
+import {
+  DEFAULT_VIEW,
+  dayKey,
+  parseDayKey,
+  startOfWeek,
+  type CalendarView,
+} from "@/lib/calendar-grid.ts";
 
 const toDate = (value: CalendarDate) => new Date(value.year, value.month - 1, value.day);
 const ofDate = (date: Date) =>
@@ -30,20 +36,18 @@ function inShown(date: CalendarDate, from: Date, view: CalendarView) {
   return { first: day === start, last: day === last };
 }
 
-/** The month around the shown day; a day picks it, and the shown week or day stays tinted. */
+/**
+ * A month of its own: it opens on the shown day's month and then steps only by its own arrows and
+ * wheel, never following the big view. A day picks it, and the shown week or day stays tinted.
+ */
 export function MiniMonth() {
   const search = useSearch({ strict: false }) as { date?: string; view?: CalendarView };
-  const view = search.view ?? "week";
+  const view = search.view ?? DEFAULT_VIEW;
   const anchor = parseDayKey(search.date);
   const from = view === "day" ? anchor : startOfWeek(anchor);
   const navigate = useNavigate();
   const workspace = useWorkspaceSlug();
   const [focused, setFocused] = useState(() => ofDate(anchor));
-  const [shownFor, setShownFor] = useState(dayKey(anchor));
-  if (shownFor !== dayKey(anchor)) {
-    setShownFor(dayKey(anchor));
-    setFocused(ofDate(anchor));
-  }
   const now = today(getLocalTimeZone());
   const box = useRef<HTMLDivElement>(null);
   useWheelStep(box, "y", (delta) => setFocused((at) => at.add({ months: delta })));

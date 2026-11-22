@@ -2,6 +2,9 @@ import type { CalendarEvent } from "./calendar.ts";
 
 export type CalendarView = "week" | "day" | "month";
 
+/** The view `/calendar` opens on when the URL names none. */
+export const DEFAULT_VIEW: CalendarView = "month";
+
 export const HOUR_PX = 48;
 export const SLOT_MINUTES = 15;
 

@@ -173,10 +173,10 @@ sent to both is stored once per mailbox. They share one notes doc, found by `(or
 
 ## How people use it
 
-**Open the calendar.** `/calendar` opens the week, from Monday, in the browser's time zone, at the
-current hour. Every calendar the person can see in the active workspace is overlaid. The sidebar has
+**Open the calendar.** `/calendar` opens the month, weeks from Monday, in the browser's time zone. Every calendar the person can see in the active workspace is overlaid. The sidebar has
 no module title: the month leads it (the shown week or day tinted, nothing in month view; a day
-picks it), the person's to-dos
+picks it). It steps on its own, by its arrows and the wheel, and never follows the big view as it
+moves, nor moves it. The person's to-dos
 follow, and at its foot a switcher shows all calendars or one inbox's alone (`?calendar=`), like
 the workspace switcher. All-day events sit in a strip above the hours.
 
@@ -188,6 +188,9 @@ The month view is one long page of weeks that scrolls freely, months running int
 1st of each labelled with its month); the title follows the month that fills most of the view, and
 the arrows and Today scroll it smoothly to a month's first week. `?date=` catches up once the
 scrolling stops, so passing months costs no navigation. Weekends are tinted lighter than a hover.
+An event over several days is one bar across them, carried on into the next week's row; a timed
+event shorter than a day shows on its first day only. A day shows as many events as its row has
+room for, and only a day that overflows gives its last line to "N more".
 The sidebar's month always takes six weeks' height, so nothing below it moves between months.
 
 **To-dos.** The sidebar's to-dos are the person's tasks (see "Tasks"): the ones they own and the
