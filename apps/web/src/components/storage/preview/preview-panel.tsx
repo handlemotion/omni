@@ -8,7 +8,7 @@ import {
 } from "@/components/icons/central";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
-import { Button } from "@/components/ui/button";
+import { Button, PageBarActions } from "@/components/ui/button";
 import {
   DescriptionDetails,
   DescriptionList,
@@ -171,31 +171,33 @@ function PanelHeader(props: {
     >
       {props.fullScreen && props.shell && <PageNav />}
       <Title node={node} rename={props.rename} trail={page ? props.trail : undefined} />
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1.5">
         {props.shell && <FileEditors nodeId={node.id} />}
-        {page && exports && (
-          <DocBarActions
+        <PageBarActions>
+          {page && exports && (
+            <DocBarActions
+              node={node}
+              items={props.menu}
+              session={session}
+              text={exports}
+              canExport={props.canExport}
+            />
+          )}
+          <EditActions session={session} canEdit={props.canEdit} doc={props.doc} />
+          <HeaderMenu
+            dirty={session.dirty}
             node={node}
-            items={props.menu}
-            session={session}
-            text={exports}
-            canExport={props.canExport}
+            items={props.items}
+            exports={exports}
+            details={props.details}
+            onDetails={props.onDetails}
           />
-        )}
-        <EditActions session={session} canEdit={props.canEdit} doc={props.doc} />
-        <HeaderMenu
-          dirty={session.dirty}
-          node={node}
-          items={props.items}
-          exports={exports}
-          details={props.details}
-          onDetails={props.onDetails}
-        />
-        <WindowActions
-          fullScreen={props.fullScreen}
-          onFullScreen={props.onFullScreen}
-          onClose={page && props.trail ? undefined : props.onClose}
-        />
+          <WindowActions
+            fullScreen={props.fullScreen}
+            onFullScreen={props.onFullScreen}
+            onClose={page && props.trail ? undefined : props.onClose}
+          />
+        </PageBarActions>
       </div>
     </div>
   );

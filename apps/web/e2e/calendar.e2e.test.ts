@@ -529,6 +529,28 @@ test("unticking and re-ticking a calendar fast keeps it shown, whichever save la
   expect(prefs?.hidden).toBe(false);
 });
 
+test("a page bar's buttons are bordered, and its title's crumbs stay bare", async () => {
+  const { org, threadId, page, origin } = await invited();
+  const edge = (name: string | RegExp) =>
+    page
+      .getByRole("button", { name, exact: typeof name === "string" })
+      .first()
+      .evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { width: style.borderTopWidth, color: style.borderTopColor };
+      });
+  await page.goto(new URL(`/inbox/${threadId}`, origin).toString());
+  await page.getByRole("button", { name: "Done", exact: true }).waitFor();
+  for (const name of ["Done", "Later", "Full screen"]) {
+    const border = await edge(name);
+    expect(border.width).toBe("1px");
+    expect(border.color).not.toBe("rgba(0, 0, 0, 0)");
+  }
+  await openWeek(page, origin, org.slug);
+  expect((await edge(/November 2026/)).width).toBe("0px");
+  expect((await edge("Today")).width).toBe("1px");
+});
+
 test("a new event goes on the first calendar still shown", async () => {
   const { org, member, address, page, origin } = await invited();
   const shared = await createMailbox(db, org.id, `team-${Date.now()}@studio.example`, "shared");

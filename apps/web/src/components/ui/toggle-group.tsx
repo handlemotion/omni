@@ -8,6 +8,7 @@ import {
 import { cn } from "cn";
 import { tv } from "tailwind-variants";
 import { cx } from "@/lib/primitive";
+import { useInPageBar } from "./button";
 
 export type ToggleSize = "xs" | "sm" | "md" | "lg" | "sq-xs" | "sq-sm" | "sq-md" | "sq-lg";
 
@@ -45,6 +46,8 @@ export function ToggleGroup({
   className,
   ...props
 }: ToggleGroupProps) {
+  const inBar = useInPageBar();
+  const quiet = bare && !inBar;
   return (
     <ToggleGroupContext.Provider value={{ size, selectionMode, orientation }}>
       <ToggleButtonGroup
@@ -59,7 +62,7 @@ export function ToggleGroup({
             "[--toggle-hover-bg:transparent] [--toggle-hover-foreground:var(--color-foreground)]",
             "[--btn-icon:var(--color-muted-foreground)] [--btn-icon-active:var(--color-foreground)]",
             "inline-flex overflow-hidden p-(--toggle-gutter)",
-            bare
+            quiet
               ? "[--toggle-selected-bg:transparent] *:data-[slot=toggle-group-item]:selected:inset-ring *:data-[slot=toggle-group-item]:selected:inset-ring-border"
               : "bg-accent",
             orientation === "horizontal" ? "flex-row" : "flex-col",

@@ -122,7 +122,7 @@ function ToastButton(props: {
         "outline-none focus-visible:inset-ring focus-visible:inset-ring-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
         props.emphasis === "primary"
-          ? "bg-primary-foreground text-primary-button hover:bg-primary-foreground/90"
+          ? "bg-primary-foreground text-brand hover:bg-primary-foreground/90"
           : "text-primary-foreground/80 hover:bg-primary-foreground/15 hover:text-primary-foreground",
       )}
       onClick={() => {
@@ -155,8 +155,8 @@ export function ToastCard({ tone, message, description, children }: ToastCardPro
       data-slot="toast"
       data-tone={tone}
       className={cn(
-        "relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-primary-button text-primary-foreground transition-colors duration-200",
-        "[[data-expanded=false][data-front=false]_&]:bg-[color-mix(in_oklab,var(--color-primary-button)_65%,var(--color-background))]",
+        "relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-brand text-primary-foreground transition-colors duration-200",
+        "[[data-expanded=false][data-front=false]_&]:bg-[color-mix(in_oklab,var(--color-brand)_65%,var(--color-background))]",
       )}
     >
       <div

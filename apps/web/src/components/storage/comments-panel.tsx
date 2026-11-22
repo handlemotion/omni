@@ -109,7 +109,7 @@ export function CommentsPanel(props: {
           <MiddleTruncate text={node.name} />
         </span>
         <TooltipTrigger delay={400}>
-          <Button intent="ghost" size="sq-sm" aria-label="Close" onPress={props.onClose}>
+          <Button intent="outline" size="sq-sm" aria-label="Close" onPress={props.onClose}>
             <IconX />
           </Button>
           <Tooltip>Close</Tooltip>

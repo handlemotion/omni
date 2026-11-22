@@ -17,7 +17,7 @@ import {
 } from "@/components/icons/central";
 import { rowTime } from "@/components/inbox/conversation-meta";
 import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { Button, PageBarActions } from "@/components/ui/button";
 import { contextMenuProps } from "@/components/ui/context-menu";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
@@ -130,28 +130,30 @@ export function NotificationsPanel() {
       >
         <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium">Notifications</h2>
-          <div className="flex items-center gap-1">
-            <HeaderAction
-              label="Mark all read"
-              isDisabled={unread === 0}
-              onPress={() => markRead.mutate({})}
-            >
-              <IconMailOpen />
-            </HeaderAction>
-            <HeaderAction
-              label="Notification settings"
-              onPress={() => {
-                closeNotificationsPanel();
-                openSettings("notifications");
-              }}
-            >
-              <IconSliders />
-            </HeaderAction>
-            {isMobile && (
-              <HeaderAction label="Close" onPress={closeNotificationsPanel}>
-                <IconX />
+          <div className="flex items-center gap-1.5">
+            <PageBarActions>
+              <HeaderAction
+                label="Mark all read"
+                isDisabled={unread === 0}
+                onPress={() => markRead.mutate({})}
+              >
+                <IconMailOpen />
               </HeaderAction>
-            )}
+              <HeaderAction
+                label="Notification settings"
+                onPress={() => {
+                  closeNotificationsPanel();
+                  openSettings("notifications");
+                }}
+              >
+                <IconSliders />
+              </HeaderAction>
+              {isMobile && (
+                <HeaderAction label="Close" onPress={closeNotificationsPanel}>
+                  <IconX />
+                </HeaderAction>
+              )}
+            </PageBarActions>
           </div>
         </header>
         <Tabs

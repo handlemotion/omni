@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { IconTrash, IconX } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
+import { Button, PageBarActions } from "@/components/ui/button";
 import { useCalendarTask } from "@/hooks/use-calendar-tasks.ts";
 import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useCrmTask } from "@/hooks/use-crm-tasks.ts";
@@ -220,13 +220,15 @@ function PanelHeader(props: {
 }) {
   return (
     <div
-      className={`flex shrink-0 items-center gap-1 ${props.inPlace ? "-mt-2 -me-1.5 h-10" : "h-12 border-b ps-5 pe-2.5"}`}
+      className={`flex shrink-0 items-center gap-1.5 ${props.inPlace ? "-mt-2 -me-1.5 h-10" : "h-12 border-b ps-5 pe-2.5"}`}
     >
       <div className="flex min-w-0 flex-1 items-center">{props.title}</div>
-      {props.children}
-      <Button intent="plain" size="sq-sm" aria-label="Close task" onPress={props.onClose}>
-        <IconX />
-      </Button>
+      <PageBarActions>
+        {props.children}
+        <Button intent="outline" size="sq-sm" aria-label="Close task" onPress={props.onClose}>
+          <IconX />
+        </Button>
+      </PageBarActions>
     </div>
   );
 }

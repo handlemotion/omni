@@ -93,7 +93,7 @@ export function EventPanel(props: {
     >
       <div className="flex h-12 shrink-0 items-center gap-2 ps-4 pe-2.5">
         <h2 className="min-w-0 flex-1 truncate text-md">{event.title || "(No title)"}</h2>
-        <Button intent="plain" size="sq-sm" aria-label="Close" onPress={props.onClose}>
+        <Button intent="outline" size="sq-sm" aria-label="Close" onPress={props.onClose}>
           <IconX />
         </Button>
       </div>

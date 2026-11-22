@@ -1,6 +1,6 @@
 import { Button as ButtonPrimitive } from "@ui-sdk/react/button";
 import { tv, type VariantProps } from "tailwind-variants";
-import { Children, isValidElement } from "react";
+import { Children, createContext, isValidElement, useContext, type ReactNode } from "react";
 import { cx } from "@/lib/primitive";
 import { Loader } from "./loader";
 
@@ -19,7 +19,7 @@ export const buttonStyles = tv({
   variants: {
     intent: {
       primary: [
-        "shadow-(--shadow-button) [--btn-bg:var(--color-primary-button)] [--btn-border:color-mix(in_oklab,var(--color-primary-button)_85%,black)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)] [--btn-icon:var(--primary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary-button)_90%)]",
+        "[--btn-bg:var(--color-primary-button)] [--btn-border:transparent] bg-clip-padding [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)] [--btn-icon:var(--primary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary-button)_90%)]",
         "disabled:opacity-100 disabled:[--btn-bg:var(--color-secondary)] disabled:[--btn-border:color-mix(in_oklab,var(--color-secondary)_50%,var(--color-background))] disabled:[--btn-foreground:var(--color-muted-foreground)] disabled:[--btn-icon:var(--color-muted-foreground)] disabled:[--btn-icon-active:var(--color-muted-foreground)] disabled:[--btn-overlay:var(--color-secondary)]",
       ],
       secondary:
@@ -100,6 +100,19 @@ export interface ButtonProps
   isPending?: boolean;
 }
 
+const InPageBar = createContext(false);
+
+/**
+ * A page's or panel's own actions (its header's right side). Every button inside is bordered or
+ * primary: a bare `plain` or `ghost` one draws as `outline`, since bare icons belong to the shell.
+ */
+export function PageBarActions({ children }: { children: ReactNode }) {
+  return <InPageBar.Provider value={true}>{children}</InPageBar.Provider>;
+}
+
+/** True inside `PageBarActions`, for controls that change their look there. */
+export const useInPageBar = () => useContext(InPageBar);
+
 export function Button({
   className,
   intent,
@@ -113,6 +126,8 @@ export function Button({
   ...props
 }: ButtonProps & { onClick?: ButtonPrimitiveProps["onClick"] }) {
   const { onClick: forwardedClick, ...rest } = props;
+  const inBar = useContext(InPageBar);
+  const drawn = inBar && (intent === "plain" || intent === "ghost") ? "outline" : intent;
   return (
     <ButtonPrimitive
       ref={ref}
@@ -130,7 +145,7 @@ export function Button({
             }
           : undefined
       }
-      className={cx(buttonStyles({ intent, size, isCircle }), className)}
+      className={cx(buttonStyles({ intent: drawn, size, isCircle }), className)}
     >
       {isPending ? <Pending>{children}</Pending> : children}
     </ButtonPrimitive>

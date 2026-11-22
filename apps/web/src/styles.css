@@ -23,8 +23,10 @@
   --hover: color-mix(in oklab, var(--foreground) 3%, transparent);
   /* A lighter sky blue; as text on white it still clears 4.5:1. */
   --primary: #1d72e8;
-  /* A primary button's fill: the orange-red tile of the sign-in wall, a step lighter. */
-  --primary-button: #ec5a34;
+  /* The brand: the orange-red tile of the sign-in wall, a step lighter. */
+  --brand: #ec5a34;
+  /* A primary button's flat fill: a light sky blue. */
+  --primary-button: #11a8ff;
   /* What dims the app under a dialog: flat black, no blur (transitive's scrim). */
   --scrim: oklch(0 0 0 / 7%);
   --primary-foreground: #ffffff;
@@ -189,6 +191,7 @@
   --color-ring: var(--ring);
   --color-primary: var(--primary);
   --color-primary-button: var(--primary-button);
+  --color-brand: var(--brand);
   --color-primary-foreground: var(--primary-foreground);
   --color-brand-cream: var(--brand-cream);
   --color-primary-subtle: var(--primary-subtle);
@@ -338,7 +341,7 @@ html .setup-toaster [data-sonner-toast][data-styled="true"] {
   align-items: flex-start;
   border: 0;
   border-radius: 8px;
-  background: var(--primary-button);
+  background: var(--brand);
   color: var(--primary-foreground);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -348,7 +351,7 @@ html .setup-toaster [data-sonner-toast][data-styled="true"] {
 html
   .setup-toaster
   [data-sonner-toast][data-styled="true"][data-expanded="false"][data-front="false"] {
-  background: color-mix(in oklab, var(--primary-button) 65%, var(--background));
+  background: color-mix(in oklab, var(--brand) 65%, var(--background));
 }
 html .setup-toaster [data-sonner-toast][data-styled="true"] [data-icon] {
   margin: 2px 0 0;
@@ -373,7 +376,7 @@ html .setup-toaster [data-sonner-toast][data-styled="true"] [data-close-button] 
 }
 html .setup-toaster [data-sonner-toast][data-styled="true"]:hover [data-close-button]:hover,
 html .setup-toaster [data-sonner-toast][data-styled="true"] [data-close-button]:focus-visible {
-  background: color-mix(in oklab, black 15%, var(--primary-button));
+  background: color-mix(in oklab, black 15%, var(--brand));
   border: 0;
   color: var(--primary-foreground);
 }

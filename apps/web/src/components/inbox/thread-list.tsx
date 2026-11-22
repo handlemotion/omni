@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/empty/empty-state";
 import { ThreadListEmpty } from "@/components/inbox/list-empty";
 import { FloatingCompose } from "@/components/compose/floating-actions";
 import { IconPencil } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
+import { Button, PageBarActions } from "@/components/ui/button";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListSection } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
@@ -246,17 +246,19 @@ export function List(
                 {count} selected
               </span>
             )}
-            <div className="flex min-w-0 items-center gap-1 *:shrink-0">
-              <span className="flex md:hidden">
-                <SearchButton />
-              </span>
-              <MarkAllRead rows={threads} />
-              <ReloadAction />
-              {detail && (
-                <HeaderAction label="Compose" shortcut="compose" onPress={openCompose}>
-                  <IconPencil />
-                </HeaderAction>
-              )}
+            <div className="flex min-w-0 items-center gap-1.5 *:shrink-0">
+              <PageBarActions>
+                <span className="flex md:hidden">
+                  <SearchButton />
+                </span>
+                <MarkAllRead rows={threads} />
+                <ReloadAction />
+                {detail && (
+                  <HeaderAction label="Compose" shortcut="compose" onPress={openCompose}>
+                    <IconPencil />
+                  </HeaderAction>
+                )}
+              </PageBarActions>
             </div>
           </header>
 

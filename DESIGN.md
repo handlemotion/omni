@@ -30,8 +30,12 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 - **Add a token only when a design uses it.** A new value goes into `styles.css` first, named for
   its role, not its look. Keep the file short.
 - **Background vs. surface.** `background` is the app canvas. `surface` is anything raised on it:
-  cards, popovers, sidebars.
-- **Brand.** `primary` is the brand color: primary buttons and selected/active components, with
+  cards, sidebars. Menus and popovers are solid white (`overlay` is `background`).
+- **Buttons in a page.** A page's own bars (a module's header, a panel's header) use bordered
+  buttons (`outline`) or `primary`, icon-only ones included. A bare icon (`plain`, `ghost`) is
+  for the outer shell and the rails only.
+- **Brand.** The brand is orange (`brand`): sign-in, onboarding and its toasts. A primary
+  button is light blue (`primary-button`). `primary` is the accent color: selected and active components, with
   `primary-foreground` text on it. Use it sparingly; most controls are neutral.
 - **Inputs stay calm.** Focus shows as a `ring`-colored border only: no glow, no tint.
 - **Control sizes.** Buttons and inputs share a size scale: `md` is the default, `lg` the larger
@@ -79,7 +83,8 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   the gap scale, floating rows, one card, and the layout traps it lists.
 - **Tactility.** Depth, press and motion follow the `tactile-design` skill
   (`.claude/skills/tactile-design`), layered on the Figma look without restyling it: cards keep
-  their subtle border and never take a drop shadow; buttons get their depth from a darker
+  their subtle border and never take a drop shadow; a primary button is flat (its fill,
+  `primary-button`, edge to edge, no highlight); other buttons get their depth from a darker
   edge and an inset top highlight (`--shadow-button`), with no outer drop; overlays use
   `--shadow-overlay`, never a big soft blur; buttons squeeze to `scale(.97)` on native `:active`
   (not React Aria's `pressed`), except menu triggers; menus

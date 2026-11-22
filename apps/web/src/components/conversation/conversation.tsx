@@ -10,7 +10,7 @@ import {
   IconMinimize,
   IconX,
 } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
+import { Button, PageBarActions } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
@@ -360,16 +360,18 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
       <Heading level={2} className="min-w-0 flex-1 text-md" title={subject || undefined}>
         <MiddleTruncate text={subject || "(no subject)"} />
       </Heading>
-      <div className="flex shrink-0 items-center gap-1">
-        <TriageActions thread={thread} />
-        <Action label={fullScreen ? "Side by side" : "Full screen"} onPress={toggleFullScreen}>
-          {fullScreen ? <IconMinimize /> : <IconMaximize />}
-        </Action>
-        {closeHref && (
-          <Action label="Close" onPress={() => void navigate({ href: closeHref })}>
-            <IconX />
+      <div className="flex shrink-0 items-center gap-1.5">
+        <PageBarActions>
+          <TriageActions thread={thread} />
+          <Action label={fullScreen ? "Side by side" : "Full screen"} onPress={toggleFullScreen}>
+            {fullScreen ? <IconMinimize /> : <IconMaximize />}
           </Action>
-        )}
+          {closeHref && (
+            <Action label="Close" onPress={() => void navigate({ href: closeHref })}>
+              <IconX />
+            </Action>
+          )}
+        </PageBarActions>
       </div>
     </div>
   );
