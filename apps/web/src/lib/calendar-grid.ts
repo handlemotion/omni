@@ -1,6 +1,6 @@
 import type { CalendarEvent } from "./calendar.ts";
 
-export type CalendarView = "week" | "day";
+export type CalendarView = "week" | "day" | "month";
 
 export const HOUR_PX = 48;
 export const SLOT_MINUTES = 15;
@@ -18,11 +18,22 @@ export function startOfWeek(date: Date) {
   return addDays(day, -((day.getDay() + 6) % 7));
 }
 
-/** The days a view shows around `anchor`: a week from Monday, or the one day. */
-export const daysOf = (view: CalendarView, anchor: Date) =>
-  view === "day"
-    ? [startOfDay(anchor)]
-    : Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(anchor), i));
+/**
+ * The days a view shows around `anchor`: a week from Monday, the one day, or six weeks from the
+ * Monday on or before the 1st of its month.
+ */
+export function daysOf(view: CalendarView, anchor: Date) {
+  if (view === "day") return [startOfDay(anchor)];
+  if (view === "week") return Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(anchor), i));
+  const first = startOfWeek(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+  return Array.from({ length: 42 }, (_, i) => addDays(first, i));
+}
+
+/** `anchor` moved `delta` views on: days, weeks, or months (to the 1st). */
+export function shiftView(view: CalendarView, anchor: Date, delta: number) {
+  if (view === "month") return new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1);
+  return addDays(anchor, delta * (view === "week" ? 7 : 1));
+}
 
 /** `YYYY-MM-DD` of a local date, for the URL. */
 export const dayKey = (date: Date) =>

@@ -1,10 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { IconChevronLeft, IconChevronRight } from "@/components/icons/central";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { Button } from "@/components/ui/button";
-import { Heading } from "@/components/ui/heading";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCalendarEvents, useCalendars } from "@/hooks/use-calendar.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import type { CalendarEvent } from "@/lib/calendar.ts";
@@ -14,29 +13,20 @@ import {
   dayKey,
   eventKey,
   nextHalfHour,
+  shiftView,
   parseDayKey,
   type CalendarView,
   type Slot,
 } from "@/lib/calendar-grid.ts";
 import { EventDialog } from "./event-dialog.tsx";
+import { CalendarCrumbs } from "./calendar-crumbs.tsx";
 import { EventPanel } from "./event-panel.tsx";
+import { MonthGrid } from "./month-grid.tsx";
 import { useMyTodos, useToggleTodo } from "./todo-list.tsx";
 import { useCalendarKeys } from "./use-calendar-keys.ts";
 import { WeekGrid, type Selection } from "./week-grid.tsx";
 
-const VIEWS = [
-  { id: "week", name: "Week" },
-  { id: "day", name: "Day" },
-];
-
-const monthYear = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
-
-function isoWeek(date: Date) {
-  const day = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  day.setUTCDate(day.getUTCDate() + 4 - (day.getUTCDay() || 7));
-  const yearStart = Date.UTC(day.getUTCFullYear(), 0, 1);
-  return Math.ceil(((day.getTime() - yearStart) / 86_400_000 + 1) / 7);
-}
+const UNITS = { week: "week", day: "day", month: "month" } as const;
 
 function useNow() {
   const [now, setNow] = useState(() => new Date());
@@ -45,6 +35,20 @@ function useNow() {
     return () => window.clearInterval(timer);
   }, []);
   return now;
+}
+
+function Hinted(props: { label: string; keyName: string; children: ReactNode }) {
+  return (
+    <TooltipTrigger delay={400}>
+      {props.children}
+      <Tooltip>
+        <span className="flex items-center gap-2">
+          {props.label}
+          <span className="opacity-60">{props.keyName}</span>
+        </span>
+      </Tooltip>
+    </TooltipTrigger>
+  );
 }
 
 export type Editing = { event?: CalendarEvent; slot?: Slot } | null;
@@ -74,7 +78,6 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
       search: (prev) => ({ ...prev, date: dayKey(next.date ?? anchor), view: next.view ?? view }),
       replace: true,
     });
-  const step = view === "week" ? 7 : 1;
   const byKey = useMemo(() => new Map(events.map((e) => [eventKey(e), e])), [events]);
   const opened = panel ? byKey.get(panel) : undefined;
 
@@ -85,7 +88,7 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
     open: (event) => setPanel(eventKey(event)),
     close: () => (panel ? setPanel(null) : setSelection(null)),
     create: (slot) => setEditing({ slot: slot ?? nextHalfHour(now) }),
-    go: (delta) => go({ date: addDays(anchor, delta * step) }),
+    go: (delta) => go({ date: shiftView(view, anchor, delta) }),
     today: () => go({ date: new Date() }),
     view: (next) => go({ view: next }),
     paused: editing !== null,
@@ -96,72 +99,84 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
       <div className="flex min-w-0 flex-1 flex-col">
         <StorageFrame
           title={
-            <Heading className="flex items-baseline gap-2 truncate text-md">
-              {monthYear.format(from)}
-              <span className="text-xs text-muted-foreground tabular-nums">W{isoWeek(from)}</span>
-            </Heading>
+            <CalendarCrumbs view={view} anchor={anchor} onView={(next) => go({ view: next })} />
           }
           actions={
             <>
-              <Button
-                size="sq-sm"
-                intent="plain"
-                aria-label="Previous"
-                onPress={() => go({ date: addDays(anchor, -step) })}
-              >
-                <IconChevronLeft />
-              </Button>
-              <Button size="sm" intent="plain" onPress={() => go({ date: new Date() })}>
-                Today
-              </Button>
-              <Button
-                size="sq-sm"
-                intent="plain"
-                aria-label="Next"
-                onPress={() => go({ date: addDays(anchor, step) })}
-              >
-                <IconChevronRight />
-              </Button>
-              <Select
-                aria-label="View"
-                value={view}
-                onChange={(next) => {
-                  if (next === "week" || next === "day") go({ view: next });
-                }}
-              >
-                <SelectTrigger className="ms-1 w-24" />
-                <SelectContent items={VIEWS}>
-                  {(item) => <SelectItem id={item.id}>{item.name}</SelectItem>}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1">
+                <Hinted label={`Previous ${UNITS[view]}`} keyName="←">
+                  <Button
+                    size="sq-sm"
+                    intent="plain"
+                    aria-label={`Previous ${UNITS[view]}`}
+                    onPress={() => go({ date: shiftView(view, anchor, -1) })}
+                  >
+                    <IconChevronLeft />
+                  </Button>
+                </Hinted>
+                <Hinted label="Go to today" keyName="T">
+                  <Button size="sm" intent="outline" onPress={() => go({ date: new Date() })}>
+                    Today
+                  </Button>
+                </Hinted>
+                <Hinted label={`Next ${UNITS[view]}`} keyName="→">
+                  <Button
+                    size="sq-sm"
+                    intent="plain"
+                    aria-label={`Next ${UNITS[view]}`}
+                    onPress={() => go({ date: shiftView(view, anchor, 1) })}
+                  >
+                    <IconChevronRight />
+                  </Button>
+                </Hinted>
+              </div>
             </>
           }
         >
           <div className="flex min-h-0 flex-1">
-            <WeekGrid
-              days={days}
-              events={events}
-              calendars={calendars}
-              selection={selection}
-              now={now}
-              onSelect={setSelection}
-              onOpen={(event) => setPanel(eventKey(event))}
-              onCreate={(slot) => setEditing({ slot })}
-              onMove={(event, minutes) => move(event, minutes)}
-              todos={todos}
-              onTodo={toggleTodo}
-              onNew={() =>
-                setEditing({
-                  slot: selection?.kind === "slot" ? selection.slot : nextHalfHour(now),
-                })
-              }
-            />
+            {view === "month" ? (
+              <MonthGrid
+                days={days}
+                month={anchor.getMonth()}
+                events={events}
+                calendars={calendars}
+                selection={selection}
+                now={now}
+                onSelect={setSelection}
+                onOpen={(event) => setPanel(eventKey(event))}
+                onCreate={(slot) => setEditing({ slot })}
+                onMove={(event, minutes) => move(event, minutes)}
+                todos={todos}
+                onTodo={toggleTodo}
+                onDay={(day) => go({ date: day, view: "day" })}
+              />
+            ) : (
+              <WeekGrid
+                days={days}
+                events={events}
+                calendars={calendars}
+                selection={selection}
+                now={now}
+                onSelect={setSelection}
+                onOpen={(event) => setPanel(eventKey(event))}
+                onCreate={(slot) => setEditing({ slot })}
+                onMove={(event, minutes) => move(event, minutes)}
+                todos={todos}
+                onTodo={toggleTodo}
+                onNew={() =>
+                  setEditing({
+                    slot: selection?.kind === "slot" ? selection.slot : nextHalfHour(now),
+                  })
+                }
+              />
+            )}
           </div>
           {editing && (
             <EventDialog
               calendars={calendars}
               event={editing.event}
               slot={editing.slot}
+              calendarId={props.calendar}
               onClose={() => setEditing(null)}
             />
           )}

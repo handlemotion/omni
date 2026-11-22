@@ -31,15 +31,29 @@ const SECTIONS: { id: DueGroup; label: string; fixed: boolean }[] = [
   { id: "none", label: "No date", fixed: true },
 ];
 
-/** Every open to-do of the member's, all pages loaded; none where the workspace has no tasks. */
+const MY_DONE = { status: "done", assignee: "me" } satisfies TaskFilter;
+const opened = Date.now();
+
+const doneSinceOpened = (task: CrmTask) =>
+  !!task.completedAt && Date.parse(task.completedAt) >= opened;
+
+/**
+ * Every open to-do of the member's, all pages loaded, and the ones they checked off since the page
+ * opened, still in place and marked done; none where the workspace has no tasks. Both lists are
+ * the server's, so a to-do reopened, renamed or deleted elsewhere shows as it is now.
+ */
 export function useMyTodos() {
   const hasCrm = useHasCrm();
-  const query = useCrmTasks(MY_TODOS);
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  const open = useCrmTasks(MY_TODOS);
+  const done = useCrmTasks(MY_DONE);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = open;
   useEffect(() => {
     if (hasCrm && hasNextPage && !isFetchingNextPage) void fetchNextPage();
   }, [hasCrm, hasNextPage, isFetchingNextPage, fetchNextPage]);
-  return hasCrm ? query.tasks : [];
+  if (!hasCrm) return [];
+  const openIds = new Set(open.tasks.map((task) => task.id));
+  const recent = done.tasks.filter((task) => doneSinceOpened(task) && !openIds.has(task.id));
+  return [...open.tasks, ...recent];
 }
 
 /** Checks a to-do off, or opens it again. */
@@ -80,11 +94,11 @@ function Todos() {
         const inSection = tasks.filter((task) => dueGroup(task, now) === section.id);
         if (!section.fixed && inSection.length === 0) return null;
         return (
-          <section key={section.id} aria-label={section.label} className="flex flex-col pb-1">
+          <section key={section.id} aria-label={section.label} className="flex flex-col pb-3">
             <div className="group/section flex h-7 items-center gap-1.5 ps-2 pe-1">
               <span className="text-label text-subtle-foreground">{section.label}</span>
               {inSection.length > 0 && (
-                <span className="text-xs text-subtle-foreground tabular-nums">
+                <span className="text-label text-subtle-foreground tabular-nums">
                   {inSection.length}
                 </span>
               )}
@@ -114,7 +128,8 @@ function Todos() {
 }
 
 const ROW = "flex h-8 min-w-0 items-center gap-2 rounded-md ps-1.5 pe-1";
-const ROUND = "gap-x-0 **:data-[slot=indicator]:rounded-full";
+const ROUND =
+  "w-4.25 shrink-0 gap-x-0 overflow-hidden **:data-[slot=control-label]:hidden **:data-[slot=indicator]:rounded-full";
 
 function NewTodo({ section, onDone }: { section: DueGroup; onDone: () => void }) {
   const [title, setTitle] = useState("");
@@ -131,7 +146,7 @@ function NewTodo({ section, onDone }: { section: DueGroup; onDone: () => void })
   };
   return (
     <div className={ROW}>
-      <CheckboxField aria-hidden isDisabled className={ROUND}>
+      <CheckboxField aria-hidden excludeFromTabOrder className={`${ROUND} pointer-events-none`}>
         <Checkbox />
       </CheckboxField>
       <TextField aria-label="New to-do" maxLength={500} value={title} onChange={setTitle}>

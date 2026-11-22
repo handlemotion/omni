@@ -48,17 +48,26 @@ const shifted = (slot: Slot, start: number, end: number) =>
 export function useCalendarKeys(keys: Keys) {
   const { answer, update, remove } = useCalendarWrites();
   const client = useQueryClient();
+  const moving = useRef(new Map<string, Moving>());
   const move = (event: CalendarEvent, start: number, end = start) => {
-    const now = eventTimesNow(client, event.id) ?? event;
+    const queued = moving.current.get(event.id);
+    const now = queued?.at ?? eventTimesNow(client, event.id) ?? event;
     const change = {
       start: new Date(Date.parse(now.start) + start * MINUTE).toISOString(),
       end: new Date(Date.parse(now.end) + end * MINUTE).toISOString(),
     };
     placeEvent(client, event.id, change.start, change.end);
-    update.mutate(
-      { id: event.id, change },
-      { onError: () => appToast.error("The event was not moved") },
-    );
+    const entry = queued ?? { at: change, last: Promise.resolve(), count: 0 };
+    entry.at = change;
+    entry.count += 1;
+    entry.last = entry.last
+      .then(() => update.mutateAsync({ id: event.id, change }))
+      .catch(() => appToast.error("The event was not moved"))
+      .finally(() => {
+        entry.count -= 1;
+        if (entry.count === 0) moving.current.delete(event.id);
+      });
+    moving.current.set(event.id, entry);
   };
   const latest = useRef({ keys, move, answer, remove });
   latest.current = { keys, move, answer, remove };
@@ -78,6 +87,12 @@ export function useCalendarKeys(keys: Keys) {
   }, []);
 
   return { move };
+}
+
+interface Moving {
+  at: { start: string; end: string };
+  last: Promise<unknown>;
+  count: number;
 }
 
 type Latest = {

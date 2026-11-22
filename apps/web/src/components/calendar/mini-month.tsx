@@ -11,8 +11,8 @@ import {
   CalendarHeaderCell,
 } from "react-aria-components/Calendar";
 import { Heading } from "react-aria-components/Heading";
-import { IconChevronLeft, IconChevronRight } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
+import { IconChevronDown, IconChevronUp } from "@/components/icons/central";
+import { AriaButton } from "@/components/ui/aria-button";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { dayKey, parseDayKey, startOfWeek, type CalendarView } from "@/lib/calendar-grid.ts";
 
@@ -62,24 +62,24 @@ export function MiniMonth() {
     >
       <header className="-mx-2.5 grid h-11 grid-cols-7 items-center">
         <Heading className="col-span-5 ps-2.5 text-md" />
-        <Button
+        <AriaButton
           slot="previous"
           size="sq-xs"
           intent="plain"
           aria-label="Previous month"
           className="justify-self-center"
         >
-          <IconChevronLeft />
-        </Button>
-        <Button
+          <IconChevronUp />
+        </AriaButton>
+        <AriaButton
           slot="next"
           size="sq-xs"
           intent="plain"
           aria-label="Next month"
           className="justify-self-center"
         >
-          <IconChevronRight />
-        </Button>
+          <IconChevronDown />
+        </AriaButton>
       </header>
       <CalendarGrid
         weekdayStyle="narrow"

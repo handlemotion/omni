@@ -46,12 +46,18 @@ function times(start: Date, end: Date) {
   return { day, span: daysBetween(day, dayKey(end)), start: hhmm(start), end: hhmm(end) };
 }
 
+const defaultCalendar = (props: EventDialogProps) =>
+  (
+    props.calendars.find((c) => c.id === props.calendarId) ??
+    props.calendars.find((c) => !c.hidden) ??
+    props.calendars[0]
+  )?.id ?? "";
+
 function newDraft(props: EventDialogProps) {
   const start = props.slot?.start ?? new Date();
   const end = props.slot?.end ?? new Date(start.getTime() + 1_800_000);
-  const shown = props.calendars.find((c) => !c.hidden) ?? props.calendars[0];
   const draft: Draft = {
-    calendarId: shown?.id ?? "",
+    calendarId: "",
     title: "",
     ...times(start, end),
     allDay: false,
@@ -118,6 +124,8 @@ interface EventDialogProps {
   event?: CalendarEvent;
   /** Where a new one starts. */
   slot?: Slot;
+  /** The calendar a new one goes on: the one the grid shows alone, if any. */
+  calendarId?: string;
   onClose: () => void;
 }
 
@@ -130,6 +138,7 @@ export function EventDialog(props: EventDialogProps) {
       setDraft((d) => ({ ...d, [key]: value }));
   const { create, update } = useCalendarWrites();
   const saving = create.isPending || update.isPending;
+  const calendarId = draft.calendarId || defaultCalendar(props);
   const failed = (error: unknown) =>
     appToast.error(
       error instanceof ApiError && error.param
@@ -144,10 +153,7 @@ export function EventDialog(props: EventDialogProps) {
         { onSuccess: props.onClose, onError: failed },
       );
     } else {
-      create.mutate(
-        { calendarId: draft.calendarId, ...body },
-        { onSuccess: props.onClose, onError: failed },
-      );
+      create.mutate({ calendarId, ...body }, { onSuccess: props.onClose, onError: failed });
     }
   };
   return (
@@ -156,7 +162,7 @@ export function EventDialog(props: EventDialogProps) {
       onOpenChange={(open) => !open && props.onClose()}
       title={props.event ? "Edit event" : "New event"}
       action={props.event ? "Save" : "Create"}
-      disabled={!draft.title.trim() || !draft.calendarId}
+      disabled={!draft.title.trim() || !calendarId}
       saving={saving}
       onSubmit={submit}
     >
@@ -167,7 +173,7 @@ export function EventDialog(props: EventDialogProps) {
       {!props.event && props.calendars.length > 1 && (
         <Select
           aria-label="Calendar"
-          value={draft.calendarId}
+          value={calendarId}
           onChange={(id) => set("calendarId")(String(id))}
         >
           <Label>Calendar</Label>

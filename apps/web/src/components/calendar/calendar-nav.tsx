@@ -8,7 +8,7 @@ export function CalendarNav() {
     <>
       <MiniMonth />
       <TodoList />
-      <div className="mt-auto px-0.5 pt-2">
+      <div className="mt-auto px-0.5 pt-2 pb-3">
         <CalendarSwitcher />
       </div>
     </>

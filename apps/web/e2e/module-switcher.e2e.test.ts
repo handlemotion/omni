@@ -67,19 +67,6 @@ async function openInbox(slug: string, options: { reducedMotion?: "reduce" } = {
     }),
   );
   const page = await context.newPage();
-  await page.addInitScript(() => {
-    const seen: number[] = [];
-    (window as unknown as { positions: number[] }).positions = seen;
-    document.addEventListener(
-      "scroll",
-      () => {
-        const sidebar = document.querySelector<HTMLElement>('[data-slot="sidebar"]');
-        const at = sidebar?.style.getPropertyValue("--module-at");
-        if (at) seen.push(Number(at));
-      },
-      { capture: true, passive: true },
-    );
-  });
   await page.goto(new URL("/inbox", origin).toString());
   await shows(page, "mail");
   return page;
@@ -96,7 +83,29 @@ const shows = (page: Page, id: keyof typeof LABELS) =>
 const pager = (page: Page) => page.locator('[data-slot="module-pager"]');
 
 const pageAt = (page: Page) =>
-  pager(page).evaluate((el) => Math.round((el.scrollLeft / el.clientWidth) * 100) / 100);
+  pager(page).evaluate((el) => {
+    const sidebar = el.closest<HTMLElement>('[data-slot="sidebar"]');
+    return Number(sidebar?.style.getPropertyValue("--module-at") || 0);
+  });
+
+const slideFrames = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const track = document.querySelector<HTMLElement>('[data-slot="module-track"]');
+        const seen: number[] = [];
+        const start = performance.now();
+        const frame = () => {
+          if (track) {
+            const x = new DOMMatrix(getComputedStyle(track).transform).m41;
+            seen.push(-x / track.clientWidth);
+          }
+          if (performance.now() - start < 500) requestAnimationFrame(frame);
+          else resolve(seen);
+        };
+        frame();
+      }),
+  );
 
 async function swipe(page: Page, steps: [dx: number, dy: number][]) {
   const box = await pager(page).boundingBox();
@@ -110,14 +119,12 @@ async function swipe(page: Page, steps: [dx: number, dy: number][]) {
 
 test("the rail opens each module and the pages glide along", async () => {
   const page = await openInbox("chevrons");
+  const frames = slideFrames(page);
   await rail(page, "Drive").click();
   await page.waitForURL((url) => place(url) === "/files");
   await shows(page, "files");
   await expect.poll(() => pageAt(page)).toBe(1);
-  const positions = await page.evaluate(
-    () => (window as unknown as { positions: number[] }).positions,
-  );
-  expect(positions.some((at) => at > 0.1 && at < 0.9)).toBe(true);
+  expect((await frames).some((at) => at > 0.1 && at < 0.9)).toBe(true);
 
   await rail(page, "CRM").click();
   await page.waitForURL((url) => place(url) === "/crm/companies");
@@ -142,6 +149,10 @@ test("a sideways swipe leaves the module where it is; only the rail moves betwee
   expect(await pageAt(page)).toBe(0);
   expect(place(page.url())).toBe("/mail/inbox");
   await shows(page, "mail");
+  const frame = await pager(page).boundingBox();
+  const shown = await page.locator('[data-module-page="mail"]').boundingBox();
+  expect(Math.round(shown?.x ?? -1)).toBe(Math.round(frame?.x ?? 0));
+  expect(await pager(page).evaluate((el) => el.scrollLeft)).toBe(0);
 });
 
 test("each rail click stays on the module it opened", async () => {

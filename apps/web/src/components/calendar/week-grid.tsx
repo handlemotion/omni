@@ -284,6 +284,7 @@ function EventBlock(props: WeekGridProps & { placed: ReturnType<typeof placeDay>
         width: `calc(${100 / columns}% - 4px)`,
       }}
       onClick={() => props.onSelect({ kind: "event", key: eventKey(event) })}
+      onFocus={() => !selected && props.onSelect({ kind: "event", key: eventKey(event) })}
       onDoubleClick={() => props.onOpen(event)}
       onPointerDown={(e) => {
         if (!movable || e.button !== 0) return;
@@ -312,7 +313,8 @@ function EventBlock(props: WeekGridProps & { placed: ReturnType<typeof placeDay>
   );
 }
 
-function EventChip(props: WeekGridProps & { event: CalendarEvent }) {
+/** An event as one line: all-day ones on the week's top row, every one in a month's day. */
+export function EventChip(props: WeekGridProps & { event: CalendarEvent; timed?: boolean }) {
   const { event } = props;
   const selected = props.selection?.kind === "event" && props.selection.key === eventKey(event);
   return (
@@ -326,22 +328,29 @@ function EventChip(props: WeekGridProps & { event: CalendarEvent }) {
       )}
       style={toneStyle(props, event)}
       onClick={() => props.onSelect({ kind: "event", key: eventKey(event) })}
+      onFocus={() => !selected && props.onSelect({ kind: "event", key: eventKey(event) })}
       onDoubleClick={() => props.onOpen(event)}
     >
       <AccentBar />
+      {props.timed && !event.allDay && (
+        <span className="me-1 font-normal opacity-70 tabular-nums">
+          {time.format(new Date(event.start))}
+        </span>
+      )}
       {event.title || "(No title)"}
     </CanvasButton>
   );
 }
 
-function TodoChip({ task, onTodo }: { task: CrmTask; onTodo?: WeekGridProps["onTodo"] }) {
+/** A dated to-do on its day: its check, then its title. */
+export function TodoChip({ task, onTodo }: { task: CrmTask; onTodo?: WeekGridProps["onTodo"] }) {
   const done = !!task.completedAt;
   return (
     <CheckboxField
       aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
       isSelected={done}
       onChange={(next: boolean) => onTodo?.(task, next)}
-      className="min-w-0 overflow-hidden rounded-md px-1.5 py-0.5 hover:bg-hover **:data-[slot=indicator]:rounded-full"
+      className="min-w-0 overflow-hidden rounded-md px-1.5 py-0.5 hover:bg-hover **:data-[slot=indicator]:rounded-full **:data-[slot=control-label]:min-w-0"
     >
       <Checkbox>
         <span
