@@ -34,6 +34,11 @@ export interface ResolveSpeakersInput {
 
 /** Share of a speaker's talk that must fall in the mic's spans for them to be the recorder. */
 export const MIC_SHARE = 0.6;
+/**
+ * Above this share a second speaker makes the mic ambiguous: everyone is on it, as in a room with
+ * one computer, so the mic names nobody.
+ */
+export const MIC_SHARED = 0.3;
 
 const overlap = (a: Span, b: Span) =>
   Math.max(0, Math.min(a.endMs, b.endMs) - Math.max(a.startMs, b.startMs));
@@ -68,21 +73,26 @@ function talkTime(turns: Turn[], micSpans: Span[]) {
 /** The label whose talk the mic carried most, when at least `MIC_SHARE` of it; else null. */
 export function recorderLabel(turns: Turn[], micSpans: Span[] | null) {
   if (!micSpans?.length) return null;
-  let best: { label: string; onMic: number; share: number } | null = null;
-  for (const [label, { total, onMic }] of talkTime(turns, micSpans)) {
-    if (!total || (best && onMic <= best.onMic)) continue;
-    best = { label, onMic, share: onMic / total };
-  }
-  return best && best.share >= MIC_SHARE ? best : null;
+  const ranked = [...talkTime(turns, micSpans)]
+    .filter(([, { total }]) => total > 0)
+    .map(([label, { total, onMic }]) => ({ label, onMic, share: onMic / total }))
+    .toSorted((a, b) => b.onMic - a.onMic);
+  const [best, ...others] = ranked;
+  if (!best || best.share < MIC_SHARE) return null;
+  return others.some((o) => o.share >= MIC_SHARED) ? null : best;
 }
 
-/** The one person `name` points at among `people`: full name, else a unique first name. */
+/**
+ * The one person `name` points at among `people`: the full name, else, for a name of one word
+ * only, a unique first name or address. A full name that differs is someone else.
+ */
 export function matchPerson(name: string, people: Person[]) {
   const wanted = fold(name);
   if (!wanted) return null;
   const full = people.filter((p) => p.name && fold(p.name) === wanted);
   if (full.length === 1) return full[0] ?? null;
-  const first = wanted.split(" ")[0];
+  if (wanted.includes(" ")) return null;
+  const first = wanted;
   const byFirst = people.filter((p) => p.name && fold(p.name).split(" ")[0] === first);
   if (byFirst.length === 1) return byFirst[0] ?? null;
   const byAddress = people.filter((p) => fold(p.address.split("@")[0] ?? "") === wanted);

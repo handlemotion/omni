@@ -43,6 +43,17 @@ describe("resolveSpeakers", () => {
     expect(speakers.every((s) => s.source === null)).toBe(true);
   });
 
+  it("names nobody from the mic in a room, where every speaker is on it", () => {
+    const speakers = resolveSpeakers({
+      turns: call.turns,
+      micSpans: [{ startMs: 0, endMs: call.durationMs }],
+      recorder,
+      attendees: [recorder, marta],
+      engineNames: {},
+    });
+    expect(speakers.every((s) => s.source === null)).toBe(true);
+  });
+
   it("names nobody without mic spans, as from a browser that could not tell", () => {
     const speakers = resolveSpeakers({
       turns: call.turns,
@@ -117,6 +128,13 @@ describe("matchPerson", () => {
     { address: "ana.perez@x.test", name: "Ana Pérez" },
     { address: "luis@x.test", name: "Luis Mora" },
   ];
+
+  it("never swaps a full name for an attendee who only shares the first name", () => {
+    expect(
+      matchPerson("Ana García", [{ address: "ana.lopez@x.test", name: "Ana López" }]),
+    ).toBeNull();
+    expect(matchPerson("Luis Ortega", people)).toBeNull();
+  });
 
   it("matches a unique first name, but not one two attendees share", () => {
     expect(matchPerson("Luis", people)?.address).toBe("luis@x.test");

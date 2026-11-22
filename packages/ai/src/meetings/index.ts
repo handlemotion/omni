@@ -13,6 +13,7 @@ export {
   labelsOf,
   matchPerson,
   MIC_SHARE,
+  MIC_SHARED,
   recorderLabel,
   resolveSpeakers,
   speakerTitles,
