@@ -32,6 +32,14 @@ import {
   type TaskMirror,
   type TaskQuery,
 } from "./calendar/tasks.ts";
+import {
+  createBookingLink,
+  deleteBookingLink,
+  memberBookingLinks,
+  updateBookingLink,
+  type BookingLinkInput,
+  type BookingLinkPatch,
+} from "./calendar/booking.ts";
 import { memberMail, userMail } from "./mail.ts";
 
 export type { VisibleMailbox } from "./calendar/core.ts";
@@ -42,6 +50,16 @@ export {
   type PartResult,
   type UnreadPart,
 } from "./calendar/ingest.ts";
+export {
+  bookingLinkOrg,
+  bookingPage,
+  bookSlot,
+  type BookingInput,
+  type BookingLinkInput,
+  type BookingLinkPatch,
+  type BookingLinkView,
+  type SlotTaken,
+} from "./calendar/booking.ts";
 export { OCCURRENCE_LEAD_MS, type OccurrenceRef } from "./calendar/occurrence.ts";
 export {
   CALENDAR_WINDOW_MAX_DAYS,
@@ -141,6 +159,13 @@ export function memberCalendar(db: Db, memberId: string, mirror?: TaskMirror) {
       write(requestId, (tx, writer) => updateOwnEvent(tx, writer, eventId, patch)),
     deleteEvent: (eventId: string, requestId: string | null = null) =>
       write(requestId, (tx, writer) => deleteOwnEvent(tx, writer, eventId)),
+
+    bookingLinks: async () => memberBookingLinks(db, memberId, await mailboxes()),
+    createBookingLink: async (input: BookingLinkInput) =>
+      createBookingLink(db, memberId, await mailboxes(), input),
+    updateBookingLink: async (id: string, patch: BookingLinkPatch) =>
+      updateBookingLink(db, memberId, await mailboxes(), id, patch),
+    deleteBookingLink: (id: string) => deleteBookingLink(db, memberId, id),
 
     tasks: (query: TaskQuery = {}) => asTaskMember(db, memberId, (m) => ownTasks(db, m, query)),
     task: (id: string) => asTaskMember(db, memberId, (m) => ownTask(db, m, id)),

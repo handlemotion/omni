@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   conflictingLock,
@@ -21,6 +21,7 @@ import {
   drafts as schemaDrafts,
   mailboxes as schemaMailboxes,
   mailboxFolders,
+  mailboxAccess,
   mailDomains,
   meetingsAttendees,
   meetingsGrants,
@@ -1269,6 +1270,57 @@ test("calendar occurrences: an event by row or UID, and the one on now, only fro
     expect(await door.occurrence({ uid }, null)).toEqual({ status: "not_found" });
     expect(await door.occurrenceAt(new Date(now))).toBeNull();
   }
+});
+
+test("booking links: only their owner lists or changes them, and only while the owner can open the calendar", async () => {
+  const t = crypto.randomUUID().slice(0, 8);
+  const home = await createOrg(db, `book-home-${t}`);
+  const away = await createOrg(db, `book-away-${t}`);
+  const ana = await createMember(db, home.id, `ana-${t}`);
+  const ben = await createMember(db, home.id, `ben-${t}`);
+  const eve = await createMember(db, away.id, `eve-${t}`);
+  const box = await createMailbox(db, home.id, `hello-${t}@studio.test`);
+  await grant(db, home.id, box.id, ana.id);
+  await grant(db, home.id, box.id, ben.id);
+  await grant(db, home.id, box.id, eve.id);
+  const [calendar] = await db
+    .insert(calendarCalendars)
+    .values({ orgId: home.id, mailboxId: box.id })
+    .returning();
+  const anaDoor = forMember(db, ana.id).calendar;
+  const made = await anaDoor.createBookingLink({
+    calendarId: calendar!.id,
+    title: "Intro call",
+    durationMinutes: 30,
+    timeZone: "UTC",
+  });
+  if (made.status !== "ok") throw new Error(made.status);
+  expect((await anaDoor.bookingLinks()).map((l) => l.id)).toEqual([made.link.id]);
+
+  for (const outsider of [ben.id, eve.id]) {
+    const door = forMember(db, outsider).calendar;
+    expect(await door.bookingLinks()).toEqual([]);
+    expect(await door.updateBookingLink(made.link.id, { title: "Mine" })).toEqual({
+      status: "not_found",
+    });
+    expect(await door.deleteBookingLink(made.link.id)).toEqual({ status: "not_found" });
+  }
+  expect(
+    await forMember(db, eve.id).calendar.createBookingLink({
+      calendarId: calendar!.id,
+      title: "Across",
+      durationMinutes: 30,
+      timeZone: "UTC",
+    }),
+  ).toEqual({ status: "not_found" });
+
+  await db
+    .delete(mailboxAccess)
+    .where(and(eq(mailboxAccess.mailboxId, box.id), eq(mailboxAccess.memberId, ana.id)));
+  expect(await anaDoor.bookingLinks()).toEqual([]);
+  expect(await anaDoor.updateBookingLink(made.link.id, { title: "Still mine" })).toEqual({
+    status: "not_found",
+  });
 });
 
 test("meetings Ask sources: only notes and transcripts of meetings the member can open, in their own workspace", async () => {

@@ -32,6 +32,7 @@ Microsoft calendars come later, behind the mailbox's provider. Meeting recording
   calendar and inline in the thread, with an answer that reaches the organizer's calendar.
 - Events made in Omni invite people on any calendar app, by mail.
 - A link and a block of text that share free time, never what fills the rest.
+- Booking links: a public page where a visitor picks a free slot and books a meeting.
 - A meeting's people are CRM records; a deal lists its meetings; notes are a Drive doc.
 - Agents read events and propose times through MCP.
 - Works on any IMAP/SMTP host. Self-hostable with no new required config.
@@ -42,7 +43,6 @@ Microsoft calendars come later, behind the mailbox's provider. Meeting recording
   account's Google Calendar is read only: events made there show in Omni, events made in Omni
   are not written to it.
 - Repeating events made in Omni. Repeating invitations from elsewhere are shown in full.
-- Booking pages where a visitor picks a slot. The shared link shows free time only.
 - Reminders and notifications before a meeting, tasks on the calendar, travel time.
 - Rooms and resources, delegated calendars, a teammate's calendar beyond the inboxes you share.
 - Meeting recording and transcription (`docs/spec/meetings.md`).
@@ -54,7 +54,7 @@ Microsoft calendars come later, behind the mailbox's provider. Meeting recording
 | ------------------------- | --------------------------------------------------------------- | -------------------------------------------------- |
 | Keyboard first            | Create, open, move, delete, answer and navigate without a mouse | A command bar that parses "lunch with Ana fri 1pm" |
 | Several calendars at once | One per inbox you can open, overlaid, each toggled and colored; a Gmail inbox's shows its Google Calendar | CalDAV and Microsoft calendars; writing to Google |
-| Share availability        | Copy free slots as text; a link that shows free and busy        | Booking: the visitor picks a slot                  |
+| Share availability        | Copy free slots as text; a link that shows free and busy; booking links where the visitor picks a slot | Several people per booking, buffers, questions |
 | Join from the event       | The video link pulled from the invitation, one key to join      | Joining from a notification                        |
 | Meeting context           | People as CRM records, the email thread, the notes doc          | The last threads with each person                  |
 | Time zones                | The viewer's own; the event keeps its zone                      | A second zone in the gutter                        |
@@ -261,6 +261,24 @@ people, no places. The link reads the calendars and hours its owner chose, can b
 gets a new token when it is reset. A busy block is any confirmed or tentative event that counts as
 busy, an answered Yes or Maybe, or an unanswered invitation; a declined one is free.
 
+**Booking links.** The calendar header's **Share** lists the member's booking links and makes
+new ones, as Amie does. A link has a title, a length (15 to 90 minutes), the calendar a booking
+lands on (an inbox they can send from), the days and hours it takes meetings in the time zone it
+was made in, and gives `<WEB_APP_URL>/book/<slug>`, where `slug` is 128 random bits. Clicking a
+row copies it; deleting it closes the page.
+
+The page needs no account. It shows the owner's name, the title and length, and the slots left
+over the next 14 days in the visitor's time zone, and nothing else: no title, person or place of
+what fills the rest. Slots follow one another from the day's opening and start at least four
+hours from now. Busy is every calendar the owner can open, hidden ones included, by the same rule
+as the availability link. A visitor picks a slot and gives a name, an email and a note; the
+booking is an event made in Omni on the link's calendar, organized by its inbox, with the visitor
+as guest, so they get an invitation by mail and the owner sees it on their week at once. Bookings
+for one owner run one at a time and each checks its slot is still free, so two visitors never
+get the same time (`409 SLOT_TAKEN`). A link answers `404` once deleted, once its owner can no
+longer open its calendar, or while its workspace is read-only. Per IP, reads are limited by
+`RATE_LIMIT_BOOKING` and bookings, which send mail, by `RATE_LIMIT_BOOKING_NEW`.
+
 ## Tasks
 
 A task is the calendar's, like a message is Talk's: it belongs to a person first, and the CRM is
@@ -428,6 +446,7 @@ Every table is `calendar_*` and carries `org_id`.
 | `calendar_sweep`        | name, cursor_at, cursor_id                                                                                                                                                                                                                                                                                | The sweep's place.                                                                                                                                                                                                                 |
 | `calendar_member_prefs` | member_id, calendar_id, color, hidden                                                                                                                                                                                                                                                                     | Per person.                                                                                                                                                                                                                        |
 | `calendar_availability` | id, org_id, member_id, token_hash, calendar_ids, time_zone, hours, days, enabled                                                                                                                                                                                                                          | One per member and workspace. The token is stored hashed.                                                                                                                                                                          |
+| `calendar_booking_links` | id, org_id, member_id, calendar_id, slug (unique), title, duration_minutes, time_zone, weekdays, start_minute, end_minute, notice_minutes, horizon_days | A member's booking links. Cascades with the member and the calendar. |
 | `calendar_tasks`        | id, org_id, owner_member_id, title, body, subtasks, due_at, completed_at, completed_by_member_id, assignee_member_id, record_kind, record_id, created_by_member_id, created_at, updated_at                                                                                                                | Private while `record_kind` is null: `owner_member_id` not null and the assignee is the owner (checks). Indexed on (owner_member_id, due_at) and (assignee_member_id, due_at) where open, and on (org_id, record_kind, record_id). |
 | `calendar_notes`        | org_id, uid, recurrence_id, node_id, created_by_member_id                                                                                                                                                                                                                                                 | Unique on (org_id, uid, recurrence_id). `node_id` cascades with the doc.                                                                                                                                                           |
 
@@ -455,14 +474,16 @@ days, errors as `{ error, code }`.
 | `GET /free-busy?from=&to=&addresses=`                                  | Busy blocks for the member's own calendars and for teammates' inboxes the member can see.                                                                |
 | `POST /events/:id/notes`                                               | `{ teamspaceId? }`. Finds or makes the meeting's notes doc and returns its node id.                                                                      |
 | `GET /availability` · `PUT /availability` · `POST /availability/reset` | The member's availability link, its settings, and a new token.                                                                                           |
+| `GET /booking-links` · `POST /booking-links` · `PATCH /booking-links/:id` · `DELETE` | The member's booking links. A link's calendar must be one they can open. |
 | `GET /tasks?status=&due=` · `POST /tasks`                              | The member's tasks: owned or assigned, open soonest due first or `done` latest first. Make a private task.                                               |
 | `GET /tasks/:id` · `PATCH /tasks/:id` · `DELETE`                       | A task the member owns or is assigned. Change, complete or reopen (`done`), delete. A linked task's record and assignee change through the CRM's routes. |
+| `GET /api/booking/:slug` · `POST /api/booking/:slug` | Public. A booking link's free slots, no titles; book one (`{ start, name, email, note?, timeZone? }`). |
 | `GET /api/availability/:token`                                         | Public. Free and busy for the next 14 days, no titles. 404 when off or reset.                                                                            |
 
 - Writes publish `{ type: "calendar.changed", calendarIds }` to the sockets of each calendar's
   inbox members.
 - Error codes: `NOT_FOUND`, `NOT_ORGANIZER` (an invitation's details are its organizer's), `NOT_INVITED`
-  (no attendee line for the inbox to answer), `WINDOW_TOO_LARGE`, and the platform's
+  (no attendee line for the inbox to answer), `WINDOW_TOO_LARGE`, `SLOT_TAKEN` (a booking's slot is no longer free), and the platform's
   `BILLING_INACTIVE` for writes on a read-only workspace.
 - A Personal space has a calendar too: its inboxes are in it.
 

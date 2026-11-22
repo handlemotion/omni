@@ -191,6 +191,8 @@ RATE_LIMIT_STORAGE_LINK_PASSWORD=
 RATE_LIMIT_STORAGE_LINK_LIVE=
 RATE_LIMIT_STORAGE_LINK_COMMENT=
 RATE_LIMIT_STORAGE_SYNC=
+RATE_LIMIT_BOOKING=
+RATE_LIMIT_BOOKING_NEW=
 
 # --- E2E tests only (`pnpm --filter @omni/worker test:e2e`) ---
 # Admin URL of the local Postgres; each test file creates and drops its own database.

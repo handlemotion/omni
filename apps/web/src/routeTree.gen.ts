@@ -16,6 +16,7 @@ import { Route as AuthedWorkspaceRouteImport } from "./routes/_authed/$workspace
 import { Route as AuthedJoinRouteImport } from "./routes/_authed/join";
 import { Route as AuthedOnboardingRouteImport } from "./routes/_authed/onboarding";
 import { Route as AuthedWelcomeRouteImport } from "./routes/_authed/welcome";
+import { Route as BookSlugRouteImport } from "./routes/book.$slug";
 import { Route as SShareIdRouteImport } from "./routes/s.$shareId";
 import { Route as SignRequestIdRouteImport } from "./routes/sign.$requestId";
 import { Route as AuthedWorkspaceSplatRouteImport } from "./routes/_authed/$workspace/$";
@@ -107,6 +108,11 @@ const AuthedWelcomeRoute = AuthedWelcomeRouteImport.update({
   id: "/welcome",
   path: "/welcome",
   getParentRoute: () => AuthedRoute,
+} as any);
+const BookSlugRoute = BookSlugRouteImport.update({
+  id: "/book/$slug",
+  path: "/book/$slug",
+  getParentRoute: () => rootRouteImport,
 } as any);
 const SShareIdRoute = SShareIdRouteImport.update({
   id: "/s/$shareId",
@@ -444,6 +450,7 @@ export interface FileRoutesByFullPath {
   "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
   "/welcome": typeof AuthedWelcomeRoute;
+  "/book/$slug": typeof BookSlugRoute;
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
@@ -509,6 +516,7 @@ export interface FileRoutesByTo {
   "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
   "/welcome": typeof AuthedWelcomeRoute;
+  "/book/$slug": typeof BookSlugRoute;
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
@@ -574,6 +582,7 @@ export interface FileRoutesById {
   "/_authed/join": typeof AuthedJoinRoute;
   "/_authed/onboarding": typeof AuthedOnboardingRoute;
   "/_authed/welcome": typeof AuthedWelcomeRoute;
+  "/book/$slug": typeof BookSlugRoute;
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/_authed/$workspace/$": typeof AuthedWorkspaceSplatRoute;
@@ -641,6 +650,7 @@ export interface FileRouteTypes {
     | "/join"
     | "/onboarding"
     | "/welcome"
+    | "/book/$slug"
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/$workspace/$"
@@ -706,6 +716,7 @@ export interface FileRouteTypes {
     | "/join"
     | "/onboarding"
     | "/welcome"
+    | "/book/$slug"
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/$workspace/$"
@@ -770,6 +781,7 @@ export interface FileRouteTypes {
     | "/_authed/join"
     | "/_authed/onboarding"
     | "/_authed/welcome"
+    | "/book/$slug"
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/_authed/$workspace/$"
@@ -833,6 +845,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   AuthedRoute: typeof AuthedRouteWithChildren;
   LoginRoute: typeof LoginRoute;
+  BookSlugRoute: typeof BookSlugRoute;
   SShareIdRoute: typeof SShareIdRoute;
   SignRequestIdRoute: typeof SignRequestIdRoute;
 }
@@ -887,6 +900,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/welcome";
       preLoaderRoute: typeof AuthedWelcomeRouteImport;
       parentRoute: typeof AuthedRoute;
+    };
+    "/book/$slug": {
+      id: "/book/$slug";
+      path: "/book/$slug";
+      fullPath: "/book/$slug";
+      preLoaderRoute: typeof BookSlugRouteImport;
+      parentRoute: typeof rootRouteImport;
     };
     "/s/$shareId": {
       id: "/s/$shareId";
@@ -1581,6 +1601,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
+  BookSlugRoute: BookSlugRoute,
   SShareIdRoute: SShareIdRoute,
   SignRequestIdRoute: SignRequestIdRoute,
 };

@@ -15,6 +15,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
 import { zValidator } from "../validator.ts";
+import { bookingLinks } from "./booking.ts";
 import { announceCalendars, memberCalendar, refused, wireEvent } from "./http.ts";
 import { tasks } from "./tasks.ts";
 
@@ -39,6 +40,7 @@ async function afterWrite(c: Context<AppEnv>, eventId: string) {
 
 export const calendar = new Hono<AppEnv>()
   .route("/", tasks)
+  .route("/", bookingLinks)
   .get("/calendars", async (c) => {
     const calendars = await memberCalendar(c).calendars();
     return c.json({

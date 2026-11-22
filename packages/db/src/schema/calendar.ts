@@ -13,7 +13,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { members } from "./auth.ts";
-import { createdAt, id, orgId, timestamptz, updatedAt } from "./columns.ts";
+import { createdAt, id, memberId, orgId, timestamptz, updatedAt } from "./columns.ts";
 import { attachments, messages } from "./mail/messages.ts";
 import { mailboxes } from "./mail/mailboxes.ts";
 
@@ -332,3 +332,53 @@ export const calendarGoogleSync = pgTable("calendar_google_sync", {
   syncedAt: timestamptz("synced_at"),
   updatedAt: updatedAt(),
 });
+
+/**
+ * A booking link (`docs/spec/calendar.md`, "Booking links"): a public page where a visitor picks a
+ * free slot and books a meeting with its owner. It never shows what fills the owner's time, only
+ * the slots left. A booking lands on `calendar_id` (an inbox its owner can send from), which
+ * invites the visitor by mail. Busy is every calendar the owner can open. `slug` is the link's
+ * public name; deleting the row closes it.
+ */
+export const calendarBookingLinks = pgTable(
+  "calendar_booking_links",
+  {
+    id: id(),
+    orgId: orgId(),
+    memberId: memberId(),
+    calendarId: text("calendar_id").notNull(),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    durationMinutes: integer("duration_minutes").notNull(),
+    timeZone: text("time_zone").notNull(),
+    /** Days of the week it takes meetings; 0 is Sunday. */
+    weekdays: integer("weekdays")
+      .array()
+      .notNull()
+      .default(sql`'{1,2,3,4,5}'::integer[]`),
+    /** Minutes after midnight, in `time_zone`, the day opens and closes. */
+    startMinute: integer("start_minute").notNull().default(540),
+    endMinute: integer("end_minute").notNull().default(1020),
+    noticeMinutes: integer("notice_minutes").notNull().default(240),
+    horizonDays: integer("horizon_days").notNull().default(14),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("calendar_booking_links_slug_unique").on(t.slug),
+    index("calendar_booking_links_member_idx").on(t.memberId),
+    foreignKey({
+      name: "calendar_booking_links_calendar_org_fk",
+      columns: [t.calendarId, t.orgId],
+      foreignColumns: [calendarCalendars.id, calendarCalendars.orgId],
+    }).onDelete("cascade"),
+    check(
+      "calendar_booking_links_hours",
+      sql`${t.startMinute} >= 0 and ${t.endMinute} <= 1440 and ${t.startMinute} < ${t.endMinute}`,
+    ),
+    check(
+      "calendar_booking_links_duration",
+      sql`${t.durationMinutes} between 5 and 480 and ${t.horizonDays} between 1 and 60`,
+    ),
+  ],
+);

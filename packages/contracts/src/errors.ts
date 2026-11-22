@@ -63,6 +63,8 @@ export const ERROR_CODES = {
   window_too_large: spec(400, "validation"),
   /** An event's fields do not hold together; `param` names the first that does not. */
   invalid_event: spec(400, "validation"),
+  /** The booking link's slot was taken, or is no longer offered, since the page was read. */
+  slot_taken: spec(409, "conflict"),
   conflict: spec(409, "conflict"),
   gone: spec(410, "not_found"),
   length_required: spec(411, "validation"),

@@ -171,6 +171,10 @@ export const keys = {
   crm: () => crm(),
   /** Everything the calendar caches, in the current workspace. */
   calendar: () => calendar(),
+  /** The member's booking links. */
+  bookingLinks: () => [...calendar(), "booking-links"] as const,
+  /** A booking link's public page, by its slug: no workspace, no sign-in. */
+  bookingPage: (slug: string) => [...root, "booking", slug] as const,
   meetings: () => meetings(),
   /** The member's own and assigned tasks: every list, open or done, and one task. */
   calendarTasks: () => [...calendar(), "tasks"] as const,

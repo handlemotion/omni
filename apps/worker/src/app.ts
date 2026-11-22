@@ -20,6 +20,7 @@ import {
 } from "./context.ts";
 import type { Config } from "./env.ts";
 import { portal } from "./crm/portal.ts";
+import { bookingPublic } from "./calendar/booking.ts";
 import { calendar } from "./calendar/routes.ts";
 import { crm } from "./crm/routes.ts";
 import { talk } from "./talk/routes.ts";
@@ -221,6 +222,7 @@ export const app = new Hono<AppEnv>()
   .route("/api/storage/signing", storageSigning)
   .route("/api/portal", portal)
   .route("/api/meetings/shared", meetingsShared)
+  .route("/api/booking", bookingPublic)
   .route("/api/storage/sync", storageSync)
   .use("/api/connect/google/callback", desktopGoogleReturn)
   .route("/api", api)

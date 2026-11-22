@@ -19,7 +19,8 @@ export type CalendarRefusal =
   | { status: "not_organizer" }
   | { status: "not_invited" }
   | { status: "invalid_event"; field: string }
-  | { status: "window_too_large"; maxDays: number };
+  | { status: "window_too_large"; maxDays: number }
+  | { status: "slot_taken" };
 
 const ANSWERS: Record<CalendarRefusal["status"], { code: ErrorCode; message: string }> = {
   not_found: { code: "not_found", message: "no such event or calendar, or you cannot see it" },
@@ -30,6 +31,7 @@ const ANSWERS: Record<CalendarRefusal["status"], { code: ErrorCode; message: str
   not_invited: { code: "not_invited", message: "this inbox is not invited to the event" },
   invalid_event: { code: "invalid_event", message: "the event's fields do not hold together" },
   window_too_large: { code: "window_too_large", message: "read at most 62 days at a time" },
+  slot_taken: { code: "slot_taken", message: "that time is no longer free; pick another" },
 };
 
 export function refused(c: Context<AppEnv>, refusal: CalendarRefusal) {

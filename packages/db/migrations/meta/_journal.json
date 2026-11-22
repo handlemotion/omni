@@ -575,6 +575,13 @@
       "when": 1795377541541,
       "tag": "0081_fuzzy_goliath",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1795380336596,
+      "tag": "0082_whole_prowler",
+      "breakpoints": true
     }
   ]
 }

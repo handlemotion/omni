@@ -145,6 +145,8 @@ const configSchema = z
     RATE_LIMIT_STORAGE_LINK_LIVE: rateLimit("30/60"),
     RATE_LIMIT_STORAGE_LINK_COMMENT: rateLimit("30/600"),
     RATE_LIMIT_STORAGE_SYNC: rateLimit("600/60"),
+    RATE_LIMIT_BOOKING: rateLimit("120/60"),
+    RATE_LIMIT_BOOKING_NEW: rateLimit("10/3600"),
   })
   .refine((env) => !env.S2_BASIN_URL || !!env.S2_BASIN, {
     path: ["S2_BASIN"],

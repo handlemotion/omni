@@ -473,6 +473,8 @@ which Cloudflare sets and clients cannot.
 | `RATE_LIMIT_STORAGE_LINK_LIVE`     | `30/60`    | Per signed-in person, or per IP: live-document sockets opened through a link (`GET /api/storage/shared/:shareId/realtime`).                                                   |
 | `RATE_LIMIT_STORAGE_LINK_COMMENT`  | `30/600`   | Per guest: comments written through a link with no sign-in.                                                                                                                   |
 | `RATE_LIMIT_STORAGE_SYNC`          | `600/60`   | Per person and desktop app: requests to the desktop sync API (`/api/storage/sync/*`).                                                                                         |
+| `RATE_LIMIT_BOOKING`               | `120/60`   | Per IP: reads of a public booking page (`GET /api/booking/:slug`).                                                                                                            |
+| `RATE_LIMIT_BOOKING_NEW`           | `10/3600`  | Per IP: meetings booked through a booking link, each of which sends the visitor an invitation from the owner's inbox.                                                         |
 
 #### Billing (optional)
 

@@ -22,6 +22,8 @@ const RULES = {
   storageLinkLive: "RATE_LIMIT_STORAGE_LINK_LIVE",
   storageLinkComment: "RATE_LIMIT_STORAGE_LINK_COMMENT",
   storageSync: "RATE_LIMIT_STORAGE_SYNC",
+  booking: "RATE_LIMIT_BOOKING",
+  bookingNew: "RATE_LIMIT_BOOKING_NEW",
 } as const satisfies Record<string, keyof Config>;
 
 export type RateLimitRule = keyof typeof RULES;

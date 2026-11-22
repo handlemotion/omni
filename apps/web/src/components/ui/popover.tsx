@@ -61,6 +61,8 @@ export interface PopoverProps {
   /** Gap to the trigger, in pixels. */
   offset?: number;
   arrow?: boolean;
+  /** Room kept from the viewport's edges, in pixels. */
+  collisionPadding?: number;
   className?: string;
   /** Names the popover when it has no `PopoverTitle`. */
   "aria-label"?: string;
@@ -72,6 +74,7 @@ export function Popover({
   placement = "bottom",
   offset,
   arrow = false,
+  collisionPadding = 16,
   className,
   children,
   ...props
@@ -80,7 +83,7 @@ export function Popover({
     <PopoverContent
       {...toSideAlign(placement)}
       sideOffset={offset ?? (arrow ? 12 : 8)}
-      collisionPadding={16}
+      collisionPadding={collisionPadding}
       className={cn("group/popover flex flex-col", popupSurface, className)}
       {...props}
     >

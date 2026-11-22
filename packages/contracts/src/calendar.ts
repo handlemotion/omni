@@ -240,3 +240,87 @@ export type CalendarCreateTaskBody = z.infer<typeof calendarCreateTaskBodySchema
 export type CalendarUpdateTaskBody = z.infer<typeof calendarUpdateTaskBodySchema>;
 export type CalendarTaskResponse = z.infer<typeof calendarTaskResponseSchema>;
 export type CalendarTaskListResponse = z.infer<typeof calendarTaskListResponseSchema>;
+
+export const BOOKING_TITLE_MAX = 200;
+export const BOOKING_NAME_MAX = 200;
+export const BOOKING_NOTE_MAX = 2_000;
+export const BOOKING_DURATIONS = [15, 30, 45, 60, 90] as const;
+
+const minute = z.number().int().min(0).max(1440);
+
+/** A booking link as its owner sees it (`docs/spec/calendar.md`, "Booking links"). */
+export const bookingLinkSchema = z.object({
+  id,
+  /** The public name: the page is `<WEB_APP_URL>/book/<slug>`. */
+  slug: z.string(),
+  /** Where a booking lands, and the inbox that invites the visitor. */
+  calendarId: id,
+  title: z.string(),
+  durationMinutes: z.number().int(),
+  timeZone: z.string(),
+  /** Days it takes meetings; 0 is Sunday. */
+  weekdays: z.array(z.number().int().min(0).max(6)),
+  /** Minutes after midnight in `timeZone` the day opens and closes. */
+  startMinute: minute,
+  endMinute: minute,
+  noticeMinutes: z.number().int(),
+  horizonDays: z.number().int(),
+  createdAt: isoDate,
+});
+
+const bookingLinkFields = {
+  calendarId: id,
+  title: z.string().trim().min(1).max(BOOKING_TITLE_MAX),
+  durationMinutes: z.number().int().min(5).max(480),
+  timeZone: z.string().min(1).max(64),
+  weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+  startMinute: minute.optional(),
+  endMinute: minute.optional(),
+  noticeMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(30 * 1440)
+    .optional(),
+  horizonDays: z.number().int().min(1).max(60).optional(),
+};
+
+export const bookingLinkCreateBodySchema = z.object(bookingLinkFields);
+export const bookingLinkUpdateBodySchema = z
+  .object(bookingLinkFields)
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, { message: "change at least one field" });
+
+export const bookingLinkListResponseSchema = z.object({ links: z.array(bookingLinkSchema) });
+export const bookingLinkResponseSchema = z.object({ link: bookingLinkSchema });
+
+/** `GET /api/booking/:slug`: the public page. Free slots only, never what fills the rest. */
+export const bookingPageResponseSchema = z.object({
+  title: z.string(),
+  ownerName: z.string(),
+  durationMinutes: z.number().int(),
+  /** The owner's zone; the page shows times in the visitor's own. */
+  timeZone: z.string(),
+  slots: z.array(isoDate),
+});
+
+/** `POST /api/booking/:slug`: book one of the page's slots. */
+export const bookingBodySchema = z.object({
+  start: isoDate,
+  name: z.string().trim().min(1).max(BOOKING_NAME_MAX),
+  email: z.email().max(320),
+  note: z.string().max(BOOKING_NOTE_MAX).nullable().optional(),
+  /** The visitor's IANA zone, for the words of their invitation. */
+  timeZone: z.string().max(64).nullable().optional(),
+});
+
+export const bookingResponseSchema = z.object({ start: isoDate, end: isoDate });
+
+export type BookingLink = z.infer<typeof bookingLinkSchema>;
+export type BookingLinkCreateBody = z.infer<typeof bookingLinkCreateBodySchema>;
+export type BookingLinkUpdateBody = z.infer<typeof bookingLinkUpdateBodySchema>;
+export type BookingLinkListResponse = z.infer<typeof bookingLinkListResponseSchema>;
+export type BookingLinkResponse = z.infer<typeof bookingLinkResponseSchema>;
+export type BookingPageResponse = z.infer<typeof bookingPageResponseSchema>;
+export type BookingBody = z.infer<typeof bookingBodySchema>;
+export type BookingResponse = z.infer<typeof bookingResponseSchema>;
