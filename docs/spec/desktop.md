@@ -75,8 +75,10 @@ What stays bundled is `apps/desktop/src`: a server picker for the first run and 
 an offline screen, and nothing else. It never talks to `/api`.
 
 The remote origin gets the smallest capability that works: window dragging and controls,
-back/forward, notifications, badge count, opening external links, and three commands of ours
-(`sync_status`, `sync_connect`, `sync_disconnect`). No filesystem, no shell, no HTTP plugin. Only
+back/forward, notifications, badge count, opening external links, and commands of ours: sync's
+(`sync_status`, `sync_connect`, `sync_disconnect`) and the meeting recorder's (`recording_*`,
+`docs/spec/meetings.md`, "The desktop recorder"), which read only the recorder's own spool. No
+filesystem, no shell, no HTTP plugin. Only
 the configured server origin matches `remote.urls`, so another origin's page or frame in the window
 can call nothing. Link clicks to other origins and new windows open in the default browser (the
 web app sends them there on purpose); the app's own round trips through another origin (Google

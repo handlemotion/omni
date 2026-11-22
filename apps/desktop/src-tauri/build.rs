@@ -10,6 +10,15 @@ const COMMANDS: &[&str] = &[
     "sync_disconnect",
     "update_ready",
     "update_install",
+    "recording_start",
+    "recording_pause",
+    "recording_resume",
+    "recording_stop",
+    "recording_list",
+    "recording_part",
+    "recording_mark",
+    "recording_discard",
+    "recording_schedule",
 ];
 
 fn main() {

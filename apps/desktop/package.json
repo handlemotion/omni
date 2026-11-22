@@ -15,6 +15,7 @@
     "@tauri-apps/api": "2.12.5"
   },
   "devDependencies": {
+    "@omni/contracts": "workspace:*",
     "@tauri-apps/cli": "2.12.6",
     "vite": "^8.3.8"
   }

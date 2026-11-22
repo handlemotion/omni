@@ -53,35 +53,33 @@ export const desktopRecorderErrorSchema = z.object({
   message: z.string(),
 });
 
+const calendarMeetingByEventId = {
+  id: z.string(),
+  recurrenceId: z.string().nullish(),
+  title: z.string().nullish(),
+};
+
 /**
  * Shell → page events. `recording-changed` carries a `DesktopRecording` (about four times a
- * second while capturing, for the pill's clock and level). `recording-requested` asks the page
- * to start one (tray "Record now", or the start notification for `event`); the page asks for
- * consent, calls `POST /api/meetings`, then `recording_start`. The shell never starts one alone.
+ * second while capturing, for the pill's clock and level, and once when it stops: the page then
+ * finishes it). `recording-requested` (tray "Record now") asks the page to start one, and
+ * `recording-offered` says a calendar meeting with a video link just began, for `event`; the
+ * notification says "Record <title>?". Either way the page asks for consent, calls
+ * `POST /api/meetings`, then `recording_start`: the shell never starts one alone.
  */
 export const desktopRecordingRequestSchema = z.object({
-  event: z
-    .object({
-      uid: z.string(),
-      recurrenceId: z.string().nullable(),
-      recurring: z.boolean(),
-      title: z.string().nullable(),
-    })
-    .nullable(),
+  event: z.object(calendarMeetingByEventId).nullish(),
 });
 
-/** `recording_schedule`: the page's upcoming events, so the shell can offer to record each one. */
+/** `recording_schedule`: the page's upcoming meetings, so the shell can offer to record each. */
 export const desktopRecordingScheduleSchema = z.object({
   events: z
     .array(
       z.object({
-        uid: z.string(),
-        recurrenceId: z.string().nullable(),
-        recurring: z.boolean(),
-        title: z.string().nullable(),
+        ...calendarMeetingByEventId,
         startsAtMs: ms,
         endsAtMs: ms,
-        /** Only an event with a video link is offered: a call to record. */
+        /** Only a meeting with a video link is offered: a call to record. */
         hasVideoLink: z.boolean(),
       }),
     )

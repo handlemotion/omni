@@ -6,6 +6,7 @@
 
 mod deep_link;
 mod navigation;
+mod recording;
 mod recovery;
 mod server;
 mod startup;
@@ -51,6 +52,7 @@ pub fn run() {
         )
         .manage(server::Server::default())
         .manage(deep_link::SignIns::default())
+        .manage(recording::Recording::default())
         .invoke_handler(tauri::generate_handler![
             server::server_origin,
             server::open_server,
@@ -60,6 +62,15 @@ pub fn run() {
             sync::sync_disconnect,
             updater::update_ready,
             updater::update_install,
+            recording::recording_start,
+            recording::recording_pause,
+            recording::recording_resume,
+            recording::recording_stop,
+            recording::recording_list,
+            recording::recording_part,
+            recording::recording_mark,
+            recording::recording_discard,
+            recording::recording_schedule,
         ])
         .setup(|app| {
             window::create(app)?;
@@ -68,6 +79,7 @@ pub fn run() {
             startup::default_on(app);
             updater::start(app.handle());
             sync::start(app.handle())?;
+            recording::start_schedule(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -79,6 +91,7 @@ pub fn run() {
                 window::show(app);
             }
             if let tauri::RunEvent::Exit = event {
+                recording::shutdown(app);
                 updater::install_pending(app);
             }
         });

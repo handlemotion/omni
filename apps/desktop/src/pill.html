@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Omni recording</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #111111;
+        --muted: #6b6b6b;
+        --line: #e4e4e4;
+        --recording: #e5484d;
+        font:
+          13px/1 system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #141414;
+          --fg: #f2f2f2;
+          --muted: #9a9a9a;
+          --line: #2c2c2c;
+        }
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--fg);
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: default;
+      }
+      main {
+        box-sizing: border-box;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 6px 0 14px;
+        border: 1px solid var(--line);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--recording);
+        flex: none;
+      }
+      [data-state="paused"] .dot {
+        background: var(--muted);
+      }
+      time {
+        font-variant-numeric: tabular-nums;
+        min-width: 44px;
+      }
+      .level {
+        flex: 1;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--line);
+        overflow: hidden;
+      }
+      .level span {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--fg);
+        transition: width 120ms ease-out;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .level span {
+          transition: none;
+        }
+      }
+      button {
+        flex: none;
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        padding: 0;
+      }
+      button:hover {
+        color: var(--fg);
+      }
+      button:active {
+        transform: scale(0.97);
+      }
+      .pause i {
+        width: 8px;
+        height: 10px;
+        border-inline: 3px solid currentColor;
+        box-sizing: border-box;
+      }
+      [data-state="paused"] .pause i {
+        width: 0;
+        height: 0;
+        border-inline: 0;
+        border-block: 5px solid transparent;
+        border-left: 8px solid currentColor;
+      }
+      .stop i {
+        width: 9px;
+        height: 9px;
+        border-radius: 2px;
+        background: currentColor;
+      }
+    </style>
+    <script type="module" src="./pill.ts"></script>
+  </head>
+  <body>
+    <main data-tauri-drag-region data-state="recording">
+      <span class="dot" data-tauri-drag-region></span>
+      <time data-tauri-drag-region>0:00</time>
+      <span class="level" data-tauri-drag-region><span></span></span>
+      <button class="pause" type="button" aria-label="Pause"><i></i></button>
+      <button class="stop" type="button" aria-label="Stop"><i></i></button>
+    </main>
+  </body>
+</html>

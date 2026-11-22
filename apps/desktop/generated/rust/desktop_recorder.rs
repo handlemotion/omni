@@ -97,15 +97,13 @@ pub struct DesktopRecordingRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopRecordingRequestEvent {
+    pub id: String,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurrence_id: Option<String>,
 
-    pub recurring: bool,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-
-    pub uid: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -120,15 +118,13 @@ pub struct EventElement {
 
     pub has_video_link: bool,
 
+    pub id: String,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurrence_id: Option<String>,
-
-    pub recurring: bool,
 
     pub starts_at_ms: i64,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-
-    pub uid: String,
 }

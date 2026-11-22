@@ -19,8 +19,8 @@ const SERVER_KEY: &str = "server";
 /// What the server origin may call: window dragging and controls, the badge (on Windows the
 /// taskbar overlay icon, an image the page draws), notifications (and showing the window when one
 /// is clicked), the launch-at-login switch, opening links outside, events, the magic-link
-/// callback (`deep_link.rs`) and the sync commands. No filesystem, no shell, no HTTP. A new
-/// command of ours is added here as well as in `build.rs`.
+/// callback (`deep_link.rs`), the sync commands and the meeting recorder's (`recording/`). No
+/// filesystem, no shell, no HTTP. A new command of ours is added here as well as in `build.rs`.
 const REMOTE_PERMISSIONS: &[&str] = &[
     "core:event:default",
     "core:window:allow-start-dragging",
@@ -49,6 +49,15 @@ const REMOTE_PERMISSIONS: &[&str] = &[
     "allow-sync-disconnect",
     "allow-update-ready",
     "allow-update-install",
+    "allow-recording-start",
+    "allow-recording-pause",
+    "allow-recording-resume",
+    "allow-recording-stop",
+    "allow-recording-list",
+    "allow-recording-part",
+    "allow-recording-mark",
+    "allow-recording-discard",
+    "allow-recording-schedule",
 ];
 
 /// The chosen server, shared with the navigation guard, and the origins already granted the

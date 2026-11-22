@@ -197,6 +197,26 @@ Tauri in it so `omni-record` drives the same code from a terminal):
 - **In a room**, with no call, the right channel is silent: the transcript relies on the engine's
   speaker labels and the names step alone.
 
+**The shell's part** (`apps/desktop/src-tauri/src/recording/`). The page holds the session, so it
+asks for consent, calls `POST /api/meetings` and then `recording_start`; the shell never starts
+a recording by itself. The bridge's shapes are `@omni/contracts`' `desktop-recorder.ts`.
+
+- Commands: `recording_start` `{ meetingId, memberId, folderId, title }`, `recording_pause`,
+  `recording_resume`, `recording_stop`, `recording_list` (stops what a crash left first),
+  `recording_part` (raw bytes), `recording_mark`, `recording_discard`, `recording_schedule`.
+- Events: `recording-changed` (a `DesktopRecording`, four times a second while capturing and once
+  when it stops, when the page runs `finishRecording`); `recording-requested` (tray "Record Now":
+  the page asks for consent and starts); `recording-offered` (a meeting began).
+- **The pill** is a bundled page in its own small window, on top of every window and on every
+  desktop, with no close button: it goes when the recording does. It can pause, resume and stop,
+  and nothing else. The tray's "Record Now" reads "Stop Recording" while one runs. Quitting the
+  app stops the recording and closes the file.
+- **The start notification.** The page hands the shell its upcoming meetings
+  (`recording_schedule`); when one with a video link begins (and up to five minutes after),
+  nothing is recording and the app is open, the shell shows "Record Week Kickoff?" once, and the
+  page hears `recording-offered` to show Record. Clicking the notification only brings the app
+  forward.
+
 **The browser recorder** mixes nothing: it records the tab's sound and the mic as two channels
 with `MediaRecorder` (Opus in WebM), computes the same mic intervals with an `AnalyserNode`, and
 uploads through the same Drive upload and stop. It is the fallback, so it keeps no spool: closing the tab ends the

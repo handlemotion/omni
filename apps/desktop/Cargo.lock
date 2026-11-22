@@ -2747,6 +2747,7 @@ name = "omni-desktop"
 version = "0.0.0"
 dependencies = [
  "futures-util",
+ "omni-recorder",
  "omni-sync-types",
  "security-framework",
  "serde",
