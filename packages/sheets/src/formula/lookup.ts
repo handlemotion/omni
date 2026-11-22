@@ -24,9 +24,11 @@ export const lookupFunctions: Record<string, SheetFunction> = {
     if (isError(col) || isError(loose)) return errors.value;
     const width = table.rows[0]?.length ?? 0;
     if (col < 1 || col > width) return errors.ref;
+    const key = single(target);
+    if (isError(key)) return key;
     const at = find(
       table.rows.map((row) => row[0] ?? null),
-      single(target),
+      key,
       !loose,
     );
     return at < 0 ? errors.na : (table.rows[at]![col - 1] ?? null);
@@ -37,7 +39,9 @@ export const lookupFunctions: Record<string, SheetFunction> = {
     const loose = toBool(approx);
     if (isError(r) || isError(loose)) return errors.value;
     if (r < 1 || r > table.rows.length) return errors.ref;
-    const at = find(table.rows[0] ?? [], single(target), !loose);
+    const key = single(target);
+    if (isError(key)) return key;
+    const at = find(table.rows[0] ?? [], key, !loose);
     return at < 0 ? errors.na : (table.rows[r - 1]![at] ?? null);
   },
   XLOOKUP: ([target = null, look, back, missing]) => {
@@ -45,7 +49,9 @@ export const lookupFunctions: Record<string, SheetFunction> = {
     const list = look.flat;
     const results = back.flat;
     if (list.length !== results.length) return errors.value;
-    const at = find(list, single(target), true);
+    const key = single(target);
+    if (isError(key)) return key;
+    const at = find(list, key, true);
     if (at >= 0) return results[at] ?? null;
     return missing === undefined ? errors.na : single(missing);
   },
@@ -53,7 +59,9 @@ export const lookupFunctions: Record<string, SheetFunction> = {
     if (!(look instanceof Range)) return errors.na;
     const k = toNumber(kind);
     if (isError(k)) return k;
-    const at = find(look.flat, single(target), k === 0, k < 0);
+    const key = single(target);
+    if (isError(key)) return key;
+    const at = find(look.flat, key, k === 0, k < 0);
     return at < 0 ? errors.na : at + 1;
   },
   INDEX: ([table, row = null, column = null]) => {

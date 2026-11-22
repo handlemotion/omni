@@ -138,6 +138,7 @@ export class LiveDoc {
   private orphanTries = 0;
   private folds = new Set<number>();
   private readonly parts = new LiveParts();
+  private passedSnaps = new Set<number>();
   private pending = new Map<number, { record: StorageLiveRecord; matchSeqNum?: number }>();
   private answers = new Map<number, (event: StorageDocEvent) => void>();
   private batch: Uint8Array[] = [];
@@ -492,7 +493,15 @@ export class LiveDoc {
 
   private apply(entry: StorageLiveEntry, mine: boolean) {
     if (entry.seqNum < this.epoch || this.known.has(entry.seqNum)) return;
+    const { record } = entry;
+    if (record.t === "more" && this.passedSnaps.has(record.h)) {
+      return this.markKnown(entry.seqNum, false);
+    }
     const whole = this.parts.push(entry);
+    if (!whole && record.t === "snap") {
+      this.passedSnaps.add(entry.seqNum);
+      for (const seqNum of this.parts.drop(entry.seqNum)) this.markKnown(seqNum, false);
+    }
     if (!whole) return;
     this.use(whole, mine);
     for (const seqNum of whole.seqNums) this.markKnown(seqNum, false);

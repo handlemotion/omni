@@ -7,7 +7,7 @@ import { rewriteLive } from "@omni/docs";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import * as Y from "yjs";
 
-type LiveRecord = { t: string; u?: string; n?: number };
+type LiveRecord = { t: string; u?: string; n?: number; s?: number };
 
 const PART = 800_000;
 
@@ -590,6 +590,94 @@ test("a large paste whose author leaves is saved by the open page, even when the
 
   await expect.poll(saved, { timeout: 30_000 }).toContain("699 dolor sitam");
   expect(await saved()).toContain("Typed meanwhile");
+  await own.close();
+});
+
+test("a page saves past a split snapshot that never gets its parts, and its save covers the typing", async () => {
+  const origin = String(worker.url);
+  const jar = new CookieJar();
+  const cookie = await signInWithPersonalSpace(
+    { url: new URL(origin) },
+    db,
+    `snap-${Date.now()}@gmail.test`,
+    jar,
+  );
+  const own = await browser.newContext();
+  await own.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const ana = await own.newPage();
+  await ana.goto(new URL("/files/my", origin).toString());
+  await ana
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await ana
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({
+      name: "snap.md",
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# Snap\n\nStart\n"),
+    });
+  await ana.getByRole("row", { name: /snap\.md/ }).click();
+  await ana.locator("[contenteditable=true]").getByText("Start").waitFor({ timeout: 15_000 });
+  const id = new URL(ana.url()).searchParams.get("file") ?? "";
+  const live = async () => {
+    const read = await fetch(new URL(`/api/storage/files/${id}/live?from=latest`, origin), {
+      headers: { cookie },
+    });
+    return ((await read.json()) as { entries: { seqNum: number; record: LiveRecord }[] }).entries;
+  };
+  const entries = await live();
+  const epoch = entries.find((e) => e.record.t === "seed")!.seqNum;
+  const last = entries.at(-1)!.seqNum;
+
+  const url = new URL("/api/realtime", origin);
+  url.protocol = "ws:";
+  const socket = new WebSocket(url, {
+    headers: { cookie, origin: new URL(origin).origin },
+  } as unknown as string[]);
+  const answers: Record<string, unknown>[] = [];
+  socket.addEventListener("message", (e) => answers.push(JSON.parse(String(e.data))));
+  await new Promise<void>((resolve) => socket.addEventListener("open", () => resolve()));
+  socket.send(JSON.stringify({ type: "file.presence", nodeId: id, state: "editing" }));
+  let ref = 0;
+  const append = async (record: unknown) => {
+    for (;;) {
+      const sent = ++ref;
+      socket.send(JSON.stringify({ type: "doc.append", nodeId: id, ref: sent, record }));
+      await expect.poll(() => answers.some((a) => a.ref === sent), { timeout: 10_000 }).toBe(true);
+      const answer = answers.find((a) => a.ref === sent)!;
+      if (answer.type === "doc.appended") return answer.seqNum as number;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  };
+  const state = Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString("base64");
+  const snapAt = await append({ t: "snap", e: epoch, s: last, cv: 1, f: epoch, u: state, n: 2 });
+  socket.close();
+
+  await typeAtEnd(ana, "Typed after the snap");
+  const saved = () =>
+    ana.evaluate(async (at) => (await fetch(at)).text(), `/api/storage/files/${id}/content`);
+  await expect.poll(saved, { timeout: 20_000 }).toContain("Typed after the snap");
+  await expect
+    .poll(
+      async () => {
+        const now = await live();
+        const typed = Math.max(...now.filter((e) => e.record.t === "update").map((e) => e.seqNum));
+        const folded = Math.max(
+          -1,
+          ...now.filter((e) => e.record.t === "fold").map((e) => e.record.s ?? -1),
+        );
+        return typed > snapAt && folded >= typed;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(true);
   await own.close();
 });
 

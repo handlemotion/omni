@@ -99,6 +99,23 @@ describe("text and dates as a spreadsheet gives them", () => {
     expect(result('=SUBSTITUTE(A1,"a",A2)', [["aaaa"], ['=REPT("x",10000)']])).toBe("#VALUE!");
   });
 
+  test("SUBSTITUTE puts in its replacement as written", () => {
+    expect(result('=SUBSTITUTE("abc","b","$&")')).toBe("a$&c");
+    expect(result(`=SUBSTITUTE("abc","b","$'")`)).toBe("a$'c");
+  });
+
+  test("an error as the value a lookup looks for is the lookup's error", () => {
+    const rows = [
+      [1, "one"],
+      [2, "two"],
+    ];
+    expect(result("=VLOOKUP(1/0,A1:B2,2,FALSE)", rows)).toBe("#DIV/0!");
+    expect(result("=HLOOKUP(1/0,A1:B2,2,FALSE)", rows)).toBe("#DIV/0!");
+    expect(result('=XLOOKUP(1/0,A1:A2,B1:B2,"missing")', rows)).toBe("#DIV/0!");
+    expect(result("=MATCH(1/0,A1:A2,0)", rows)).toBe("#DIV/0!");
+    expect(result('=IFNA(VLOOKUP(1/0,A1:B2,2,FALSE),"none")', rows)).toBe("#DIV/0!");
+  });
+
   test("SUBSTITUTE replaces only the occurrence it is given", () => {
     expect(result('=SUBSTITUTE("a-a-a","a","b",2)')).toBe("a-b-a");
     expect(result('=SUBSTITUTE("a-a-a","a","b")')).toBe("b-b-b");

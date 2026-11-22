@@ -79,6 +79,14 @@ export class LiveParts {
     return waiting.length ? Math.min(...waiting) : null;
   }
 
+  /** Forgets the split record at `h`: answers every record of it it holds. */
+  drop(h: number) {
+    const gone = this.heads.delete(h) ? [h] : [];
+    for (const part of this.pieces.get(h)?.values() ?? []) gone.push(part.seqNum);
+    this.pieces.delete(h);
+    return gone;
+  }
+
   /**
    * Gives up on split records whose head is more than `STORAGE_LIVE_PART_WINDOW` records before
    * `at`: answers every record of theirs it holds (to count as read), and forgets them.
