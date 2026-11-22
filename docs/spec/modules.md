@@ -22,7 +22,7 @@ same address a person signs in with.
 | Storage          | My files, Shared, sharing by address and by link          | 5 of 6 layers merged (#296 to #304); the web screens left  |
 | CRM              | Companies, people, deals, contracts                       | Specified: `docs/spec/crm.md`                              |
 | Client dashboard | Clients sign in, get deliverables, sign contracts         | Direction set, not scheduled                               |
-| Calendar         | Events on the mail host over CalDAV                       | Not started; needs a spike first                           |
+| Calendar         | Week and day views, invitations from mail, availability   | Specified: `docs/spec/calendar.md`                         |
 
 ## Principles
 
@@ -97,7 +97,7 @@ job, and each row is a reference, read through the far side's door.
 | Storage → CRM           | A file shared with a client's address shows on their record.                                        | Grantee address equals a person's address, at read time                                       | Later          |
 | CRM → client            | The client signs in and sees their project, deliverables and contracts.                             | A deal guest, by address, through `forUser`                                                                | Later          |
 | CRM → your phone        | The company's contacts in your own address book.                                                    | One-way CardDAV export by the mail service                                                    | Later          |
-| Calendar → CRM          | Meetings with a person on their timeline.                                                           | Attendee addresses, at read time                                                              | With Calendar  |
+| Calendar → CRM          | Meetings with a person, company or deal on their record.                                            | Calendar's door gains `meetingsWith`, by attendee address, at read time                       | With Calendar  |
 | Every module → search   | One search box over mail, files and records.                                                        | Each module's surface offers a search; the Worker merges them                                 | Later          |
 
 ## DAV
@@ -110,9 +110,10 @@ why:
   on R2.
 - **CardDAV** address books belong to one user and cannot be shared, so they cannot hold a
   company's CRM. They are a good place to _export_ the CRM's people for one member, later.
-- **CalDAV** is the right base for a Calendar module, used the way mail uses IMAP: the host
-  holds the events and Postgres is an index we can rebuild. Purelymail implements only the
-  basic RFC, so Calendar starts with a spike.
+- **CalDAV** is the right way to sync the host's own calendar, used the way mail uses IMAP: the
+  host holds the events and Postgres is an index we can rebuild. Purelymail implements only the
+  basic RFC, so it needs a spike. Calendar starts from invitations in mail instead (iMIP), which
+  every host already carries; CalDAV is its second source (`docs/spec/calendar.md`).
 
 Any DAV client lives in `apps/mail`, the only code that holds mailbox passwords.
 
@@ -148,7 +149,7 @@ of everything it touches.
 3. Mail ↔ Storage: save an attachment, attach from Storage.
 4. Storage's Worker files move into the module layout; mail's follow when quiet.
 5. The client dashboard and signing, once its open points are answered.
-6. Tasks, imports (CSV, Attio), CardDAV export, the Calendar spike.
+6. Tasks, imports (CSV, Attio), CardDAV export, the CalDAV spike for Calendar.
 
 ## Risks and open questions
 
