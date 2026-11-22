@@ -47,16 +47,17 @@ export const talkMessagesQuery = (threadId: string) =>
   });
 
 /**
- * Who the stack shows: online teammates, unread ones first, then by name; the shown ones and
- * how many more there are.
+ * Who the stack shows: every teammate, online or not, so anyone can be written to; unread ones
+ * first, then those online, then by name. The shown ones and how many more there are.
  */
 export function stackOf(people: readonly TalkPerson[]) {
-  const online = people
-    .filter((p) => p.online)
-    .toSorted(
-      (a, b) => Number(b.unread > 0) - Number(a.unread > 0) || a.name.localeCompare(b.name),
-    );
-  return { shown: online.slice(0, STACK_MAX), more: Math.max(online.length - STACK_MAX, 0) };
+  const sorted = people.toSorted(
+    (a, b) =>
+      Number(b.unread > 0) - Number(a.unread > 0) ||
+      Number(b.online) - Number(a.online) ||
+      a.name.localeCompare(b.name),
+  );
+  return { shown: sorted.slice(0, STACK_MAX), more: Math.max(sorted.length - STACK_MAX, 0) };
 }
 
 /** Everyone, for the full list: online first, then the rest, each by name. */

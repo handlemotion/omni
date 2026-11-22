@@ -163,14 +163,25 @@ const shoot = async (page: Page, name: string) => {
 test("the stack shows who is online, and a note and a file reach the teammate's window", async () => {
   const people = await team("talk-web");
   const ana = await open(people.ana.email);
-  const stack = ana.getByRole("group", { name: "Online now" });
-  await expect.poll(() => stack.count()).toBe(0);
+  const stack = ana.getByRole("group", { name: "Teammates" });
+  await stack.getByRole("button", { name: "Cyra Holt, offline" }).waitFor();
+  expect(await stack.getByRole("button").count()).toBe(4);
+  await shoot(ana, "0-offline");
+  await stack.getByRole("button", { name: "Cyra Holt, offline" }).click();
+  const toCyra = ana.getByRole("region", { name: "Conversation with Cyra Holt" });
+  await toCyra.getByRole("textbox", { name: "Note to Cyra Holt" }).fill("For when you're back");
+  await toCyra.getByRole("textbox", { name: "Note to Cyra Holt" }).press("Enter");
+  await toCyra.getByText("For when you're back").waitFor();
+  await ana.keyboard.press("Escape");
+  await toCyra.waitFor({ state: "detached" });
+  await ana.mouse.move(4, 400);
 
   const kofi = await open(people.ben.email);
   await online(people.cy.email);
   await online(people.dee.email);
   await online(people.eli.email);
-  await expect.poll(() => stack.getByRole("button").count()).toBe(4);
+  await stack.getByRole("button", { name: "Cyra Holt", exact: true }).waitFor();
+  expect(await stack.getByRole("button").count()).toBe(4);
   expect(await stack.getByRole("button").allInnerTexts()).toContain("+1");
   await shoot(ana, "1-stack");
 
@@ -199,7 +210,7 @@ test("the stack shows who is online, and a note and a file reach the teammate's 
   ana.off("request", onRequest);
   expect(made).toEqual([]);
 
-  await stack.getByRole("button", { name: "Everyone, 1 more online" }).click();
+  await stack.getByRole("button", { name: "Everyone, 1 more" }).click();
   await ana.getByRole("menuitem", { name: "Kofi Mensah" }).waitFor();
   await ana.waitForTimeout(300);
   await shoot(ana, "1b-everyone");
@@ -263,7 +274,7 @@ test("the stack shows who is online, and a note and a file reach the teammate's 
   await composer.focus();
   await shoot(ana, "2-window");
 
-  const kofiStack = kofi.getByRole("group", { name: "Online now" });
+  const kofiStack = kofi.getByRole("group", { name: "Teammates" });
   const fromAna = kofiStack.getByRole("button", { name: "Ana Lima, 5 unread" });
   await fromAna.waitFor();
   await shoot(kofi, "3-unread");

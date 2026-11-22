@@ -16,10 +16,11 @@ and rules (`docs/spec/modules.md`), because it owns tables and reads Storage thr
 ## What a person sees
 
 - **The stack.** In the title bar, left of the notifications bell, in every module: the
-  teammates online in this workspace now, at most 3 pictures overlapping, then a fourth circle
-  reading `+n` for the rest. Yourself never. A teammate with unread notes for you shows first.
-  The picture is the presence indicator: it is there because they are connected. When nobody
-  else is online, there is no stack.
+  workspace's teammates, online or not, at most 3 pictures overlapping, then a fourth circle
+  reading `+n` for the rest. Yourself never. A teammate with unread notes for you shows first,
+  then those online, then by name. An offline teammate's picture is dimmed and greyed; you can
+  still open their thread and write, and they read it when they are back (or get a push). When
+  the workspace has no other teammate, there is no stack.
 - **Everyone.** `+n` opens the full list: online teammates first, then the others, each with
   their unread count. Any of them opens a conversation; an offline teammate reads it next time.
 - **The window.** A small white island just under the face it belongs to (or `+n`), its top
@@ -168,7 +169,8 @@ upserts.
 
 ## Defaults chosen here
 
-- The stack shows online teammates only, at most 3, then `+n`; unread ones first, then by name.
+- The stack shows every teammate, offline ones dimmed, at most 3, then `+n`; unread ones first,
+  then online ones, then by name.
 - An hour between notes starts a new time line in the window.
 - Notes are plain text, 4,000 characters at most; links are not previewed.
 - Files land in `My files / Talk`; the recipient's grant is `viewer`.

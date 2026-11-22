@@ -43,7 +43,9 @@ function Dot(props: { tone: "unread" | "online"; className?: string }) {
 }
 
 const label = (person: TalkPerson) =>
-  person.unread ? `${person.name}, ${person.unread} unread` : person.name;
+  [person.name, person.unread ? `${person.unread} unread` : null, person.online ? null : "offline"]
+    .filter(Boolean)
+    .join(", ");
 
 function StackFace(props: { person: TalkPerson; open: boolean }) {
   const { person, open } = props;
@@ -69,7 +71,12 @@ function StackFace(props: { person: TalkPerson; open: boolean }) {
       <TalkFace
         person={person}
         size={FACE}
-        className={cn("bg-background", RING, open && "ring-primary")}
+        className={cn(
+          "bg-background transition-opacity duration-150",
+          RING,
+          open && "ring-primary",
+          !person.online && !open && "opacity-45 grayscale",
+        )}
       />
       {person.unread > 0 && <Dot tone="unread" />}
     </Button>
@@ -84,7 +91,7 @@ function Everyone(props: { people: TalkPerson[]; more: number; openId: string | 
           intent="plain"
           size="sq-sm"
           isCircle
-          aria-label={`Everyone, ${props.more} more online`}
+          aria-label={`Everyone, ${props.more} more`}
           data-talk-everyone
           className={OVERLAP}
         >
@@ -136,8 +143,8 @@ function Everyone(props: { people: TalkPerson[]; more: number; openId: string | 
 }
 
 /**
- * The teammates online in this workspace right now, in the title bar: up to three faces, then
- * `+n` for everyone. Nothing when nobody else is here, or the workspace has no Talk.
+ * The workspace's teammates in the title bar, online or not (offline ones dimmed): up to three
+ * faces, then `+n` for everyone. Nothing when there is nobody else, or the workspace has no Talk.
  */
 export function PresenceStack() {
   const { data: people } = useTalkPeople();
@@ -146,7 +153,7 @@ export function PresenceStack() {
   const { shown, more } = stackOf(people);
   if (shown.length === 0) return null;
   return (
-    <div role="group" aria-label="Online now" className="me-1.5 flex items-center">
+    <div role="group" aria-label="Teammates" className="me-1.5 flex items-center">
       {shown.map((person) => (
         <StackFace key={person.memberId} person={person} open={person.memberId === openId} />
       ))}
