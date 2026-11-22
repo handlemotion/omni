@@ -140,6 +140,10 @@ export const READ_ONLY_ALLOWED = [
     reason: "a signer answering a request already sent; sending one is gated",
   },
   {
+    path: "/api/portal/projects/:id/deliverables/:id/review",
+    reason: "a client answering a review the team already asked for; asking is gated",
+  },
+  {
     path: "/api/oauth",
     reason: "an agent's sign-in and its workspace choice: access, not mail",
   },

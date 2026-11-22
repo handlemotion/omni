@@ -193,6 +193,9 @@ a project, the way Attio and HubSpot portals and Linear's project page show it:
   is added. Clients get viewer on it, and nothing else in Drive. Taking a client off removes it.
 
 The portal is a door of its own (`forUser().crm`): it reads no member and never the member door.
+A client's review passes the read-only billing gate even when the project's workspace has no
+active plan, as a signer's answer does: the client is not a member and does not pay, and putting a
+deliverable in review, the team's write, is what the gate refuses.
 
 ## API
 
