@@ -89,6 +89,7 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; task?:
   );
   const now = useNow();
   const calendars = useCalendars().data ?? [];
+  const writable = calendars.filter((calendar) => !calendar.readOnly);
   const shown = useCalendarWindows(windows);
   const all = shown.data;
   const events = useMemo(() => {
@@ -236,7 +237,7 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; task?:
                 </Hinted>
               </div>
               <CalendarFilter />
-              <BookingShare calendars={calendars} />
+              <BookingShare calendars={writable} />
             </>
           }
         >
@@ -289,7 +290,7 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; task?:
           </div>
           {editing && (
             <EventDialog
-              calendars={calendars}
+              calendars={writable}
               event={editing.event}
               slot={editing.slot}
               onClose={() => setEditing(null)}

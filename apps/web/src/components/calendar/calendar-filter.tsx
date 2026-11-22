@@ -38,6 +38,7 @@ function useCalendarName() {
     workspaces.data?.workspaces.find((workspace) => workspace.id === member.orgId)?.mailboxes ?? [];
   const you = user.name || user.email;
   return (calendar: CalendarItem) => {
+    if (calendar.name) return calendar.name;
     const box = mailboxes.find((mailbox) => mailbox.id === calendar.mailboxId);
     return box ? mailboxName(box, you) : calendar.address;
   };

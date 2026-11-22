@@ -2,8 +2,20 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
-import { parseCalendar } from "@omni/mail-core/calendar";
-import { applyCalendarPart, calendarArrivals, forMember, schema } from "@omni/db";
+import {
+  parseCalendar,
+  readGoogleCalendars,
+  readGoogleEvent,
+  type GoogleCalendarChange,
+} from "@omni/mail-core/calendar";
+import {
+  applyCalendarPart,
+  applyGoogleChanges,
+  calendarArrivals,
+  forMember,
+  saveGoogleCalendarList,
+  schema,
+} from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -21,10 +33,10 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 
-const invite = readFileSync(
-  join(import.meta.dirname, "../../../fixtures/ics/google-invite.ics"),
-  "utf8",
-);
+const fixtures = join(import.meta.dirname, "../../../fixtures");
+const invite = readFileSync(join(fixtures, "ics/google-invite.ics"), "utf8");
+const googleFixture = <T>(name: string) =>
+  JSON.parse(readFileSync(join(fixtures, "google-calendar", name), "utf8")) as T;
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -1676,4 +1688,46 @@ test("the sidebar month stays put while the big month moves, and moves without i
   await sidebar.getByRole("button", { name: "Previous month" }).click();
   await sidebar.getByRole("heading", { name: "October 2026" }).waitFor();
   expect(new URL(page.url()).searchParams.get("date")).toBe("2027-01-01");
+});
+
+test("a Gmail account's Google calendars are rows under its address, each named by Google and toggled on its own", async () => {
+  const { org, address, inbox, page, origin } = await invited();
+  const list = googleFixture<{ items: Record<string, unknown>[] }>("calendar-list.json");
+  const team = googleFixture<{ timeZone: string; items: unknown[] }>("events-team.json");
+  const family = "ruiz.family.4x2@gmail.example";
+  await saveGoogleCalendarList(
+    db,
+    inbox,
+    readGoogleCalendars(list.items.filter((item) => item.id !== family)),
+  );
+  const [teamCalendar] = await db
+    .select({ id: schema.calendarCalendars.id })
+    .from(schema.calendarCalendars)
+    .where(
+      and(
+        eq(schema.calendarCalendars.mailboxId, inbox.id),
+        eq(schema.calendarCalendars.name, "Studio team"),
+      ),
+    );
+  await applyGoogleChanges(
+    db,
+    { id: teamCalendar!.id, orgId: org.id },
+    team.items
+      .map((item) => readGoogleEvent(item, team.timeZone))
+      .filter((change): change is GoogleCalendarChange => change !== null),
+  );
+  await page.goto(new URL(`/${org.slug}/calendar?date=2026-11-24&view=week`, origin).toString());
+  const shoot = page.getByRole("button", { name: /Lookbook shoot/ });
+  await shoot.waitFor();
+  await page.getByRole("button", { name: "Calendars, 3 calendars shown" }).click();
+  const grid = page.getByRole("grid", { name: "Calendars" });
+  await grid.getByText(address).first().waitFor();
+  const rows = await grid.getByRole("row").allTextContents();
+  expect(rows).toEqual([address, address, "Holidays in Mexico", "Studio team"]);
+  await grid.getByRole("row", { name: "Studio team" }).click();
+  await expect.poll(() => shoot.count()).toBe(0);
+  await expect
+    .poll(() => page.getByRole("button", { name: /Acme × Studio: kickoff/ }).count())
+    .toBe(1);
+  await page.getByRole("button", { name: "Calendars, 2 calendars shown" }).waitFor();
 });
