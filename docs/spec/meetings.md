@@ -70,7 +70,7 @@ interface, so a self-hoster can point it at any OpenAI-compatible server or Work
   before it.
 - When an event with a video link starts and the desktop app is open, it shows a notification:
   "Record Week Kickoff?". It never starts by itself.
-- The desktop app's menu bar (tray) has **Record now** for a meeting with no event.
+- The desktop app's menu bar (tray) has **Record now**: the meeting on now, or one with no event.
 - In a browser with no desktop app, **Record** shares a tab's sound and the microphone (Chrome and
   Edge; see "Capture").
 
@@ -81,8 +81,13 @@ and opening it shows the meeting as it fills; the attendee grant gives everyone 
 If that recording stops while the event is still on (Ana left, her app quit), the others are
 offered Record again, and the new recording is the same meeting's second part, transcribed
 after the first and joined to it. Two people in one room each pressing Record at once get one
-recording: the server keeps the first and tells the second. A recording with no event has
-nothing to match on and is never merged.
+recording: the server keeps the first and tells the second which one it kept. A recording with no
+event has nothing to match on and is never merged.
+
+**Which event a recording is of** is decided on the server, from the recorder's own calendars
+(see "Binding to the calendar"), never taken from the client: the event's identity, title and
+attendees come from the calendar. **Record now** (the tray, or the browser with no event picked)
+is the meeting the recorder is in when there is one, and of no event otherwise.
 
 Starting asks once per recording: "Everyone in this meeting knows it is being recorded." The
 person confirms; Omni keeps who and when. Then a small floating pill stays on top of every window:
@@ -374,6 +379,37 @@ workspace, `forUser(db, userId).meetings`; both apply "Sharing" by the user's ve
 addresses. The surface offers the CRM `meetingsOn(record)` and `setRecord`, and offers search to
 the Worker's merged search.
 
+## Binding to the calendar
+
+A recording is of one calendar meeting: one event, or one instance of a repeating one. It keeps
+that meeting by its iCalendar identity, `event_uid` and `event_recurrence_id`, never by the
+calendar's row, so it stays the same meeting through everything that changes the rows:
+
+- **Picked from the event.** The client names the event as the calendar shows it: its row id and,
+  for an instance of a series, the instance's original start (`recurrenceId`). The server reads it
+  through the calendar's door as the recorder sees it (`occurrence`), so naming an event the
+  recorder cannot see, a series without an instance, an excluded instance or a cancelled one is
+  `404`. The older `{ uid, recurrenceId }` shape is read the same way.
+- **Record now.** With no event named, the server asks the calendar for the meeting the recorder
+  is in (`occurrenceAt`): a timed event on any of their calendars, hidden ones too, from five
+  minutes before its start to its end, not cancelled, not declined, with someone else in it or a
+  call link. Of several, the one that started last. None: the recording is of no event.
+- **It moves.** A moved event keeps its `UID`; a moved instance keeps its original start as its
+  `RECURRENCE-ID`, so recording it from the series' row or from the changed instance's row is the
+  same meeting.
+- **It repeats.** Each instance is its own meeting (`event_recurrence_id` is the instance's
+  original start as ISO 8601 in UTC, `''` for an event that does not repeat), and the series is
+  the group (`series:<UID>`).
+- **It comes from Google, or from two inboxes.** An invitation and the same meeting in Google are
+  one row by `UID`; the same meeting on `ana@` and `hello@` is two rows with one `UID`. Both are
+  one meeting, so it is recorded once.
+- **Never twice.** The unique key (org, `UID`, instance, part) holds it: a second start while a
+  part records answers `409 recording_elsewhere` with the meeting being recorded, two starts at
+  the same moment included.
+- **A full re-sync** deletes and remakes the calendar's rows with new ids. Nothing in Meetings
+  points at a row, so the meeting is found again by its event (`GET /api/meetings?event=`), and
+  the calendar shows it on the same event.
+
 ## Pipeline
 
 Every step is a queue job keyed by the meeting, idempotent, and moves `status` forward only from
@@ -413,7 +449,7 @@ meetings shared with them. A meeting the caller cannot see answers `404`.
 | `GET /groups?before=`                                                | The sidebar: groups, newest first, with count and last meeting            |
 | `GET /groups/:key`                                                   | A group's summary, timeline, open actions and meetings                    |
 | `GET /?event=<uid>&recurrence=`                                      | The meeting for an event, so the calendar panel shows it                  |
-| `POST /` `{ event?, title?, consent: true }`                         | Starts one; returns its id and the upload                                 |
+| `POST /` `{ event?, title?, consent: true }`                         | Starts one; returns its id and the upload. `event`: `{ id, recurrenceId }`, `"now"` (the default) or `null` |
 | `POST /:id/stop` `{ audioNodeId, durationMs, micSpans, cuts }`       | Stops and starts the pipeline                                             |
 | `GET /:id`                                                           | The meeting: status, attendees, notes, actions, speakers                  |
 | `GET /:id/transcript`                                                | Segments with speakers                                                    |

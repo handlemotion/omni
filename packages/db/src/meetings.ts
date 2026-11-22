@@ -1,4 +1,5 @@
 import type { Db } from "./client.ts";
+import { resolveStart, type StartRecording } from "./meetings/bind.ts";
 import { memberActor, userActor, type MeetingsActor } from "./meetings/core.ts";
 import * as pipeline from "./meetings/pipeline.ts";
 import {
@@ -20,7 +21,6 @@ import {
   revokeMeeting,
   startMeeting,
   type MeetingChange,
-  type StartMeeting,
 } from "./meetings/write.ts";
 
 export {
@@ -32,6 +32,7 @@ export {
 } from "./meetings/core.ts";
 export { MEETINGS_PAGE_MAX, type MeetingView } from "./meetings/read.ts";
 export type { MeetingChange, StartMeeting } from "./meetings/write.ts";
+export { recurrenceKey, type MeetingEventChoice, type StartRecording } from "./meetings/bind.ts";
 export type {
   MeetingStatus,
   SavedNotes,
@@ -61,11 +62,14 @@ export function memberMeetings(db: Db, memberId: string) {
       listGroups(db, await actor(), page),
     groupDigest: async (groupKey: string) => groupDigest(db, await actor(), groupKey),
     action: async (actionId: string) => getAction(db, await actor(), actionId),
-    start: (input: StartMeeting) =>
-      db.transaction(async (tx) => {
+    start: async (input: StartRecording) => {
+      const resolved = await resolveStart(db, memberId, input);
+      if (resolved.status !== "ok") return resolved;
+      return db.transaction(async (tx) => {
         const me = await memberActor(tx, memberId);
-        return me ? startMeeting(tx, me, input) : ({ status: "not_found" } as const);
-      }),
+        return me ? startMeeting(tx, me, resolved.start) : ({ status: "not_found" } as const);
+      });
+    },
     change: async (meetingId: string, change: MeetingChange) =>
       changeMeeting(db, await actor(), meetingId, change),
     grant: async (meetingId: string, address: string, role: "viewer" | "editor") =>

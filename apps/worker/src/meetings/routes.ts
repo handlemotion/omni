@@ -7,7 +7,7 @@ import {
   startMeetingBodySchema,
   stopMeetingBodySchema,
 } from "@omni/contracts";
-import { forMember, groupKeyFor, meetingsPipeline, storageWorkspaceFile } from "@omni/db";
+import { forMember, meetingsPipeline, recurrenceKey, storageWorkspaceFile } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { gateMeter, hasAllowance } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
@@ -68,11 +68,14 @@ export const meetings = new Hono<AppEnv>()
     });
   })
   .get("/", zValidator("query", meetingsListQuerySchema), async (c) => {
-    const { before, limit, group } = c.req.valid("query");
+    const { before, limit, group, event, recurrence } = c.req.valid("query");
     const listed = await memberMeetings(c).list({
       before: before ? new Date(before) : null,
       limit,
       groupKey: group,
+      event: event
+        ? { uid: event, recurrenceId: recurrenceKey(recurrence ? new Date(recurrence) : null) }
+        : undefined,
     });
     if (listed.status !== "ok") return refused(c, listed);
     return c.json({ meetings: listed.meetings.map(wire) });
@@ -92,33 +95,11 @@ export const meetings = new Hono<AppEnv>()
     }
     const folderId = await recordingsFolder(memberFiles(c));
     if (!folderId) return apiError(c, "not_found", "your My files could not be reached");
-    const ownDomains = [c.var.user.email.split("@")[1] ?? ""];
-    const attendees = body.attendees.map((a) => ({ address: a.address, name: a.name ?? null }));
-    const groupKey = body.event?.recurring
-      ? groupKeyFor({
-          meetingId: "",
-          eventUid: body.event.uid,
-          recurring: true,
-          attendees: [],
-          ownDomains,
-        })
-      : (() => {
-          const key = groupKeyFor({
-            meetingId: "",
-            eventUid: null,
-            recurring: false,
-            attendees: attendees.map((a) => a.address),
-            ownDomains,
-          });
-          return key.startsWith("meeting:") ? null : key;
-        })();
     const started = await memberMeetings(c).start({
       title: body.title ?? null,
-      event: body.event
-        ? { uid: body.event.uid, recurrenceId: body.event.recurrenceId ?? null }
-        : null,
-      attendees,
-      groupKey,
+      event: body.event,
+      attendees: body.attendees.map((a) => ({ address: a.address, name: a.name ?? null })),
+      ownDomains: [c.var.user.email.split("@")[1] ?? ""],
       consent: body.consent,
     });
     if (started.status === "recording_elsewhere") {

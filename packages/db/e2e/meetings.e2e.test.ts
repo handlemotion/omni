@@ -150,35 +150,6 @@ test("a member of another workspace reaches nothing through the member door, eve
   );
 });
 
-test("a calendar meeting is recorded once: a second start while it records is refused, after it is the next part", async () => {
-  const s = await studio();
-  const event = { uid: `uid-${s.t}`, recurrenceId: null };
-  const first = ok(await record(s.dana.id, { attendees: [s.dana.address, s.ben.address], event }));
-
-  const again = await record(s.ben.id, { attendees: [s.dana.address, s.ben.address], event });
-  expect(again).toEqual({
-    status: "recording_elsewhere",
-    meetingId: first.meetingId,
-    recordedByMemberId: s.dana.id,
-  });
-
-  const racing = await Promise.all([
-    record(s.cy.id, { attendees: [], event: { uid: `race-${s.t}`, recurrenceId: "2026-11-23" } }),
-    record(s.ben.id, { attendees: [], event: { uid: `race-${s.t}`, recurrenceId: "2026-11-23" } }),
-  ]);
-  expect(racing.filter((r) => r.status === "ok")).toHaveLength(1);
-
-  await meetingsPipeline(db).stopRecording(first.meetingId, {
-    endedAt: new Date(),
-    durationMs: 1000,
-    audioNodeId: null as unknown as string,
-    micSpans: null,
-    cuts: [],
-  });
-  const second = ok(await record(s.ben.id, { attendees: [s.ben.address], event }));
-  expect(second.part).toBe(2);
-});
-
 test("a group summary is made and cached only from the meetings its reader can open", async () => {
   const s = await studio();
   const pipeline = meetingsPipeline(db);

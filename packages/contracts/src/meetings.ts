@@ -3,16 +3,29 @@ import { z } from "zod";
 const address = z.email().max(320);
 const span = z.object({ startMs: z.number().int().min(0), endMs: z.number().int().min(0) });
 
-/** `POST /api/meetings`: start a recording, of a calendar event or of nothing. */
+const recurrenceId = z.iso.datetime({ offset: true }).nullish();
+
+/**
+ * `POST /api/meetings`: start a recording. `event` is the calendar meeting it is of: its row and
+ * instance as the calendar shows them (`{ id, recurrenceId }`), its `UID` (`{ uid, recurrenceId }`,
+ * the first shape; `recurring` is ignored, the calendar knows), `"now"` (the default) for the
+ * meeting the recorder is in, or `null` for none. The server reads the event and its attendees
+ * from the recorder's calendars.
+ */
 export const startMeetingBodySchema = z.object({
   title: z.string().max(300).nullish(),
   event: z
-    .object({
-      uid: z.string().min(1).max(1000),
-      recurrenceId: z.string().max(100).nullish(),
-      recurring: z.boolean().default(false),
-    })
-    .nullish(),
+    .union([
+      z.object({ id: z.string().min(1).max(64), recurrenceId }),
+      z.object({
+        uid: z.string().min(1).max(1000),
+        recurrenceId,
+        recurring: z.boolean().optional(),
+      }),
+      z.literal("now"),
+    ])
+    .nullable()
+    .default("now"),
   attendees: z
     .array(z.object({ address, name: z.string().max(200).nullish() }))
     .max(200)
@@ -56,6 +69,9 @@ export const meetingsListQuerySchema = z.object({
   before: z.iso.datetime().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   group: z.string().max(400).optional(),
+  /** One calendar meeting's recordings: its `UID`, and in a series the instance's original start. */
+  event: z.string().min(1).max(1000).optional(),
+  recurrence: z.iso.datetime({ offset: true }).optional(),
 });
 
 export const meetingsSearchQuerySchema = z.object({

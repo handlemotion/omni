@@ -16,6 +16,7 @@ const FAILURES = {
   invalid_address: ["bad_request", "that is not an email address"],
   invalid_name: ["bad_request", "a name is 1 to 200 characters"],
   recording_elsewhere: ["conflict", "someone in your workspace is already recording this meeting"],
+  event_not_found: ["not_found", "that event is not on your calendars"],
   decided: ["conflict", "that action was already decided"],
   not_a_recording: ["bad_request", "the recording must be a file in your My files"],
   not_stoppable: ["conflict", "the meeting is not recording"],

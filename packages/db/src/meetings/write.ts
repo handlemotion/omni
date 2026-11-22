@@ -33,30 +33,8 @@ export async function startMeeting(ex: Ex, actor: MeetingsActor, input: StartMee
   const recurrence = input.event?.recurrenceId ?? "";
   let part = 1;
   if (input.event) {
-    const [latest] = await ex
-      .select({
-        id: meetingsMeetings.id,
-        part: meetingsMeetings.part,
-        status: meetingsMeetings.status,
-        by: meetingsMeetings.recordedByMemberId,
-      })
-      .from(meetingsMeetings)
-      .where(
-        and(
-          eq(meetingsMeetings.orgId, member.orgId),
-          eq(meetingsMeetings.eventUid, input.event.uid),
-          eq(meetingsMeetings.eventRecurrenceId, recurrence),
-        ),
-      )
-      .orderBy(desc(meetingsMeetings.part))
-      .limit(1);
-    if (latest?.status === "recording") {
-      return {
-        status: "recording_elsewhere",
-        meetingId: latest.id,
-        recordedByMemberId: latest.by,
-      } as const;
-    }
+    const latest = await latestPart(ex, member.orgId, input.event.uid, recurrence);
+    if (latest?.status === "recording") return recordingElsewhere(latest);
     part = (latest?.part ?? 0) + 1;
   }
   const [meeting] = await ex
@@ -73,8 +51,12 @@ export async function startMeeting(ex: Ex, actor: MeetingsActor, input: StartMee
     })
     .onConflictDoNothing()
     .returning();
-  if (!meeting)
-    return { status: "recording_elsewhere", meetingId: null, recordedByMemberId: null } as const;
+  if (!meeting) {
+    const winner = input.event
+      ? await latestPart(ex, member.orgId, input.event.uid, recurrence)
+      : undefined;
+    return recordingElsewhere(winner ?? { id: null, by: null });
+  }
   if (!input.groupKey) {
     await ex
       .update(meetingsMeetings)
@@ -82,8 +64,24 @@ export async function startMeeting(ex: Ex, actor: MeetingsActor, input: StartMee
       .where(eq(meetingsMeetings.id, meeting.id));
   }
 
+  await shareWithAttendees(ex, actor, member, meeting.id, input.attendees);
+  await ex
+    .insert(meetingsJobs)
+    .values({ meetingId: meeting.id, orgId: member.orgId })
+    .onConflictDoNothing();
+  return { status: "ok", meetingId: meeting.id, part } as const;
+}
+
+async function shareWithAttendees(
+  ex: Ex,
+  actor: MeetingsActor,
+  member: NonNullable<MeetingsActor["member"]>,
+  meetingId: string,
+  people: StartMeeting["attendees"],
+) {
+  const meeting = { id: meetingId };
   const owner = actor.addresses[0];
-  const attendees = new Map(input.attendees.map((a) => [lower(a.address), a.name?.trim() || null]));
+  const attendees = new Map(people.map((a) => [lower(a.address), a.name?.trim() || null]));
   if (attendees.size) {
     await ex
       .insert(meetingsAttendees)
@@ -116,12 +114,31 @@ export async function startMeeting(ex: Ex, actor: MeetingsActor, input: StartMee
       )
       .onConflictDoNothing();
   }
-  await ex
-    .insert(meetingsJobs)
-    .values({ meetingId: meeting.id, orgId: member.orgId })
-    .onConflictDoNothing();
-  return { status: "ok", meetingId: meeting.id, part } as const;
 }
+
+async function latestPart(ex: Ex, orgId: string, uid: string, recurrenceId: string) {
+  const [latest] = await ex
+    .select({
+      id: meetingsMeetings.id,
+      part: meetingsMeetings.part,
+      status: meetingsMeetings.status,
+      by: meetingsMeetings.recordedByMemberId,
+    })
+    .from(meetingsMeetings)
+    .where(
+      and(
+        eq(meetingsMeetings.orgId, orgId),
+        eq(meetingsMeetings.eventUid, uid),
+        eq(meetingsMeetings.eventRecurrenceId, recurrenceId),
+      ),
+    )
+    .orderBy(desc(meetingsMeetings.part))
+    .limit(1);
+  return latest;
+}
+
+const recordingElsewhere = (latest: { id: string | null; by: string | null }) =>
+  ({ status: "recording_elsewhere", meetingId: latest.id, recordedByMemberId: latest.by }) as const;
 
 export interface MeetingChange {
   title?: string | null;

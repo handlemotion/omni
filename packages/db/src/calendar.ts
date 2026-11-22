@@ -17,6 +17,7 @@ import {
   type Writer,
 } from "./calendar/write.ts";
 import { getEvent, listEvents, windowRefused } from "./calendar/read.ts";
+import { findOccurrence, occurrenceAt, type OccurrenceRef } from "./calendar/occurrence.ts";
 import {
   createOwnTask,
   deleteOwnTask,
@@ -41,6 +42,7 @@ export {
   type PartResult,
   type UnreadPart,
 } from "./calendar/ingest.ts";
+export { OCCURRENCE_LEAD_MS, type OccurrenceRef } from "./calendar/occurrence.ts";
 export {
   CALENDAR_WINDOW_MAX_DAYS,
   type CalendarEventAttendee,
@@ -83,6 +85,9 @@ function calendarDoor(db: Db, mailboxes: Mailboxes) {
     events: async (window: { from: Date; to: Date; calendarIds?: readonly string[] }) =>
       windowRefused(window) ?? listEvents(db, await visible(), window),
     event: (id: string) => getEvent(db, visible, id),
+    occurrence: (ref: OccurrenceRef, recurrenceId: Date | null) =>
+      findOccurrence(db, visible, ref, recurrenceId),
+    occurrenceAt: async (at: Date) => occurrenceAt(db, await visible(), at),
   };
 }
 

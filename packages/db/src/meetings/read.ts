@@ -112,6 +112,8 @@ export async function listMeetings(
     limit?: number;
     groupKey?: string;
     record?: { kind: string; id: string };
+    /** One calendar meeting's parts: its `UID` and instance key (`''` for a single event). */
+    event?: { uid: string; recurrenceId: string };
   } = {},
 ) {
   if (!actor) return NOT_FOUND;
@@ -126,6 +128,9 @@ export async function listMeetings(
         page.groupKey ? eq(m.groupKey, page.groupKey) : undefined,
         page.record
           ? and(eq(m.recordKind, page.record.kind), eq(m.recordId, page.record.id))
+          : undefined,
+        page.event
+          ? and(eq(m.eventUid, page.event.uid), eq(m.eventRecurrenceId, page.event.recurrenceId))
           : undefined,
       ),
     )

@@ -484,6 +484,12 @@ written into this meeting's notes doc. The calendar's panel offers Record and sh
 meeting; Meetings reads the event, its attendees and its notes doc through the calendar's
 surface, and makes tasks through it. The calendar reads nothing of Meetings.
 
+The door gives Meetings two reads, both as the person sees their calendars:
+`occurrence(ref, recurrenceId)`, one meeting by its row or its `UID` and, in a series, the
+instance's original start (a moved instance by its own row or the series', the same answer;
+excluded and cancelled ones are not found), and `occurrenceAt(at)`, the meeting the person is in
+(`docs/spec/meetings.md`, "Binding to the calendar").
+
 ## Plan
 
 Each line is one PR. The spec goes on `main` alone. The build is one `gh stack`, smallest useful
