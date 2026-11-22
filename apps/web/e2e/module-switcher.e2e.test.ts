@@ -144,6 +144,33 @@ test("a sideways swipe leaves the module where it is; only the rail moves betwee
   await shows(page, "mail");
 });
 
+test("each rail click stays on the module it opened", async () => {
+  const page = await openInbox("restore", { reducedMotion: "reduce" });
+  const wants = {
+    CRM: "/crm/companies",
+    Mail: "/mail/inbox",
+    Calendar: "/calendar",
+    Drive: "/files",
+  } as const;
+  for (const name of ["CRM", "Mail", "Calendar", "Mail", "Drive", "Calendar", "CRM"] as const) {
+    await rail(page, name).click();
+    await page.waitForURL((url) => place(url) === wants[name]);
+    await page.waitForTimeout(400);
+    expect(place(page.url())).toBe(wants[name]);
+  }
+});
+
+test("a scroll the pages did not make snaps back and opens nothing", async () => {
+  const page = await openInbox("stray");
+  await pager(page).evaluate((el) => {
+    el.scrollLeft = 2 * el.clientWidth;
+  });
+  await page.waitForTimeout(400);
+  expect(place(page.url())).toBe("/mail/inbox");
+  expect(await pageAt(page)).toBe(0);
+  await shows(page, "mail");
+});
+
 test("Tab never lands in a module's page that isn't shown", async () => {
   const page = await openInbox("inert");
   const drive = page.locator('[data-module-page="files"] a').first();

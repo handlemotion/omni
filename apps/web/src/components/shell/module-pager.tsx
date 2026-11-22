@@ -1,25 +1,16 @@
-import { useRouter } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { useCurrentModule, useModules, useOpenModule, type ModuleId } from "./module-switcher";
+import { useCurrentModule, useModules, type ModuleId } from "./module-switcher";
 
-const SETTLE_MS = 120;
 const GLIDE_MS = 300;
-const ON_PAGE = 0.01;
 
 const glideMotion = () =>
   (window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ? "instant"
     : "smooth") satisfies ScrollBehavior;
 
-interface Pages {
-  shown: () => number;
-  settledOn: (page: number) => void;
-}
-
 // WARNING: a smooth scrollTo is dropped when the pages re-render mid-glide; glide by hand.
-function drivePages(el: HTMLElement, root: HTMLElement, pages: Pages) {
+function drivePages(el: HTMLElement, root: HTMLElement, shown: () => number) {
   let gliding = 0;
-  let timer = 0;
   const publish = () => {
     if (el.clientWidth > 0)
       root.style.setProperty("--module-at", `${el.scrollLeft / el.clientWidth}`);
@@ -46,43 +37,35 @@ function drivePages(el: HTMLElement, root: HTMLElement, pages: Pages) {
     };
     gliding = requestAnimationFrame(frame);
   };
-  const settle = () => {
-    if (el.clientWidth === 0 || gliding) return;
-    const at = el.scrollLeft / el.clientWidth;
-    const page = Math.round(at);
-    if (Math.abs(at - page) <= ON_PAGE && page !== pages.shown()) pages.settledOn(page);
-  };
   const onScroll = () => {
-    publish();
-    window.clearTimeout(timer);
-    timer = window.setTimeout(settle, SETTLE_MS);
+    if (gliding || el.clientWidth === 0) return publish();
+    if (Math.abs(el.scrollLeft - shown() * el.clientWidth) >= 1) glide(shown(), "instant");
+    else publish();
   };
   const resize = new ResizeObserver(() => {
-    if (!gliding) glide(pages.shown(), "instant");
+    if (!gliding) glide(shown(), "instant");
   });
 
-  glide(pages.shown(), "instant");
+  glide(shown(), "instant");
   el.addEventListener("scroll", onScroll, { passive: true });
-  el.addEventListener("scrollend", settle);
   resize.observe(el);
   return {
     glide,
     stop: () => {
-      window.clearTimeout(timer);
       stopGliding();
       resize.disconnect();
       el.removeEventListener("scroll", onScroll);
-      el.removeEventListener("scrollend", settle);
     },
   };
 }
 
 /**
  * The sidebar's nav, one page per module side by side. Opening a module (the rail, the phone's
- * switcher, `g f`) glides the pages there; they don't scroll under a swipe. The pages' position
- * is `--module-at` on the sidebar (0 on the first page, 1 on the second, fractions between), so
- * the phone switcher's pill moves with them. Pages other than the shown one are inert and hidden
- * from assistive tech.
+ * switcher, `g f`) glides the pages there; they don't scroll under a swipe, and the page shown
+ * always follows the URL, never the other way round. The pages' position is `--module-at` on
+ * the sidebar (0 on the first page, 1 on the second, fractions between), so the phone
+ * switcher's pill moves with them. Pages other than the shown one are inert and hidden from
+ * assistive tech.
  */
 export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
   const modules = useModules();
@@ -91,49 +74,25 @@ export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
     0,
     modules.findIndex((module) => module.id === current),
   );
-  const open = useOpenModule();
-  const router = useRouter();
   const pager = useRef<HTMLDivElement>(null);
-  const glideTo = useRef<ReturnType<typeof drivePages>["glide"]>(null);
-  const opening = useRef<number | null>(null);
-  const latest = useRef({ index, modules, open });
-  latest.current = { index, modules, open };
+  const driver = useRef<ReturnType<typeof drivePages>>(null);
+  const shown = useRef(index);
+  shown.current = index;
 
   useLayoutEffect(() => {
     const el = pager.current;
     const root = el?.closest<HTMLElement>('[data-slot="sidebar"]');
     if (!el || !root) return;
-    const shown = () => latest.current.index;
-    const driver = drivePages(el, root, {
-      shown,
-      settledOn: (page) => {
-        const target = latest.current.modules[page];
-        if (!target) return;
-        if (router.history._getBlockers().length > 0) {
-          driver.glide(shown(), glideMotion());
-          void latest.current.open(target.id);
-          return;
-        }
-        opening.current = page;
-        void latest.current.open(target.id).finally(() =>
-          requestAnimationFrame(() => {
-            if (opening.current !== page) return;
-            opening.current = null;
-            if (shown() !== page) driver.glide(shown(), glideMotion());
-          }),
-        );
-      },
-    });
-    glideTo.current = driver.glide;
+    const driven = drivePages(el, root, () => shown.current);
+    driver.current = driven;
     return () => {
-      driver.stop();
-      glideTo.current = null;
+      driven.stop();
+      driver.current = null;
     };
-  }, [router]);
+  }, []);
 
   useLayoutEffect(() => {
-    if (opening.current === index) opening.current = null;
-    if (opening.current === null) glideTo.current?.(index, glideMotion());
+    driver.current?.glide(index, glideMotion());
   }, [index]);
 
   return (
