@@ -19,6 +19,7 @@ import { Route as AuthedWelcomeRouteImport } from "./routes/_authed/welcome";
 import { Route as SShareIdRouteImport } from "./routes/s.$shareId";
 import { Route as SignRequestIdRouteImport } from "./routes/sign.$requestId";
 import { Route as AuthedWorkspaceSplatRouteImport } from "./routes/_authed/$workspace/$";
+import { Route as AuthedWorkspaceCalendarRouteImport } from "./routes/_authed/$workspace/calendar";
 import { Route as AuthedWorkspaceCrmRouteImport } from "./routes/_authed/$workspace/crm";
 import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/invite.$invitationId";
 import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/consent";
@@ -116,6 +117,11 @@ const SignRequestIdRoute = SignRequestIdRouteImport.update({
 const AuthedWorkspaceSplatRoute = AuthedWorkspaceSplatRouteImport.update({
   id: "/$",
   path: "/$",
+  getParentRoute: () => AuthedWorkspaceRoute,
+} as any);
+const AuthedWorkspaceCalendarRoute = AuthedWorkspaceCalendarRouteImport.update({
+  id: "/calendar",
+  path: "/calendar",
   getParentRoute: () => AuthedWorkspaceRoute,
 } as any);
 const AuthedWorkspaceCrmRoute = AuthedWorkspaceCrmRouteImport.update({
@@ -414,6 +420,7 @@ export interface FileRoutesByFullPath {
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
+  "/$workspace/calendar": typeof AuthedWorkspaceCalendarRoute;
   "/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
@@ -474,6 +481,7 @@ export interface FileRoutesByTo {
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
+  "/$workspace/calendar": typeof AuthedWorkspaceCalendarRoute;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
   "/portal/$id": typeof AuthedPortalIdRoute;
@@ -535,6 +543,7 @@ export interface FileRoutesById {
   "/s/$shareId": typeof SShareIdRoute;
   "/sign/$requestId": typeof SignRequestIdRoute;
   "/_authed/$workspace/$": typeof AuthedWorkspaceSplatRoute;
+  "/_authed/$workspace/calendar": typeof AuthedWorkspaceCalendarRoute;
   "/_authed/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/_authed/oauth/consent": typeof AuthedOauthConsentRoute;
@@ -597,6 +606,7 @@ export interface FileRouteTypes {
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/$workspace/$"
+    | "/$workspace/calendar"
     | "/$workspace/crm"
     | "/invite/$invitationId"
     | "/oauth/consent"
@@ -657,6 +667,7 @@ export interface FileRouteTypes {
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/$workspace/$"
+    | "/$workspace/calendar"
     | "/invite/$invitationId"
     | "/oauth/consent"
     | "/portal/$id"
@@ -717,6 +728,7 @@ export interface FileRouteTypes {
     | "/s/$shareId"
     | "/sign/$requestId"
     | "/_authed/$workspace/$"
+    | "/_authed/$workspace/calendar"
     | "/_authed/$workspace/crm"
     | "/_authed/invite/$invitationId"
     | "/_authed/oauth/consent"
@@ -846,6 +858,13 @@ declare module "@tanstack/react-router" {
       path: "/$";
       fullPath: "/$workspace/$";
       preLoaderRoute: typeof AuthedWorkspaceSplatRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/calendar": {
+      id: "/_authed/$workspace/calendar";
+      path: "/calendar";
+      fullPath: "/$workspace/calendar";
+      preLoaderRoute: typeof AuthedWorkspaceCalendarRouteImport;
       parentRoute: typeof AuthedWorkspaceRoute;
     };
     "/_authed/$workspace/crm": {
@@ -1371,6 +1390,7 @@ const AuthedWorkspaceMailTrashRouteWithChildren =
 
 interface AuthedWorkspaceRouteChildren {
   AuthedWorkspaceSplatRoute: typeof AuthedWorkspaceSplatRoute;
+  AuthedWorkspaceCalendarRoute: typeof AuthedWorkspaceCalendarRoute;
   AuthedWorkspaceCrmRoute: typeof AuthedWorkspaceCrmRouteWithChildren;
   AuthedWorkspaceFilesRecentsRoute: typeof AuthedWorkspaceFilesRecentsRoute;
   AuthedWorkspaceFilesSharedWithMeRoute: typeof AuthedWorkspaceFilesSharedWithMeRoute;
@@ -1399,6 +1419,7 @@ interface AuthedWorkspaceRouteChildren {
 
 const AuthedWorkspaceRouteChildren: AuthedWorkspaceRouteChildren = {
   AuthedWorkspaceSplatRoute: AuthedWorkspaceSplatRoute,
+  AuthedWorkspaceCalendarRoute: AuthedWorkspaceCalendarRoute,
   AuthedWorkspaceCrmRoute: AuthedWorkspaceCrmRouteWithChildren,
   AuthedWorkspaceFilesRecentsRoute: AuthedWorkspaceFilesRecentsRoute,
   AuthedWorkspaceFilesSharedWithMeRoute: AuthedWorkspaceFilesSharedWithMeRoute,

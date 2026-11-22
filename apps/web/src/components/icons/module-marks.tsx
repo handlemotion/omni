@@ -121,6 +121,45 @@ export function IconDriveMark({ className }: { className?: string }) {
   );
 }
 
+/** A white desk calendar under a burnt-orange header, two rings on top, a few days marked. */
+export function IconCalendarMark({ className }: { className?: string }) {
+  const id = useIds();
+  return (
+    <Mark className={className}>
+      <defs>
+        <Drop id={`${id}d`} />
+        <Fade id={`${id}h`} from="#ff7a6e" to="#e5352f" />
+        <Fade id={`${id}p`} from="#ffffff" to="#f4eceb" />
+      </defs>
+      <g filter={`url(#${id}d)`}>
+        <rect x="2" y="3" width="16" height="14.5" rx="2.5" fill={`url(#${id}p)`} />
+        <path d="M2 5.5A2.5 2.5 0 0 1 4.5 3h11A2.5 2.5 0 0 1 18 5.5V7H2Z" fill={`url(#${id}h)`} />
+      </g>
+      <path d="M2.3 6.95h15.4" stroke="#fff" strokeOpacity=".35" strokeWidth=".5" />
+      <rect x="6" y="1.6" width="1.5" height="3.2" rx=".75" fill="#8c1d18" />
+      <rect x="12.5" y="1.6" width="1.5" height="3.2" rx=".75" fill="#8c1d18" />
+      <g fill="#b42318" fillOpacity=".55">
+        <circle cx="6" cy="10.2" r=".85" />
+        <circle cx="10" cy="10.2" r=".85" />
+        <circle cx="14" cy="10.2" r=".85" />
+        <circle cx="6" cy="13.8" r=".85" />
+        <circle cx="10" cy="13.8" r=".85" />
+      </g>
+      <circle cx="14" cy="13.8" r="1.25" fill={`url(#${id}h)`} />
+      <rect
+        x="2.25"
+        y="3.25"
+        width="15.5"
+        height="14"
+        rx="2.25"
+        stroke="#8c1d18"
+        strokeOpacity=".4"
+        strokeWidth=".5"
+      />
+    </Mark>
+  );
+}
+
 /** A violet contacts book: a darker spine, a white bust on its cover. */
 export function IconCrmMark({ className }: { className?: string }) {
   const id = useIds();

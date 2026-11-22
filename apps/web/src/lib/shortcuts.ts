@@ -14,7 +14,7 @@ const onWindows = desktop.platform === "windows";
  * Where a shortcut works: inside one module (`mail`, `files`, `crm`) or on the settings pages. A
  * shortcut with no place works everywhere (go-to, ⌘K, `?`). See `useShortcut`.
  */
-export type ShortcutPlace = "mail" | "files" | "crm" | "settings";
+export type ShortcutPlace = "mail" | "files" | "crm" | "calendar" | "settings";
 
 export interface ShortcutDefinition {
   label: string;
@@ -120,7 +120,9 @@ export type ShortcutId = keyof typeof SHORTCUTS;
 export function placeOf(pathname: string) {
   const place = pathname.split("/")[2];
   return (
-    place === "files" || place === "crm" || place === "settings" ? place : "mail"
+    place === "files" || place === "crm" || place === "calendar" || place === "settings"
+      ? place
+      : "mail"
   ) satisfies ShortcutPlace;
 }
 

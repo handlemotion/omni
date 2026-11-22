@@ -1,3 +1,4 @@
+import { carriesInvite, InviteCard } from "@/components/calendar/invite-card";
 import { type ReactNode, useState } from "react";
 import { linkSegments } from "@omni/mail-core/links";
 import { SenderAvatar, byAddress } from "@/components/avatar/sender-avatar";
@@ -109,6 +110,9 @@ export function MessageItem(props: {
   const unsubscribe = <Unsubscribe threadId={threadId} message={message} />;
   const attachments = <AttachmentChips threadId={threadId} attachments={message.attachments} />;
   const label = `${message.fromMe ? "You" : sender}, ${messageTime(message.sentAt)}`;
+  const invite = carriesInvite(message.attachments) && (
+    <InviteCard threadId={threadId} messageId={message.id} />
+  );
 
   if (props.flat)
     return (
@@ -124,6 +128,7 @@ export function MessageItem(props: {
           menu={menu}
           unsubscribe={unsubscribe}
         />
+        {invite}
         <div {...{ [REPLY_SOURCE]: sender }} className="flex w-full flex-col gap-3">
           {full ? (
             <FullMessage threadId={threadId} messageId={message.id} flat />
@@ -149,6 +154,7 @@ export function MessageItem(props: {
           menu={menu}
           unsubscribe={unsubscribe}
         />
+        {invite && <div className={CARD_BODY}>{invite}</div>}
         {full ? (
           <div {...{ [REPLY_SOURCE]: sender }}>
             <FullMessage threadId={threadId} messageId={message.id} />

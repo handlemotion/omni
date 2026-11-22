@@ -131,10 +131,20 @@ sent to both is stored once per mailbox. They share one notes doc, found by `(or
 ## How people use it
 
 **Open the calendar.** `/calendar` opens the week, from Monday, in the browser's time zone, at the
-current hour. Every calendar the person can see in the active workspace is overlaid; the sidebar
-lists them with a color dot to toggle each. All-day events sit in a strip above the hours.
-Overlapping events share the column side by side. A declined event is drawn faint, a tentative one
-hatched, an unanswered invitation outlined.
+current hour. Every calendar the person can see in the active workspace is overlaid. The sidebar has
+no module title: the month leads it (the shown week tinted, a day picks it), the person's to-dos
+follow, and at its foot a switcher shows all calendars or one inbox's alone (`?calendar=`), like
+the workspace switcher. All-day events sit in a strip above the hours.
+
+**To-dos.** The calendar's to-dos are the workspace's tasks (`crm.md`, Tasks) assigned to the
+person, in fixed sections: Today, Upcoming and No date always, Overdue when something is late.
+A section's title shows a `+` on hover that opens an empty row to type into; Enter adds the to-do
+with the section's due day (today, tomorrow, none) and opens the next row, Esc drops it. Each is
+checked off in place. A dated one also sits on its day's all-day row, where checking it completes
+it. A Personal space has no tasks yet, so it shows none.
+
+Overlapping events share the column side by side. A declined event is drawn faint and struck through, a
+tentative one hatched, an unanswered invitation outlined.
 
 **Keys.** Everything a mouse does, a key does too. The calendar takes no key while a field has
 focus.
@@ -142,17 +152,18 @@ focus.
 | Key                     | Does                                                                     |
 | ----------------------- | ------------------------------------------------------------------------ |
 | `c`                     | New event at the selected slot (or the next half hour), title focused    |
-| `←` `→` / `j` `k`       | Previous or next week (day in day view)                                  |
+| `←` `→`                 | Previous or next week (day in day view)                                  |
 | `t`                     | Today                                                                    |
 | `w` · `d`               | Week view · day view                                                     |
 | `↑` `↓`                 | Move the selected slot by 15 minutes; with an event selected, the event  |
 | `Shift` `↑` `↓`         | Make the selection or the selected event 15 minutes longer or shorter     |
-| `Tab` · `Shift` `Tab`   | Select the next or previous event                                         |
+| `]` · `[`               | Select the next or previous event (`Tab` keeps moving focus)              |
 | `Enter`                 | Open the selected event                                                  |
 | `y` · `n` · `m`         | Answer the selected invitation Yes, No, Maybe                            |
-| `⌫`                     | Delete the selected event (yours) or decline it (an invitation)          |
-| `⌘` `Enter` · `Esc`     | Save · close                                                             |
-| `j` in an open event    | Join its video link                                                      |
+| `⌫`                     | Decline the selected invitation; delete your own event if it has no guests, else open it to "Delete and tell guests" |
+| `j`                     | Join the selected event's video link                                     |
+| `Esc`                   | Close the event panel, then clear the selection                          |
+| `Enter` · `Esc` in the dialog | Save · close                                                       |
 | `⌘K`                    | The command menu: jump to a day, find an event by title                  |
 
 Dragging in the grid makes an event over the dragged time; dragging an event moves it, and its
@@ -406,15 +417,15 @@ multipart path; a queue job that transcribes and writes the doc; then speakers.
 ## Plan
 
 Each line is one PR. The spec goes on `main` alone. The build is one `gh stack`, smallest useful
-first; its migration sits on top of the teamspaces stack (`#704` to `#754`, migrations 0067 to
-0069), per AGENTS.md "Migrations number in stack order", so the first layer of this stack is a
-layer on that one.
+first. Its migrations (0071 and 0072) sit on top of the teamspaces stack (`#704` to `#754`),
+per AGENTS.md "Migrations number in stack order"; K4's migration goes on top of Talk's (0073).
 
 | #   | Layer                                                                                                        | Depends on     |
 | --- | ------------------------------------------------------------------------------------------------------------ | -------------- |
 | K0  | This document                                                                                                | main           |
 | K1  | Parsing and expansion in `@omni/mail-core`; the schema; the door; the sweep that reads invitations from mail | `#754`         |
-| K2  | The Worker API and agents: events, answering and sending through the outbox, free/busy, availability, MCP    | K1             |
+| K2  | The Worker API: events, answering and sending through the outbox                                             | K1             |
+| K2b | Free/busy, availability links and the public page, the MCP tools                                             | K2             |
 | K3  | The web views: week and day, keys, calendars, the event panel, the invitation card in threads               | K2             |
 | K4  | Twined: `meetingsWith`, meetings on CRM records and deals, notes docs in Drive                              | K3             |
 
@@ -438,16 +449,20 @@ Each test is named for the bug it catches.
 - Worker: an attachment that arrives is on the calendar within seconds of the arrival event, and
   the minute sweep picks it up when the event never came; Junk is skipped.
 
-**K2. API and agents**
+**K2. API**
 
 - Answering Yes queues one send with a `REPLY` from the invited inbox to the organizer, and a
   retried request queues no second one; the mail service sends it with a `text/calendar` part.
 - Changing an event's time sends one update with a higher sequence to each guest; removing a guest
   sends them a cancellation.
-- A member without access to a shared inbox gets `404` for its events, invites and free/busy.
+- A member without access to a shared inbox gets `404` for its events and invites.
+- A read-only workspace reads every route and gets `402` on every write.
+
+**K2b. Availability and agents**
+
+- A member without access to a shared inbox gets `404` for its free/busy.
 - The public availability page shows busy blocks and no title, person or place; a reset link
   answers `404`.
-- A read-only workspace reads every route and gets `402` on every write.
 - `calendar_events` with a token granted one workspace sees none of another's.
 
 **K3. Web**
@@ -466,7 +481,7 @@ Each test is named for the bug it catches.
 - `modules.md`: Calendar is "Specified: `docs/spec/calendar.md`", its first source is mail
   rather than CalDAV, and the Calendar → CRM link reads `meetingsWith`.
 - `v1.md`: Calendar leaves its non-goals.
-- `mcp.md`: the `calendar:read` scope and the two tools, with K2.
+- `mcp.md`: the `calendar:read` scope and the two tools, with K2b.
 
 ## Open questions
 

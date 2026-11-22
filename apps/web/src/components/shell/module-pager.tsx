@@ -16,7 +16,7 @@ interface Pages {
   settledOn: (page: number) => void;
 }
 
-// WARNING: a smooth scrollTo on a snapping scroller is dropped when its contents re-render; glide by hand.
+// WARNING: a smooth scrollTo is dropped when the pages re-render mid-glide; glide by hand.
 function drivePages(el: HTMLElement, root: HTMLElement, pages: Pages) {
   let gliding = 0;
   let timer = 0;
@@ -28,21 +28,19 @@ function drivePages(el: HTMLElement, root: HTMLElement, pages: Pages) {
     if (!gliding) return;
     cancelAnimationFrame(gliding);
     gliding = 0;
-    el.style.removeProperty("scroll-snap-type");
   };
   const glide = (page: number, behavior: ScrollBehavior) => {
     stopGliding();
     const from = el.scrollLeft;
-    const to = page * el.clientWidth;
-    if (behavior === "instant" || Math.abs(from - to) < 1) {
-      el.scrollLeft = to;
+    const to = () => page * el.clientWidth;
+    if (behavior === "instant" || Math.abs(from - to()) < 1) {
+      el.scrollLeft = to();
       return publish();
     }
-    el.style.setProperty("scroll-snap-type", "none");
     const start = performance.now();
     const frame = (now: number) => {
       const t = Math.min(1, (now - start) / GLIDE_MS);
-      el.scrollLeft = from + (to - from) * (1 - (1 - t) ** 3);
+      el.scrollLeft = from + (to() - from) * (1 - (1 - t) ** 3);
       if (t < 1) gliding = requestAnimationFrame(frame);
       else stopGliding();
     };
@@ -66,8 +64,6 @@ function drivePages(el: HTMLElement, root: HTMLElement, pages: Pages) {
   glide(pages.shown(), "instant");
   el.addEventListener("scroll", onScroll, { passive: true });
   el.addEventListener("scrollend", settle);
-  el.addEventListener("wheel", stopGliding, { passive: true });
-  el.addEventListener("touchstart", stopGliding, { passive: true });
   resize.observe(el);
   return {
     glide,
@@ -77,21 +73,16 @@ function drivePages(el: HTMLElement, root: HTMLElement, pages: Pages) {
       resize.disconnect();
       el.removeEventListener("scroll", onScroll);
       el.removeEventListener("scrollend", settle);
-      el.removeEventListener("wheel", stopGliding);
-      el.removeEventListener("touchstart", stopGliding);
     },
   };
 }
 
 /**
- * The sidebar's nav, one page per module side by side in a sideways scroller that snaps to a
- * page, as on iOS: a two-finger swipe (or a touch drag) moves the pages under the fingers and
- * lets go onto the nearest one. Settling on another module's page opens that module; opening a
- * module any other way (the switcher's chevrons, `g f`) glides the pages there. A page that may not
- * be left (Save your changes?) has the pages glide back while it asks. The pages' position is
- * `--module-at` on the sidebar (0 on the first page, 1 on the second, fractions between), so the
- * switcher's pill moves with them. Pages other than the shown one are inert and hidden from
- * assistive tech.
+ * The sidebar's nav, one page per module side by side. Opening a module (the rail, the phone's
+ * switcher, `g f`) glides the pages there; they don't scroll under a swipe. The pages' position
+ * is `--module-at` on the sidebar (0 on the first page, 1 on the second, fractions between), so
+ * the phone switcher's pill moves with them. Pages other than the shown one are inert and hidden
+ * from assistive tech.
  */
 export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
   const modules = useModules();
@@ -146,18 +137,14 @@ export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
   }, [index]);
 
   return (
-    <div
-      ref={pager}
-      data-slot="module-pager"
-      className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain"
-    >
+    <div ref={pager} data-slot="module-pager" className="-mx-3 flex min-h-0 flex-1 overflow-hidden">
       {modules.map((module, at) => (
         <div
           key={module.id}
           data-module-page={module.id}
           inert={at !== index}
           aria-hidden={at !== index || undefined}
-          className="flex w-full flex-none snap-start snap-always flex-col gap-3 overflow-y-auto *:shrink-0"
+          className="flex w-full flex-none flex-col gap-3 overflow-y-auto px-3 *:shrink-0"
         >
           {pages[module.id]}
         </div>

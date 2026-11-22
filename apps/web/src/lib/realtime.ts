@@ -19,6 +19,7 @@ import {
 import { applyFilePresence, clearFilePresence } from "./file-presence.ts";
 import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
+import { calendarChanged } from "./calendar.ts";
 import { crmChangedElsewhere } from "./crm-cache.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
@@ -32,6 +33,7 @@ let status: RealtimeStatus = "closed";
 let sockets = new Map<string, Realtime>();
 const openListeners = new Set<(orgId: string) => void>();
 type MergedEvent = Extract<RealtimeEvent, { type: "merged" }>;
+type ModuleChange = Extract<RealtimeEvent, { type: "crm.changed" | "calendar.changed" }>;
 const mergeListeners = new Set<(event: MergedEvent) => void>();
 type DocEvent = Extract<
   RealtimeEvent,
@@ -162,9 +164,17 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     timer ??= setTimeout(flush, FLUSH_MS);
   };
 
+  const onModuleChange = (orgId: string, event: ModuleChange) => {
+    if (orgId !== activeOrgId) return;
+    if (event.type === "calendar.changed") return void calendarChanged(client);
+    return crmChanged(client, event.kind);
+  };
+
   const handledBeside = (orgId: string, event: RealtimeEvent) => {
     if (isStorageEvent(event)) onStorage(orgId, event);
-    else if (!isTalkEvent(event)) return false;
+    else if (event.type === "crm.changed" || event.type === "calendar.changed") {
+      onModuleChange(orgId, event);
+    } else if (!isTalkEvent(event)) return false;
     else if (orgId === activeOrgId) onTalk(event);
     return true;
   };
@@ -200,9 +210,6 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
         return;
       case "domain":
         return void client.invalidateQueries({ queryKey: keys.onboarding() });
-      case "crm.changed":
-        if (orgId !== activeOrgId) return;
-        return crmChanged(client, event.kind);
     }
   };
 

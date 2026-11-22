@@ -11,6 +11,7 @@ import {
   IconWarning,
   IconWrite,
 } from "@/components/icons/sidebar";
+import { CalendarNav } from "@/components/calendar/calendar-nav";
 import { CrmNav } from "@/components/crm/crm-nav";
 import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
@@ -81,7 +82,7 @@ type Lane = { lane?: string; view?: string };
 
 const mailboxOf = (search: object) => (search as { mailbox?: string }).mailbox;
 
-const MODULE_LABELS = { mail: "Mail", files: "Drive", crm: "CRM" } as const;
+const MODULE_LABELS = { mail: "Mail", files: "Drive", crm: "CRM", calendar: "Calendar" } as const;
 
 export function AppSidebar() {
   const module = useCurrentModule();
@@ -91,10 +92,11 @@ export function AppSidebar() {
     mail: <MailNav mailbox={mailbox} />,
     files: <StorageNav mailbox={mailbox} />,
     crm: <CrmNav mailbox={mailbox} />,
+    calendar: <CalendarNav />,
   };
   if (!isMobile) {
     return (
-      <RailSidebar title={MODULE_LABELS[module]}>
+      <RailSidebar title={module === "calendar" ? undefined : MODULE_LABELS[module]}>
         <ModulePager pages={pages} />
       </RailSidebar>
     );

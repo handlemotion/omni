@@ -9,6 +9,7 @@ import {
   IconCircleCheckFilled,
   IconConnections,
   IconFolderFilled,
+  IconCalendarFilled,
   IconHandshakeFilled,
   IconLogOut,
   IconMailFilled,
@@ -34,13 +35,17 @@ import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { useOpenWorkspace, useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 
-export type ModuleId = "mail" | "files" | "crm";
+export type ModuleId = "mail" | "files" | "crm" | "calendar";
 
 interface Module {
   id: ModuleId;
   label: string;
   icon: ComponentType<{ className?: string }>;
-  home: "/$workspace/mail/inbox" | "/$workspace/files" | "/$workspace/crm/companies";
+  home:
+    | "/$workspace/mail/inbox"
+    | "/$workspace/files"
+    | "/$workspace/crm/companies"
+    | "/$workspace/calendar";
   fill: string;
 }
 
@@ -65,9 +70,16 @@ const CRM: Module = {
   home: "/$workspace/crm/companies",
   fill: "bg-module-crm",
 };
-const MODULES = [MAIL, DRIVE, CRM];
-const MODULES_WITHOUT_CRM = [MAIL, DRIVE];
-const BY_ID = { mail: MAIL, files: DRIVE, crm: CRM } as const;
+const CALENDAR: Module = {
+  id: "calendar",
+  label: "Calendar",
+  icon: IconCalendarFilled,
+  home: "/$workspace/calendar",
+  fill: "bg-module-calendar",
+};
+const MODULES = [MAIL, DRIVE, CRM, CALENDAR];
+const MODULES_WITHOUT_CRM = [MAIL, DRIVE, CALENDAR];
+const BY_ID = { mail: MAIL, files: DRIVE, crm: CRM, calendar: CALENDAR } as const;
 
 const under = (pathname: string, root: string) =>
   pathname === root || pathname.startsWith(`${root}/`);
@@ -78,6 +90,7 @@ export const moduleOf: (pathname: string) => ModuleId = (pathname) => {
   const place = `/${pathname.split("/").slice(2).join("/")}`;
   if (under(place, "/files")) return "files";
   if (under(place, "/crm")) return "crm";
+  if (under(place, "/calendar")) return "calendar";
   return "mail";
 };
 
