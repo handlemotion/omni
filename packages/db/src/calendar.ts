@@ -28,6 +28,7 @@ import {
   type OwnTaskInput,
   type OwnTaskPatch,
   type TaskMember,
+  type TaskMirror,
   type TaskQuery,
 } from "./calendar/tasks.ts";
 import { memberMail, userMail } from "./mail.ts";
@@ -82,7 +83,7 @@ function calendarDoor(db: Db, mailboxes: Mailboxes) {
  * inbox is, through mail's door, so a member sees the events of the inboxes they can open in
  * their workspace and nothing else. Writes run in one transaction with the mail they send.
  */
-export function memberCalendar(db: Db, memberId: string) {
+export function memberCalendar(db: Db, memberId: string, mirror?: TaskMirror) {
   const mail = memberMail(db, memberId);
   const mailboxes = async () =>
     (await mail.listMailboxes()).map((m) => ({ ...m, address: normalizeAddress(m.address) }));
@@ -133,9 +134,11 @@ export function memberCalendar(db: Db, memberId: string) {
     createTask: (input: Omit<OwnTaskInput, "id">) =>
       asTaskMember(db, memberId, (m) => db.transaction((tx) => createOwnTask(tx, m, input))),
     updateTask: (id: string, patch: OwnTaskPatch) =>
-      asTaskMember(db, memberId, (m) => db.transaction((tx) => updateOwnTask(tx, m, id, patch))),
+      asTaskMember(db, memberId, (m) =>
+        db.transaction((tx) => updateOwnTask(tx, m, id, patch, mirror)),
+      ),
     deleteTask: (id: string) =>
-      asTaskMember(db, memberId, (m) => db.transaction((tx) => deleteOwnTask(tx, m, id))),
+      asTaskMember(db, memberId, (m) => db.transaction((tx) => deleteOwnTask(tx, m, id, mirror))),
   };
 }
 
@@ -162,8 +165,11 @@ export {
   type OwnEventPatch,
 } from "./calendar/write.ts";
 export {
+  countLinkedTasks,
   dropTasksOn,
+  linkedTasks,
   putTask,
+  readTask as calendarTask,
   removeTask,
   taskVersions,
   tasksOnRecord,
@@ -174,7 +180,9 @@ export {
   type CalendarTaskResult,
   type OwnTaskInput,
   type OwnTaskPatch,
+  type LinkedTaskFilter,
   type TaskCursor,
+  type TaskMirror,
   type TaskQuery,
   type TaskRecord,
   type TaskRecordKind,

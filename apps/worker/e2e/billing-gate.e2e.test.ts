@@ -147,7 +147,7 @@ test("a read-only workspace still reads every CRM route", async () => {
   if (added.status !== "ok" || !added.person.companyId) throw new Error("no person");
   const deal = await crm.createDeal({ name: "Website", personIds: [added.person.id] });
   if (deal.status !== "ok") throw new Error("no deal");
-  const task = await crm.createTask({ title: "Send the brief" });
+  const task = await crm.createTask({ title: "Send the brief", record: { dealId: deal.deal.id } });
   if (task.status !== "ok") throw new Error("no task");
   const icon = await withPaidPlan(org.id, () => uploadIcon(deal.deal.id, cookie));
   const ids: Record<string, string> = {

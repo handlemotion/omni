@@ -101,7 +101,7 @@ export const cleanSteps = (steps: TaskStep[]) =>
     return title ? [{ id: step.id, title, done: step.done }] : [];
   });
 
-async function readTask(ex: Ex, orgId: string, id: string) {
+export async function readTask(ex: Ex, orgId: string, id: string) {
   const [row] = await ex
     .select(columns)
     .from(calendarTasks)
@@ -208,6 +208,16 @@ export interface OwnTaskInput {
   dueAt?: Date | null;
 }
 
+/**
+ * Keeps another table in step with the calendar's linked tasks while it is still read (the CRM's
+ * `crm_tasks`, until T4). It is handed a changed task only while the task is on a record, and
+ * every task deleted.
+ */
+export interface TaskMirror {
+  put: (tx: Ex, task: CalendarTask) => Promise<unknown>;
+  drop: (tx: Ex, orgId: string, id: string) => Promise<unknown>;
+}
+
 /** A private task, owned by and assigned to the member. */
 export async function createOwnTask(tx: Ex, member: TaskMember, input: OwnTaskInput) {
   const title = cleanTitle(input.title);
@@ -284,10 +294,18 @@ export async function changeTask(
   return { status: "ok" as const, task: (await readTask(tx, orgId, id))! };
 }
 
-export async function updateOwnTask(tx: Ex, member: TaskMember, id: string, patch: OwnTaskPatch) {
+export async function updateOwnTask(
+  tx: Ex,
+  member: TaskMember,
+  id: string,
+  patch: OwnTaskPatch,
+  mirror?: TaskMirror,
+) {
   const own = await ownTask(tx, member, id);
   if (own.status !== "ok") return own;
-  return changeTask(tx, member.orgId, member.id, id, patch);
+  const changed = await changeTask(tx, member.orgId, member.id, id, patch);
+  if (changed.status === "ok" && changed.task.record) await mirror?.put(tx, changed.task);
+  return changed;
 }
 
 export async function removeTask(tx: Ex, orgId: string, id: string) {
@@ -299,9 +317,10 @@ export async function removeTask(tx: Ex, orgId: string, id: string) {
   return { status: "ok" as const, task };
 }
 
-export async function deleteOwnTask(tx: Ex, member: TaskMember, id: string) {
+export async function deleteOwnTask(tx: Ex, member: TaskMember, id: string, mirror?: TaskMirror) {
   const own = await ownTask(tx, member, id);
   if (own.status !== "ok") return own;
+  await mirror?.drop(tx, member.orgId, id);
   return removeTask(tx, member.orgId, id);
 }
 
@@ -420,4 +439,82 @@ export async function releaseMemberTasks(tx: Ex, orgId: string, memberId: string
     .update(calendarTasks)
     .set({ assigneeMemberId: null, updatedAt: sql`${calendarTasks.updatedAt}` })
     .where(and(inOrg, eq(calendarTasks.assigneeMemberId, memberId)));
+}
+
+/** Which linked tasks the CRM lists, after it checked who may see what. */
+export interface LinkedTaskFilter {
+  /** A member's id, or null for unassigned. Absent: anyone's. */
+  assigneeMemberId?: string | null;
+  record?: TaskRecord;
+  /** A freelancer's view: tasks on these deals, or assigned to `orAssignedTo`. */
+  dealIds?: string[];
+  orAssignedTo?: string;
+  /** Words the title contains. */
+  q?: string;
+}
+
+function titleMatches(q: string | undefined) {
+  const words = (q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  const escape = (word: string) => word.replaceAll(/[\\%_]/g, (c) => `\\${c}`);
+  return words.length
+    ? and(...words.map((w) => sql`${calendarTasks.title} ilike ${`%${escape(w)}%`}`))
+    : undefined;
+}
+
+function assigneeWhere(assignee: string | null | undefined) {
+  if (assignee === undefined) return undefined;
+  return assignee === null
+    ? isNull(calendarTasks.assigneeMemberId)
+    : eq(calendarTasks.assigneeMemberId, assignee);
+}
+
+function narrowedTo(filter: LinkedTaskFilter) {
+  if (!filter.dealIds) return undefined;
+  const onDeals = filter.dealIds.length
+    ? and(eq(calendarTasks.recordKind, "deal"), inArray(calendarTasks.recordId, filter.dealIds))
+    : undefined;
+  const assigned = filter.orAssignedTo
+    ? eq(calendarTasks.assigneeMemberId, filter.orAssignedTo)
+    : undefined;
+  return or(onDeals, assigned) ?? sql`false`;
+}
+
+/** The workspace's tasks on CRM records: never a private one. */
+export function linkedTasks(ex: Ex, orgId: string, filter: LinkedTaskFilter, query: TaskQuery) {
+  const where = and(
+    eq(calendarTasks.orgId, orgId),
+    isNotNull(calendarTasks.recordKind),
+    assigneeWhere(filter.assigneeMemberId),
+    filter.record
+      ? and(
+          eq(calendarTasks.recordKind, filter.record.kind),
+          eq(calendarTasks.recordId, filter.record.id),
+        )
+      : undefined,
+    narrowedTo(filter),
+    titleMatches(filter.q),
+  );
+  return pageTasks(ex, where, query);
+}
+
+/** Open linked tasks: the member's, the member's overdue, everyone's and everyone's overdue. */
+export async function countLinkedTasks(ex: Ex, orgId: string, memberId: string) {
+  const assigned = sql`${calendarTasks.assigneeMemberId} = ${memberId}`;
+  const overdue = sql`${calendarTasks.dueAt} < now()`;
+  const [row] = await ex
+    .select({
+      mine: sql<number>`count(*) filter (where ${assigned})::int`,
+      mineOverdue: sql<number>`count(*) filter (where ${assigned} and ${overdue})::int`,
+      open: sql<number>`count(*)::int`,
+      overdue: sql<number>`count(*) filter (where ${overdue})::int`,
+    })
+    .from(calendarTasks)
+    .where(
+      and(
+        eq(calendarTasks.orgId, orgId),
+        isNotNull(calendarTasks.recordKind),
+        isNull(calendarTasks.completedAt),
+      ),
+    );
+  return row ?? { mine: 0, mineOverdue: 0, open: 0, overdue: 0 };
 }

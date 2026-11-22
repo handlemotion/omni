@@ -1,10 +1,20 @@
-import { and, asc, desc, eq, ilike, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
-import { members } from "../schema/auth.ts";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { uuidv7 } from "uuidv7";
+import {
+  calendarTask,
+  countLinkedTasks,
+  linkedTasks,
+  putTask,
+  removeTask,
+  type CalendarTask,
+  type LinkedTaskFilter,
+  type TaskRecord,
+  type TaskRow,
+} from "../calendar.ts";
 import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople } from "../schema/crm.ts";
-import { crmTasks } from "../schema/crm/tasks.ts";
-import { NOT_FOUND, pageSize, type CrmMember, type CrmRecordRef, type Ex } from "./core.ts";
+import { loadCrmMember, NOT_FOUND, type CrmMember, type CrmRecordRef, type Ex } from "./core.ts";
 import { recordExists } from "./notes.ts";
-import { mirrorTask } from "./task-mirror.ts";
+import { dropCrmTask, writeCrmTask } from "./task-mirror.ts";
 
 /** A step of a task's checklist. */
 export interface CrmSubtask {
@@ -13,7 +23,11 @@ export interface CrmSubtask {
   done: boolean;
 }
 
-/** A task, with the name of the record it is on. */
+/**
+ * A task as the CRM shows it: one on a company, person or deal (`docs/spec/calendar.md`,
+ * "Tasks"). The CRM lists and reads no private one; it answers its owner with one it made or
+ * took off its record, record fields null.
+ */
 export interface CrmTask {
   id: string;
   title: string;
@@ -22,10 +36,11 @@ export interface CrmTask {
   companyId: string | null;
   personId: string | null;
   dealId: string | null;
-  /** The company's, person's or deal's name; null on a task on no record. */
+  /** The company's, person's or deal's name; null on a private task. */
   recordName: string | null;
   /** A company's first domain, for its icon; null on any other task. */
   recordDomain: string | null;
+  ownerMemberId: string | null;
   assigneeMemberId: string | null;
   dueAt: Date | null;
   completedAt: Date | null;
@@ -58,9 +73,10 @@ export interface ListTasksInput {
 export interface TaskInput {
   title: string;
   body?: string | null;
-  /** Absent: the creator. Null: unassigned. */
+  /** Absent: the creator. Null: unassigned. Someone else only on a task on a record. */
   assigneeMemberId?: string | null;
   dueAt?: Date | null;
+  /** Absent or null: a private task, the creator's. */
   record?: CrmRecordRef | null;
 }
 
@@ -72,53 +88,34 @@ export interface TaskPatch {
   assigneeMemberId?: string | null;
   dueAt?: Date | null;
   done?: boolean;
-  /** Moves the task to this record; null takes it off its record. */
+  /** Moves the task to this record; null takes it off its record, back to being private. */
   record?: CrmRecordRef | null;
 }
 
 export type InvalidTitle = { status: "invalid_title" };
+/** The assignee is not in the workspace, or cannot open the task's record. */
 export type InvalidAssignee = { status: "invalid_assignee" };
+/** A task on no record is its owner's alone: it cannot be assigned to anyone else. */
+export type PrivateTask = { status: "private_task" };
 export type TaskResult =
   | { status: "ok"; task: CrmTask }
   | typeof NOT_FOUND
   | InvalidTitle
-  | InvalidAssignee;
+  | InvalidAssignee
+  | PrivateTask;
 
 export const CRM_TASK_TITLE_MAX = 500;
 export const CRM_TASK_BODY_MAX = 20_000;
 export const CRM_SUBTASKS_MAX = 100;
 
-const taskColumns = {
-  id: crmTasks.id,
-  title: crmTasks.title,
-  body: crmTasks.body,
-  subtasks: crmTasks.subtasks,
-  companyId: crmTasks.companyId,
-  personId: crmTasks.personId,
-  dealId: crmTasks.dealId,
-  recordName: sql<
-    string | null
-  >`coalesce(${crmCompanies.name}, ${crmPeople.name}, ${crmDeals.name})`.as("record_name"),
-  recordDomain: sql<string | null>`(select ${crmCompanyDomains.domain} from ${crmCompanyDomains}
-    where ${crmCompanyDomains.orgId} = ${crmTasks.orgId}
-      and ${crmCompanyDomains.companyId} = ${crmTasks.companyId}
-    order by ${crmCompanyDomains.domain} limit 1)`.as("record_domain"),
-  assigneeMemberId: crmTasks.assigneeMemberId,
-  dueAt: crmTasks.dueAt,
-  completedAt: crmTasks.completedAt,
-  completedByMemberId: crmTasks.completedByMemberId,
-  createdByMemberId: crmTasks.createdByMemberId,
-  createdAt: crmTasks.createdAt,
-  updatedAt: crmTasks.updatedAt,
-};
+const KINDS = { companyId: "company", personId: "person", dealId: "deal" } as const;
 
-const selectTasks = (ex: Ex) =>
-  ex
-    .select(taskColumns)
-    .from(crmTasks)
-    .leftJoin(crmCompanies, eq(crmCompanies.id, crmTasks.companyId))
-    .leftJoin(crmPeople, eq(crmPeople.id, crmTasks.personId))
-    .leftJoin(crmDeals, eq(crmDeals.id, crmTasks.dealId));
+/** A CRM record as the calendar keeps it on a task. */
+export const taskRecordOf = (record: CrmRecordRef) => {
+  const [key, id] = Object.entries(record)[0] as [keyof typeof KINDS, string];
+  const task: TaskRecord = { kind: KINDS[key], id };
+  return task;
+};
 
 const cleanTitle = (title: string) => {
   const text = title.trim().replaceAll(/\s+/g, " ");
@@ -136,41 +133,87 @@ const cleanSubtasks = (subtasks: CrmSubtask[]) =>
     return title ? [{ id: step.id, title, done: step.done }] : [];
   });
 
-const target = (record: CrmRecordRef | null | undefined) => ({
-  companyId: record && "companyId" in record ? record.companyId : null,
-  personId: record && "personId" in record ? record.personId : null,
-  dealId: record && "dealId" in record ? record.dealId : null,
-});
-
-function recordWhere(record: CrmRecordRef) {
-  if ("companyId" in record) return eq(crmTasks.companyId, record.companyId);
-  if ("personId" in record) return eq(crmTasks.personId, record.personId);
-  return eq(crmTasks.dealId, record.dealId);
-}
-
-async function isMemberOf(ex: Ex, orgId: string, memberId: string) {
-  const [row] = await ex
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.id, memberId), eq(members.organizationId, orgId)));
-  return Boolean(row);
-}
-
-async function checkReferences(
-  ex: Ex,
-  member: CrmMember,
-  input: { assigneeMemberId?: string | null; record?: CrmRecordRef | null },
-) {
-  if (input.assigneeMemberId && !(await isMemberOf(ex, member.orgId, input.assigneeMemberId))) {
-    return { status: "invalid_assignee" } as const;
+async function namesOf(ex: Ex, orgId: string, tasks: CalendarTask[]) {
+  const ids = (kind: TaskRecord["kind"]) =>
+    tasks.flatMap((t) => (t.record?.kind === kind ? [t.record.id] : []));
+  const [companies, people, deals] = [ids("company"), ids("person"), ids("deal")];
+  const names = new Map<string, { name: string; domain: string | null }>();
+  if (companies.length) {
+    const rows = await ex
+      .select({
+        id: crmCompanies.id,
+        name: crmCompanies.name,
+        domain: sql<string | null>`(select ${crmCompanyDomains.domain} from ${crmCompanyDomains}
+          where ${crmCompanyDomains.orgId} = ${crmCompanies.orgId}
+            and ${crmCompanyDomains.companyId} = ${crmCompanies.id}
+          order by ${crmCompanyDomains.domain} limit 1)`,
+      })
+      .from(crmCompanies)
+      .where(and(eq(crmCompanies.orgId, orgId), inArray(crmCompanies.id, companies)));
+    for (const row of rows) names.set(`company:${row.id}`, row);
   }
-  if (input.record && !(await recordExists(ex, member.orgId, input.record))) return NOT_FOUND;
-  return null;
+  for (const [kind, table, list] of [
+    ["person", crmPeople, people],
+    ["deal", crmDeals, deals],
+  ] as const) {
+    if (!list.length) continue;
+    const rows = await ex
+      .select({ id: table.id, name: table.name })
+      .from(table)
+      .where(and(eq(table.orgId, orgId), inArray(table.id, list)));
+    for (const row of rows) names.set(`${kind}:${row.id}`, { name: row.name, domain: null });
+  }
+  return names;
 }
 
-async function readTask(ex: Ex, orgId: string, id: string) {
-  const [task] = await selectTasks(ex).where(and(eq(crmTasks.orgId, orgId), eq(crmTasks.id, id)));
-  return task;
+function viewOf(task: CalendarTask, names: Map<string, { name: string; domain: string | null }>) {
+  const record = task.record;
+  const named = record && names.get(`${record.kind}:${record.id}`);
+  const view: CrmTask = {
+    id: task.id,
+    title: task.title,
+    body: task.body,
+    subtasks: task.subtasks,
+    companyId: record?.kind === "company" ? record.id : null,
+    personId: record?.kind === "person" ? record.id : null,
+    dealId: record?.kind === "deal" ? record.id : null,
+    recordName: named?.name ?? null,
+    recordDomain: named?.domain ?? null,
+    ownerMemberId: task.ownerMemberId,
+    assigneeMemberId: task.assigneeMemberId,
+    dueAt: task.dueAt,
+    completedAt: task.completedAt,
+    completedByMemberId: task.completedByMemberId,
+    createdByMemberId: task.createdByMemberId,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  };
+  return view;
+}
+
+async function viewsOf(ex: Ex, orgId: string, tasks: CalendarTask[]) {
+  const names = await namesOf(ex, orgId, tasks);
+  return tasks.map((task) => viewOf(task, names));
+}
+
+/** Whether this member of the workspace can open the record: a teammate any, a freelancer their projects. */
+export async function canOpenRecord(ex: Ex, orgId: string, memberId: string, record: TaskRecord) {
+  const member = await loadCrmMember(ex, memberId);
+  if (!member || member.orgId !== orgId) return false;
+  if (member.projects === null) return true;
+  return record.kind === "deal" && member.projects.includes(record.id);
+}
+
+async function reaches(ex: Ex, member: CrmMember, task: CalendarTask) {
+  if (!task.record) return false;
+  if (task.ownerMemberId === member.id || task.assigneeMemberId === member.id) return true;
+  return canOpenRecord(ex, member.orgId, member.id, task.record);
+}
+
+async function readView(ex: Ex, member: CrmMember, id: string) {
+  const task = await calendarTask(ex, member.orgId, id);
+  if (!task || !(await reaches(ex, member, task))) return null;
+  return (await viewsOf(ex, member.orgId, [task]))[0]!;
 }
 
 export const getTask: (ex: Ex, member: CrmMember, id: string) => Promise<TaskResult> = async (
@@ -178,89 +221,69 @@ export const getTask: (ex: Ex, member: CrmMember, id: string) => Promise<TaskRes
   member,
   id,
 ) => {
-  const task = await readTask(ex, member.orgId, id);
+  const task = await readView(ex, member, id);
   return task ? { status: "ok", task } : NOT_FOUND;
 };
 
-function afterDue(cursor: CrmTaskCursor) {
-  if (!cursor.at) return and(isNull(crmTasks.dueAt), sql`${crmTasks.id} > ${cursor.id}`);
-  const at = cursor.at.toISOString();
-  return sql`(${crmTasks.dueAt} > ${at}::timestamptz or (${crmTasks.dueAt} = ${at}::timestamptz and ${crmTasks.id} > ${cursor.id}) or ${crmTasks.dueAt} is null)`;
+/**
+ * The workspace's tasks on records: open ones soonest due first and undated last, done ones most
+ * recently completed first. `narrow` is a freelancer's view.
+ */
+export async function listTasks(
+  ex: Ex,
+  member: CrmMember,
+  input: ListTasksInput,
+  narrow: Pick<LinkedTaskFilter, "dealIds" | "orAssignedTo"> = {},
+) {
+  const listed = await linkedTasks(
+    ex,
+    member.orgId,
+    {
+      assigneeMemberId: input.assigneeMemberId,
+      record: input.record ? taskRecordOf(input.record) : undefined,
+      q: input.q,
+      ...narrow,
+    },
+    { status: input.status, due: input.due, cursor: input.cursor, limit: input.limit },
+  );
+  return {
+    status: "ok" as const,
+    tasks: await viewsOf(ex, member.orgId, listed.tasks),
+    nextCursor: listed.nextCursor,
+  };
 }
 
-function afterCompleted(cursor: CrmTaskCursor) {
-  const at = (cursor.at ?? new Date(0)).toISOString();
-  return sql`(${crmTasks.completedAt}, ${crmTasks.id}) < (${at}::timestamptz, ${cursor.id})`;
+/** Open tasks on records: the member's, the member's overdue, everyone's and everyone's overdue. */
+export async function countTasks(ex: Ex, member: CrmMember) {
+  return { status: "ok" as const, counts: await countLinkedTasks(ex, member.orgId, member.id) };
 }
 
-function dueWhere(due: ListTasksInput["due"]) {
-  if (due === "overdue") return sql`${crmTasks.dueAt} < now()`;
-  if (due === "upcoming") return sql`${crmTasks.dueAt} >= now()`;
-  if (due === "none") return isNull(crmTasks.dueAt);
-  return undefined;
+async function refusedAssignee(
+  ex: Ex,
+  member: CrmMember,
+  assignee: string | null,
+  owner: string | null,
+  record: TaskRecord | null,
+) {
+  if (!record) return assignee === owner ? null : ({ status: "private_task" } as const);
+  if (assignee === null) return null;
+  return (await canOpenRecord(ex, member.orgId, assignee, record))
+    ? null
+    : ({ status: "invalid_assignee" } as const);
 }
 
-function titleMatches(q: string | undefined) {
-  const words = (q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 8);
-  const escape = (word: string) => word.replaceAll(/[\\%_]/g, (c) => `\\${c}`);
-  return words.length
-    ? and(...words.map((w) => ilike(crmTasks.title, `%${escape(w)}%`)))
-    : undefined;
+async function save(tx: Ex, member: CrmMember, row: TaskRow) {
+  await putTask(tx, row);
+  const task = (await calendarTask(tx, member.orgId, row.id))!;
+  if (task.record) await writeCrmTask(tx, task);
+  else await dropCrmTask(tx, member.orgId, task.id);
+  return task;
 }
 
 /**
- * The workspace's tasks: open ones soonest due first and undated last, done ones most recently
- * completed first.
+ * On a record, the workspace's: assigned to its creator unless the input says otherwise, and only
+ * to a member who can open the record. On none, the creator's own.
  */
-export async function listTasks(ex: Ex, member: CrmMember, input: ListTasksInput) {
-  const done = input.status === "done";
-  const limit = pageSize(input.limit);
-  const assignee =
-    input.assigneeMemberId === undefined
-      ? undefined
-      : input.assigneeMemberId === null
-        ? isNull(crmTasks.assigneeMemberId)
-        : eq(crmTasks.assigneeMemberId, input.assigneeMemberId);
-  const where: (SQL | undefined)[] = [
-    eq(crmTasks.orgId, member.orgId),
-    done ? isNotNull(crmTasks.completedAt) : isNull(crmTasks.completedAt),
-    assignee,
-    done ? undefined : dueWhere(input.due),
-    input.record ? recordWhere(input.record) : undefined,
-    titleMatches(input.q),
-    input.cursor ? (done ? afterCompleted(input.cursor) : afterDue(input.cursor)) : undefined,
-  ];
-  const rows = await selectTasks(ex)
-    .where(and(...where))
-    .orderBy(
-      ...(done
-        ? [desc(crmTasks.completedAt), desc(crmTasks.id)]
-        : [sql`${crmTasks.dueAt} asc nulls last`, asc(crmTasks.id)]),
-    )
-    .limit(limit + 1);
-  const tasks = rows.slice(0, limit);
-  const last = tasks.at(-1);
-  const nextCursor: CrmTaskCursor | null =
-    rows.length > limit && last ? { at: done ? last.completedAt : last.dueAt, id: last.id } : null;
-  return { status: "ok" as const, tasks, nextCursor };
-}
-
-/** Open tasks: the member's, the member's overdue, everyone's and everyone's overdue. */
-export async function countTasks(ex: Ex, member: CrmMember) {
-  const mine = sql`${crmTasks.assigneeMemberId} = ${member.id}`;
-  const overdue = sql`${crmTasks.dueAt} < now()`;
-  const [row] = await ex
-    .select({
-      mine: sql<number>`count(*) filter (where ${mine})::int`,
-      mineOverdue: sql<number>`count(*) filter (where ${mine} and ${overdue})::int`,
-      open: sql<number>`count(*)::int`,
-      overdue: sql<number>`count(*) filter (where ${overdue})::int`,
-    })
-    .from(crmTasks)
-    .where(and(eq(crmTasks.orgId, member.orgId), isNull(crmTasks.completedAt)));
-  return { status: "ok" as const, counts: row ?? { mine: 0, mineOverdue: 0, open: 0, overdue: 0 } };
-}
-
 export const createTask: (
   tx: Ex,
   member: CrmMember,
@@ -268,51 +291,66 @@ export const createTask: (
 ) => Promise<TaskResult> = async (tx, member, input) => {
   const title = cleanTitle(input.title);
   if (!title) return { status: "invalid_title" };
-  const refused = await checkReferences(tx, member, input);
+  if (input.record && !(await recordExists(tx, member.orgId, input.record))) return NOT_FOUND;
+  const record = input.record ? taskRecordOf(input.record) : null;
+  const assignee = input.assigneeMemberId === undefined ? member.id : input.assigneeMemberId;
+  const refused = await refusedAssignee(tx, member, assignee, member.id, record);
   if (refused) return refused;
-  const [made] = await tx
-    .insert(crmTasks)
-    .values({
-      orgId: member.orgId,
-      title,
-      body: cleanBody(input.body),
-      ...target(input.record),
-      assigneeMemberId: input.assigneeMemberId === undefined ? member.id : input.assigneeMemberId,
-      dueAt: input.dueAt ?? null,
-      createdByMemberId: member.id,
-    })
-    .returning({ id: crmTasks.id });
-  await mirrorTask(tx, member.orgId, made!.id);
-  return { status: "ok", task: (await readTask(tx, member.orgId, made!.id))! };
+  const now = new Date();
+  const task = await save(tx, member, {
+    id: uuidv7(),
+    orgId: member.orgId,
+    ownerMemberId: member.id,
+    title,
+    body: cleanBody(input.body),
+    subtasks: [],
+    dueAt: input.dueAt ?? null,
+    completedAt: null,
+    completedByMemberId: null,
+    assigneeMemberId: assignee,
+    record,
+    createdByMemberId: member.id,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { status: "ok", task: (await viewsOf(tx, member.orgId, [task]))[0]! };
 };
 
-type TaskSet = Partial<typeof crmTasks.$inferInsert>;
-
-function setFor(
-  member: CrmMember,
-  current: { completedAt: Date | null },
-  patch: TaskPatch,
-  title: string | undefined,
-) {
-  const set: TaskSet = {};
-  if (title !== undefined) set.title = title;
-  if (patch.body !== undefined) set.body = cleanBody(patch.body);
-  if (patch.subtasks !== undefined) set.subtasks = cleanSubtasks(patch.subtasks);
-  if (patch.assigneeMemberId !== undefined) set.assigneeMemberId = patch.assigneeMemberId;
-  if (patch.dueAt !== undefined) set.dueAt = patch.dueAt;
-  if (patch.record !== undefined) Object.assign(set, target(patch.record));
-  if (patch.done === true && !current.completedAt) {
-    set.completedAt = new Date();
-    set.completedByMemberId = member.id;
-  }
-  if (patch.done === false && current.completedAt) {
-    set.completedAt = null;
-    set.completedByMemberId = null;
-  }
-  return set;
+function nextRow(member: CrmMember, current: CalendarTask, patch: TaskPatch, title?: string) {
+  const record =
+    patch.record === undefined ? current.record : patch.record && taskRecordOf(patch.record);
+  const unlinked = current.record && !record;
+  const owner = unlinked
+    ? (current.assigneeMemberId ?? current.ownerMemberId ?? member.id)
+    : current.ownerMemberId;
+  const done = patch.done === undefined ? Boolean(current.completedAt) : patch.done;
+  const completedAt = done ? (current.completedAt ?? new Date()) : null;
+  const row: TaskRow = {
+    ...current,
+    ownerMemberId: owner,
+    title: title ?? current.title,
+    body: patch.body === undefined ? current.body : cleanBody(patch.body),
+    subtasks: patch.subtasks === undefined ? current.subtasks : cleanSubtasks(patch.subtasks),
+    dueAt: patch.dueAt === undefined ? current.dueAt : patch.dueAt,
+    completedAt,
+    completedByMemberId: done ? (current.completedByMemberId ?? member.id) : null,
+    assigneeMemberId:
+      patch.assigneeMemberId === undefined
+        ? record
+          ? current.assigneeMemberId
+          : owner
+        : patch.assigneeMemberId,
+    record,
+    updatedAt: new Date(),
+  };
+  return row;
 }
 
-/** Any member changes any task. Completing a done task, or reopening an open one, changes nothing. */
+/**
+ * Changes a task on a record, by anyone who can open it or its owner or assignee; its owner may
+ * also put a private one on a record ("Add to CRM"). Taken off its record, a task is private to
+ * its assignee, else its owner. Completing a done task, or reopening an open one, changes nothing.
+ */
 export const updateTask: (
   tx: Ex,
   member: CrmMember,
@@ -321,20 +359,18 @@ export const updateTask: (
 ) => Promise<TaskResult> = async (tx, member, id, patch) => {
   const title = patch.title === undefined ? undefined : cleanTitle(patch.title);
   if (title === null) return { status: "invalid_title" };
-  const [current] = await tx
-    .select({ completedAt: crmTasks.completedAt })
-    .from(crmTasks)
-    .where(and(eq(crmTasks.orgId, member.orgId), eq(crmTasks.id, id)))
-    .for("update");
-  if (!current) return NOT_FOUND;
-  const refused = await checkReferences(tx, member, patch);
+  const current = await calendarTask(tx, member.orgId, id);
+  const owns = current?.ownerMemberId === member.id;
+  if (!current || !(owns || (await reaches(tx, member, current)))) return NOT_FOUND;
+  if (patch.record && !(await recordExists(tx, member.orgId, patch.record))) return NOT_FOUND;
+  const row = nextRow(member, current, patch, title);
+  const assigning = patch.assigneeMemberId !== undefined || patch.record !== undefined;
+  const refused =
+    assigning &&
+    (await refusedAssignee(tx, member, row.assigneeMemberId, row.ownerMemberId, row.record));
   if (refused) return refused;
-  const set = setFor(member, current, patch, title);
-  if (Object.keys(set).length > 0) {
-    await tx.update(crmTasks).set(set).where(eq(crmTasks.id, id));
-    await mirrorTask(tx, member.orgId, id);
-  }
-  return { status: "ok", task: (await readTask(tx, member.orgId, id))! };
+  const task = await save(tx, member, row);
+  return { status: "ok", task: (await viewsOf(tx, member.orgId, [task]))[0]! };
 };
 
 export const deleteTask: (
@@ -342,9 +378,9 @@ export const deleteTask: (
   member: CrmMember,
   id: string,
 ) => Promise<{ status: "ok"; task: CrmTask } | typeof NOT_FOUND> = async (tx, member, id) => {
-  const task = await readTask(tx, member.orgId, id);
+  const task = await readView(tx, member, id);
   if (!task) return NOT_FOUND;
-  await tx.delete(crmTasks).where(eq(crmTasks.id, id));
-  await mirrorTask(tx, member.orgId, id);
+  await removeTask(tx, member.orgId, id);
+  await dropCrmTask(tx, member.orgId, id);
   return { status: "ok", task };
 };

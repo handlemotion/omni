@@ -166,3 +166,77 @@ export type CalendarEventsResponse = z.infer<typeof calendarEventsResponseSchema
 export type CalendarEventResponse = z.infer<typeof calendarEventResponseSchema>;
 export type CalendarInvitesResponse = z.infer<typeof calendarInvitesResponseSchema>;
 export type CalendarChangedEvent = z.infer<typeof calendarChangedEventSchema>;
+
+export const CALENDAR_TASK_TITLE_MAX = 500;
+export const CALENDAR_TASK_BODY_MAX = 20_000;
+export const CALENDAR_TASK_STEPS_MAX = 100;
+
+/** A step of a task's checklist, with an id the client makes. */
+export const calendarTaskStepSchema = z.object({
+  id,
+  title: z.string().max(CALENDAR_TASK_TITLE_MAX),
+  done: z.boolean(),
+});
+
+/**
+ * A task (`docs/spec/calendar.md`, "Tasks"): private to its owner while `record` is null; on a
+ * CRM company, person or deal it is the workspace's. The record's name is the CRM's to give.
+ */
+export const calendarTaskSchema = z.object({
+  id,
+  title: z.string(),
+  body: z.string().nullable(),
+  subtasks: z.array(calendarTaskStepSchema),
+  ownerMemberId: id.nullable(),
+  assigneeMemberId: id.nullable(),
+  record: z.object({ kind: z.enum(["company", "person", "deal"]), id }).nullable(),
+  /** A moment: a client picking a day sends the end of that day in its time zone. */
+  dueAt: isoDate.nullable(),
+  completedAt: isoDate.nullable(),
+  completedByMemberId: id.nullable(),
+  createdByMemberId: id.nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+
+/** `GET /tasks`: the member's own and assigned tasks, open soonest due first or `done` latest first. */
+export const calendarTasksQuerySchema = z.object({
+  status: z.enum(["open", "done"]).optional(),
+  due: z.enum(["overdue", "upcoming", "none"]).optional(),
+  cursor: z.string().min(1).max(2048).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+/** `POST /tasks`: a private task, the caller's. */
+export const calendarCreateTaskBodySchema = z.object({
+  title: z.string().max(CALENDAR_TASK_TITLE_MAX),
+  body: z.string().max(CALENDAR_TASK_BODY_MAX).nullable().optional(),
+  subtasks: z.array(calendarTaskStepSchema).max(CALENDAR_TASK_STEPS_MAX).optional(),
+  dueAt: isoDate.nullable().optional(),
+});
+
+/**
+ * `PATCH /tasks/:id`: only the fields it names; `done` completes or reopens it. A task's record
+ * and assignee change through the CRM's task routes.
+ */
+export const calendarUpdateTaskBodySchema = z.object({
+  title: z.string().max(CALENDAR_TASK_TITLE_MAX).optional(),
+  body: z.string().max(CALENDAR_TASK_BODY_MAX).nullable().optional(),
+  subtasks: z.array(calendarTaskStepSchema).max(CALENDAR_TASK_STEPS_MAX).optional(),
+  dueAt: isoDate.nullable().optional(),
+  done: z.boolean().optional(),
+});
+
+export const calendarTaskResponseSchema = z.object({ task: calendarTaskSchema });
+export const calendarTaskListResponseSchema = z.object({
+  tasks: z.array(calendarTaskSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export type CalendarTask = z.infer<typeof calendarTaskSchema>;
+export type CalendarTaskStep = z.infer<typeof calendarTaskStepSchema>;
+export type CalendarTasksQuery = z.infer<typeof calendarTasksQuerySchema>;
+export type CalendarCreateTaskBody = z.infer<typeof calendarCreateTaskBodySchema>;
+export type CalendarUpdateTaskBody = z.infer<typeof calendarUpdateTaskBodySchema>;
+export type CalendarTaskResponse = z.infer<typeof calendarTaskResponseSchema>;
+export type CalendarTaskListResponse = z.infer<typeof calendarTaskListResponseSchema>;

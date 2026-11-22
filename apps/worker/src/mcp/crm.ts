@@ -265,49 +265,37 @@ export async function teammate(context: ToolContext, workspace: CrmWorkspace, wh
   return row?.id ?? null;
 }
 
+const REFUSALS: Record<string, string> = {
+  no_crm: NO_CRM,
+  not_found: "No record with that id here. Ids come from `crm_search`.",
+  forbidden: "You may not do this here: it is for the note's author, or for an owner or admin.",
+  invalid_name: "That name cannot be used: give 1 to 200 characters.",
+  invalid_address: "That is not an email address.",
+  invalid_domain: "That is not a domain.",
+  webmail_domain: "A webmail domain (gmail.com and the like) is nobody's company.",
+  domain_taken: "Another company already has that domain. Find it with `crm_search`.",
+  address_taken: "Another person already has that address. Find them with `crm_search`.",
+  invalid_currency:
+    "Give `currency` as a three-letter ISO code like USD or MXN; a value without one needs the workspace to have a default currency.",
+  invalid_value: "The value must be a whole number of minor units (cents).",
+  invalid_body: "A note needs some text, up to 20,000 characters.",
+  invalid_title: "A task needs a title of 1 to 500 characters.",
+  invalid_assignee: "That assignee is not in this workspace, or cannot open the task's record.",
+  private_task:
+    "A task on no record is its owner's alone; put it on a company, person or deal to assign it.",
+  invalid_contract:
+    "That contract change is not valid: a document is a file in Shared, dates are YYYY-MM-DD, and it cannot expire before it starts.",
+  invalid_transition:
+    "That contract can no longer change that way: a signed contract keeps its document and terms.",
+  contract_signed:
+    "That contract can no longer change that way: a signed contract keeps its document and terms.",
+  signature_open: "It is out for signature: a person voids the request in Omni before it changes.",
+  invalid_action: "That change does not apply to this kind of record.",
+};
+
 /** One sentence for each refusal the CRM door can answer. */
 export function refusalText(refusal: { status: string }) {
-  switch (refusal.status) {
-    case "no_crm":
-      return NO_CRM;
-    case "not_found":
-      return "No record with that id here. Ids come from `crm_search`.";
-    case "forbidden":
-      return "You may not do this here: it is for the note's author, or for an owner or admin.";
-    case "invalid_name":
-      return "That name cannot be used: give 1 to 200 characters.";
-    case "invalid_address":
-      return "That is not an email address.";
-    case "invalid_domain":
-      return "That is not a domain.";
-    case "webmail_domain":
-      return "A webmail domain (gmail.com and the like) is nobody's company.";
-    case "domain_taken":
-      return "Another company already has that domain. Find it with `crm_search`.";
-    case "address_taken":
-      return "Another person already has that address. Find them with `crm_search`.";
-    case "invalid_currency":
-      return "Give `currency` as a three-letter ISO code like USD or MXN; a value without one needs the workspace to have a default currency.";
-    case "invalid_value":
-      return "The value must be a whole number of minor units (cents).";
-    case "invalid_body":
-      return "A note needs some text, up to 20,000 characters.";
-    case "invalid_title":
-      return "A task needs a title of 1 to 500 characters.";
-    case "invalid_assignee":
-      return "That assignee is not in this workspace.";
-    case "invalid_contract":
-      return "That contract change is not valid: a document is a file in Shared, dates are YYYY-MM-DD, and it cannot expire before it starts.";
-    case "invalid_transition":
-    case "contract_signed":
-      return "That contract can no longer change that way: a signed contract keeps its document and terms.";
-    case "signature_open":
-      return "It is out for signature: a person voids the request in Omni before it changes.";
-    case "invalid_action":
-      return "That change does not apply to this kind of record.";
-    default:
-      return `Omni could not make that change (${refusal.status}).`;
-  }
+  return REFUSALS[refusal.status] ?? `Omni could not make that change (${refusal.status}).`;
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Client } from "@modelcontextprotocol/client";
+import { forMember } from "@omni/db";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startCrmStack, type CrmStack } from "./crm-support.ts";
 import { connectAgent } from "./mcp-support.ts";
@@ -31,9 +32,15 @@ test("an agent adds a task with a checklist, ticks a step and reads it back in o
   const org = await stack.company("agentsteps");
   const ana = await stack.member(org.id, "owner");
   const agent = await connectAgent(stack.worker.url, ana.jar, { scope: CRM });
+  const deal = await forMember(stack.db, ana.id).crm.createDeal({ name: "Film" });
+  if (deal.status !== "ok") throw new Error("seed");
 
   const added = await call<TaskAnswer>(agent, "crm_write", {
-    task: { title: "Deliver the cut", subtasks: [{ title: "Color" }, { title: "Sound mix" }] },
+    task: {
+      title: "Deliver the cut",
+      subtasks: [{ title: "Color" }, { title: "Sound mix" }],
+      record: { kind: "deal", id: deal.deal.id },
+    },
   });
   const [color, sound] = added.task.subtasks;
   expect(added.task.subtasks).toMatchObject([

@@ -136,7 +136,7 @@ import {
   type TaskPatch,
 } from "./crm/tasks.ts";
 
-export { copyTasksToCalendar, TASK_COPY_BATCH } from "./crm/task-mirror.ts";
+export { copyTasksToCalendar, crmTaskMirror, TASK_COPY_BATCH } from "./crm/task-mirror.ts";
 export {
   BULK_MAX,
   type CrmBulkAction,
@@ -290,6 +290,7 @@ export {
   type CrmTask,
   type CrmTaskCursor,
   type InvalidAssignee,
+  type PrivateTask,
   type InvalidTitle,
   type ListTasksInput,
   type TaskInput,

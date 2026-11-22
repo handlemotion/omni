@@ -30,6 +30,7 @@ import {
   type Forbidden,
   type InvalidAddress,
   type InvalidAssignee,
+  type PrivateTask,
   type InvalidBody,
   type InvalidContract,
   type InvalidCurrency,
@@ -64,6 +65,7 @@ export type CrmRefusal =
   | AddressTaken
   | InvalidTitle
   | InvalidAssignee
+  | PrivateTask
   | Exclude<ReplaceStagesResult, { status: "ok" }>
   | FilesRefusal
   | PlanRefusal;
@@ -214,7 +216,13 @@ function answerFor(refusal: CrmRefusal) {
     case "invalid_assignee":
       return {
         code: "bad_request",
-        message: "the assignee is not a member of this workspace",
+        message: "the assignee is not a member of this workspace who can open the task's record",
+        param: "assigneeMemberId",
+      } satisfies Answer;
+    case "private_task":
+      return {
+        code: "bad_request",
+        message: "a task on no record is its owner's; put it on a record to assign it",
         param: "assigneeMemberId",
       } satisfies Answer;
     case "invalid_currency":

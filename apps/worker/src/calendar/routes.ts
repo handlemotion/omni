@@ -16,6 +16,7 @@ import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
 import { zValidator } from "../validator.ts";
 import { announceCalendars, memberCalendar, refused, wireEvent } from "./http.ts";
+import { tasks } from "./tasks.ts";
 
 const date = (value: string) => new Date(value);
 const dates = <T extends { start?: string; end?: string }>(body: T) => ({
@@ -37,6 +38,7 @@ async function afterWrite(c: Context<AppEnv>, eventId: string) {
 }
 
 export const calendar = new Hono<AppEnv>()
+  .route("/", tasks)
   .get("/calendars", async (c) => {
     const calendars = await memberCalendar(c).calendars();
     return c.json({

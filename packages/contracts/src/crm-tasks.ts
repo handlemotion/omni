@@ -29,6 +29,8 @@ export const crmTaskSchema = z.object({
   recordName: z.string().nullable(),
   /** A company's first domain, for its icon. Absent from a Worker older than this field. */
   recordDomain: z.string().nullable().optional(),
+  /** Who it is private to once taken off its record. Absent from a Worker older than this field. */
+  ownerMemberId: id.nullable().optional(),
   assigneeMemberId: id.nullable(),
   /** A moment: a client picking a day sends the end of that day in its time zone. */
   dueAt: isoDate.nullable(),
@@ -69,7 +71,10 @@ export const crmTasksQuerySchema = z
     message: "give at most one of company, person and deal",
   });
 
-/** `POST /tasks`: assigned to its creator unless `assigneeMemberId` says otherwise (null: nobody). */
+/**
+ * `POST /tasks`: assigned to its creator unless `assigneeMemberId` says otherwise (null: nobody).
+ * With no record it is the creator's private task and cannot be assigned to anyone else.
+ */
 export const crmCreateTaskBodySchema = z
   .object({
     title: z.string().max(CRM_TASK_TITLE_MAX),

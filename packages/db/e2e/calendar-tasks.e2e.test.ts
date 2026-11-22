@@ -60,7 +60,7 @@ test("a Personal space keeps its person's tasks, with no CRM to put them on", as
   expect(titles(ok(await cal.tasks({ status: "done" })))).toEqual(["Renew passport"]);
 });
 
-test("a CRM task is written to the calendar too: linked stays the workspace's, unlinked goes to its assignee alone", async () => {
+test("a CRM task reads the same from both tables; taken off its record it is its assignee's alone and leaves crm_tasks", async () => {
   const { ana, ben } = await workspace("tasks-dual");
   const crm = forMember(db, ana.id).crm;
   const person = ok(await crm.addPerson({ name: "Bea", address: "bea@dual.test" })).person;
@@ -84,13 +84,13 @@ test("a CRM task is written to the calendar too: linked stays the workspace's, u
   expect(copy.updatedAt).toEqual(original!.updatedAt);
   expect(titles(ok(await forMember(db, ben.id).calendar.tasks()))).toEqual(["Send quote"]);
 
-  const handed = ok(await crm.createTask({ title: "Book flights", assigneeMemberId: ben.id })).task;
-  expect(await calendarRow(handed.id)).toMatchObject({
-    ownerMemberId: ben.id,
-    assigneeMemberId: ben.id,
-    recordKind: null,
-  });
-  expect(titles(ok(await forMember(db, ana.id).calendar.tasks()))).toEqual(["Send quote"]);
+  expect((await crm.createTask({ title: "Book flights", assigneeMemberId: ben.id })).status).toBe(
+    "private_task",
+  );
+  const own = ok(await crm.createTask({ title: "Book flights" })).task;
+  expect(await calendarRow(own.id)).toMatchObject({ ownerMemberId: ana.id, recordKind: null });
+  expect(await db.select().from(crmTasks).where(eq(crmTasks.id, own.id))).toEqual([]);
+  expect(ok(await crm.listTasks()).tasks.map((t) => t.title)).toEqual(["Send quote"]);
 
   ok(await crm.updateTask(linked.id, { record: null, done: true }));
   expect(await calendarRow(linked.id)).toMatchObject({
@@ -98,8 +98,9 @@ test("a CRM task is written to the calendar too: linked stays the workspace's, u
     assigneeMemberId: ben.id,
     recordKind: null,
   });
-  ok(await crm.deleteTask(handed.id));
-  expect(await calendarRow(handed.id)).toBeUndefined();
+  expect(await db.select().from(crmTasks).where(eq(crmTasks.id, linked.id))).toEqual([]);
+  expect((await crm.task(linked.id)).status).toBe("not_found");
+  expect(titles(ok(await forMember(db, ana.id).calendar.tasks()))).toEqual(["Book flights"]);
 });
 
 test("deleting a record deletes the calendar's tasks on it", async () => {
@@ -209,4 +210,23 @@ test("the copy job copies what the calendar lacks, twice to the same rows, and a
     .where(eq(crmTasks.id, onEd!.id));
   expect((await copyTasksToCalendar(db)).copied).toBe(1);
   expect((await calendarRow(onEd!.id))!.title).toBe("On Ed, renamed");
+});
+
+test("a task deleted in the calendar stays deleted though crm_tasks still held it", async () => {
+  const { org, ana } = await workspace("tasks-no-return");
+  const [old] = await db
+    .insert(crmTasks)
+    .values({
+      orgId: org.id,
+      title: "Old one",
+      assigneeMemberId: ana.id,
+      createdByMemberId: ana.id,
+    })
+    .returning();
+  await copyTasksToCalendar(db);
+  const cal = forMember(db, ana.id).calendar;
+  expect(titles(ok(await cal.tasks()))).toEqual(["Old one"]);
+  ok(await cal.deleteTask(old!.id));
+  await copyTasksToCalendar(db);
+  expect(await calendarRow(old!.id)).toBeUndefined();
 });

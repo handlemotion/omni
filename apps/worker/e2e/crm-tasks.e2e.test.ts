@@ -2,6 +2,7 @@ import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startCrmStack, type CrmStack } from "./crm-support.ts";
+import { authPost } from "./support.ts";
 
 let stack: CrmStack;
 
@@ -19,6 +20,7 @@ const titles = (body: { tasks: { title: string }[] }) => body.tasks.map((task) =
 test("open tasks page soonest due first, undated last, with no row lost or repeated", async () => {
   const acme = await stack.company("acme");
   const ana = await stack.member(acme.id);
+  const dealId = (await stack.api(ana.jar, "POST", "/deals", { name: "Website" })).body.deal.id;
   const plan = [
     ["undated a", null],
     ["in 3h", hours(3)],
@@ -27,7 +29,7 @@ test("open tasks page soonest due first, undated last, with no row lost or repea
     ["in 1h", hours(1)],
   ] as const;
   for (const [title, dueAt] of plan) {
-    expect((await stack.api(ana.jar, "POST", "/tasks", { title, dueAt })).status).toBe(201);
+    expect((await stack.api(ana.jar, "POST", "/tasks", { title, dueAt, dealId })).status).toBe(201);
   }
 
   const seen: string[] = [];
@@ -48,11 +50,20 @@ test("filters by assignee, due and done; completing twice keeps the first comple
   const acme = await stack.company("acme");
   const ana = await stack.member(acme.id);
   const bea = await stack.member(acme.id);
+  const dealId = (await stack.api(ana.jar, "POST", "/deals", { name: "Website" })).body.deal.id;
 
-  const mine = await stack.api(ana.jar, "POST", "/tasks", { title: "Mine", dueAt: hours(-1) });
+  const mine = await stack.api(ana.jar, "POST", "/tasks", {
+    title: "Mine",
+    dueAt: hours(-1),
+    dealId,
+  });
   expect(mine.body.task.assigneeMemberId).toBe(ana.id);
-  await stack.api(ana.jar, "POST", "/tasks", { title: "Bea's", assigneeMemberId: bea.id });
-  await stack.api(ana.jar, "POST", "/tasks", { title: "Nobody's", assigneeMemberId: null });
+  await stack.api(ana.jar, "POST", "/tasks", { title: "Bea's", assigneeMemberId: bea.id, dealId });
+  await stack.api(ana.jar, "POST", "/tasks", {
+    title: "Nobody's",
+    assigneeMemberId: null,
+    dealId,
+  });
 
   expect(titles((await stack.api(ana.jar, "GET", "/tasks?assignee=me")).body)).toEqual(["Mine"]);
   expect(titles((await stack.api(bea.jar, "GET", "/tasks?assignee=me")).body)).toEqual(["Bea's"]);
@@ -88,7 +99,7 @@ test("filters by assignee, due and done; completing twice keeps the first comple
   expect(titles((await stack.api(ana.jar, "GET", "/tasks?assignee=me")).body)).toEqual(["Mine"]);
 });
 
-test("a record lists its own tasks; deleting the record or the assignee is handled", async () => {
+test("a record lists its own tasks; taken off it, a task is its assignee's alone; a removed assignee and a deleted record are handled", async () => {
   const acme = await stack.company("acme");
   const owner = await stack.member(acme.id, "owner");
   const bea = await stack.member(acme.id);
@@ -111,10 +122,25 @@ test("a record lists its own tasks; deleting the record or the assignee is handl
   const moved = await stack.api(owner.jar, "PATCH", `/tasks/${onDeal.body.task.id}`, {
     dealId: null,
   });
-  expect(moved.body.task).toMatchObject({ dealId: null, recordName: null, recordDomain: null });
-  await stack.api(owner.jar, "PATCH", `/tasks/${onDeal.body.task.id}`, { dealId });
+  expect(moved.body.task).toMatchObject({
+    dealId: null,
+    recordName: null,
+    recordDomain: null,
+    ownerMemberId: bea.id,
+  });
+  expect((await stack.api(owner.jar, "GET", `/tasks/${onDeal.body.task.id}`)).status).toBe(404);
+  expect(titles((await stack.api(owner.jar, "GET", "/tasks")).body)).toEqual(["Other"]);
+  const back = await stack.api(bea.jar, "PATCH", `/tasks/${onDeal.body.task.id}`, { dealId });
+  expect(back.body.task).toMatchObject({ dealId, assigneeMemberId: bea.id });
 
-  await stack.db.delete(schema.members).where(eq(schema.members.id, bea.id));
+  const removed = await authPost(stack.worker, owner.jar, "/organization/remove-member", {
+    memberIdOrEmail: bea.email,
+    organizationId: acme.id,
+  });
+  expect(removed.status).toBe(200);
+  expect(await stack.db.select().from(schema.members).where(eq(schema.members.id, bea.id))).toEqual(
+    [],
+  );
   const unassigned = await stack.api(owner.jar, "GET", `/tasks/${onDeal.body.task.id}`);
   expect(unassigned.body.task.assigneeMemberId).toBeNull();
 
@@ -130,7 +156,11 @@ test("another workspace cannot read, change, assign into or link to a task", asy
   const cid = await stack.member(beta.id);
   const theirDeal = await stack.api(cid.jar, "POST", "/deals", { name: "Theirs" });
 
-  const task = await stack.api(ana.jar, "POST", "/tasks", { title: "Ours" });
+  const ourDeal = await stack.api(ana.jar, "POST", "/deals", { name: "Ours" });
+  const task = await stack.api(ana.jar, "POST", "/tasks", {
+    title: "Ours",
+    dealId: ourDeal.body.deal.id,
+  });
   const id = task.body.task.id;
   expect((await stack.api(cid.jar, "GET", `/tasks/${id}`)).status).toBe(404);
   expect((await stack.api(cid.jar, "PATCH", `/tasks/${id}`, { done: true })).status).toBe(404);

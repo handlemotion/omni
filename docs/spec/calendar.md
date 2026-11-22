@@ -243,7 +243,10 @@ them only where the CRM is on. They move to the calendar without a stop, expand 
    `calendar_tasks` lacks or holds older (`updated_at`), idempotently, every minute until a pass
    copies nothing.
 2. **Switch.** The Worker reads `calendar_tasks` and keeps writing both, so a rollback still
-   finds `crm_tasks` whole.
+   finds `crm_tasks` whole for the tasks on records. A private task is never written to
+   `crm_tasks`, where an older Worker would show it to the whole workspace; one taken off its
+   record leaves it, and a deleted one leaves it too, so the copy job brings nothing back. The
+   copy job is the CRM's: the calendar never reads `crm_tasks`.
 3. **Contract**, once production reads `calendar_tasks` only: stop writing `crm_tasks`, drop it.
 
 Existing tasks keep their id, record, assignee, dates and subtasks. One on a record stays the

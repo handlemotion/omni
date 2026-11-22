@@ -159,6 +159,7 @@ function draftTask(client: QueryClient, input: PendingTask, self: string | null)
     dealId: input.dealId ?? null,
     recordName: typeof record?.name === "string" ? record.name : null,
     recordDomain: typeof record?.domain === "string" ? record.domain : null,
+    ownerMemberId: self,
     assigneeMemberId: input.assigneeMemberId === undefined ? self : input.assigneeMemberId,
     dueAt: input.dueAt ?? null,
     completedAt: null,

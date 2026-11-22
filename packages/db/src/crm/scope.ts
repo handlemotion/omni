@@ -1,8 +1,8 @@
-import { and, eq, inArray, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { members } from "../schema/auth.ts";
 import { crmEvents, crmNotes } from "../schema/crm.ts";
 import { crmDeliverables, crmMilestones } from "../schema/crm/projects.ts";
-import { crmTasks } from "../schema/crm/tasks.ts";
+import { calendarTask } from "../calendar.ts";
 import { FREELANCER_ROLE, type CrmRecordRef, type Ex, type Freelancer, type Gate } from "./core.ts";
 import { getDeal, listDeals, type ListDealsInput } from "./deals.ts";
 import type { TimelineNarrowing } from "./notes.ts";
@@ -37,23 +37,13 @@ export const milestoneOnProject = (id: string) => dealOfRow(crmMilestones, id);
 export const deliverableOnProject = (id: string) => dealOfRow(crmDeliverables, id);
 export const noteOnProject = (id: string) => dealOfRow(crmNotes, id);
 
-/** A task on one of their projects, or one assigned to them. */
+/** A task on one of their projects, or one they own or are assigned. */
 export const taskOnProject = (id: string) =>
   (async (member: Freelancer, ex: Ex) => {
-    const [row] = await ex
-      .select({ id: crmTasks.id })
-      .from(crmTasks)
-      .where(
-        and(
-          eq(crmTasks.orgId, member.orgId),
-          eq(crmTasks.id, id),
-          or(
-            eq(crmTasks.assigneeMemberId, member.id),
-            member.projects.length ? inArray(crmTasks.dealId, member.projects) : undefined,
-          ),
-        ),
-      );
-    return Boolean(row);
+    const task = await calendarTask(ex, member.orgId, id);
+    if (!task?.record) return false;
+    if (task.assigneeMemberId === member.id || task.ownerMemberId === member.id) return true;
+    return task.record.kind === "deal" && member.projects.includes(task.record.id);
   }) satisfies Gate;
 
 /** Changing a task: theirs to see, and moved, if at all, only onto one of their projects. */

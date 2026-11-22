@@ -1,6 +1,13 @@
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { putTask, removeTask, taskVersions, type TaskRecord, type TaskRow } from "../calendar.ts";
+import {
+  putTask,
+  taskVersions,
+  type CalendarTask,
+  type TaskMirror,
+  type TaskRecord,
+  type TaskRow,
+} from "../calendar.ts";
 import { members } from "../schema/auth.ts";
 import { crmTasks } from "../schema/crm/tasks.ts";
 import { hasRole, type Ex } from "./core.ts";
@@ -49,17 +56,50 @@ async function calendarRowOf(ex: Ex, row: CrmTaskRow) {
 }
 
 /**
- * The dual write: after the CRM changed a task in `crm_tasks`, the calendar's copy, keyed by the
- * same id, reads the same. A task gone from `crm_tasks` is gone from the calendar too.
+ * The dual write, until `crm_tasks` is dropped (T4): a task on a record reads the same from
+ * `crm_tasks` as from the calendar, keyed by the same id, so a Worker that still reads
+ * `crm_tasks` finds it whole. A private task is never written there.
  */
-export async function mirrorTask(tx: Ex, orgId: string, id: string) {
-  const [row] = await tx
-    .select()
-    .from(crmTasks)
-    .where(and(eq(crmTasks.orgId, orgId), eq(crmTasks.id, id)));
-  if (!row) return removeTask(tx, orgId, id);
-  return putTask(tx, await calendarRowOf(tx, row));
+export async function writeCrmTask(tx: Ex, task: CalendarTask) {
+  if (!task.record) return dropCrmTask(tx, task.orgId, task.id);
+  const values = {
+    id: task.id,
+    orgId: task.orgId,
+    title: task.title,
+    body: task.body,
+    subtasks: task.subtasks,
+    companyId: task.record.kind === "company" ? task.record.id : null,
+    personId: task.record.kind === "person" ? task.record.id : null,
+    dealId: task.record.kind === "deal" ? task.record.id : null,
+    assigneeMemberId: task.assigneeMemberId,
+    dueAt: task.dueAt,
+    completedAt: task.completedAt,
+    completedByMemberId: task.completedByMemberId,
+    createdByMemberId: task.createdByMemberId,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  };
+  const { id: _id, orgId: _org, createdAt: _made, ...changed } = values;
+  await tx
+    .insert(crmTasks)
+    .values(values)
+    .onConflictDoUpdate({
+      target: crmTasks.id,
+      set: changed,
+      setWhere: eq(crmTasks.orgId, task.orgId),
+    });
 }
+
+/** The task is gone, or private now: `crm_tasks` no longer holds it, and the copy job brings nothing back. */
+export async function dropCrmTask(tx: Ex, orgId: string, id: string) {
+  await tx.delete(crmTasks).where(and(eq(crmTasks.orgId, orgId), eq(crmTasks.id, id)));
+}
+
+/** What the calendar's door calls when a member changes their own task outside the CRM. */
+export const crmTaskMirror: TaskMirror = {
+  put: writeCrmTask,
+  drop: dropCrmTask,
+};
 
 export const TASK_COPY_BATCH = 500;
 const TASK_COPY_PAGES = 40;

@@ -331,8 +331,13 @@ describe("tasks", () => {
 
   test("an agent pages through more tasks than one call returns", async () => {
     const { agent, crm } = await workspace("agenttaskpages");
+    const deal = await crm.createDeal({ name: "Website" });
+    if (deal.status !== "ok") throw new Error("seed");
     for (let i = 0; i < 5; i++) {
-      const made = await crm.createTask({ title: `Follow up ${i}` });
+      const made = await crm.createTask({
+        title: `Follow up ${i}`,
+        record: { dealId: deal.deal.id },
+      });
       if (made.status !== "ok") throw new Error("seed");
     }
     const seen: string[] = [];
@@ -353,7 +358,13 @@ describe("tasks", () => {
   test("tasks stay in their workspace, and reading them needs crm:read", async () => {
     const ours = await workspace("agenttaskours");
     const theirs = await workspace("agenttasktheirs");
-    const hidden = await theirs.crm.createTask({ title: "Their secret task" });
+    const theirDeal = await theirs.crm.createDeal({ name: "Theirs" });
+    const ourDeal = await ours.crm.createDeal({ name: "Ours" });
+    if (theirDeal.status !== "ok" || ourDeal.status !== "ok") throw new Error("seed");
+    const hidden = await theirs.crm.createTask({
+      title: "Their secret task",
+      record: { dealId: theirDeal.deal.id },
+    });
     if (hidden.status !== "ok") throw new Error("seed");
 
     expect((await call<{ tasks: Task[] }>(ours.agent, "crm_tasks", {})).tasks).toEqual([]);
@@ -363,7 +374,13 @@ describe("tasks", () => {
     const still = await theirs.crm.task(hidden.task.id);
     expect(still.status === "ok" && still.task.completedAt).toBeNull();
     expect(
-      await refusal(ours.agent, "crm_write", { task: { title: "x", assignee: theirs.ana.email } }),
+      await refusal(ours.agent, "crm_write", {
+        task: {
+          title: "x",
+          assignee: theirs.ana.email,
+          record: { kind: "deal", id: ourDeal.deal.id },
+        },
+      }),
     ).toMatch(/not in this workspace/);
 
     const mailOnly = await connectAgent(stack.worker.url, ours.ana.jar, {
