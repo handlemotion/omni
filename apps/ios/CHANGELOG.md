@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/wokshop/omni/compare/ios-v0.3.0...ios-v0.4.0) (2026-11-22)
+
+
+### Features
+
+* **ios:** a Personal space gets the CRM and Shared, and no Personal/Company label ([#876](https://github.com/wokshop/omni/issues/876)) ([153db21](https://github.com/wokshop/omni/commit/153db212b23b50403e5d2248196ed631f9cd0c9b))
+
 ## [0.3.0](https://github.com/wokshop/omni/compare/ios-v0.2.1...ios-v0.3.0) (2026-11-22)
 
 

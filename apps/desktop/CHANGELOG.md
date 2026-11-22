@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.5.0](https://github.com/wokshop/omni/compare/desktop-v0.4.0...desktop-v0.5.0) (2026-11-22)
+
+
+### Features
+
+* **desktop:** each space you're in syncs as its own folder in Finder ([#803](https://github.com/wokshop/omni/issues/803)) ([511464c](https://github.com/wokshop/omni/commit/511464ca5a4cb70e6df3ad59d84fcd4dacf163d7))
+* **desktop:** the meeting recorder's capture and crash-safe spool ([#841](https://github.com/wokshop/omni/issues/841)) ([f10571d](https://github.com/wokshop/omni/commit/f10571df44580bf8992ebdba4e5b5e7afeea44ff))
+* **desktop:** the recording pill, Record Now in the tray and the meeting-start notification ([#846](https://github.com/wokshop/omni/issues/846)) ([3a01673](https://github.com/wokshop/omni/commit/3a016734b9366f6dc826afd168bb9467e425ab3d))
+* **drive:** fit seven cards beside the sidebar, draw folders as blue pockets ([#785](https://github.com/wokshop/omni/issues/785)) ([082a44d](https://github.com/wokshop/omni/commit/082a44df3a918f93a794cbf735ed855de9b1492a))
+
+
+### Fixes
+
+* **desktop:** satisfy clippy's chunks_exact_to_as_chunks in the recorder ([#853](https://github.com/wokshop/omni/issues/853)) ([cacabae](https://github.com/wokshop/omni/commit/cacabae2478f7f2f0e4ff5ee3252e040e49d6e0e))
+* **desktop:** the recorder shell never cuts a spool it is writing, and retires a capture that ends by itself ([#856](https://github.com/wokshop/omni/issues/856)) ([0599b71](https://github.com/wokshop/omni/commit/0599b714e3c9f43572bd50a2bdc05a87dd70239c))
+* **desktop:** the recorder survives newer Clippy, a slow macOS start, an expired upload and a repeated stop ([#854](https://github.com/wokshop/omni/issues/854)) ([36df5b1](https://github.com/wokshop/omni/commit/36df5b12335118aa533910306a98e42e2ea0f7fd))
+
+
+### Performance
+
+* **web:** Talk notes arrive and send without refetching the thread ([#787](https://github.com/wokshop/omni/issues/787)) ([61463e9](https://github.com/wokshop/omni/commit/61463e9e10d263f935487ffbf50db71d96030023))
+* **worker:** calendar reads in fewer round trips; the web calendar loads its weeks ahead ([#788](https://github.com/wokshop/omni/issues/788)) ([c391c98](https://github.com/wokshop/omni/commit/c391c98451ef3bc56d1ec97d408d6a4c1be4aaf7))
+
 ## [0.4.0](https://github.com/wokshop/omni/compare/desktop-v0.3.0...desktop-v0.4.0) (2026-11-22)
 
 
