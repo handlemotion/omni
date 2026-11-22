@@ -4,8 +4,11 @@ import { attempt, runJob, scopedDb } from "../job-effects.ts";
 import { createLogger } from "../log.ts";
 import { enqueueMeeting } from "./queue.ts";
 
-/** A meeting untouched this long mid-pipeline lost its next step and is sent again. */
-export const STALLED_MS = 5 * 60_000;
+/**
+ * A meeting untouched this long mid-pipeline lost its next step and is sent again. Longer than
+ * the longest retry delay (`MAX_RETRY_SECONDS`), so a step waiting on its retry is never sent twice.
+ */
+export const STALLED_MS = 15 * 60_000;
 
 /** The meetings' every-minute work: send stalled meetings on, so no lost hand-off strands one. */
 export function meetingsMinute(env: Env) {

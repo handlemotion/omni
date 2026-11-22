@@ -20,6 +20,9 @@ const fake = {
   forgotten: [] as string[],
   modelCalls: [] as string[],
   failJobs: 0,
+  unavailablePolls: 0,
+  holdSubmit: null as Promise<void> | null,
+  submitArrived: () => {},
 };
 let server: Server;
 let stack: StorageStack;
@@ -43,6 +46,10 @@ beforeAll(async () => {
     }
     if (req.url === "/v2/transcript" && req.method === "POST") {
       fake.submitted.push(JSON.parse(raw.toString()));
+      if (fake.holdSubmit) {
+        fake.submitArrived();
+        await fake.holdSubmit;
+      }
       if (fake.failJobs > 0) {
         fake.failJobs--;
         return json({ id: "job-err", status: "queued" });
@@ -52,7 +59,14 @@ beforeAll(async () => {
     if (req.url === "/v2/transcript/job-err" && req.method === "GET") {
       return json({ id: "job-err", status: "error", error: "audio could not be decoded" });
     }
-    if (req.url === "/v2/transcript/job-1" && req.method === "GET") return json(engineResult);
+    if (req.url === "/v2/transcript/job-1" && req.method === "GET") {
+      if (fake.unavailablePolls > 0) {
+        fake.unavailablePolls--;
+        res.writeHead(503).end("busy");
+        return;
+      }
+      return json(engineResult);
+    }
     if (req.url === "/v2/transcript/job-1" && req.method === "DELETE") {
       fake.forgotten.push("job-1");
       return json({});
@@ -74,6 +88,7 @@ beforeAll(async () => {
       TRANSCRIBE_PROVIDER: "assemblyai",
       TRANSCRIBE_URL: origin,
       ANTHROPIC_BASE_URL: origin,
+      MEETINGS_FIRST_RETRY_SECONDS: "1",
     },
     secrets: { ANTHROPIC_API_KEY: "recorded", TRANSCRIBE_API_KEY: "recorded" },
   });
@@ -320,7 +335,7 @@ test("a stopped meeting whose hand-off to the queue was lost is sent on by the m
     new Uint8Array(64),
     "audio/ogg",
   );
-  const longAgo = new Date(Date.now() - 10 * 60_000);
+  const longAgo = new Date(Date.now() - 20 * 60_000);
   await stack.db
     .update(schema.meetingsMeetings)
     .set({ status: "uploaded", audioNodeId: node.id, durationMs: 95_400, updatedAt: longAgo })
@@ -416,4 +431,50 @@ test("a range the recording cannot satisfy answers 416 with its size, not a serv
   expect([last.status, last.headers.get("content-range")]).toEqual([206, "bytes 60-63/64"]);
   expect((await last.arrayBuffer()).byteLength).toBe(4);
   await settled(dana, meetingId);
+});
+
+test("a meeting deleted while its audio goes to the engine leaves nothing at the engine or in R2", async () => {
+  const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  let release = () => {};
+  fake.holdSubmit = new Promise<void>((resolve) => (release = resolve));
+  const arrived = new Promise<void>((resolve) => (fake.submitArrived = resolve));
+  const forgottenBefore = fake.forgotten.length;
+  try {
+    const meetingId = await recordCall(dana);
+    await arrived;
+    expect((await api(dana, "DELETE", `/${meetingId}`)).status).toBe(204);
+    release();
+    await until(
+      async () => fake.forgotten.length,
+      (n) => n > forgottenBefore,
+    );
+    expect(fake.forgotten.slice(forgottenBefore)).toEqual(["job-1"]);
+    const bucket = await stack.bucket();
+    expect(await bucket.list({ prefix: `meetings/${org.id}/${meetingId}/` })).toMatchObject({
+      objects: [],
+    });
+  } finally {
+    fake.holdSubmit = null;
+    release();
+  }
+});
+
+test("an engine that is briefly down is tried again after a pause, and the meeting finishes", async () => {
+  const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  fake.unavailablePolls = 1;
+  const meetingId = await recordCall(dana);
+  const ready = await until(
+    () => api(dana, "GET", `/${meetingId}`),
+    (r) => ["ready", "failed"].includes(r.body?.meeting?.status),
+    55_000,
+  );
+  expect(ready.body.meeting).toMatchObject({ status: "ready", failure: null });
+  expect(fake.unavailablePolls).toBe(0);
+  const [job] = await stack.db
+    .select({ attempts: schema.meetingsJobs.attempts })
+    .from(schema.meetingsJobs)
+    .where(eq(schema.meetingsJobs.meetingId, meetingId));
+  expect(job?.attempts).toBe(0);
 });

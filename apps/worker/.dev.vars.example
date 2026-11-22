@@ -99,6 +99,9 @@ TRANSCRIBE_URL=
 TRANSCRIBE_MODEL=
 # Secret. The engine's API key, for assemblyai and for a server that asks for one.
 TRANSCRIBE_API_KEY=
+# Optional. Seconds a failed Meetings step waits before its first retry; each retry after waits
+# twice as long, up to 10 minutes. Default 30.
+MEETINGS_FIRST_RETRY_SECONDS=
 # Secret. TypeSafe key: triage runs on Jev when set, and mail and Drive search
 # results are reordered by Jev's relevance judgment (Drive also finds files by meaning). Empty: search keeps full-text order.
 TYPESAFE_API_KEY=

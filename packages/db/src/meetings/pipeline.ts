@@ -58,17 +58,23 @@ export async function setUpload(ex: Ex, meetingId: string, uploadId: string) {
   await ex.update(meetingsJobs).set({ uploadId }).where(eq(meetingsJobs.meetingId, meetingId));
 }
 
-/** The engine's job, once submitted. A retry that finds it set polls instead of paying again. */
+/**
+ * The engine's job, once submitted. A retry that finds it set polls instead of paying again.
+ * False when it was not kept: the meeting was deleted meanwhile, or another delivery's job is
+ * already set. The caller then asks the engine to forget this one, so no audio stays there.
+ */
 export async function setEngineJob(
   ex: Ex,
   meetingId: string,
   provider: string,
   providerJobId: string,
 ) {
-  await ex
+  const rows = await ex
     .update(meetingsJobs)
     .set({ provider, providerJobId })
-    .where(and(eq(meetingsJobs.meetingId, meetingId), sql`${meetingsJobs.providerJobId} is null`));
+    .where(and(eq(meetingsJobs.meetingId, meetingId), sql`${meetingsJobs.providerJobId} is null`))
+    .returning({ id: meetingsJobs.meetingId });
+  return rows.length > 0;
 }
 
 export async function countPoll(ex: Ex, meetingId: string) {
@@ -145,9 +151,20 @@ export interface SavedTranscript {
   }>;
 }
 
+async function lockStatus(ex: Ex, meetingId: string) {
+  const [row] = await ex
+    .select({ status: meetingsMeetings.status })
+    .from(meetingsMeetings)
+    .where(eq(meetingsMeetings.id, meetingId))
+    .for("update");
+  return row?.status ?? "gone";
+}
+
 /**
- * Replaces the meeting's transcript and speakers in one go and moves it to `naming`. A speaker a
- * person already named keeps that name, so working speakers out again never undoes a rename.
+ * Replaces the meeting's transcript and speakers in one go and moves it to `naming`, only while
+ * it is `transcribing`: a second delivery of the poll that fetched the same result never sends a
+ * meeting that moved on back to `naming`. A speaker a person already named keeps that name, so
+ * working speakers out again never undoes a rename. Answers `saved`, `moved_on` or `gone`.
  */
 export async function saveTranscript(
   ex: Ex,
@@ -155,6 +172,9 @@ export async function saveTranscript(
   orgId: string,
   saved: SavedTranscript,
 ) {
+  const status = await lockStatus(ex, meetingId);
+  if (status === "gone") return "gone" as const;
+  if (status !== "transcribing") return "moved_on" as const;
   const renamed = await ex
     .select()
     .from(meetingsSpeakers)
@@ -203,6 +223,7 @@ export async function saveTranscript(
       failure: null,
     })
     .where(eq(meetingsMeetings.id, meetingId));
+  return "saved" as const;
 }
 
 /** Names from the names pass, only for speakers still without one. */
@@ -235,8 +256,12 @@ export interface SavedNotes {
   promptVersion: number;
 }
 
-/** The notes and their actions, once: a second run keeps the first. Moves the meeting to `ready`. */
+/**
+ * The notes and their actions, once, while the meeting is `writing`: a second run keeps the
+ * first, and a run that finds it already `ready` (or deleted) writes nothing. Moves it to `ready`.
+ */
 export async function saveNotes(ex: Ex, meetingId: string, orgId: string, notes: SavedNotes) {
+  if ((await lockStatus(ex, meetingId)) !== "writing") return false;
   await ex
     .insert(meetingsNotes)
     .values({
@@ -271,6 +296,7 @@ export async function saveNotes(ex: Ex, meetingId: string, orgId: string, notes:
       ...(notes.title ? { title: sql`coalesce(${meetingsMeetings.title}, ${notes.title})` } : {}),
     })
     .where(eq(meetingsMeetings.id, meetingId));
+  return true;
 }
 
 /** True once: the first caller writes the notes into the doc, a retry skips it. */
@@ -352,8 +378,10 @@ export async function restartFailed(ex: Ex, meetingId: string) {
   if (to === "uploaded") {
     await ex
       .update(meetingsJobs)
-      .set({ provider: null, providerJobId: null, submittedAt: null, polls: 0 })
+      .set({ provider: null, providerJobId: null, submittedAt: null, polls: 0, attempts: 0 })
       .where(eq(meetingsJobs.meetingId, meetingId));
+  } else {
+    await ex.update(meetingsJobs).set({ attempts: 0 }).where(eq(meetingsJobs.meetingId, meetingId));
   }
   return to;
 }
@@ -386,8 +414,34 @@ export async function nudged(ex: Ex, meetingId: string) {
     .where(eq(meetingsJobs.meetingId, meetingId));
 }
 
-/** How long a claim to send a recording to the engine holds before another step may take it. */
-export const SUBMIT_CLAIM_MS = 10 * 60_000;
+/**
+ * Counts one failed try of the meeting's current step and marks the job as just touched, so the
+ * sweep leaves it to the queue's retry. The count lives on the meeting, not on a queue message,
+ * so a step the sweep sends again still stops at the same cap. Answers the count so far.
+ */
+export async function failedAttempt(ex: Ex, meetingId: string) {
+  const [row] = await ex
+    .update(meetingsJobs)
+    .set({ attempts: sql`${meetingsJobs.attempts} + 1` })
+    .where(eq(meetingsJobs.meetingId, meetingId))
+    .returning({ attempts: meetingsJobs.attempts });
+  return row?.attempts ?? 0;
+}
+
+/** A step went through: the next failure starts counting from zero again. */
+export async function succeeded(ex: Ex, meetingId: string) {
+  await ex
+    .update(meetingsJobs)
+    .set({ attempts: 0 })
+    .where(and(eq(meetingsJobs.meetingId, meetingId), sql`${meetingsJobs.attempts} > 0`));
+}
+
+/**
+ * How long a claim to send a recording to the engine holds before another step may take it:
+ * longer than the engine's upload may take (`ENGINE_UPLOAD_MS` in the Worker), so a slow upload
+ * is never sent a second time.
+ */
+export const SUBMIT_CLAIM_MS = 20 * 60_000;
 
 /**
  * Claims sending the meeting's recording to the engine, so two deliveries of a step never both

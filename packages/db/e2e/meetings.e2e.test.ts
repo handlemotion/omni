@@ -39,6 +39,12 @@ async function memberOf(orgId: string, address: string, role = "member") {
 
 const tag = () => randomUUID().slice(0, 8);
 
+async function at(meetingId: string, status: "transcribing" | "writing") {
+  const pipeline = meetingsPipeline(db);
+  if (status === "writing") return pipeline.advance(meetingId, ["recording", "naming"], "writing");
+  return pipeline.advance(meetingId, ["recording", "naming"], "transcribing");
+}
+
 async function studio() {
   const t = tag();
   const org = await createOrg(db, `meet-${t}`);
@@ -67,6 +73,7 @@ test("only the recorder and attendees open a meeting; an uninvited teammate, eve
   const s = await studio();
   await setRole(db, s.cy.id, "owner");
   const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address, s.ben.address] }));
+  await at(meetingId, "transcribing");
   await meetingsPipeline(db).saveTranscript(meetingId, s.org.id, {
     language: "en",
     durationMs: 1000,
@@ -164,6 +171,7 @@ test("a group summary is made and cached only from the meetings its reader can o
         consent: true,
       }),
     );
+    await at(meetingId, "writing");
     await pipeline.saveNotes(meetingId, s.org.id, {
       title: null,
       summary,
@@ -224,19 +232,22 @@ test("a retried pipeline keeps a person's rename, one set of actions, and writes
     promptVersion: 1,
   };
 
-  await pipeline.saveTranscript(meetingId, s.org.id, transcript);
+  await at(meetingId, "transcribing");
+  expect(await pipeline.saveTranscript(meetingId, s.org.id, transcript)).toBe("saved");
   ok(
     await forMember(db, s.dana.id).meetings.renameSpeaker(meetingId, "B", {
       name: "Marta",
       address: null,
     }),
   );
-  await pipeline.saveTranscript(meetingId, s.org.id, transcript);
+  await at(meetingId, "transcribing");
+  expect(await pipeline.saveTranscript(meetingId, s.org.id, transcript)).toBe("saved");
   await pipeline.nameSpeakers(meetingId, [
     { label: "B", name: "Wrong", address: null, confidence: 0.5 },
   ]);
-  await pipeline.saveNotes(meetingId, s.org.id, notes);
-  await pipeline.saveNotes(meetingId, s.org.id, notes);
+  await at(meetingId, "writing");
+  expect(await pipeline.saveNotes(meetingId, s.org.id, notes)).toBe(true);
+  expect(await pipeline.saveNotes(meetingId, s.org.id, notes)).toBe(false);
 
   const meeting = ok(await forMember(db, s.dana.id).meetings.get(meetingId));
   expect(meeting.speakers.find((sp) => sp.label === "B")).toMatchObject({
@@ -304,6 +315,7 @@ test("a stale step's failure never undoes progress another delivery made", async
   const s = await studio();
   const pipeline = meetingsPipeline(db);
   const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address] }));
+  await at(meetingId, "transcribing");
   await pipeline.saveTranscript(meetingId, s.org.id, {
     language: "en",
     durationMs: 1000,
@@ -321,6 +333,7 @@ test("two people accepting one action at once: one wins, the other is told it wa
   const pipeline = meetingsPipeline(db);
   const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address, s.ben.address] }));
   ok(await forMember(db, s.dana.id).meetings.grant(meetingId, s.ben.address, "editor"));
+  await at(meetingId, "writing");
   await pipeline.saveNotes(meetingId, s.org.id, {
     title: null,
     summary: "s",
@@ -346,4 +359,43 @@ test("a claim whose send failed is let go, so the step's retry may send again at
   expect(await pipeline.claimSubmission(meetingId)).toBe(false);
   await pipeline.releaseSubmission(meetingId);
   expect(await pipeline.claimSubmission(meetingId)).toBe(true);
+});
+
+test("a late save finds the meeting moved on or deleted and writes nothing", async () => {
+  const s = await studio();
+  const pipeline = meetingsPipeline(db);
+  const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address] }));
+  const transcript = {
+    language: "en",
+    durationMs: 1000,
+    rawNodeId: null,
+    turns: [{ speaker: "A", startMs: 0, endMs: 900, text: "first take" }],
+    speakers: [{ label: "A", name: null, address: null, source: null, confidence: 0 }],
+  };
+  await at(meetingId, "transcribing");
+  expect(await pipeline.saveTranscript(meetingId, s.org.id, transcript)).toBe("saved");
+  await at(meetingId, "writing");
+  const late = { ...transcript, turns: [{ ...transcript.turns[0]!, text: "late copy" }] };
+  expect(await pipeline.saveTranscript(meetingId, s.org.id, late)).toBe("moved_on");
+  const meeting = ok(await forMember(db, s.dana.id).meetings.get(meetingId));
+  expect(meeting.meeting.status).toBe("writing");
+  const { segments } = ok(await forMember(db, s.dana.id).meetings.transcript(meetingId));
+  expect(segments.map((g) => g.text)).toEqual(["first take"]);
+
+  ok(await forMember(db, s.dana.id).meetings.remove(meetingId));
+  expect(await pipeline.saveTranscript(meetingId, s.org.id, transcript)).toBe("gone");
+  expect(await pipeline.setEngineJob(meetingId, "assemblyai", "job-late")).toBe(false);
+});
+
+test("a step's tries are counted on the meeting until one goes through", async () => {
+  const s = await studio();
+  const pipeline = meetingsPipeline(db);
+  const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address] }));
+  expect(await pipeline.failedAttempt(meetingId)).toBe(1);
+  expect(await pipeline.failedAttempt(meetingId)).toBe(2);
+  await pipeline.succeeded(meetingId);
+  expect(await pipeline.failedAttempt(meetingId)).toBe(1);
+  await pipeline.fail(meetingId, "engine down", ["recording"]);
+  expect(await pipeline.restartFailed(meetingId)).toBe("uploaded");
+  expect(await pipeline.failedAttempt(meetingId)).toBe(1);
 });

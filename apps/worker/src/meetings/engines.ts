@@ -52,9 +52,23 @@ const WORKERS_AI_MODEL = "@cf/openai/whisper-large-v3-turbo";
 /** Workers AI takes the audio inline as base64; past this it is refused, not cut. */
 export const WORKERS_AI_MAX_BYTES = 20 * 1024 * 1024;
 
+/** How long sending the audio may take: an hour of audio is about 14 MB. */
+export const ENGINE_UPLOAD_MS = 10 * 60_000;
+/** How long any other call to the engine may take before it counts as failed and is retried. */
+export const ENGINE_CALL_MS = 30_000;
+
+async function call(url: string, init: RequestInit, what: string, ms = ENGINE_CALL_MS) {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
+  } catch (error) {
+    const reason = error instanceof Error ? `${error.name}: ${error.message}` : "no answer";
+    throw new EngineError(`${what}: ${reason}`, true);
+  }
+}
+
 async function checked(response: Response, what: string) {
   if (response.ok) return response;
-  const retryable = response.status === 429 || response.status >= 500;
+  const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
   const detail = (await response.text().catch(() => "")).slice(0, 300);
   throw new EngineError(`${what}: ${response.status} ${detail}`, retryable);
 }
@@ -66,15 +80,20 @@ function assemblyAI(config: EngineConfig) {
     provider: "assemblyai",
     async submit(audio, hints) {
       const uploaded = await checked(
-        await fetch(`${base}/v2/upload`, {
-          method: "POST",
-          headers: {
-            ...headers,
-            "content-type": "application/octet-stream",
-            "content-length": String(audio.size),
+        await call(
+          `${base}/v2/upload`,
+          {
+            method: "POST",
+            headers: {
+              ...headers,
+              "content-type": "application/octet-stream",
+              "content-length": String(audio.size),
+            },
+            body: audio.body,
           },
-          body: audio.body,
-        }),
+          "AssemblyAI upload",
+          ENGINE_UPLOAD_MS,
+        ),
         "AssemblyAI upload",
       );
       const { upload_url: audioUrl } = (await uploaded.json()) as { upload_url: string };
@@ -96,18 +115,26 @@ function assemblyAI(config: EngineConfig) {
         };
       }
       const submitted = await checked(
-        await fetch(`${base}/v2/transcript`, {
-          method: "POST",
-          headers: { ...headers, "content-type": "application/json" },
-          body: JSON.stringify(body),
-        }),
+        await call(
+          `${base}/v2/transcript`,
+          {
+            method: "POST",
+            headers: { ...headers, "content-type": "application/json" },
+            body: JSON.stringify(body),
+          },
+          "AssemblyAI submit",
+        ),
         "AssemblyAI submit",
       );
       return { jobId: ((await submitted.json()) as { id: string }).id };
     },
     async poll(jobId) {
       const response = await checked(
-        await fetch(`${base}/v2/transcript/${encodeURIComponent(jobId)}`, { headers }),
+        await call(
+          `${base}/v2/transcript/${encodeURIComponent(jobId)}`,
+          { headers },
+          "AssemblyAI poll",
+        ),
         "AssemblyAI poll",
       );
       const json = (await response.json()) as { status: string; error?: string };
@@ -117,10 +144,14 @@ function assemblyAI(config: EngineConfig) {
       return { state: "pending" };
     },
     async forget(jobId) {
-      await fetch(`${base}/v2/transcript/${encodeURIComponent(jobId)}`, {
-        method: "DELETE",
-        headers,
-      });
+      await checked(
+        await call(
+          `${base}/v2/transcript/${encodeURIComponent(jobId)}`,
+          { method: "DELETE", headers },
+          "AssemblyAI delete",
+        ),
+        "AssemblyAI delete",
+      );
     },
   };
   return engine;
@@ -137,11 +168,16 @@ function openAICompatible(config: EngineConfig) {
       form.append("model", config.model ?? "whisper-1");
       form.append("response_format", "verbose_json");
       const response = await checked(
-        await fetch(`${base}/audio/transcriptions`, {
-          method: "POST",
-          headers: config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {},
-          body: form,
-        }),
+        await call(
+          `${base}/audio/transcriptions`,
+          {
+            method: "POST",
+            headers: config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {},
+            body: form,
+          },
+          "Transcription server",
+          ENGINE_UPLOAD_MS,
+        ),
         "Transcription server",
       );
       return { result: await response.json() };

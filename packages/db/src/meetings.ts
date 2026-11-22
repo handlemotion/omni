@@ -122,6 +122,8 @@ export function meetingsPipeline(db: Db) {
     setEngineJob: (meetingId: string, provider: string, jobId: string) =>
       pipeline.setEngineJob(db, meetingId, provider, jobId),
     countPoll: (meetingId: string) => pipeline.countPoll(db, meetingId),
+    failedAttempt: (meetingId: string) => pipeline.failedAttempt(db, meetingId),
+    succeeded: (meetingId: string) => pipeline.succeeded(db, meetingId),
     fail: (meetingId: string, failure: string, from: pipeline.MeetingStatus[]) =>
       pipeline.fail(db, meetingId, failure, from),
     meeting: (meetingId: string) => pipeline.meetingForJob(db, meetingId),

@@ -451,9 +451,34 @@ the status before it.
 6. **Write.** The notes call; writes `meetings_notes`, the actions, and the doc once. `ready`,
    and a push to the recorder. The group's summaries are made again on their next read.
 
-A step that fails three times sets `failed` with what failed; the page offers **Try again**,
+**Retries.** A step that fails for a passing reason (the engine or the model is down, answers
+`408`, `429` or `5xx`, or does not answer in time) is tried again after 30 seconds, then twice as
+long each time, up to 10 minutes, with up to a fifth added at random so meetings that failed
+together do not come back together. Every call to the engine has a deadline: 10 minutes to send
+the audio, 30 seconds for anything else. Tries are counted on the meeting
+(`meetings_jobs.attempts`), not on the queue message, so a redelivery after a Worker restart or a
+copy the sweep sent never starts the count again; a step that goes through sets it back to zero.
+The fifth failed try, or a failure no retry can fix (the engine refused the audio, the key is
+wrong, the recording is missing), sets `failed` with what failed; the page offers **Try again**,
 which starts from that step. Any failure in transcription leaves the audio, so nothing said is
 lost.
+
+**Safe to run twice.** Every step reads the meeting fresh and works from its saved status, so a
+late or duplicated message carries the meeting on instead of repeating it. Saving the transcript
+and saving the notes lock the meeting's row and write only while it is still at their step
+(`transcribing`, `writing`): a second delivery that fetched the same result writes nothing and
+never sends a meeting back. Sending the audio to the engine is claimed first
+(`meetings_jobs.submitted_at`), and the claim outlasts the upload's deadline, so it is sent and paid
+for once.
+
+**The sweep.** Every minute, a meeting mid-pipeline that nothing touched for 15 minutes (longer
+than the longest retry wait) lost its hand-off to the queue and is sent on from its saved status.
+
+**Deleting while a step runs.** Deleting a meeting removes everything under
+`meetings/<org>/<meeting>/` in R2 and moves the recording to the Trash. A step that was mid-way
+finds the meeting gone when it saves: an engine job it had just started is told to forget the
+audio, and an engine answer it had just stored is deleted, so nothing of a deleted meeting stays
+at the engine or in R2.
 
 ## API
 

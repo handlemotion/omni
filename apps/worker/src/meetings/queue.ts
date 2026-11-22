@@ -13,6 +13,21 @@ import {
 
 export type { MeetingJob } from "./jobs.ts";
 
+/** How many times one step of a meeting is tried before the meeting is marked failed. */
+export const MAX_STEP_ATTEMPTS = 5;
+/** No retry waits longer than this. The sweep's `STALLED_MS` is longer still. */
+export const MAX_RETRY_SECONDS = 600;
+
+/**
+ * The wait before try `attempt + 1`: `first` seconds (`MEETINGS_FIRST_RETRY_SECONDS`), doubled
+ * each time and capped, with up to a fifth added at random so meetings that failed together (an
+ * engine outage) do not all come back at the same second.
+ */
+export function retryDelay(attempt: number, first: number, random = Math.random()) {
+  const base = Math.min(first * 2 ** Math.max(0, attempt - 1), MAX_RETRY_SECONDS);
+  return Math.min(MAX_RETRY_SECONDS, Math.round(base * (1 + random / 5)));
+}
+
 /** Queues one step of a meeting's pipeline. */
 export function enqueueMeeting(env: Env, job: Omit<MeetingJob, "kind">, delaySeconds = 0) {
   return env.AI_QUEUE.send(
@@ -23,8 +38,10 @@ export function enqueueMeeting(env: Env, job: Omit<MeetingJob, "kind">, delaySec
 
 /**
  * Runs one meeting step and settles its message: the next step is a new message (so a long poll
- * never uses up the message's retries), a transient failure is retried with a growing delay, and
- * anything else, or the last retry, marks the meeting failed with what went wrong.
+ * never uses up the message's retries), a transient failure is retried with a capped, growing
+ * delay, and anything else, or the last try, marks the meeting failed with what went wrong.
+ * Tries are counted on the meeting (`failedAttempt`), so a copy of the step the sweep sent, or
+ * a redelivery after the Worker restarted, never starts the count again.
  */
 export async function consumeMeetingMessage(
   run: { env: Env; db: Db; config: Config; queue: string },
@@ -46,8 +63,10 @@ export async function consumeMeetingMessage(
   });
   const meetingRun: MeetingRun = { env: run.env, db: run.db, config: run.config, log };
   const started = Date.now();
+  const pipeline = meetingsPipeline(run.db);
   try {
     const result = await runMeetingStep(meetingRun, job);
+    await pipeline.succeeded(job.meetingId);
     if (result.next) {
       await enqueueMeeting(
         run.env,
@@ -68,15 +87,18 @@ export async function consumeMeetingMessage(
     message.ack();
     return { usage: result.usage };
   } catch (error) {
-    if (retryable(error) && message.attempts <= maxRetries) {
-      log.warn("meetings.step_failed", { error, attempts: message.attempts });
-      message.retry({ delaySeconds: Math.min(30 * 2 ** (message.attempts - 1), 600) });
+    const attempts = await pipeline.failedAttempt(job.meetingId).catch(() => message.attempts);
+    if (retryable(error) && attempts < MAX_STEP_ATTEMPTS && message.attempts <= maxRetries) {
+      log.warn("meetings.step_failed", { error, attempts });
+      message.retry({
+        delaySeconds: retryDelay(attempts, run.config.MEETINGS_FIRST_RETRY_SECONDS),
+      });
       return;
     }
     const reason = error instanceof Error ? error.message : "the step failed";
-    log.error("meetings.failed", { error, attempts: message.attempts });
+    log.error("meetings.failed", { error, attempts });
     const from = error instanceof StepError ? error.from : null;
-    const failed = from ? await meetingsPipeline(run.db).fail(job.meetingId, reason, from) : false;
+    const failed = from ? await pipeline.fail(job.meetingId, reason, from) : false;
     if (failed) await announceMeeting(meetingRun, job.orgId, job.meetingId, "failed");
     message.ack();
   }

@@ -175,7 +175,10 @@ async function submit(run: MeetingRun, engine: Engine, found: Found) {
     },
   );
   if ("result" in submitted) return save(run, engine, found, submitted.result, null);
-  await pipeline.setEngineJob(meeting.id, engine.provider, submitted.jobId);
+  if (!(await pipeline.setEngineJob(meeting.id, engine.provider, submitted.jobId))) {
+    await forget(run, engine, submitted.jobId);
+    return outcome({ step: "poll", delaySeconds: POLL_SECONDS }, null);
+  }
   return outcome({ step: "poll", delaySeconds: POLL_SECONDS }, "transcribing");
 }
 
@@ -191,6 +194,12 @@ async function poll(run: MeetingRun, engine: Engine, found: Found) {
   if (polled.state === "error")
     throw new MeetingStepFailed(`transcription failed: ${polled.error}`);
   return save(run, engine, found, polled.result, job.providerJobId);
+}
+
+async function forget(run: MeetingRun, engine: Engine, jobId: string) {
+  await engine
+    .forget(jobId)
+    .catch((error: unknown) => run.log.warn("meetings.forget_failed", { error }));
 }
 
 async function save(
@@ -214,18 +223,18 @@ async function save(
     attendees: found.attendees,
     engineNames: transcript.engineNames,
   });
-  await meetingsPipeline(run.db).saveTranscript(meeting.id, meeting.orgId, {
+  const saved = await meetingsPipeline(run.db).saveTranscript(meeting.id, meeting.orgId, {
     language: transcript.language,
     durationMs: Math.max(transcript.durationMs, meeting.durationMs ?? 0),
     rawNodeId: null,
     turns,
     speakers,
   });
-  if (jobId)
-    await engine
-      .forget(jobId)
-      .catch((error: unknown) => run.log.warn("meetings.forget_failed", { error }));
-  return outcome({ step: "name", delaySeconds: 0 }, "naming");
+  if (saved === "gone") await deleteMeetingObjects(run.env, meeting.orgId, meeting.id);
+  if (jobId && saved !== "moved_on") await forget(run, engine, jobId);
+  return saved === "saved"
+    ? outcome({ step: "name", delaySeconds: 0 }, "naming")
+    : outcome(null, null);
 }
 
 const speakersOf = (found: Found) =>
@@ -283,8 +292,8 @@ async function write(run: MeetingRun, found: Found) {
     promptVersion: NOTES_PROMPT_VERSION,
   };
   if (!client || found.segments.length === 0) {
-    await pipeline.saveNotes(meeting.id, meeting.orgId, empty);
-    return outcome(null, "ready");
+    const saved = await pipeline.saveNotes(meeting.id, meeting.orgId, empty);
+    return outcome(null, saved ? "ready" : null);
   }
   const result = await writeNotes(client, {
     title: meeting.title,
@@ -298,7 +307,7 @@ async function write(run: MeetingRun, found: Found) {
   });
   if (!result.ok) throw new MeetingStepFailed(`the notes could not be written (${result.reason})`);
   const { notes } = result;
-  await pipeline.saveNotes(meeting.id, meeting.orgId, {
+  const saved = await pipeline.saveNotes(meeting.id, meeting.orgId, {
     title: notes.title,
     summary: notes.summary,
     highlights: notes.highlights,
@@ -307,7 +316,7 @@ async function write(run: MeetingRun, found: Found) {
     model: AI_MODEL,
     promptVersion: NOTES_PROMPT_VERSION,
   });
-  return outcome(null, "ready", result.usage);
+  return outcome(null, saved ? "ready" : null, result.usage);
 }
 
 /** Whether a thrown error is worth a retry: transient engine and model failures are. */
@@ -335,7 +344,17 @@ export async function announceMeeting(
   }
 }
 
-/** Deletes what the pipeline kept in R2 for a meeting. */
+/**
+ * Deletes everything the pipeline kept in R2 for a meeting, under `meetings/<org>/<meeting>/`:
+ * the engine's raw answer and any audio the recorder sent. Safe to run twice.
+ */
 export async function deleteMeetingObjects(env: Env, orgId: string, meetingId: string) {
-  await env.STORAGE_BUCKET.delete(rawKey(orgId, meetingId));
+  const prefix = `meetings/${orgId}/${meetingId}/`;
+  let cursor: string | undefined;
+  do {
+    const listed = await env.STORAGE_BUCKET.list({ prefix, cursor });
+    const keys = listed.objects.map((o) => o.key);
+    if (keys.length) await env.STORAGE_BUCKET.delete(keys);
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
 }
