@@ -59,11 +59,13 @@ export interface MisplacedMailbox {
 
 /**
  * Mailboxes in the wrong workspace, both ways:
- * - Personal-space mailboxes that belong to a company now: their domain, or a parent of it, is
- *   locked by a company their owner (the mailbox's, not the space's) is a member of. The
- *   closest lock wins. A mailbox whose owner is not a member there stays until they join.
- * - A company's Gmail account on an address no company has locked: its owner's Personal space.
- *   An owner who has no Personal space yet gets one from `ensureSpacesForOwnGmail` first.
+ * - Personal-space mailboxes that belong to another workspace now: their domain, or a parent of
+ *   it, is locked by a workspace (a company or another Personal space) their owner (the
+ *   mailbox's, not the space's) is a member of. The closest lock wins; one held by the space
+ *   itself keeps the mailbox where it is. A mailbox whose owner is not a member there stays until
+ *   they join.
+ * - A Gmail account on an address no workspace has locked, outside its owner's own Personal
+ *   space: it goes there. An owner who has none yet gets one from `ensureSpacesForOwnGmail`.
  */
 export async function listMisplacedMailboxes(db: Db) {
   await ensureSpacesForOwnGmail(db);
@@ -76,7 +78,6 @@ export async function listMisplacedMailboxes(db: Db) {
         on lower(split_part(m.address, '@', 2)) = d.domain
         or lower(split_part(m.address, '@', 2)) like '%.' || d.domain
       where m.kind = 'personal' and m.status <> 'disabled'
-        and not exists (select 1 from ${personalSpaces} p2 where p2.org_id = d.org_id)
       order by m.id, length(d.domain) desc
     )
     select m.id, m.org_id, m.address, m.provider, m.credentials_enc,
@@ -86,6 +87,7 @@ export async function listMisplacedMailboxes(db: Db) {
     join ${mailboxAccess} oa on oa.mailbox_id = m.id and oa.role = 'owner'
     join ${members} om on om.id = oa.member_id and om.organization_id = m.org_id
     join ${members} cm on cm.organization_id = c.org_id and cm.user_id = om.user_id
+    where c.org_id <> m.org_id
     union all
     -- A company's Gmail account whose address no company has locked (gmail.com, an unclaimed
     -- domain) is its owner's own: it goes to their Personal space. Gmail only:
@@ -98,14 +100,11 @@ export async function listMisplacedMailboxes(db: Db) {
     join ${personalSpaces} ps on ps.user_id = om.user_id
     join ${members} pm on pm.organization_id = ps.org_id and pm.user_id = om.user_id
     where m.kind = 'personal' and m.provider = 'gmail' and m.status <> 'disabled'
-      and not exists (select 1 from ${personalSpaces} p3 where p3.org_id = m.org_id)
+      and ps.org_id <> m.org_id
       and not exists (
         select 1 from ${mailDomains} d
-        where (
-          lower(split_part(m.address, '@', 2)) = d.domain
+        where lower(split_part(m.address, '@', 2)) = d.domain
           or lower(split_part(m.address, '@', 2)) like '%.' || d.domain
-        )
-        and not exists (select 1 from ${personalSpaces} p4 where p4.org_id = d.org_id)
       )`)) as unknown as {
     id: string;
     org_id: string;
@@ -200,15 +199,11 @@ async function ensureSpacesForOwnGmail(db: Db) {
     join ${mailboxAccess} a on a.mailbox_id = m.id and a.role = 'owner'
     join ${members} om on om.id = a.member_id and om.organization_id = m.org_id
     where m.kind = 'personal' and m.provider = 'gmail' and m.status <> 'disabled'
-      and not exists (select 1 from ${personalSpaces} p1 where p1.org_id = m.org_id)
       and not exists (select 1 from ${personalSpaces} p2 where p2.user_id = om.user_id)
       and not exists (
         select 1 from ${mailDomains} d
-        where (
-          lower(split_part(m.address, '@', 2)) = d.domain
+        where lower(split_part(m.address, '@', 2)) = d.domain
           or lower(split_part(m.address, '@', 2)) like '%.' || d.domain
-        )
-        and not exists (select 1 from ${personalSpaces} p3 where p3.org_id = d.org_id)
       )`)) as unknown as { user_id: string }[];
   for (const row of rows) await ensurePersonalSpace(db, row.user_id);
 }

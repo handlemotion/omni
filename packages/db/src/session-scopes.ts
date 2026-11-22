@@ -1,12 +1,12 @@
 import { desc, eq, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import { isCompany } from "./personal-space.ts";
 import { sessions } from "./schema/auth.ts";
 import { sessionScopes } from "./schema/identity.ts";
 import { mailDomains } from "./schema/domains.ts";
 
 /**
- * The company whose locked domain `address` is on, or null. A lock on a parent counts
+ * The workspace whose locked domain `address` is on, or null: a company's or a Personal space's,
+ * alike. A lock on a parent counts
  * (`acme.com` covers `ana@mail.acme.com`), the closest lock winning; free-mail domains are never
  * locked, since nobody can publish a challenge on them.
  */
@@ -21,12 +21,7 @@ export async function companyForAddress(db: Db, address: string) {
   const [lock] = await db
     .select({ orgId: mailDomains.orgId })
     .from(mailDomains)
-    .where(
-      sql`${or(
-        eq(mailDomains.domain, domain),
-        sql`${domain} like '%.' || ${mailDomains.domain}`,
-      )} and ${isCompany(db, mailDomains.orgId)}`,
-    )
+    .where(or(eq(mailDomains.domain, domain), sql`${domain} like '%.' || ${mailDomains.domain}`))
     .orderBy(desc(sql`length(${mailDomains.domain})`))
     .limit(1);
   return lock?.orgId ?? null;
