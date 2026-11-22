@@ -47,6 +47,21 @@ export function teamSocketClosed(ctx: DurableObjectState, socket: WebSocket) {
   tell(ctx, { type: "talk.online", memberId, online: false });
 }
 
+/**
+ * Closes the sockets under `tags` of a member leaving the workspace or changing role, so what they
+ * hear is decided afresh: a reconnect is refused once they are gone, and tagged for Talk only if
+ * their new role has it. If Talk showed them, everyone sees them go.
+ */
+export function closeMember(ctx: DurableObjectState, memberId: string, tags: string[]) {
+  const wasOnline = hasTeamSocket(ctx, memberId);
+  for (const socket of tags.flatMap((tag) => ctx.getWebSockets(tag))) {
+    try {
+      socket.close(4403, "membership changed");
+    } catch {}
+  }
+  if (wasOnline) tell(ctx, { type: "talk.online", memberId, online: false });
+}
+
 /** Sends a Talk event to these members' Talk apps; returns the members with none open. */
 export function sendTalk(ctx: DurableObjectState, memberIds: string[], event: TalkEvent) {
   const message = JSON.stringify(event);

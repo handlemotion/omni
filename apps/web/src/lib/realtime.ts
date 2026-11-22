@@ -243,9 +243,11 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       void client.invalidateQueries({ queryKey: keys.crm() }, { cancelRefetch: false });
       if (orgId === activeOrgId) {
         void client.invalidateQueries({ queryKey: keys.storage() }, { cancelRefetch: false });
-        void client.invalidateQueries({ queryKey: keys.talk() }, { cancelRefetch: false });
       }
       void recheckPendingSends(client);
+    }
+    if (orgId === activeOrgId) {
+      void client.invalidateQueries({ queryKey: keys.talk() }, { cancelRefetch: false });
     }
   };
   const wide = window.matchMedia(`(min-width: ${TITLE_BAR_MIN}px)`);

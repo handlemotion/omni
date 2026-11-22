@@ -16,6 +16,11 @@ export interface ModuleLifecycle {
     db: Db,
     input: { orgId: string; memberId: string; byMemberId: string | null },
   ) => Promise<unknown>;
+  /** After a member's role changed. */
+  memberRoleChanged?: (
+    db: Db,
+    input: { orgId: string; memberId: string; role: string; previousRole: string },
+  ) => Promise<unknown>;
   /** Before the workspace's members and the workspace itself are deleted. */
   workspaceDeleted?: (db: Db, input: { orgId: string }) => Promise<unknown>;
 }
@@ -51,6 +56,22 @@ export function beforeRemoveMember(db: Db, modules: readonly ModuleLifecycle[]) 
       memberId: member.id,
       byMemberId: actor ? await memberOf(db, actor, member.organizationId) : null,
     });
+  };
+}
+
+/** `organizationHooks.afterUpdateMemberRole`: tells each module a member's role changed. */
+export function afterUpdateMemberRole(db: Db, modules: readonly ModuleLifecycle[]) {
+  return async (data: {
+    member: { id: string; organizationId: string; role: string };
+    previousRole: string;
+  }) => {
+    const input = {
+      orgId: data.member.organizationId,
+      memberId: data.member.id,
+      role: data.member.role,
+      previousRole: data.previousRole,
+    };
+    for (const module of modules) await module.memberRoleChanged?.(db, input);
   };
 }
 

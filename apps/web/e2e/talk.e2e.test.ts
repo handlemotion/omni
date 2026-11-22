@@ -274,4 +274,15 @@ test("the stack shows who is online, and a note and a file reach the teammate's 
   await expect.poll(() => received.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(480);
   await kofiStack.getByRole("button", { name: "Ana Lima", exact: true }).waitFor();
   await shoot(kofi, "4-kofi-window");
+
+  await kofi.keyboard.press("Escape");
+  await kofiWindow.waitFor({ state: "detached" });
+  const wide = kofi.viewportSize()!;
+  await kofi.setViewportSize({ width: 600, height: wide.height });
+  await kofiStack.waitFor({ state: "detached" });
+  await composer.fill("While you were narrow");
+  await composer.press("Enter");
+  await bubble("While you were narrow").waitFor();
+  await kofi.setViewportSize(wide);
+  await kofiStack.getByRole("button", { name: "Ana Lima, 1 unread" }).waitFor();
 });

@@ -20,6 +20,7 @@ import { billingConfig, billingFields, checkBillingEnv, optionalText } from "./b
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
 import {
+  afterUpdateMemberRole,
   beforeDeleteWorkspace,
   beforeRemoveMember,
   moduleLifecycle,
@@ -422,6 +423,7 @@ export function createAuth(env: AuthEnv) {
             await beforeDeleteWorkspace(env.db, env.modules)(input);
           },
           beforeRemoveMember: beforeRemoveMember(env.db, env.modules),
+          afterUpdateMemberRole: afterUpdateMemberRole(env.db, env.modules),
           afterCreateInvitation: async ({ invitation }) => {
             await advanceOrgSetup(env.db, invitation.organizationId, "invites_sent", {
               onlyFrom: "mailboxes_created",

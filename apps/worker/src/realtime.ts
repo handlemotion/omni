@@ -31,6 +31,7 @@ import {
   passOnRecords,
 } from "./realtime-docs.ts";
 import {
+  closeMember,
   sendTalk,
   onlineMembers,
   TEAM_HEADER,
@@ -147,6 +148,11 @@ export class Realtime extends DurableObject<Env> {
   /** The teammates with an app open in this workspace now (`docs/spec/talk.md`). */
   async online() {
     return onlineMembers(this.ctx) satisfies string[];
+  }
+
+  /** Closes a leaving member's sockets (`closeMember`). */
+  async disconnect(memberId: string) {
+    closeMember(this.ctx, memberId, [memberId, syncTag(memberId), watchTag(memberId)]);
   }
 
   /** Sends a Talk event to these members' Talk apps; returns the members with none open. */

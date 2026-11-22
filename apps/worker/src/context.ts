@@ -1,4 +1,10 @@
-import { createAuth, usesOAuthProvider, type Auth, type InvitationMessage } from "@omni/auth";
+import {
+  createAuth,
+  usesOAuthProvider,
+  type Auth,
+  type InvitationMessage,
+  type ModuleLifecycle,
+} from "@omni/auth";
 import { WORKSPACE_HEADER, WORKSPACE_PARAM } from "@omni/contracts/headers";
 import {
   ensurePersonalSpace,
@@ -6,6 +12,7 @@ import {
   isCompany,
   schema,
   sessionAccess,
+  talkRole,
   type Db,
   type OpenUploadLinkResult,
   type SharedAccess,
@@ -56,6 +63,17 @@ export interface AppEnv {
   };
 }
 
+const leavesRealtime = (env: Env) =>
+  ({
+    name: "realtime",
+    memberRemoved: (_db, { orgId, memberId }) =>
+      env.REALTIME.get(env.REALTIME.idFromName(orgId)).disconnect(memberId),
+    memberRoleChanged: async (_db, { orgId, memberId, role, previousRole }) => {
+      if (talkRole(role) === talkRole(previousRole)) return;
+      await env.REALTIME.get(env.REALTIME.idFromName(orgId)).disconnect(memberId);
+    },
+  }) satisfies ModuleLifecycle;
+
 /** Per-request config, database (`openDb`) and Better Auth, closed after the response. */
 export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
   const config = loadConfig(c.env);
@@ -69,7 +87,7 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
       db,
       ...config.auth,
       billingLog: (event, fields) => c.var.log.error(event, fields),
-      modules,
+      modules: [...modules, leavesRealtime(c.env)],
       oauthProvider: usesOAuthProvider(new URL(c.req.url).pathname),
       sendMagicLink: async ({ email, signInAs, url }) => {
         devLog(config, { kind: "magic-link", email, url });
