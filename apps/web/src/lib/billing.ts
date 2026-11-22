@@ -33,6 +33,7 @@ export const startTrialMutation = (client: QueryClient) =>
       Promise.all([
         client.refetchQueries({ queryKey: keys.onboarding() }),
         client.refetchQueries({ queryKey: keys.billing() }),
+        client.invalidateQueries({ queryKey: keys.storageUsage() }),
       ]),
   });
 
@@ -62,7 +63,11 @@ export const changePlanMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: (choice: PlanChoice) => call(api.billing.plan.$post({ json: choice })),
-    onSuccess: () => client.refetchQueries({ queryKey: keys.billing() }),
+    onSuccess: () =>
+      Promise.all([
+        client.refetchQueries({ queryKey: keys.billing() }),
+        client.invalidateQueries({ queryKey: keys.storageUsage() }),
+      ]),
   });
 
 /** `mutate(returnPath)` leaves for the Stripe customer portal: card, interval, invoices, cancel. */
