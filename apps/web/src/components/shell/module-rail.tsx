@@ -1,16 +1,8 @@
 import { useLocation, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import { useEffect, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
-import {
-  IconFolder,
-  IconFolderFilled,
-  IconHandshake,
-  IconHandshakeFilled,
-  IconMail,
-  IconMailFilled,
-  IconSettings,
-  IconSettingsFilled,
-} from "@/components/icons/central";
+import { IconSettings, IconSettingsFilled } from "@/components/icons/central";
+import { IconCrmMark, IconDriveMark, IconMailMark } from "@/components/icons/module-marks";
 import {
   Sidebar,
   SidebarContent,
@@ -24,12 +16,10 @@ import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { useCurrentModule, useModules, type ModuleId } from "./module-switcher";
 import { UpdateRow, UpdateTile } from "./update-row";
 
-type Icon = ComponentType<{ className?: string }>;
-
-const ICONS: Record<ModuleId, { idle: Icon; current: Icon }> = {
-  mail: { idle: IconMail, current: IconMailFilled },
-  files: { idle: IconFolder, current: IconFolderFilled },
-  crm: { idle: IconHandshake, current: IconHandshakeFilled },
+const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
+  mail: IconMailMark,
+  files: IconDriveMark,
+  crm: IconCrmMark,
 };
 
 const PATHS: Record<ModuleId, string> = {
@@ -72,10 +62,11 @@ function useRailPeek() {
 
 const TILE_SHAPE = "size-8 justify-center rounded-[9px] px-0 *:[svg]:size-4.5";
 const TILE = `${TILE_SHAPE} hover:bg-secondary`;
+const MODULE_TILE = "size-8 justify-center rounded-[9px] px-0 *:[svg]:size-5 hover:bg-secondary";
 
 /**
- * The modules as a column of icon tiles on the window's grey, the current one on a
- * white tile with its filled glyph; settings at its foot. Its first tile lines up with the nav
+ * The modules as a column of tiles on the window's grey, each with its own coloured mark, the
+ * current one on a white tile; settings at its foot. Its first tile lines up with the nav
  * panel's header row. Closing the sidebar hides the nav panel; the rail stays.
  */
 export function RailSidebar({ title, children }: { title: string; children: ReactNode }) {
@@ -151,16 +142,16 @@ function ModuleRail() {
     >
       {modules.map((module) => {
         const isCurrent = module.id === current;
-        const Icon = isCurrent ? ICONS[module.id].current : ICONS[module.id].idle;
+        const Mark = MARKS[module.id];
         return (
           <RailTip key={module.id} label={module.label}>
             <SidebarItem
               href={`/${encodeURIComponent(workspace)}/${PATHS[module.id]}${keep}`}
               isCurrent={isCurrent}
               aria-label={module.label}
-              className={cn(TILE, isCurrent && "bg-background hover:bg-background")}
+              className={cn(MODULE_TILE, isCurrent && "bg-background hover:bg-background")}
             >
-              <Icon />
+              <Mark />
             </SidebarItem>
           </RailTip>
         );

@@ -10,7 +10,7 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 | The designs        | Figma, file [Omni](https://www.figma.com/design/TdBkazABvzieUn4TYp5wQk/Omni). Implement from it; when code and Figma disagree, ask. |
 | Tokens             | `apps/web/src/styles.css`. Raw values in `:root`, exposed to Tailwind as semantic classes in `@theme inline`.                       |
 | Primitives         | `apps/web/src/components/ui/`: Intent UI components (React Aria + Tailwind), adapted to our tokens. Added with the shadcn CLI.      |
-| Icons              | `apps/web/src/components/icons/`: the app's own marks from Figma (the sign-in arrow, the dashed log out), nothing else.             |
+| Icons              | `apps/web/src/components/icons/`: the app's own marks (sign-in arrow, dashed log out, the rail's module marks), nothing else.       |
 | Icon set           | Central Icons (round outlined, radius 3, stroke 1.5), minimal glyphs: `@/components/icons/central`, `Icon<Name>`.                   |
 | Feature components | `apps/web/src/components/<feature>/` (for example `auth/`): compositions of primitives. Routes render these and stay thin.          |
 | Registry config    | `apps/web/components.json`. Add a primitive with `npx shadcn@latest add @intentui/<name>` from `apps/web`.                          |
@@ -45,6 +45,12 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   always: it matches the rest of the set. The glyphs come from Central's npm packages, never from
   this repository: copying a glyph's SVG into the repo would publish it, which Central's licence
   forbids.
+- **The rail's modules show custom marks.** The one exception to Central: each module tile on
+  the left rail shows its own mark from `components/icons/module-marks.tsx` (an envelope, a
+  folder, a contacts book), drawn as small macOS-style objects: a soft drop, a gentle gradient, a
+  light face and a darker edge, in the module's hue as fixed colours. The marks keep their colour
+  in every state; the tile shows idle, hover and current. Change or add a module's mark there,
+  in the same style; everywhere else a module's icon stays a Central glyph.
 - **File types a brand owns show its mark.** PDF, Word, Excel and PowerPoint files show their
   brand's icon from svgl (`@ridemountainpig/svgl-react`), in its own colours, wherever a file's
   type is drawn: `FileGlyph` and `FileTile` for files, `AttachmentGlyph` for attachment chips
@@ -82,9 +88,9 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 - **Loading.** Data that's on its way renders with `skullet` (`import { Skeleton } from "skullet/react"`),
   never a spinner or a skeleton div. An action in progress is `<Button isPending>`: it dims like a
   disabled button, a spinner takes the icon's place, and a text-only button shimmers its text.
-- **Hover and current.** Icons are muted by default and turn `foreground` on hover. The item for
-  the page you're on is _current_ (`isCurrent`, which sets `aria-current="page"`): foreground icon
-  and the `accent` fill. "Selected" is for picking items in a list, not for navigation.
+- **Hover and current.** Icons are muted by default and turn `foreground` on hover (the rail's
+  module marks keep their colours). The item for the page you're on is _current_ (`isCurrent`,
+  which sets `aria-current="page"`): foreground icon and the `accent` fill. "Selected" is for picking items in a list, not for navigation.
 - **Weight.** Text is regular weight unless the design shows otherwise.
 - **Numbers.** Counts, times and anything that lines up in a column use `tabular-nums`, so digits
   don't shift as values change.
