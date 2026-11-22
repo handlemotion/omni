@@ -31,6 +31,7 @@ export class LiveFile {
   readonly epoch: number;
 
   private fold: { cv: number; s: number };
+  private changedAt = -1;
 
   private constructor(
     basin: S2Basin,
@@ -59,6 +60,7 @@ export class LiveFile {
     if (record.t === "snap") {
       Y.applyUpdate(live.doc, fromBase64(record.u));
       live.next = record.s + 1;
+      live.changedAt = record.s;
     }
     live.take(entries);
     return live.fold.cv === contentVersion ? live : null;
@@ -67,6 +69,11 @@ export class LiveFile {
   /** The Markdown it holds now. */
   get markdown() {
     return liveMarkdown(this.doc);
+  }
+
+  /** Whether it holds changes made after its latest save: typing the file does not have yet. */
+  get unsaved() {
+    return this.changedAt > this.fold.s;
   }
 
   /**
@@ -108,6 +115,7 @@ export class LiveFile {
         continue;
       }
       Y.applyUpdate(this.doc, fromBase64(record.u));
+      if (record.t === "update") this.changedAt = seqNum;
     }
   }
 }

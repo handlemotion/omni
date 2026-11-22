@@ -197,3 +197,73 @@ test("a snap of an older epoch that lands after a newer seed does not hide the n
   expect(await (await stack.download(ana.jar, doc.id)).text()).toBe(`${typed}, kept`);
   tab.socket.close();
 });
+
+test("an agent reads a doc as people see it, unsaved typing included, and each version with who wrote it", async () => {
+  const org = await stack.company(`agents-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const first = "# Plan\n\nStep one";
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "plan.md", bytes(first));
+  const edited = await call(agent, "drive_edit_doc", {
+    id: doc.id,
+    edits: [{ find: "Step one", replace: "Step one, booked" }],
+  });
+  expect(edited).not.toHaveProperty("error");
+
+  const tab = await editor(ana.jar, doc.id);
+  const typing = new Y.Doc();
+  const saved = "# Plan\n\nStep one, booked";
+  const epoch = await tab.append({ t: "seed", cv: 2, u: base64(rewriteLive(typing, saved)) }, 0);
+  await tab.append({
+    t: "update",
+    e: epoch,
+    u: base64(rewriteLive(typing, `${saved}\n\nStep two`)),
+  });
+
+  const fetched = await call(agent, "drive_fetch", { id: doc.id });
+  expect(fetched).toMatchObject({
+    text: `${saved}\n\nStep two`,
+    metadata: { unsaved_edits: true, text_status: "ok" },
+  });
+  expect(await (await stack.download(ana.jar, doc.id)).text()).toBe(saved);
+
+  const listed = await call(agent, "drive_versions", { id: doc.id });
+  expect(listed).toMatchObject({
+    current: { id: "current", written_by: expect.any(String), agent: "Drive agent" },
+    versions: [{ agent: null, size: first.length }],
+    keep_days: 30,
+  });
+  const [version] = (listed as { versions: { id: string }[] }).versions;
+  const read = await call(agent, "drive_versions", { id: doc.id, version_id: version!.id });
+  expect(read).toMatchObject({ text: first, truncated: false, version: { id: version!.id } });
+  const { diff } = read as { diff: string };
+  expect(diff.startsWith("--- version\n+++ current\n@@ -1,3 +1,3 @@\n")).toBe(true);
+  expect(diff).toContain("\n-Step one\n");
+  expect(diff).toContain("\n+Step one, booked\n");
+
+  const missing = await call(agent, "drive_versions", { id: doc.id, version_id: "nope" });
+  expect(missing).toHaveProperty("error");
+  tab.socket.close();
+});
+
+test("versions too different to diff answer with the version's text instead of running out of time", async () => {
+  const org = await stack.company(`big-diff-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const lines = (prefix: string) =>
+    Array.from({ length: 6_000 }, (_, i) => `${prefix}${i}`).join("\n");
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "log.md", bytes(lines("a")));
+  expect(
+    await call(agent, "drive_edit_doc", { id: doc.id, markdown: lines("b") }),
+  ).not.toHaveProperty("error");
+
+  const listed = await call(agent, "drive_versions", { id: doc.id });
+  const [version] = (listed as { versions: { id: string }[] }).versions;
+  const read = await call(agent, "drive_versions", {
+    id: doc.id,
+    version_id: version!.id,
+    max_chars: 200_000,
+  });
+  expect(read).toMatchObject({ diff: "", diff_too_large: true, truncated: false });
+  expect((read as { text: string }).text).toBe(lines("a"));
+});

@@ -1,6 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/server";
+import { isDocFile } from "@omni/docs";
 import type { ContextRead, ContextText } from "@omni/db";
 import { z } from "zod";
+import { s2Basin } from "../../s2.ts";
+import { LiveFile } from "../../storage/doc-live.ts";
 import { driveFor, item, itemSchema } from "../drive.ts";
 import { result, toolError } from "../format.ts";
 import { guarded, type ToolContext } from "../server.ts";
@@ -40,6 +43,12 @@ const documentSchema = z.object({
     role: z
       .string()
       .describe("What the person may do with it: member, editor, commenter or viewer."),
+    unsaved_edits: z
+      .boolean()
+      .optional()
+      .describe(
+        "A doc open in Omni: the text is the page as people see it now, with typing the file has not saved yet.",
+      ),
   }),
 });
 
@@ -56,7 +65,12 @@ const NO_TEXT: Record<Exclude<ContextText["status"], "ok">, string> = {
   failed: "[Omni could not read this file's text. Open it with the url.]",
 };
 
-function document(webAppURL: string, found: ContextRead, budget: number) {
+function document(
+  webAppURL: string,
+  read: { found: ContextRead; unsaved: boolean },
+  budget: number,
+) {
+  const { found, unsaved } = read;
   const { id, title, url, ...metadata } = item(webAppURL, found);
   const content = found.content!;
   const whole = content.status === "ok" ? content.text : NO_TEXT[content.status];
@@ -72,15 +86,31 @@ function document(webAppURL: string, found: ContextRead, budget: number) {
       text_status: content.status,
       truncated: cut || content.truncated,
       role: found.role,
+      ...(unsaved ? { unsaved_edits: true } : {}),
     },
   };
+}
+
+async function withLiveText(context: ToolContext, found: ContextRead) {
+  const { node } = found;
+  const basin = s2Basin(context.config);
+  const saved = { found, unsaved: false };
+  if (!basin || found.via !== "member" || !isDocFile(node.name, node.mimeType)) return saved;
+  const live = await LiveFile.open(basin, node.id, node.contentVersion).catch((error: unknown) => {
+    context.log.warn("mcp.drive_fetch_live_failed", { error });
+    return null;
+  });
+  if (!live?.unsaved) return saved;
+  const content: ContextText = { status: "ok", text: live.markdown, truncated: false };
+  return { found: { ...found, content }, unsaved: true };
 }
 
 async function read(context: ToolContext, input: z.infer<typeof inputSchema>) {
   const scoped = driveFor(context, undefined);
   if ("error" in scoped) return toolError(scoped.error);
   const wanted = [...new Set([input.id, ...(input.ids ?? [])])];
-  const found = (await scoped.drive.read(wanted)).filter((hit) => hit.content !== null);
+  const read = (await scoped.drive.read(wanted)).filter((hit) => hit.content !== null);
+  const found = await Promise.all(read.map((hit) => withLiveText(context, hit)));
   if (!found.length) {
     return toolError(
       "None of those ids is a file you can open. Ids come from `drive_search` or `drive_list`; use `drive_list` for a folder.",
@@ -88,7 +118,7 @@ async function read(context: ToolContext, input: z.infer<typeof inputSchema>) {
   }
   const budget = Math.floor(input.max_chars / found.length);
   const [first, ...more] = found.map((hit) => document(context.webAppURL, hit, budget));
-  const missing = wanted.filter((id) => !found.some((hit) => hit.node.id === id));
+  const missing = wanted.filter((id) => !found.some((hit) => hit.found.node.id === id));
   return result({
     ...first!,
     ...(more.length ? { more } : {}),

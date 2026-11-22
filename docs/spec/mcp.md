@@ -271,7 +271,7 @@ It creates an Omni draft on the thread through the existing drafts code
 where the composer shows it. The person reviews and sends it in Omni. The tool description says
 so, so the agent tells the person where the draft is.
 
-### Drive: `drive_search`, `drive_list`, `drive_fetch`
+### Drive: `drive_search`, `drive_list`, `drive_fetch`, `drive_versions`
 
 `readOnlyHint: true`. Scope `drive:read`. Drive is the company's context layer: agents find and
 read files the way they find and read mail.
@@ -304,7 +304,16 @@ read files the way they find and read mail.
   `fixtures/drive/search.json` (`pnpm --filter @omni/ai record:drive-search`; 8/8 top-1, Jev MRR
   1.00).
 - **Read.** `drive_fetch { id, ids?, max_chars? }` returns up to 10 files' text, the budget split
-  evenly, with `text_status` (`pending` until the indexer reaches it).
+  evenly, with `text_status` (`pending` until the indexer reaches it). A doc in the person's
+  workspaces whose live document holds typing not saved yet reads from the live document, as
+  people see it, with `unsaved_edits: true`; an agent never edits from a stale copy.
+- **Versions.** `drive_versions { id, version_id?, max_chars? }`, scope `drive:read`, for people
+  who may edit the file in their workspaces' drives. Without `version_id` it lists the current
+  content and the earlier versions, newest first (`id`, `written_at`, `written_by`, `agent`,
+  `size`, `replaced_at`): one per editing session, and one per agent edit. With `version_id` it
+  returns that version's text and a unified diff from it to the file now (text files up to 1 MB).
+  It restores nothing: an agent brings a doc back to a version with `drive_edit_doc { markdown }`,
+  which merges into the live document and keeps the current text as a version.
 - **Browse.** `drive_list` without arguments names the drives and what was shared with the
   person; with `workspace` and `space` it lists a drive's top; with `folder_id` a folder.
 - **Access.** Every node is opened through the app's own doors (`memberDoor`, then `grantDoor`
