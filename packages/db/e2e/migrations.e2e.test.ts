@@ -75,6 +75,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "threads",
       "triage_feedback",
       "triage_usage",
+      "usage_claims",
       "trial_claims",
       "user_emails",
       "users",
