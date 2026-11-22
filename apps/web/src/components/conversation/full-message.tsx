@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { routeFrameContextMenu } from "@/components/ui/context-menu";
+import { MESSAGE_FRAME_SANDBOX } from "@/lib/message-html.ts";
 import { messageHtmlUrl } from "@/lib/urls.ts";
 
 const MAX_REFITS = 12;
@@ -80,7 +81,7 @@ export function FullMessage(props: {
       ref={ref}
       title="Full message"
       src={messageHtmlUrl(threadId, messageId)}
-      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      sandbox={MESSAGE_FRAME_SANDBOX}
       style={{ height: height ?? 160 }}
       className={`block w-full bg-background ${props.flat ? "rounded-xl" : ""}`}
     />

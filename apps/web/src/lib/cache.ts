@@ -1,4 +1,4 @@
-import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
+import type { InfiniteData, Query, QueryClient, QueryKey } from "@tanstack/react-query";
 import { filterOf, keys } from "./query-keys.ts";
 import type {
   ConversationPage,
@@ -15,13 +15,16 @@ export type Snapshot = [QueryKey, unknown][];
 
 /**
  * Cancels in-flight thread fetches (so they cannot overwrite the edit) and records the lists
- * (mail and helpdesk) and the thread as they are now.
+ * (mail and helpdesk) and the thread as they are now. A query still on its first fetch holds
+ * nothing to overwrite and is left to land: cancelled, it would sit empty until something
+ * refetched it, and opening an unread thread (mark read) refetches no list.
  */
 export async function snapshotThread(client: QueryClient, threadId: string) {
+  const loaded = (query: Query) => query.state.data !== undefined;
   await Promise.all([
-    client.cancelQueries({ queryKey: keys.threadLists() }),
-    client.cancelQueries({ queryKey: keys.conversationLists() }),
-    client.cancelQueries({ queryKey: keys.thread(threadId) }),
+    client.cancelQueries({ queryKey: keys.threadLists(), predicate: loaded }),
+    client.cancelQueries({ queryKey: keys.conversationLists(), predicate: loaded }),
+    client.cancelQueries({ queryKey: keys.thread(threadId), predicate: loaded }),
   ]);
   return [
     ...client.getQueriesData({ queryKey: keys.threadLists() }),
