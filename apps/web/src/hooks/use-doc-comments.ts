@@ -107,6 +107,9 @@ export function useLiveComments(doc: LiveDoc | null, nodeId: string) {
     };
     heard();
     doc.awareness.on("change", heard);
+    const unheard = doc.onComments(
+      () => void client.invalidateQueries({ queryKey: keys.storageComments(nodeId) }),
+    );
     const stop = client.getMutationCache().subscribe((event) => {
       const { mutation } = event;
       if (!mutation || event.type !== "updated" || event.action.type !== "success") return;
@@ -116,6 +119,7 @@ export function useLiveComments(doc: LiveDoc | null, nodeId: string) {
     });
     return () => {
       doc.awareness.off("change", heard);
+      unheard();
       stop();
     };
   }, [client, doc, nodeId]);

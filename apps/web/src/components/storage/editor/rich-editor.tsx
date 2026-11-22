@@ -69,8 +69,15 @@ export function collaboratorColor(memberId: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(token).trim();
 }
 
+const colorOf = (user: Record<string, unknown>) => {
+  if (typeof user.color === "string") return user.color;
+  if (typeof user.slot !== "number" || user.slot < 1 || user.slot > COLLABORATOR_COLORS) return "";
+  const token = `--collaborator-${Math.floor(user.slot)}`;
+  return getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+};
+
 const caret = (user: Record<string, unknown>) => {
-  const color = typeof user.color === "string" ? user.color : "";
+  const color = colorOf(user);
   const name = typeof user.name === "string" ? user.name : "";
   const line = document.createElement("span");
   line.className = "collaboration-carets__caret";
@@ -159,6 +166,7 @@ function LivePage(props: EditorProps) {
     let gone = false;
     void openLiveDoc({
       orgId: live.orgId,
+      shared: live.shared,
       nodeId,
       contentVersion: live.contentVersion,
       seed: seedFrom(props.text),

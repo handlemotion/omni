@@ -70,6 +70,14 @@ export interface RealtimeOptions {
    * notifications. It does not count as an open app, so the member's phone still gets its push.
    */
   watch?: boolean;
+  /**
+   * A doc opened through a share link by someone outside the workspace
+   * (`docs/spec/live-sharing.md`): the socket is `/api/storage/shared/:shareId/realtime?node=`
+   * instead, and carries that doc's events alone. It stops for good when the Worker closes it
+   * because the link no longer opens the doc to them (`4403`); closed for sending too much
+   * (`4429`), it reconnects with backoff like any dropped socket.
+   */
+  shared?: { shareId: string; nodeId: string; onEnded?: (code: number) => void };
   onEvent: (event: RealtimeEvent) => void;
   /**
    * Socket state. An `"open"` with `reconnected: true` follows a socket that dropped or never
@@ -116,8 +124,13 @@ export function connectRealtime(options: RealtimeOptions) {
     probeTimeoutMs = 5_000,
     openSocket = (url) => new WebSocket(url),
   } = options;
-  const url = new URL("/api/realtime", options.baseUrl);
-  if (options.orgId) url.searchParams.set("org", options.orgId);
+  const { shared } = options;
+  const path = shared
+    ? `/api/storage/shared/${encodeURIComponent(shared.shareId)}/realtime`
+    : "/api/realtime";
+  const url = new URL(path, options.baseUrl);
+  if (shared) url.searchParams.set("node", shared.nodeId);
+  if (options.orgId && !shared) url.searchParams.set("org", options.orgId);
   if (options.watch) url.searchParams.set("watch", "1");
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 
@@ -179,7 +192,13 @@ export function connectRealtime(options: RealtimeOptions) {
       const event = parseEvent(message.data);
       if (event) options.onEvent(event);
     });
-    current.addEventListener("close", drop);
+    current.addEventListener("close", (event) => {
+      if (shared && event.code === 4403) {
+        stopped = true;
+        shared.onEnded?.(event.code);
+      }
+      drop();
+    });
     current.addEventListener("error", drop);
   };
 
@@ -330,7 +349,15 @@ const parseCrmEvent: (event: Record<string, unknown>) => CrmChangedEvent | undef
 
 const isSeqNum = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;
-const DOC_REFUSALS = new Set(["tail", "editing", "denied", "locked", "unavailable"]);
+const DOC_REFUSALS = new Set([
+  "tail",
+  "editing",
+  "denied",
+  "locked",
+  "unavailable",
+  "read_only",
+  "rate",
+]);
 
 const parseLiveRecord: (value: unknown) => StorageLiveRecord | undefined = (value) => {
   if (typeof value !== "object" || value === null) return undefined;
@@ -383,6 +410,13 @@ const parseStorageEvent: (
       if (typeof u !== "string" || u.length > DOC_PRESENCE_MAX) return;
       return { type: "doc.presence", nodeId, u };
     }
+    case "doc.access": {
+      const { role } = event;
+      if (role !== null && role !== "editor" && role !== "commenter") return;
+      return { type: "doc.access", nodeId, role };
+    }
+    case "doc.comments":
+      return { type: "doc.comments", nodeId };
   }
   return undefined;
 };

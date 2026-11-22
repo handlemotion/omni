@@ -11,8 +11,9 @@ import {
   removeAwarenessStates,
 } from "y-protocols/awareness";
 import * as Y from "yjs";
-import { api, call } from "./api.ts";
-import { onDocEvent, onRealtimeOpen, sendRealtime } from "./realtime.ts";
+import { memberChannel, sharedChannel, type LiveChannel, type SharedLive } from "./live-channel.ts";
+
+export type { SharedLive } from "./live-channel.ts";
 
 type StorageDocEvent = Extract<
   RealtimeEvent,
@@ -47,14 +48,13 @@ const toBase64 = (bytes: Uint8Array) => {
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 const readAll: (
+  channel: LiveChannel,
   nodeId: string,
   from?: number | "latest",
-) => Promise<StorageLiveEntry[] | null> = async (nodeId, from = "latest") => {
+) => Promise<StorageLiveEntry[] | null> = async (channel, nodeId, from = "latest") => {
   const entries: StorageLiveEntry[] = [];
   for (let at = from; ;) {
-    const page = await call(
-      api.storage.files[":id"].live.$get({ param: { id: nodeId }, query: { from: String(at) } }),
-    );
+    const page = await channel.read(nodeId, at);
     if (!page.enabled) return null;
     entries.push(...page.entries);
     const last = page.entries.at(-1);
@@ -65,6 +65,11 @@ const readAll: (
 
 export interface LiveDocOptions {
   orgId: string;
+  /**
+   * Opened through a share link by someone outside the workspace: its own socket, and a reader
+   * that never seeds, snaps or saves (the Worker does, `docs/spec/live-sharing.md`).
+   */
+  shared?: SharedLive | undefined;
   nodeId: string;
   /** The content version of the file as the editor read it. */
   contentVersion: number;
@@ -92,9 +97,15 @@ export interface LiveDocOptions {
  */
 export async function openLiveDoc(options: LiveDocOptions) {
   for (let tries = 0; tries < 5; tries++) {
-    const entries = await readAll(options.nodeId);
-    if (!entries) return null satisfies LiveDoc | null;
     const live = new LiveDoc(options);
+    const entries = await live.readAll().catch((error: unknown) => {
+      live.close();
+      throw error;
+    });
+    if (!entries) {
+      live.close();
+      return null satisfies LiveDoc | null;
+    }
     const joined = live.join(entries);
     if (joined === true) return live.start() satisfies LiveDoc | null;
     if (joined !== false) {
@@ -103,7 +114,7 @@ export async function openLiveDoc(options: LiveDocOptions) {
       return null satisfies LiveDoc | null;
     }
     const tail = (entries.at(-1)?.seqNum ?? -1) + 1;
-    if (await live.seed(tail)) return live.start() satisfies LiveDoc | null;
+    if (!options.shared && (await live.seed(tail))) return live.start() satisfies LiveDoc | null;
     live.close();
   }
   throw new Error("the live document kept changing while it opened");
@@ -127,6 +138,7 @@ export class LiveDoc {
   private pending = new Map<number, { record: StorageLiveRecord; matchSeqNum?: number }>();
   private answers = new Map<number, (event: StorageDocEvent) => void>();
   private batch: Uint8Array[] = [];
+  private lost = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private catchingUp = false;
   private stops: (() => void)[] = [];
@@ -134,18 +146,27 @@ export class LiveDoc {
   private started = false;
 
   private readonly options: LiveDocOptions;
+  private readonly channel: LiveChannel;
+  private readonly commentListeners = new Set<() => void>();
 
   constructor(options: LiveDocOptions) {
     this.options = options;
+    this.channel = options.shared
+      ? sharedChannel(options.shared, options.nodeId)
+      : memberChannel(options.orgId);
     this.stops.push(
-      onDocEvent((event) => {
+      this.channel.onEvent((event) => {
         if (event.nodeId !== this.options.nodeId) return;
         if (event.type === "doc.presence") return this.onPresence(event.u);
+        if (event.type === "doc.comments") {
+          for (const listener of this.commentListeners) listener();
+          return;
+        }
+        if (event.type === "doc.access") return this.options.shared?.onAccess(event.role);
         if (event.type !== "doc.record") return this.answers.get(event.ref)?.(event);
         if (this.started) this.onRecord(event.seqNum, event.record);
       }),
-      onRealtimeOpen((orgId) => {
-        if (orgId !== this.options.orgId) return;
+      this.channel.onOpen(() => {
         for (const [ref, item] of this.pending) this.transmit(ref, item);
         if (this.started) void this.catchUp();
         if (this.started) this.announce();
@@ -250,7 +271,29 @@ export class LiveDoc {
 
   /** Whether this tab wrote the epoch's last change and it has not been saved since. */
   get needsFold() {
+    if (this.options.shared) return false;
     return this.last.mine && this.last.seqNum > this.lastFold && this.pending.size === 0;
+  }
+
+  /** Changes this tab made that the stream has not taken yet. */
+  get unsent() {
+    return this.lost || this.batch.length > 0 || this.pendingUpdates();
+  }
+
+  /** Opened through a share link: the Worker saves what this tab types. */
+  get outsider() {
+    return !!this.options.shared;
+  }
+
+  /** The document's records from `from`, read through its channel; null when the layer is off. */
+  readAll(from: number | "latest" = "latest") {
+    return readAll(this.channel, this.options.nodeId, from);
+  }
+
+  /** Calls `listener` when someone changes the doc's comments (`doc.comments`). */
+  onComments(listener: () => void) {
+    this.commentListeners.add(listener);
+    return () => this.commentListeners.delete(listener);
   }
 
   /**
@@ -283,7 +326,7 @@ export class LiveDoc {
     return this.folds.has(contentVersion);
   }
 
-  /** Sends this tab's changes now and waits (a while) for the stream to take them all. */
+  /** Sends this tab's changes now and waits (a while) for the stream to take them all: whether it did. */
   async settle() {
     clearTimeout(this.timer);
     this.flush();
@@ -291,6 +334,7 @@ export class LiveDoc {
     while (this.pendingUpdates() && Date.now() < until && !this.closed) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
+    return !this.closed && !this.unsent;
   }
 
   private pendingUpdates() {
@@ -304,6 +348,7 @@ export class LiveDoc {
     clearTimeout(this.timer);
     clearTimeout(this.orphanTimer);
     for (const stop of this.stops) stop();
+    this.channel.close();
     for (const resolve of this.answers.values()) {
       resolve({ type: "doc.refused", nodeId: this.options.nodeId, ref: 0, reason: "unavailable" });
     }
@@ -324,7 +369,7 @@ export class LiveDoc {
   private sendPresence(clients: number[]) {
     const u = toBase64(encodeAwarenessUpdate(this.awareness, clients));
     if (u.length > DOC_PRESENCE_MAX) return;
-    sendRealtime(this.options.orgId, { type: "doc.presence", nodeId: this.options.nodeId, u });
+    this.channel.send({ type: "doc.presence", nodeId: this.options.nodeId, u });
   }
 
   private flush() {
@@ -341,6 +386,7 @@ export class LiveDoc {
   }
 
   private snapIfDue(seqNum: number) {
+    if (this.options.shared) return;
     if (this.snapping || this.closed || seqNum - this.startAt < LIVE_SNAP_EVERY) return;
     const s = this.boundary;
     if (s <= this.startAt) return;
@@ -403,7 +449,8 @@ export class LiveDoc {
           again(RETRY_MS);
           return;
         }
-        if (event.type === "doc.refused" && event.reason === "unavailable" && !this.closed) {
+        const retried = event.type === "doc.refused" && /^(unavailable|rate)$/.test(event.reason);
+        if (retried && !this.closed) {
           if (record.t === "update") {
             again(wait);
             wait = Math.min(wait * 2, UNAVAILABLE_MAX_MS);
@@ -412,6 +459,8 @@ export class LiveDoc {
         }
         this.pending.delete(ref);
         this.answers.delete(ref);
+        const refused = event.type === "doc.refused" && record.t === "update";
+        if (refused && this.options.shared) this.lost = true;
         if (event.type === "doc.appended") this.markKnown(event.seqNum, record.t === "update");
         resolve(event);
       });
@@ -420,12 +469,7 @@ export class LiveDoc {
   }
 
   private transmit(ref: number, item: { record: StorageLiveRecord; matchSeqNum?: number }) {
-    sendRealtime(this.options.orgId, {
-      type: "doc.append",
-      nodeId: this.options.nodeId,
-      ref,
-      ...item,
-    });
+    this.channel.send({ type: "doc.append", nodeId: this.options.nodeId, ref, ...item });
   }
 
   private onRecord(seqNum: number, record: StorageLiveRecord) {
@@ -466,7 +510,7 @@ export class LiveDoc {
     if (this.catchingUp || this.closed) return;
     this.catchingUp = true;
     try {
-      const entries = (await readAll(this.options.nodeId, this.next)) ?? [];
+      const entries = (await this.readAll(this.next)) ?? [];
       for (const entry of entries) {
         if (entry.record.t === "seed" && entry.seqNum > this.epoch) {
           return this.options.onReplaced(entry.record.cv);

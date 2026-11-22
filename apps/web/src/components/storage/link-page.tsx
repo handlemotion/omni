@@ -58,6 +58,7 @@ export function LinkPage({ shareId, nodeId }: { shareId: string; nodeId?: string
           canComment={item.role !== "viewer"}
           canExport={downloads}
           shareId={shareId}
+          sharedLive={!!first && "live" in first && first.live === true}
         />
       </LinkFrame>
     );

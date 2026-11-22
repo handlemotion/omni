@@ -230,19 +230,18 @@ what the link's role allows:
 
 | Role      | Page                                                                    |
 | --------- | ----------------------------------------------------------------------- |
-| Editor    | Editing (or Commenting), toolbar, saves through the link's door          |
+| Editor    | Editing (or Commenting), toolbar, live with everyone on the doc          |
 | Commenter | Read-only text; a selection offers Comment; the toolbar shows comments  |
 | Viewer    | Read-only text, no toolbar, no comments                                 |
 
 Share holds Export only when the link allows downloads. Read-only pages never save, and the
-page asks for versions and comments only when the role may read them. Outside editors save
-version by version: they don't join the live document yet.
+page asks for versions and comments only when the role may read them.
 
-Next, in `docs/spec/live-sharing.md`: a link gets a role of its own (Viewer by default,
-Commenter or Editor for docs), and outside editors and commenters, signed-in grantees and
-guests alike, join the live document through a socket opened by the link's door. Their role is
-checked on every append, a revoked link closes their socket within seconds, the Worker saves
-their typing, and versions name them.
+A link has a role of its own (Viewer by default, Commenter or Editor for docs), and outside
+editors and commenters, signed-in grantees and guests alike, join the live document through a
+socket opened by the link's door (`docs/spec/live-sharing.md`). Their role is checked on every
+append, a revoked link closes their socket within seconds, the Worker saves their typing, and
+versions name them. A doc inside a shared folder still saves version by version for them.
 
 ## Agents
 
@@ -259,10 +258,8 @@ Omni docs and Markdown files alike and keeps each one's type. Its Markdown may h
 - Desktop sync names Omni docs as Drive does, with no extension, so Finder does not know to open
   them as Markdown. Next: the File Provider shows an Omni doc as `<name>.md` and maps that name
   back on rename.
-- Live co-editing for people outside the workspace, specified in `docs/spec/live-sharing.md`.
-  The live document's realtime socket and its `doc.append` checks are per workspace member
-  (`realtime.ts`, `realtime-docs.ts`). Until that spec ships, an outside editor's save is a new
-  version, and members editing live reopen on it.
+- Live co-editing for a doc opened inside a shared folder (`docs/spec/live-sharing.md`, "Not in
+  this change"): there an outside editor's save is still a new version.
 - Ask Claude from the toolbar.
 
 ## Verify

@@ -72,6 +72,8 @@ export function PreviewPanel(props: {
   canExport?: boolean;
   /** The folders above it, ending in its name: a doc's page header reads as where it lives. */
   trail?: ((leaf: string) => ReactNode) | undefined;
+  /** Opened through a link whose doc this person joins live (`live` in its answer). */
+  sharedLive?: boolean;
 }) {
   const { node } = props;
   const tools = usePreviewTools(node, props.shareId, {
@@ -80,7 +82,13 @@ export function PreviewPanel(props: {
   });
   const shown = tools.shown;
   const download = shown && props.onDownload ? () => downloadFile(shown.url) : props.onDownload;
-  const session = useEditSession(node, props.url, props.shareId, props.canWrite);
+  const session = useEditSession(
+    node,
+    props.url,
+    props.shareId,
+    props.canWrite,
+    props.sharedLive === true,
+  );
   const canEdit = props.canWrite && canEditFile(node) && !shown;
   const doc = canEditFile(node) && !shown && isDoc(node);
   const inset = useHeaderInset(props.fullScreen, props.shell);
