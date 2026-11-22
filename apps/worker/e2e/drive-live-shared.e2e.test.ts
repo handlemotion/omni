@@ -4,6 +4,7 @@ import { rewriteLive } from "@omni/docs";
 import { decodePresence, encodePresence } from "@omni/docs/presence";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import * as Y from "yjs";
+import { appendRaw } from "./live-support.ts";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
 import { CookieJar, signIn, WEB_ORIGIN } from "./support.ts";
 
@@ -137,7 +138,16 @@ test("a guest on an Editor link types with a member live, and the server says wh
   const seqNum = await tab.append({ t: "update", e: guest.epoch, u: base64(fromAna) });
   const reached = await guest.waitFor((e) => e.type === "doc.record" && e.seqNum === seqNum);
   expect(reached.record).not.toHaveProperty("by");
+  const folded = await tab.append({ t: "fold", e: guest.epoch, cv: 1, s: seqNum });
+  await guest.waitFor((e) => e.type === "doc.record" && e.seqNum === folded);
   expect(JSON.stringify(guest.received)).not.toContain(ana.id);
+  await appendRaw(doc.id, { t: "fold", e: guest.epoch, cv: 1, s: folded, by: `m:${ana.id}` });
+  const read = await fetch(
+    new URL(`/api/storage/shared/${shareId}/files/${doc.id}/live?from=latest`, stack.worker.url),
+  );
+  const { entries } = (await read.json()) as { entries: { record: Event }[] };
+  expect(entries.some((entry) => entry.record.t === "fold")).toBe(true);
+  expect(JSON.stringify(entries)).not.toContain(ana.id);
 
   for (const record of [
     { t: "seed", cv: 1, u: base64(Y.encodeStateAsUpdate(guest.doc)) },

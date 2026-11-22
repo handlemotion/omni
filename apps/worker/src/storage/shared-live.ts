@@ -70,9 +70,9 @@ async function seedFor(
 }
 
 const withoutBy = (entry: StorageLiveEntry) => {
-  if (entry.record.t !== "update" || !entry.record.by) return entry;
-  const { by: _by, ...record } = entry.record;
-  return { ...entry, record } satisfies StorageLiveEntry;
+  if (!("by" in entry.record)) return entry;
+  const { by: _by, ...record } = entry.record as typeof entry.record & { by?: string };
+  return { ...entry, record: record as typeof entry.record } satisfies StorageLiveEntry;
 };
 
 function sameOrigin(c: Context<AppEnv>) {

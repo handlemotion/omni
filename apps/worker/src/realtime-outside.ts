@@ -88,9 +88,9 @@ const send = (socket: WebSocket, event: StorageDocEvent) => {
 
 /** A record as an outsider hears it: without `by`, which may hold a member id. */
 export function forOutsiders(event: StorageDocEvent) {
-  if (event.type !== "doc.record" || event.record.t !== "update" || !event.record.by) return event;
-  const { by: _by, ...record } = event.record;
-  return { ...event, record } satisfies StorageDocEvent;
+  if (event.type !== "doc.record" || !("by" in event.record)) return event;
+  const { by: _by, ...record } = event.record as typeof event.record & { by?: string };
+  return { ...event, record: record as typeof event.record } satisfies StorageDocEvent;
 }
 
 /** Sends `events` to the outsiders on the doc but `except`, `by` taken off. */

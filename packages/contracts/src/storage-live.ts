@@ -7,10 +7,10 @@ const id = z.string().min(1);
 const parts = z.number().int().min(2).max(STORAGE_LIVE_MAX_PARTS);
 
 /**
- * Who sent a live record, stamped by the realtime object whatever the sender wrote: `m:<memberId>`
- * from a member's tab, `u:<userId>` for a person with a grant, `g:<guestId>` for a guest through a
- * link, `a:<memberId>:<agent>` for an agent's edit made for a member. Absent from records written
- * before this, from the Worker's own saves, and from what an outsider is sent.
+ * Who sent a live update, set by the realtime object whatever the sender wrote: `m:<memberId>`,
+ * `u:<userId>` for a person with a grant, `g:<guestId>` for a guest through a link; the Worker
+ * writes `a:<memberId>:<agent>` for an agent's edit made for a member. Absent from records written
+ * before this, from the Worker's other appends, and in what an outsider is sent.
  */
 export const storageLiveAuthorSchema = z.string().max(200).optional();
 const by = storageLiveAuthorSchema;
@@ -41,7 +41,6 @@ export const storageLiveRecordSchema = z.discriminatedUnion("t", [
     t: z.literal("seed"),
     cv: z.number().int().nonnegative(),
     u: z.base64(),
-    by,
     n: parts.optional(),
   }),
   z.object({

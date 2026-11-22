@@ -217,7 +217,7 @@ test("only a socket editing the file appends to its live document, and the other
   boSocket.append(doc.id, 1, seed, 0);
   await boSocket.answer(doc.id, 1);
   expect(ofDoc(boSocket.received)).toEqual([
-    { type: "doc.record", nodeId: doc.id, seqNum: 0, record: { ...seed, by: `m:${ana.id}` } },
+    { type: "doc.record", nodeId: doc.id, seqNum: 0, record: seed },
     { type: "doc.refused", nodeId: doc.id, ref: 1, reason: "tail" },
   ]);
 

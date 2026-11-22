@@ -119,7 +119,7 @@ export class LiveFile {
    * Appends `update`, a change already made to this document, for everyone editing to merge with
    * their own: as one record, split into parts when it is too large for one. Then catches up with
    * what others appended meanwhile. Answers the records to pass on, the last record the document
-   * now holds all of, and the last of its own.
+   * now holds all of, and the last of its own. `by` names who it is for (an agent's edit).
    */
   async append(update: Uint8Array, by?: string) {
     const { head, rest } = splitLiveRecord(

@@ -78,6 +78,25 @@ export async function trim(nodeId: string, seqNum: number) {
   expect(response.status).toBe(200);
 }
 
+export async function appendRaw(nodeId: string, record: Record<string, unknown>) {
+  const response = await fetch(
+    `${S2.url}/streams/${encodeURIComponent(`docs/${nodeId}`)}/records`,
+    {
+      method: "POST",
+      headers: {
+        "s2-basin": S2.basin,
+        "s2-format": "base64",
+        authorization: "Bearer local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        records: [{ headers: [], body: Buffer.from(JSON.stringify(record)).toString("base64") }],
+      }),
+    },
+  );
+  expect(response.status).toBe(200);
+}
+
 export async function call(agent: Client, name: string, args: Record<string, unknown>) {
   const result = await agent.callTool({ name, arguments: args });
   if (result.isError) return { error: (result.content as { text: string }[])[0]!.text };
