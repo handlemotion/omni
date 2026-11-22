@@ -2,6 +2,7 @@ import type { Db } from "./client.ts";
 import { memberActor, userActor, type MeetingsActor } from "./meetings/core.ts";
 import * as pipeline from "./meetings/pipeline.ts";
 import {
+  getAction,
   getMeeting,
   getTranscript,
   groupDigest,
@@ -59,6 +60,7 @@ export function memberMeetings(db: Db, memberId: string) {
     groups: async (page: Parameters<typeof listGroups>[2] = {}) =>
       listGroups(db, await actor(), page),
     groupDigest: async (groupKey: string) => groupDigest(db, await actor(), groupKey),
+    action: async (actionId: string) => getAction(db, await actor(), actionId),
     start: (input: StartMeeting) =>
       db.transaction(async (tx) => {
         const me = await memberActor(tx, memberId);
@@ -111,6 +113,11 @@ export function meetingsPipeline(db: Db) {
     saveNotes: (meetingId: string, orgId: string, notes: pipeline.SavedNotes) =>
       db.transaction((tx) => pipeline.saveNotes(tx, meetingId, orgId, notes)),
     claimDocWrite: (meetingId: string) => pipeline.claimDocWrite(db, meetingId),
+    audience: (meetingId: string) => pipeline.memberAudience(db, meetingId),
+    stalled: (olderThanMs: number) => pipeline.stalled(db, olderThanMs),
+    nudged: (meetingId: string) => pipeline.nudged(db, meetingId),
+    restartFailed: (meetingId: string) =>
+      db.transaction((tx) => pipeline.restartFailed(tx, meetingId)),
     setFiles: (meetingId: string, files: { notesNodeId?: string; groupKey?: string }) =>
       pipeline.setFiles(db, meetingId, files),
     saveGroupSummary: (

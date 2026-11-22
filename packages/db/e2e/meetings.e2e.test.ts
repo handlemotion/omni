@@ -303,3 +303,14 @@ test("starting without consent is refused", async () => {
   });
   expect(refused.status).toBe("consent_required");
 });
+
+test("a meeting's realtime audience is exactly the members who can open it", async () => {
+  const s = await studio();
+  const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address, s.ben.address] }));
+  const pipeline = meetingsPipeline(db);
+  expect((await pipeline.audience(meetingId)).toSorted()).toEqual([s.dana.id, s.ben.id].toSorted());
+  ok(await forMember(db, s.dana.id).meetings.change(meetingId, { access: "workspace" }));
+  expect((await pipeline.audience(meetingId)).toSorted()).toEqual(
+    [s.dana.id, s.ben.id, s.cy.id].toSorted(),
+  );
+});

@@ -1,10 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import type {
-  CalendarChangedEvent,
-  CrmChangedEvent,
   HelpdeskRealtimeEvent,
+  ModuleChangedEvent,
   SlaTarget,
-  StorageChangedEvent,
   StorageDocEvent,
   StorageNodeSpace,
   TalkEvent,
@@ -86,12 +84,7 @@ export type RealtimeEvent =
 
 const WATCHED = new Set(["notification", "notification.removed", "mail.arrived"]);
 
-type OutboundEvent =
-  | RealtimeEvent
-  | HelpdeskRealtimeEvent
-  | CrmChangedEvent
-  | StorageChangedEvent
-  | CalendarChangedEvent;
+type OutboundEvent = RealtimeEvent | HelpdeskRealtimeEvent | ModuleChangedEvent;
 
 const presenceMessage = z.object({
   type: z.literal("presence"),

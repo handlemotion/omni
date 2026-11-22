@@ -23,6 +23,7 @@ import { portal } from "./crm/portal.ts";
 import { calendar } from "./calendar/routes.ts";
 import { crm } from "./crm/routes.ts";
 import { talk } from "./talk/routes.ts";
+import { meetings } from "./meetings/routes.ts";
 import { answerThrown, apiError } from "./errors.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER, WATCH_HEADER } from "./realtime.ts";
@@ -159,7 +160,8 @@ const api = new Hono<AppEnv>()
   .route("/storage", storage)
   .route("/crm", crm)
   .route("/calendar", calendar)
-  .route("/talk", talk);
+  .route("/talk", talk)
+  .route("/meetings", meetings);
 
 async function isPendingResend(c: Context<AppEnv>) {
   const body = (await c.req.raw

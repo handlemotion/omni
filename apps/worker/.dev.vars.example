@@ -88,6 +88,19 @@ ANTHROPIC_BASE_URL=
 # Optional. "off" stops Drive reading text in pictures and scanned PDFs with the model. With
 # ANTHROPIC_API_KEY set it is on: up to 8 files a minute on Claude Haiku, 1-2k tokens a page or picture.
 DRIVE_OCR=
+
+# --- Meetings ---
+# Optional. The transcription engine: "assemblyai" (speakers labelled and named), "openai" (any
+# OpenAI-compatible /audio/transcriptions server), "workers-ai" (the AI binding, no speakers) or
+# "none" (the default: Meetings is off). docs/spec/meetings.md, "Transcription". "workers-ai"
+# also needs "ai": { "binding": "AI" } in wrangler.jsonc; without it Meetings stays off.
+TRANSCRIBE_PROVIDER=
+# Optional. The engine's base URL: AssemblyAI's EU host, or the OpenAI-compatible server.
+TRANSCRIBE_URL=
+# Optional. The engine's model, e.g. whisper-1 on an OpenAI-compatible server.
+TRANSCRIBE_MODEL=
+# Secret. The engine's API key, for assemblyai and for a server that asks for one.
+TRANSCRIBE_API_KEY=
 # Secret. TypeSafe key: triage runs on Jev when set, and mail and Drive search
 # results are reordered by Jev's relevance judgment (Drive also finds files by meaning). Empty: search keeps full-text order.
 TYPESAFE_API_KEY=

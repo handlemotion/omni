@@ -54,13 +54,25 @@ export const AI_QUEUE_MAX_RETRIES = 5;
 const MODEL_TIMEOUT_MS = 20_000;
 const BATCH_START_BUDGET_MS = 10 * 60 * 1000;
 
+/** A job of another kind, from a module: settles its own message, and says what it spent on AI. */
+export type ModuleJob = { kind: string; orgId: string };
+export type ModuleConsumer = (
+  run: { env: Env; db: Db; config: Config; queue: string },
+  message: Message<ModuleJob>,
+  maxRetries: number,
+) => Promise<{ usage: { tokensIn: number; tokensOut: number } } | void>;
+
 /**
  * One handler for both queues the Worker consumes: AI jobs, and their dead-letter queue (by
  * convention the source queue's name plus `-dlq`).
  */
-export async function consumeQueue(batch: MessageBatch<AiJob>, env: Env) {
-  if (batch.queue.endsWith("-dlq")) return consumeDeadLetters(batch, env);
-  return consumeAiQueue(batch, env);
+export async function consumeQueue(
+  batch: MessageBatch<AiJob | ModuleJob>,
+  env: Env,
+  consumers: Record<string, ModuleConsumer> = {},
+) {
+  if (batch.queue.endsWith("-dlq")) return consumeDeadLetters(batch as MessageBatch<AiJob>, env);
+  return consumeAiQueue(batch, env, consumers);
 }
 
 /**
@@ -146,7 +158,11 @@ interface AiRun {
  * dead-lettered after `AI_QUEUE_MAX_RETRIES`; a permanent one (a malformed job, a request the
  * provider refuses) is recorded as a dead letter at once, since no retry can fix it.
  */
-export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
+export async function consumeAiQueue(
+  batch: MessageBatch<AiJob | ModuleJob>,
+  env: Env,
+  consumers: Record<string, ModuleConsumer> = {},
+) {
   const config = loadConfig(env);
   const anthropic = new Anthropic({
     apiKey: config.ANTHROPIC_API_KEY ?? null,
@@ -170,13 +186,37 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
       yield* Effect.forEach(
         batch.messages,
         (message) =>
-          Date.now() - started < BATCH_START_BUDGET_MS
-            ? consumeAiMessage(run, message)
-            : Effect.sync(() => message.retry({ delaySeconds: 5 })),
+          Date.now() - started >= BATCH_START_BUDGET_MS
+            ? Effect.sync(() => message.retry({ delaySeconds: 5 }))
+            : consumerOf(consumers, message)
+              ? Effect.promise(() =>
+                  consumeModuleMessage(run, consumers, message as Message<ModuleJob>),
+                )
+              : consumeAiMessage(run, message as Message<AiJob>),
         { concurrency: 1, discard: true },
       );
     }).pipe(Effect.scoped),
   );
+}
+
+const consumerOf = (
+  consumers: Record<string, ModuleConsumer>,
+  message: Message<AiJob | ModuleJob>,
+) =>
+  message.body?.kind && message.body.kind !== "thread" ? consumers[message.body.kind] : undefined;
+
+async function consumeModuleMessage(
+  run: AiRun,
+  consumers: Record<string, ModuleConsumer>,
+  message: Message<ModuleJob>,
+) {
+  const consume = consumers[message.body.kind];
+  if (!consume) return message.ack();
+  const spent = await consume(run, message, AI_QUEUE_MAX_RETRIES);
+  const usage = spent?.usage;
+  if (usage && (usage.tokensIn || usage.tokensOut)) {
+    await addAiUsage(run.db, message.body.orgId, new Date().toISOString().slice(0, 10), usage);
+  }
 }
 
 function consumeAiMessage(run: AiRun, message: Message<AiJob>) {

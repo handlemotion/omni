@@ -526,3 +526,11 @@ export type GoogleConnectBody = z.infer<typeof googleConnectBodySchema>;
 export type GoogleConnectResult = z.infer<typeof googleConnectResultSchema>;
 export type GoogleDisconnectBody = z.infer<typeof googleDisconnectBodySchema>;
 export * from "./talk.ts";
+export * from "./meetings.ts";
+
+/** What a module tells a workspace's open apps when its records change. */
+export type ModuleChangedEvent =
+  | import("./crm.ts").CrmChangedEvent
+  | import("./storage.ts").StorageChangedEvent
+  | import("./calendar.ts").CalendarChangedEvent
+  | import("./meetings.ts").MeetingsChangedEvent;

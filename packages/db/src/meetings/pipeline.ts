@@ -1,8 +1,10 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { members, users } from "../schema/auth.ts";
+import { userEmails } from "../schema/identity.ts";
 import {
   meetingsActions,
   meetingsAttendees,
+  meetingsGrants,
   meetingsJobs,
   meetingsMeetings,
   meetingsNotes,
@@ -283,4 +285,97 @@ export async function setFiles(
   files: { notesNodeId?: string; groupKey?: string },
 ) {
   await ex.update(meetingsMeetings).set(files).where(eq(meetingsMeetings.id, meetingId));
+}
+
+/** The workspace's members who can open the meeting now: who its realtime events go to. */
+export async function memberAudience(ex: Ex, meetingId: string) {
+  const [meeting] = await ex
+    .select()
+    .from(meetingsMeetings)
+    .where(eq(meetingsMeetings.id, meetingId));
+  if (!meeting) return [];
+  const [people, grants] = await Promise.all([
+    ex
+      .select({
+        id: members.id,
+        role: members.role,
+        email: users.email,
+        verified: users.emailVerified,
+        extra: userEmails.email,
+      })
+      .from(members)
+      .innerJoin(users, eq(users.id, members.userId))
+      .leftJoin(userEmails, eq(userEmails.userId, users.id))
+      .where(eq(members.organizationId, meeting.orgId)),
+    ex
+      .select({ address: meetingsGrants.address })
+      .from(meetingsGrants)
+      .where(eq(meetingsGrants.meetingId, meetingId)),
+  ]);
+  const granted = new Set(grants.map((g) => g.address));
+  const reach = new Set<string>();
+  for (const p of people) {
+    const teammate = p.role.split(",").some((r) => r.trim() !== "freelancer");
+    const addresses = [p.verified ? p.email : null, p.extra]
+      .filter((a): a is string => !!a)
+      .map((a) => a.toLowerCase());
+    if (
+      p.id === meeting.recordedByMemberId ||
+      (teammate && meeting.access === "workspace") ||
+      addresses.some((a) => granted.has(a))
+    ) {
+      reach.add(p.id);
+    }
+  }
+  return [...reach];
+}
+
+/**
+ * Picks a failed meeting up again from what it already has: without a transcript it goes back to
+ * `uploaded` with the engine's job and polls cleared, so the audio is sent again; with one, to
+ * `naming`. Null when the meeting had not failed.
+ */
+export async function restartFailed(ex: Ex, meetingId: string) {
+  const [segment] = await ex
+    .select({ seq: meetingsSegments.seq })
+    .from(meetingsSegments)
+    .where(eq(meetingsSegments.meetingId, meetingId))
+    .limit(1);
+  const to: MeetingStatus = segment ? "naming" : "uploaded";
+  if (!(await advance(ex, meetingId, ["failed"], to))) return null;
+  if (to === "uploaded") {
+    await ex
+      .update(meetingsJobs)
+      .set({ provider: null, providerJobId: null, submittedAt: null, polls: 0 })
+      .where(eq(meetingsJobs.meetingId, meetingId));
+  }
+  return to;
+}
+
+/**
+ * Meetings part way through the pipeline that nothing has touched for `olderThanMs`: a step's
+ * hand-off to the queue was lost. The minute sweep sends each one again; the step it runs comes
+ * from the saved status.
+ */
+export async function stalled(ex: Ex, olderThanMs: number, limit = 50) {
+  const before = new Date(Date.now() - olderThanMs).toISOString();
+  return ex
+    .select({ id: meetingsMeetings.id, orgId: meetingsMeetings.orgId })
+    .from(meetingsMeetings)
+    .innerJoin(meetingsJobs, eq(meetingsJobs.meetingId, meetingsMeetings.id))
+    .where(
+      and(
+        inArray(meetingsMeetings.status, ["uploaded", "transcribing", "naming", "writing"]),
+        sql`greatest(${meetingsMeetings.updatedAt}, ${meetingsJobs.updatedAt}) < ${before}::timestamptz`,
+      ),
+    )
+    .limit(limit);
+}
+
+/** Marks a stalled meeting as just sent again, so the sweep waits before sending it once more. */
+export async function nudged(ex: Ex, meetingId: string) {
+  await ex
+    .update(meetingsJobs)
+    .set({ updatedAt: new Date() })
+    .where(eq(meetingsJobs.meetingId, meetingId));
 }

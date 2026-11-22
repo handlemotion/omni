@@ -335,15 +335,16 @@ against the workspace's quota, and never in a teamspace, whose members and admin
 by itself. It is shared with nobody in Drive: everyone else plays it through
 `GET /api/meetings/:id/audio`, which checks the meeting's grants and then reads the file by its
 node id through Storage's surface for the workspace, as Talk reads a sent file's metadata, never
-acting as a member. The raw response sits beside it the same way. When the recorder leaves the
+acting as a member. When the recorder leaves the
 workspace, the files go with the rest of their My files to whoever receives them
 (`handOverMemberStorage`); the meeting keeps the same node ids, so playback and the retention
 sweep work as before. It plays on the
 meeting page and is kept as long as the meeting is, so a quote can always be heard again; a
 workspace can choose to delete recordings after a number of days instead, or as soon as the
-transcript is saved, and the sweep does it. The engine's raw response is kept as a file beside
-it for as long as the audio, so speakers can be worked out again without paying twice. Deleting
-the meeting deletes both.
+transcript is saved, and the sweep does it. The engine's raw response is kept in R2 under
+`meetings/<org>/<meeting>/engine.json`, not in Drive (nobody opens it), so speakers can be worked
+out again without paying twice. Deleting the meeting deletes it and moves the recording to the
+recorder's Drive Trash.
 
 AssemblyAI deletes the audio it was sent once the transcript is fetched: the adapter calls its
 delete endpoint after saving.
@@ -379,9 +380,12 @@ Every step is a queue job keyed by the meeting, idempotent, and moves `status` f
 the status before it.
 
 1. **Start.** `POST /api/meetings` makes the meeting in `recording`, copies the event's attendees
-   and opens the multipart upload. The app uploads parts as it goes.
-2. **Stop.** `POST /api/meetings/:id/stop` with the mic intervals completes the upload, sets
-   `uploaded` and enqueues `transcribe`.
+   and answers with the recorder's private `Recordings` folder, made on first use. The app
+   uploads the audio there through Drive's own resumable upload (`/api/storage/uploads`), part
+   by part as it records, so the upload, its limits and its checks are Drive's.
+2. **Stop.** `POST /api/meetings/:id/stop` names the uploaded file (it must be the recorder's own,
+   in their My files), the mic intervals and the dropped silences, sets `uploaded` and enqueues
+   `transcribe`.
 3. **Transcribe.** Streams the audio from R2 to the engine's upload (no buffering, no public
    URL), submits the job and stores its id; a retry that finds the id skips to polling. Then
    `poll` every 20 seconds, up to an hour, with the engine's callback as a shortcut when the
@@ -408,8 +412,7 @@ meetings shared with them. A meeting the caller cannot see answers `404`.
 | `GET /groups/:key`                                                   | A group's summary, timeline, open actions and meetings                    |
 | `GET /?event=<uid>&recurrence=`                                      | The meeting for an event, so the calendar panel shows it                  |
 | `POST /` `{ event?, title?, consent: true }`                         | Starts one; returns its id and the upload                                 |
-| `PUT /:id/parts/:n`                                                  | A part of the audio                                                       |
-| `POST /:id/stop` `{ micIntervals }`                                  | Stops and starts the pipeline                                             |
+| `POST /:id/stop` `{ audioNodeId, durationMs, micSpans, cuts }`       | Stops and starts the pipeline                                             |
 | `GET /:id`                                                           | The meeting: status, attendees, notes, actions, speakers                  |
 | `GET /:id/transcript`                                                | Segments with speakers                                                    |
 | `GET /:id/audio`                                                     | The audio, through Storage's door                                         |
@@ -499,7 +502,8 @@ the rest. The migration in M2 numbers on top of whatever is on `main` then.
 | M0  | This document, and the calendar, modules and CRM specs to match                                                                                                                                                                                                                              | main       |
 | M1  | `@omni/ai`: normalizers for AssemblyAI, OpenAI-compatible and Workers AI; `resolveSpeakers`; the names and notes prompts; recorded fixtures. An eval on public AMI meetings (CC BY 4.0) and two anonymized Spanish and mixed calls, comparing AssemblyAI, Scribe and Soniox on WER and cpWER | M0         |
 | M2  | `@omni/db`: the schema, the migration, the member door, `meetingsOn`; leak tests; `check-modules` entry                                                                                                                                                                                      | M1         |
-| M3  | Worker: `/api/meetings`, the upload, the jobs and adapters, realtime, the variables; e2e on the local stack with recorded engine responses                                                                                                                                                   | M2         |
+| M3  | Worker: `/api/meetings`, Drive upload into `Recordings`, the pipeline jobs and engines, realtime, the variables; e2e on the local stack with recorded engine and model responses                                                                                                             | M2         |
+| M3b | Worker: group summaries and Ask (Claude), the notes written into the doc, routes for people outside the workspace (the user door), an accepted task made in the calendar once its tasks exist (T1)                                                                                           | M3         |
 | M4  | Desktop: the recorder (Core Audio tap, ScreenCaptureKit, WASAPI), the spool and upload, the pill, the tray and the start notification                                                                                                                                                        | M3         |
 | M5  | Web (Rodrigo, from Figma): the Meetings module, Record in the event panel, the browser recorder                                                                                                                                                                                              | M3         |
 | M6  | CRM: the Meetings tab on a deal, meetings in timelines                                                                                                                                                                                                                                       | M5         |

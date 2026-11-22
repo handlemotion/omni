@@ -276,3 +276,15 @@ export async function searchMeetings(
     .limit(Math.min(Math.max(limit, 1), MEETINGS_PAGE_MAX));
   return { status: "ok", hits } as const;
 }
+
+/** One suggested action, with the meeting's title and the actor's role on that meeting. */
+export async function getAction(ex: Ex, actor: MeetingsActor | null, actionId: string) {
+  const [action] = await ex.select().from(meetingsActions).where(eq(meetingsActions.id, actionId));
+  if (!action) return NOT_FOUND;
+  return withMeeting(ex, actor, action.meetingId, "viewer", async ({ meeting, role }) => ({
+    status: "ok" as const,
+    role,
+    meetingTitle: meeting.title,
+    action: { id: action.id, kind: action.kind, payload: action.payload, state: action.state },
+  }));
+}

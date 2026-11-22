@@ -14,6 +14,7 @@ declare global {
       STRIPE_SECRET_KEY?: string;
       STRIPE_WEBHOOK_SECRET?: string;
       IOS_APP_IDS?: string;
+      TRANSCRIBE_API_KEY?: string;
     }
   }
 }
@@ -53,6 +54,12 @@ const configSchema = z
     ANTHROPIC_API_KEY: optionalText,
     ANTHROPIC_BASE_URL: optionalText.pipe(z.url().optional()),
     DRIVE_OCR: optionalText.pipe(z.enum(["on", "off"]).default("on")),
+    TRANSCRIBE_PROVIDER: optionalText.pipe(
+      z.enum(["assemblyai", "openai", "workers-ai", "none"]).default("none"),
+    ),
+    TRANSCRIBE_URL: optionalText.pipe(z.url().optional()),
+    TRANSCRIBE_MODEL: optionalText,
+    TRANSCRIBE_API_KEY: optionalText,
     GOOGLE_CALENDAR: optionalText.pipe(z.enum(["on", "off"]).default("on")),
     TYPESAFE_API_KEY: optionalText,
     TRIAGE_PROVIDER: optionalText.pipe(z.enum(["jev", "claude"]).optional()),

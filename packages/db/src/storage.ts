@@ -208,6 +208,7 @@ export {
   type StorageTextStatus,
 } from "./storage/texts.ts";
 export { handOverMemberStorage, type StorageHandOverResult } from "./storage/handover.ts";
+export { workspaceFile as storageWorkspaceFile } from "./storage/workspace-file.ts";
 export { teamspaceFileAudience } from "./storage/audience.ts";
 export {
   teamspaceAudience,

@@ -11,6 +11,7 @@ import { calendarArrived, calendarMinute } from "./calendar/jobs.ts";
 import { crmDaily, crmMinute } from "./crm/jobs.ts";
 import type { Logger } from "./log.ts";
 import { mailMinute } from "./mail/jobs.ts";
+import { meetingsMinute } from "./meetings/sweep.ts";
 import { notePaymentMethod } from "./storage/billing.ts";
 import { abortExpiredStorageUploads, storageDaily } from "./storage/jobs.ts";
 import { foldLive, type FoldAuthor, type FoldOutcome } from "./storage/live-fold.ts";
@@ -84,4 +85,9 @@ const calendar: Module = {
   memberRemoved: (db, { orgId, memberId }) => releaseCalendarTasks(db, { orgId, memberId }),
 };
 
-export const modules: readonly Module[] = [mail, storage, crm, calendar];
+const meetings: Module = {
+  name: "meetings",
+  minute: meetingsMinute,
+};
+
+export const modules: readonly Module[] = [mail, storage, crm, calendar, meetings];
