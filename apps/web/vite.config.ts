@@ -3,7 +3,7 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import { z } from "zod";
 
 const optional = z
@@ -19,6 +19,14 @@ const envSchema = z.object({
   SENTRY_ORG: optional,
   SENTRY_PROJECT: optional,
 });
+
+const hairlinePureFigures: Plugin = {
+  name: "omni:hairline-pure-figures",
+  transform: {
+    filter: { id: /@lucasmarkes[\\/]hairline[\\/]dist[\\/]react\.js$/ },
+    handler: (code) => ({ code: code.replace(/= make\(/g, "= /* @__PURE__ */ make("), map: null }),
+  },
+};
 
 export default defineConfig(({ mode }) => {
   const parsed = envSchema.safeParse(loadEnv(mode, process.cwd(), ""));
@@ -39,6 +47,7 @@ export default defineConfig(({ mode }) => {
       }),
       react(),
       tailwindcss(),
+      hairlinePureFigures,
       uploadSourceMaps &&
         sentryVitePlugin({
           authToken: env.SENTRY_AUTH_TOKEN,
