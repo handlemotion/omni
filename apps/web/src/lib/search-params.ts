@@ -158,8 +158,6 @@ export const calendarSearch = z.object({
   /** The day shown, `YYYY-MM-DD`; today when left out. */
   date: optional(z.string().check(z.regex(/^\d{4}-\d{2}-\d{2}$/))),
   view: optional(z.enum(["week", "day", "month"])),
-  /** One calendar's id to show alone; every calendar when left out. */
-  calendar: optional(z.string()),
   /** A to-do open beside the calendar. */
   task: optional(z.string()),
 });

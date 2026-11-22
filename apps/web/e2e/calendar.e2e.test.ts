@@ -375,23 +375,44 @@ test("arrows leave an all-day event's days alone", async () => {
   ]);
 });
 
-test("the switcher at the sidebar's foot shows one inbox's calendar alone", async () => {
-  const { org, member, page, origin } = await invited();
+test("the calendars menu in the header hides a calendar for this person, and shows it again", async () => {
+  const { org, member, address, inbox, page, origin } = await invited();
   const shared = await createMailbox(db, org.id, `team-${Date.now()}@studio.example`, "shared");
   await grant(db, org.id, shared.id, member.id);
   await db.insert(schema.calendarCalendars).values({ orgId: org.id, mailboxId: shared.id });
   await openWeek(page, origin, org.slug);
-  await page.getByRole("button", { name: /Switch calendar, currently All calendars/ }).click();
-  await page.getByRole("menuitem", { name: /Team/ }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("calendar")).not.toBeNull();
-  await expect
-    .poll(() => page.getByRole("button", { name: /Acme × Studio: kickoff/ }).count())
-    .toBe(0);
-  await page.getByRole("button", { name: /Switch calendar, currently Team/ }).click();
-  await page.getByRole("menuitem", { name: "All calendars" }).click();
-  await expect
-    .poll(() => page.getByRole("button", { name: /Acme × Studio: kickoff/ }).count())
-    .toBe(1);
+  const kickoff = page.getByRole("button", { name: /Acme × Studio: kickoff/ });
+  await kickoff.waitFor();
+  await page.getByRole("button", { name: "Calendars, 2 calendars shown" }).click();
+  await page.getByText(shared.address).waitFor();
+  await page.getByRole("searchbox", { name: "Filter calendars" }).fill(address);
+  await page.getByRole("grid", { name: "Calendars" }).getByRole("row").last().click();
+  await expect.poll(() => kickoff.count()).toBe(0);
+  const hidden = async () =>
+    (
+      await db
+        .select({ hidden: schema.calendarMemberPrefs.hidden })
+        .from(schema.calendarMemberPrefs)
+        .innerJoin(
+          schema.calendarCalendars,
+          eq(schema.calendarCalendars.id, schema.calendarMemberPrefs.calendarId),
+        )
+        .where(
+          and(
+            eq(schema.calendarMemberPrefs.memberId, member.id),
+            eq(schema.calendarCalendars.mailboxId, inbox.id),
+          ),
+        )
+    )[0]?.hidden;
+  await expect.poll(hidden).toBe(true);
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await page.getByRole("button", { name: "Calendars, 1 calendar shown" }).click();
+  await expect.poll(() => kickoff.count()).toBe(0);
+  await page.getByRole("searchbox", { name: "Filter calendars" }).fill(address);
+  await page.getByRole("grid", { name: "Calendars" }).getByRole("row").last().click();
+  await expect.poll(() => kickoff.count()).toBe(1);
+  await expect.poll(hidden).toBe(false);
 });
 
 test("double-clicking a slot opens the new event at the slot a click there selects", async () => {
@@ -473,20 +494,55 @@ test("Enter opens the event that has focus, not the one selected before", async 
   await page.getByRole("complementary", { name: "Planning" }).waitFor();
 });
 
-test("a new event goes on the calendar the switcher shows alone", async () => {
-  const { org, member, page, origin } = await invited();
+test("unticking and re-ticking a calendar fast keeps it shown, whichever save lands last", async () => {
+  const { org, member, address, inbox, page, origin } = await invited();
+  const shared = await createMailbox(db, org.id, `team-${Date.now()}@studio.example`, "shared");
+  await grant(db, org.id, shared.id, member.id);
+  await db.insert(schema.calendarCalendars).values({ orgId: org.id, mailboxId: shared.id });
+  await page.route("**/api/calendar/calendars/*", async (route) => {
+    if (route.request().method() === "PATCH") await new Promise((done) => setTimeout(done, 1500));
+    await route.continue();
+  });
+  await openWeek(page, origin, org.slug);
+  await page.getByRole("button", { name: "Calendars, 2 calendars shown" }).click();
+  await page.getByRole("searchbox", { name: "Filter calendars" }).fill(address);
+  const row = page.getByRole("grid", { name: "Calendars" }).getByRole("row").last();
+  await row.click();
+  await row.click();
+  await page.waitForTimeout(2200);
+  expect(await page.getByRole("button", { name: /Acme × Studio: kickoff/ }).count()).toBe(1);
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(1500);
+  const [prefs] = await db
+    .select({ hidden: schema.calendarMemberPrefs.hidden })
+    .from(schema.calendarMemberPrefs)
+    .innerJoin(
+      schema.calendarCalendars,
+      eq(schema.calendarCalendars.id, schema.calendarMemberPrefs.calendarId),
+    )
+    .where(
+      and(
+        eq(schema.calendarMemberPrefs.memberId, member.id),
+        eq(schema.calendarCalendars.mailboxId, inbox.id),
+      ),
+    );
+  expect(prefs?.hidden).toBe(false);
+});
+
+test("a new event goes on the first calendar still shown", async () => {
+  const { org, member, address, page, origin } = await invited();
   const shared = await createMailbox(db, org.id, `team-${Date.now()}@studio.example`, "shared");
   await grant(db, org.id, shared.id, member.id);
   const [team] = await db
     .insert(schema.calendarCalendars)
     .values({ orgId: org.id, mailboxId: shared.id })
     .returning({ id: schema.calendarCalendars.id });
-  await page.goto(
-    new URL(
-      `/${org.slug}/calendar?date=2026-11-24&view=week&calendar=${team?.id}`,
-      origin,
-    ).toString(),
-  );
+  await openWeek(page, origin, org.slug);
+  await page.getByRole("button", { name: "Calendars, 2 calendars shown" }).click();
+  await page.getByRole("searchbox", { name: "Filter calendars" }).fill(address);
+  await page.getByRole("grid", { name: "Calendars" }).getByRole("row").last().click();
+  await page.getByRole("button", { name: "Calendars, 1 calendar shown" }).waitFor();
+  await page.keyboard.press("Escape");
   await page.locator('[data-day="2026-11-24"]').click({ position: { x: 20, y: 10 * 48 + 6 } });
   await page.keyboard.press("c");
   await page.getByRole("textbox", { name: "Title" }).fill("Team sync");

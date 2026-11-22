@@ -7,7 +7,7 @@ import { Loader } from "./loader";
 export const buttonStyles = tv({
   base: [
     "[--btn-border:var(--color-foreground)]/15 [--btn-icon-active:var(--btn-foreground)] [--btn-outline:var(--btn-bg)] [--btn-radius:calc(var(--radius-lg)-1px)]",
-    "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) hover:bg-(--btn-overlay) active:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
+    "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) hover:bg-(--btn-overlay) active:bg-(--btn-overlay) pressed:bg-(--btn-overlay) aria-expanded:bg-(--btn-overlay)",
     "relative isolate inline-flex items-center justify-center border border-(--btn-border) hover:no-underline",
     "transition-[scale,background-color] duration-150 ease-out motion-safe:[&:active]:not-aria-[haspopup]:scale-97 disabled:[&:active]:scale-100 pending:[&:active]:scale-100",
     "focus:outline-0 focus-visible:outline focus-visible:outline-offset-2",

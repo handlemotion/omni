@@ -47,11 +47,7 @@ function times(start: Date, end: Date) {
 }
 
 const defaultCalendar = (props: EventDialogProps) =>
-  (
-    props.calendars.find((c) => c.id === props.calendarId) ??
-    props.calendars.find((c) => !c.hidden) ??
-    props.calendars[0]
-  )?.id ?? "";
+  (props.calendars.find((c) => !c.hidden) ?? props.calendars[0])?.id ?? "";
 
 function newDraft(props: EventDialogProps) {
   const start = props.slot?.start ?? new Date();
@@ -124,8 +120,6 @@ interface EventDialogProps {
   event?: CalendarEvent;
   /** Where a new one starts. */
   slot?: Slot;
-  /** The calendar a new one goes on: the one the grid shows alone, if any. */
-  calendarId?: string;
   onClose: () => void;
 }
 

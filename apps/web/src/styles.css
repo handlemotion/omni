@@ -57,7 +57,7 @@
   --ring: var(--primary);
   --card: var(--background);
   --card-foreground: var(--foreground);
-  --overlay: var(--surface);
+  --overlay: var(--background);
   --overlay-foreground: var(--foreground);
   --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
@@ -109,6 +109,14 @@
   --chart-3: color-mix(in oklab, var(--primary) 60%, white);
   --chart-4: color-mix(in oklab, var(--primary) 40%, white);
   --chart-5: color-mix(in oklab, var(--primary) 20%, white);
+  --calendar-1: #ef4444;
+  --calendar-2: #6366f1;
+  --calendar-3: #16a34a;
+  --calendar-4: #f59e0b;
+  --calendar-5: #0ea5e9;
+  --calendar-6: #db2777;
+  --calendar-7: #0d9488;
+  --calendar-8: #737373;
   /* Someone else's cursor in a doc, and the tag with their name: one hue per person, each deep
      enough for white text on it (about 4.5:1) and clear apart from the others. Hex: the editor's
      cursors take no other colour format. */

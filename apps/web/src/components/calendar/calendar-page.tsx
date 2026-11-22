@@ -24,6 +24,7 @@ import {
 } from "@/lib/calendar-grid.ts";
 import { BookingShare } from "./booking-share.tsx";
 import { EventDialog } from "./event-dialog.tsx";
+import { CalendarFilter } from "./calendar-filter.tsx";
 import { CalendarCrumbs } from "./calendar-crumbs.tsx";
 import { useCalendarMenu } from "./calendar-menu.tsx";
 import { EventPanel } from "./event-panel.tsx";
@@ -75,12 +76,7 @@ function Hinted(props: { label: string; keyName: string; children: ReactNode }) 
 export type Editing = { event?: CalendarEvent; slot?: Slot } | null;
 
 /** The calendar: a week or a day of every shown calendar, driven by keys or the pointer. */
-export function CalendarPage(props: {
-  date?: string;
-  view?: CalendarView;
-  calendar?: string;
-  task?: string;
-}) {
+export function CalendarPage(props: { date?: string; view?: CalendarView; task?: string }) {
   const view = props.view ?? DEFAULT_VIEW;
   const anchor = parseDayKey(props.date);
   const at = anchor.getTime();
@@ -95,11 +91,10 @@ export function CalendarPage(props: {
   const calendars = useCalendars().data ?? [];
   const shown = useCalendarWindows(windows);
   const all = shown.data;
-  const events = useMemo(
-    () =>
-      props.calendar ? (all ?? []).filter((e) => e.calendarId === props.calendar) : (all ?? []),
-    [all, props.calendar],
-  );
+  const events = useMemo(() => {
+    const hidden = new Set(calendars.filter((c) => c.hidden).map((c) => c.id));
+    return (all ?? []).filter((e) => !hidden.has(e.calendarId));
+  }, [all, calendars]);
   const [scrolled, setScrolled] = useState<{ first: Date; under: string } | null>(null);
   const here = view === "month" && scrolled?.under === dayKey(anchor) ? scrolled.first : anchor;
   const hereAt = here.getTime();
@@ -240,6 +235,7 @@ export function CalendarPage(props: {
                   </Button>
                 </Hinted>
               </div>
+              <CalendarFilter />
               <BookingShare calendars={calendars} />
             </>
           }
@@ -296,7 +292,6 @@ export function CalendarPage(props: {
               calendars={calendars}
               event={editing.event}
               slot={editing.slot}
-              calendarId={props.calendar}
               onClose={() => setEditing(null)}
             />
           )}

@@ -176,9 +176,12 @@ sent to both is stored once per mailbox. They share one notes doc, found by `(or
 **Open the calendar.** `/calendar` opens the month, weeks from Monday, in the browser's time zone. Every calendar the person can see in the active workspace is overlaid. The sidebar has
 no module title: the month leads it (the shown week or day tinted, nothing in month view; a day
 picks it). It steps on its own, by its arrows and the wheel, and never follows the big view as it
-moves, nor moves it. The person's to-dos
-follow, and at its foot a switcher shows all calendars or one inbox's alone (`?calendar=`), like
-the workspace switcher. All-day events sit in a strip above the hours.
+moves, nor moves it. The person's to-dos follow. Which calendars are laid over each other is
+picked in the page's header, beside the arrows: a button with the shown calendars' colors and how
+many there are opens a popover with a filter field and every calendar, grouped under its account's
+address, each with a checkbox to show it or not (`hidden`, for that person only). A calendar's
+color is its person's pick, or the next of eight distinct calendar hues. A new event goes on the
+first calendar still shown. All-day events sit in a strip above the hours.
 
 **Views and where you are.** Month, week and day. The page's title is crumbs that deepen with the
 view, as Amie's do: the month; then its week (`W48`); then the day (`Tue 24`). An earlier crumb
