@@ -29,6 +29,8 @@ import { DealMark } from "./deal-mark.tsx";
 import { DetailSection, RecordLayout, RecordState } from "./record-layout.tsx";
 import { DAY } from "./record-list.tsx";
 import { AddressesSection, DealsSection, PeopleSection } from "./record-sections.tsx";
+import { useMeetingsEnabled } from "@/hooks/use-meetings.ts";
+import { DealMeetings } from "./record-meetings.tsx";
 import { RecordTasks } from "./tasks.tsx";
 import { Timeline } from "./timeline.tsx";
 
@@ -152,6 +154,7 @@ export function DealPage({ id }: { id: string }) {
   const workspaceCurrency = useCrmDefaultCurrency();
   const freelancer = useFreelancer();
   const company = useCompanyName(query.data?.deal.companyId ?? null);
+  const meetingsOn = useMeetingsEnabled();
   if (!query.data) return <RecordState list="projects" query={query} />;
   const { deal, people } = query.data;
   const save = (change: Parameters<typeof update.mutate>[0], then?: () => void) =>
@@ -234,6 +237,9 @@ export function DealPage({ id }: { id: string }) {
           { id: "timeline", label: "Timeline", panel: <Timeline kind="deals" id={id} /> },
           { id: "plan", label: "Plan", panel: <ProjectPlan dealId={id} /> },
           { id: "tasks", label: "Tasks", panel: <RecordTasks kind="deals" id={id} /> },
+          ...(meetingsOn
+            ? [{ id: "meetings", label: "Meetings", panel: <DealMeetings dealId={id} /> }]
+            : []),
           {
             id: "files",
             label: "Files",

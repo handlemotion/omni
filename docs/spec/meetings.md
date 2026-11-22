@@ -141,6 +141,12 @@ addresses and domains, plus the ones put on them (`docs/spec/crm.md`, "The timel
 it on a record and taking it off go through the CRM's routes, which check the record first; the
 meeting's `PATCH` only takes it off (`record: null`).
 
+On the web: a project's page has a **Meetings** tab (each meeting's title, when, how long, its
+open actions and summary, opening its page; its menu takes it off the project); every record's
+timeline has a meeting line with its summary; and a meeting's page has a **Record** row that
+links the record it was put on, or else the projects and companies its attendees are from, with
+a picker for its editors to put it on a record and a control to take it off.
+
 ## Capture
 
 Where the audio comes from decides most of the quality, so it is the first thing to get right.

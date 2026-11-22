@@ -1,3 +1,4 @@
+import { MeetingRecord } from "./meeting-record.tsx";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -76,7 +77,11 @@ export function MeetingPage({ id }: { id: string }) {
               <h1 className="text-2xl text-foreground">{m.title ?? "Untitled meeting"}</h1>
               <MetaRow meeting={data} />
             </header>
-            <Properties meeting={data} onShare={editor ? () => setSharing(true) : undefined} />
+            <Properties
+              meeting={data}
+              onShare={editor ? () => setSharing(true) : undefined}
+              canEdit={editor}
+            />
             <Progress meeting={data} />
             <Tabs className="w-full">
               <TabList
@@ -169,7 +174,11 @@ function MetaRow({ meeting }: { meeting: Meeting }) {
   );
 }
 
-function Properties(props: { meeting: Meeting; onShare: (() => void) | undefined }) {
+function Properties(props: {
+  meeting: Meeting;
+  onShare: (() => void) | undefined;
+  canEdit: boolean;
+}) {
   const player = usePlayer();
   const names = new Map(props.meeting.attendees.map((a) => [a.address, a.name]));
   const people = (props.meeting.sharing?.grants ?? []).map((g) => ({
@@ -212,6 +221,7 @@ function Properties(props: { meeting: Meeting; onShare: (() => void) | undefined
           </div>
         </Property>
       )}
+      <MeetingRecord meeting={props.meeting} canEdit={props.canEdit} />
     </dl>
   );
 }

@@ -108,7 +108,7 @@ export const crmTimelineQuery = (kind: CrmRecordKind, id: string) =>
     getNextPageParam: (page) => page.nextCursor,
   });
 
-const KNOWN_KINDS = new Set(["event", "note", "contract", "thread", "activity"]);
+const KNOWN_KINDS = new Set(["event", "note", "contract", "thread", "activity", "meeting"]);
 function isKnownItem(item: unknown): item is CrmTimelineItem {
   const kind = (item as { kind?: unknown } | null)?.kind;
   return typeof kind === "string" && KNOWN_KINDS.has(kind);

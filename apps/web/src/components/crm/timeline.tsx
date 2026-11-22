@@ -5,6 +5,7 @@ import {
   IconCopy,
   IconFileText,
   IconMail,
+  IconMicrophone,
   IconNote,
   IconTrash,
 } from "@/components/icons/central";
@@ -31,6 +32,7 @@ import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import type { CrmRecordKind, CrmStage, CrmTimelineItem } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
+import { MeetingLine } from "./record-meetings.tsx";
 
 const WHEN = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -157,6 +159,18 @@ function Item(props: { item: CrmTimelineItem; names: Names; stages: CrmStage[]; 
       );
     case "thread":
       return <ThreadLine item={item} names={names} />;
+    case "meeting":
+      return (
+        <Line
+          icon={IconMicrophone}
+          at={item.at}
+          text={<Actor name={item.meeting.title ?? "Untitled meeting"} />}
+        >
+          <Card>
+            <MeetingLine meeting={item.meeting} />
+          </Card>
+        </Line>
+      );
     case "activity":
       return (
         <Line
