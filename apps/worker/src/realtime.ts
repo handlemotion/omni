@@ -59,6 +59,7 @@ import {
   recheckOutsiders,
 } from "./realtime-outside.ts";
 import { closeOutsider, leavePresence } from "./realtime-presence.ts";
+import { driveTags, greet, logForMembers, logOf, syncTag, watchTag } from "./realtime-log.ts";
 
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
@@ -67,14 +68,12 @@ export const MEMBER_HEADER = "x-omni-member-id";
  * `storage.teamspaces` alone, since its token reaches Storage alone. Tagged `sync:<memberId>`.
  */
 export const SYNC_HEADER = "x-omni-sync";
-const syncTag = (memberId: string) => `sync:${memberId}`;
 /**
  * Set (by the Worker) on a watch socket: the desktop notifications of one workspace, kept open
  * for every workspace the user is in. It hears `WATCHED` events alone and never counts as the
  * member being online there, so their phone still gets its push. Tagged `watch:<memberId>`.
  */
 export const WATCH_HEADER = "x-omni-watch";
-const watchTag = (memberId: string) => `watch:${memberId}`;
 
 export type RealtimeEvent =
   | { type: "changed"; mailboxId: string; threadIds: string[] }
@@ -142,6 +141,7 @@ export class Realtime extends DurableObject<Env> {
         : memberId;
     const team = tag === memberId && request.headers.has(TEAM_HEADER);
     this.ctx.acceptWebSocket(server, team ? [tag, TEAM_TAG] : [tag]);
+    greet(this.ctx, server, new URL(request.url).searchParams.get("since"));
     if (team) teamSocketOpened(this.ctx, server, memberId);
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -168,13 +168,14 @@ export class Realtime extends DurableObject<Env> {
 
   /**
    * Sends the events, in order, to these members' app sockets (all but `mail.arrived`) and watch
-   * sockets (`WATCHED` ones); returns the members with no app socket open.
+   * sockets (`WATCHED` ones); returns the members with no app socket open. Every event but
+   * presence is logged first, so a member who was away hears it when they come back.
    */
   async send(memberIds: string[], events: OutboundEvent[]) {
-    const forApps = events.filter((e) => e.type !== "mail.arrived").map((e) => JSON.stringify(e));
-    const forWatch = events.filter((e) => WATCHED.has(e.type)).map((e) => JSON.stringify(e));
+    const members = [...new Set(memberIds)];
+    const { forApps, forWatch } = logForMembers(this.ctx, members, events, WATCHED);
     const offline: string[] = [];
-    for (const memberId of new Set(memberIds)) {
+    for (const memberId of members) {
       const sockets = this.ctx.getWebSockets(memberId);
       if (sockets.length === 0) offline.push(memberId);
       sendAll(sockets, forApps);
@@ -231,7 +232,7 @@ export class Realtime extends DurableObject<Env> {
   ) {
     const reaching = space === "teamspace" ? await this.teamspaceAudience(teamspaceId) : null;
     const sockets = driveAudience(this.ctx, ownerMemberId, reaching);
-    const message = JSON.stringify({
+    const message = logOf(this.ctx).append(driveTags(ownerMemberId, reaching), {
       type: "storage.changed",
       space,
       ...(teamspaceId ? { teamspaceId } : {}),

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import * as Y from "yjs";
 import { appendRaw } from "./live-support.ts";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
-import { CookieJar, signIn, WEB_ORIGIN } from "./support.ts";
+import { pushFrame, CookieJar, signIn, WEB_ORIGIN } from "./support.ts";
 
 const S2 = { url: "http://127.0.0.1:54380/v1", basin: "omni-docs-dev" };
 
@@ -40,7 +40,7 @@ async function open(path: string, jar: CookieJar, extra: Record<string, string> 
   const waiters = new Set<() => void>();
   const closed = Promise.withResolvers<number>();
   socket.addEventListener("message", (e) => {
-    received.push(JSON.parse(String(e.data)) as Event);
+    pushFrame(received, e.data);
     for (const waiter of waiters) waiter();
   });
   socket.addEventListener("close", (e) => closed.resolve(e.code));

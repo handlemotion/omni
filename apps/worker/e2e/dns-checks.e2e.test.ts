@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { type OnboardingStack, startOnboardingStack, waitFor } from "./onboarding-stack.ts";
-import { WEB_ORIGIN, type CookieJar } from "./support.ts";
+import { pushFrame, WEB_ORIGIN, type CookieJar } from "./support.ts";
 
 let stack: OnboardingStack;
 beforeAll(async () => {
@@ -53,7 +53,7 @@ test("while the DNS page is open, the domain is re-checked on its own and the re
     headers: { cookie: a.jar.header, origin: WEB_ORIGIN },
   } as unknown as string[]);
   const events: { type: string; domainId?: string }[] = [];
-  socket.addEventListener("message", (e) => events.push(JSON.parse(String(e.data))));
+  socket.addEventListener("message", (e) => pushFrame(events, e.data));
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener("open", () => resolve());
     socket.addEventListener("error", () => reject(new Error("websocket failed to open")));

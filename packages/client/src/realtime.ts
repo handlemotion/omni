@@ -10,12 +10,10 @@ import type {
   StorageLiveRecord,
   StorageTeamspacesChangedEvent,
   TalkEvent,
-  TalkFile,
-  TalkMessage,
-  TalkReaction,
 } from "@omni/contracts";
 import type { schema } from "@omni/db";
 import type { Realtime as RealtimeObject } from "@omni/worker";
+import { isId, parseTalkEvent } from "./realtime-talk.ts";
 
 /**
  * Why a member was notified: assigned to them, @mentioned in a note, a note on a conversation they
@@ -94,9 +92,12 @@ export interface RealtimeOptions {
   onEvent: (event: RealtimeEvent) => void;
   /**
    * Socket state. An `"open"` with `reconnected: true` follows a socket that dropped or never
-   * opened, so events may have been missed while none was listening: refetch what is on screen.
+   * opened, so events may have been missed while none was listening: refetch what is on screen,
+   * unless `resumed`. Then the Worker has already handed `onEvent` everything addressed to this
+   * member that went by meanwhile (mail, helpdesk, notifications, CRM, calendar, Drive listings,
+   * Talk), in order, before this `"open"`. Presence and live documents are not replayed.
    */
-  onStatus?: (status: RealtimeStatus, info: { reconnected: boolean }) => void;
+  onStatus?: (status: RealtimeStatus, info: { reconnected: boolean; resumed: boolean }) => void;
   /**
    * Opens the socket. Browsers send the session cookie themselves. On iOS, pass it:
    * `(url) => new WebSocket(url, null, { headers: { cookie } })`.
@@ -109,6 +110,11 @@ export interface RealtimeOptions {
   pingIntervalMs?: number;
   /** How long `wake()` waits for its ping's answer before it counts the socket as dead. */
   probeTimeoutMs?: number;
+  /**
+   * How long an opened socket waits for the Worker's `sync` (where its log is, and whether it
+   * resumed) before saying `open` without it, as for a Worker that keeps no log.
+   */
+  syncTimeoutMs?: number;
 }
 
 export interface Realtime {
@@ -135,6 +141,7 @@ export function connectRealtime(options: RealtimeOptions) {
     maxDelayMs = 30_000,
     pingIntervalMs = 25_000,
     probeTimeoutMs = 5_000,
+    syncTimeoutMs = 3_000,
     openSocket = (url) => new WebSocket(url),
   } = options;
   const { shared } = options;
@@ -156,12 +163,25 @@ export function connectRealtime(options: RealtimeOptions) {
   let pingTimer: ReturnType<typeof setInterval> | undefined;
   let probeTimer: ReturnType<typeof setTimeout> | undefined;
   let probe: (() => void) | undefined;
+  let syncTimer: ReturnType<typeof setTimeout> | undefined;
+  let cursor: { epoch: string; seq: number } | undefined;
+  const status = (next: RealtimeStatus, resumed = false) =>
+    options.onStatus?.(next, { reconnected: dropped, resumed });
 
   const connect = () => {
-    options.onStatus?.("connecting", { reconnected: dropped });
-    const current = openSocket(url.toString());
+    status("connecting");
+    const at = new URL(url);
+    if (cursor && !shared) at.searchParams.set("since", `${cursor.epoch}.${cursor.seq}`);
+    const current = openSocket(at.toString());
     socket = current;
     let awaitingPong = false;
+    let awaitingSync = false;
+    const opened = (resumed: boolean) => {
+      if (!awaitingSync) return;
+      awaitingSync = false;
+      clearTimeout(syncTimer);
+      status("open", resumed);
+    };
 
     const drop = () => {
       if (socket !== current) return;
@@ -169,11 +189,12 @@ export function connectRealtime(options: RealtimeOptions) {
       probe = undefined;
       clearInterval(pingTimer);
       clearTimeout(probeTimer);
+      clearTimeout(syncTimer);
       try {
         current.close();
       } catch {}
       dropped = true;
-      options.onStatus?.("closed", { reconnected: dropped });
+      status("closed");
       if (stopped) return;
       const ceiling = Math.min(maxDelayMs, minDelayMs * 2 ** attempt++);
       retryTimer = setTimeout(connect, ceiling / 2 + (Math.random() * ceiling) / 2);
@@ -194,7 +215,8 @@ export function connectRealtime(options: RealtimeOptions) {
         clearTimeout(probeTimer);
         probeTimer = setTimeout(() => awaitingPong && drop(), probeTimeoutMs);
       };
-      options.onStatus?.("open", { reconnected: dropped });
+      awaitingSync = true;
+      syncTimer = setTimeout(() => opened(false), syncTimeoutMs);
     });
     current.addEventListener("message", (message) => {
       if (socket !== current || typeof message.data !== "string") return;
@@ -203,7 +225,15 @@ export function connectRealtime(options: RealtimeOptions) {
         clearTimeout(probeTimer);
         return;
       }
-      const event = parseEvent(message.data);
+      const value = parseJson(message.data);
+      const sync = syncOf(value);
+      if (sync) {
+        cursor = { epoch: sync.epoch, seq: sync.seq };
+        return opened(sync.resumed);
+      }
+      const seq = (value as { seq?: unknown } | undefined)?.seq;
+      if (cursor && isSeqNum(seq) && seq > cursor.seq) cursor.seq = seq;
+      const event = parseEvent(value);
       if (event) options.onEvent(event);
     });
     current.addEventListener("close", (event) => {
@@ -226,8 +256,9 @@ export function connectRealtime(options: RealtimeOptions) {
       probe = undefined;
       clearInterval(pingTimer);
       clearTimeout(probeTimer);
+      clearTimeout(syncTimer);
       current?.close(1000);
-      if (current) options.onStatus?.("closed", { reconnected: dropped });
+      if (current) status("closed");
     },
     send(message) {
       if (!probe || !socket) return false;
@@ -256,13 +287,21 @@ export { LiveParts, splitLiveRecord, type LiveWhole } from "@omni/contracts/stor
 /** `STORAGE_LIVE_SNAP_EVERY` in `@omni/contracts`, without pulling its schemas in. */
 export const LIVE_SNAP_EVERY = 200;
 
-const parseEvent: (data: string) => RealtimeEvent | undefined = (data) => {
-  let value: unknown;
+const parseJson = (data: string) => {
   try {
-    value = JSON.parse(data);
+    return JSON.parse(data) as unknown;
   } catch {
     return undefined;
   }
+};
+
+const syncOf = (value: unknown) => {
+  const sync = value as { type?: unknown; epoch?: unknown; seq?: unknown; resumed?: unknown };
+  if (sync?.type !== "sync" || typeof sync.epoch !== "string" || !isSeqNum(sync.seq)) return;
+  return { epoch: sync.epoch, seq: sync.seq, resumed: sync.resumed === true };
+};
+
+const parseEvent: (value: unknown) => RealtimeEvent | undefined = (value) => {
   if (typeof value !== "object" || value === null) return undefined;
   const event = value as Partial<RealtimeEvent>;
   if (
@@ -348,8 +387,6 @@ const NOTIFICATION_KINDS: Record<NotificationKind, true> = {
   comment: true,
 };
 
-const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0;
-
 const CRM_CHANGED_KINDS: Record<CrmChangedKind, true> = {
   company: true,
   person: true,
@@ -359,68 +396,6 @@ const CRM_CHANGED_KINDS: Record<CrmChangedKind, true> = {
   settings: true,
   contract: true,
   task: true,
-};
-
-const isText = (value: unknown): value is string => typeof value === "string";
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const isTalkReactions = (value: unknown): value is TalkReaction[] =>
-  Array.isArray(value) &&
-  value.every(
-    (r) => isObject(r) && isText(r.emoji) && Array.isArray(r.memberIds) && r.memberIds.every(isId),
-  );
-
-const isTalkFile = (value: unknown): value is TalkFile =>
-  isObject(value) &&
-  (value.nodeId === null || isId(value.nodeId)) &&
-  isText(value.name) &&
-  typeof value.size === "number" &&
-  (value.mimeType === null || isText(value.mimeType));
-
-const isTalkMessage = (value: unknown): value is TalkMessage =>
-  isObject(value) &&
-  isId(value.id) &&
-  isId(value.threadId) &&
-  isId(value.authorMemberId) &&
-  (value.body === null || isText(value.body)) &&
-  (value.file === null || isTalkFile(value.file)) &&
-  isTalkReactions(value.reactions) &&
-  isText(value.createdAt);
-
-const parseTalkChanged = (threadId: string, event: Record<string, unknown>) => {
-  const { read, readAt, reactions } = event;
-  const changed: Extract<TalkEvent, { type: "talk.changed" }> = { type: "talk.changed", threadId };
-  if (read === true) changed.read = true;
-  if (read === true && isText(readAt)) changed.readAt = readAt;
-  if (isObject(reactions) && isId(reactions.messageId) && isTalkReactions(reactions.reactions)) {
-    const version = typeof reactions.version === "number" ? { version: reactions.version } : {};
-    changed.reactions = {
-      messageId: reactions.messageId,
-      reactions: reactions.reactions,
-      ...version,
-    };
-  }
-  return changed;
-};
-
-const parseTalkEvent: (event: Record<string, unknown>) => TalkEvent | undefined = (event) => {
-  const { type, memberId, online, threadId, messageId, fromMemberId, preview, message } = event;
-  if (type === "talk.online" && isId(memberId) && typeof online === "boolean") {
-    return { type, memberId, online };
-  }
-  if (type === "talk.changed" && isId(threadId)) return parseTalkChanged(threadId, event);
-  if (
-    type === "talk.message" &&
-    isId(threadId) &&
-    isId(messageId) &&
-    isId(fromMemberId) &&
-    typeof preview === "string"
-  ) {
-    const carried = isTalkMessage(message) && message.id === messageId ? { message } : {};
-    return { type, threadId, messageId, fromMemberId, preview, ...carried };
-  }
-  return undefined;
 };
 
 const parseCrmEvent: (event: Record<string, unknown>) => CrmChangedEvent | undefined = (event) => {

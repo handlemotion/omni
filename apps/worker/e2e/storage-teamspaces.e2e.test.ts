@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type StorageStack } from "./storage-support.ts";
-import { WEB_ORIGIN, type CookieJar } from "./support.ts";
+import { pushFrame, WEB_ORIGIN, type CookieJar } from "./support.ts";
 
 let stack: StorageStack;
 beforeAll(async () => {
@@ -99,7 +99,7 @@ async function listen(jar: CookieJar) {
     headers: { cookie: jar.header, origin: WEB_ORIGIN },
   } as unknown as string[]);
   const received: Record<string, unknown>[] = [];
-  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
+  socket.addEventListener("message", (e) => pushFrame(received, e.data));
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener("open", () => resolve());
     socket.addEventListener("error", () => reject(new Error("websocket failed to open")));

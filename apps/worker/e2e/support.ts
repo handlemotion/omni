@@ -24,6 +24,23 @@ export const SYSTEM_MAIL_FROM = "no-reply@omni.test";
 /** The web app's origin; browsers send it on every auth POST. */
 export const WEB_ORIGIN = "http://localhost:5173";
 
+/**
+ * A realtime frame as `@omni/client` hands it to an app: the log's `seq` taken off, and nothing
+ * for the `sync` that opens every socket. Tests of the log itself read raw frames.
+ */
+export function appFrame(data: unknown) {
+  const frame = JSON.parse(String(data)) as Record<string, unknown>;
+  if (frame.type === "sync") return undefined;
+  delete frame.seq;
+  return frame;
+}
+
+/** Adds the frame to `into` as an app would get it (`appFrame`), unless it is the `sync`. */
+export function pushFrame<T>(into: T[], data: unknown) {
+  const frame = appFrame(data);
+  if (frame) into.push(frame as T);
+}
+
 const root = join(import.meta.dirname, "..");
 const migrationsFolder = join(import.meta.dirname, "../../../packages/db/migrations");
 

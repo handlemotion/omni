@@ -232,6 +232,73 @@ test("realtime hands typed events to the app and reconnects after the server dro
   expect(statuses.at(-1)?.[0]).toBe("closed");
 });
 
+test("a socket that drops is handed what went by meanwhile before it says open, and resumed", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "resume");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@resume.test");
+  const box = await createMailbox(db, org.id, "ana@resume.test", "personal");
+  await grant(db, org.id, box.id, ana.id);
+  const thread = await seedMessage(db, box, { subject: "One", fromAddress: "a@x.test", uid: 1 });
+
+  const { jar } = await signIn(db, "ana@resume.test");
+  const heardInOrder: (RealtimeEvent | { status: RealtimeStatus; resumed: boolean })[] = [];
+  const realtime = connectRealtime({
+    baseUrl: String(worker.url),
+    openSocket: (url) =>
+      new WebSocket(url, {
+        headers: { cookie: jar.header(), origin: WEB_ORIGIN },
+      } as unknown as string[]),
+    onEvent: (event) => {
+      heardInOrder.push(event);
+      heard();
+    },
+    onStatus: (status, { resumed }) => {
+      heardInOrder.push({ status, resumed });
+      heard();
+    },
+    minDelayMs: 600_000,
+    maxDelayMs: 600_000,
+  });
+  const opens = () => heardInOrder.filter((e) => "status" in e && e.status === "open").length;
+
+  try {
+    await until(() => (opens() === 1 ? true : undefined));
+    await worker.server
+      .getWorker()
+      .evictDurableObject("Realtime", { name: org.id, webSockets: "close" });
+    const closed = () => heardInOrder.some((e) => "status" in e && e.status === "closed");
+    await until(() => (closed() ? true : undefined));
+    const posted = await postMailEvents(worker, {
+      events: [
+        {
+          type: "message.created",
+          folderRole: "inbox",
+          orgId: org.id,
+          mailboxId: box.id,
+          threadId: thread.threadId,
+          messageId: thread.messageId,
+        },
+      ],
+    });
+    expect(posted.status).toBe(202);
+
+    realtime.wake();
+    await until(() => (opens() === 2 ? true : undefined));
+    expect(heardInOrder).toEqual([
+      { status: "connecting", resumed: false },
+      { status: "open", resumed: false },
+      { status: "closed", resumed: false },
+      { status: "connecting", resumed: false },
+      { type: "changed", mailboxId: box.id, threadIds: [thread.threadId] },
+      { type: "thread.changed", mailboxId: box.id, threadIds: [thread.threadId] },
+      { status: "open", resumed: true },
+    ]);
+  } finally {
+    realtime.close();
+  }
+});
+
 test("wake() reconnects now instead of waiting out the backoff", async () => {
   const { db } = database;
   const org = await createOrg(db, "wake");

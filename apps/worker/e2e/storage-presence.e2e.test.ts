@@ -3,7 +3,7 @@ import { untilLockWaiters } from "@omni/db/testing";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type StorageStack } from "./storage-support.ts";
-import { WEB_ORIGIN, type CookieJar } from "./support.ts";
+import { pushFrame, WEB_ORIGIN, type CookieJar } from "./support.ts";
 
 let stack: StorageStack;
 beforeAll(async () => {
@@ -24,7 +24,7 @@ async function connect(jar: CookieJar) {
   const received: Record<string, unknown>[] = [];
   const waiters = new Set<() => void>();
   socket.addEventListener("message", (e) => {
-    received.push(JSON.parse(String(e.data)));
+    pushFrame(received, e.data);
     for (const waiter of waiters) waiter();
   });
   const waitFor = <T>(match: () => T | undefined) => {

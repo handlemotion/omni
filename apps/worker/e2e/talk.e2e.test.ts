@@ -2,6 +2,7 @@ import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
+  pushFrame,
   authPost,
   CookieJar,
   createMember,
@@ -50,7 +51,7 @@ async function connect(cookie: string, options: { talk?: boolean } = {}) {
   const received: Record<string, unknown>[] = [];
   const waiters = new Set<() => void>();
   socket.addEventListener("message", (e) => {
-    received.push(JSON.parse(String(e.data)));
+    pushFrame(received, e.data);
     for (const waiter of waiters) waiter();
   });
   await new Promise<void>((resolve, reject) => {

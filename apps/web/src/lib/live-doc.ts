@@ -175,6 +175,8 @@ export class LiveDoc {
         if (this.started) void this.catchUp();
         if (this.started) this.announce();
         if (this.started) this.watchOrphans();
+        // WARNING: `doc.comments` is not replayed on a resumed socket; one may have gone by.
+        for (const listener of this.commentListeners) listener();
       }),
     );
   }

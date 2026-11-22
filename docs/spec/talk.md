@@ -166,7 +166,7 @@ by id), reactions replace the note's, a read clears that thread's unread count (
 `readAt`), notes take their place by id so out-of-order events still show in order, a note from the
 other one adds to it. It never refetches a whole thread for one note. An event that carries
 nothing (an older Worker) makes it refetch what the event names, the thread's newest page for a
-note. A reconnect refetches Talk, so a missed event is caught up. Every write is a row with its
+note. A reconnect is sent the Talk events it missed (`docs/spec/realtime.md`) and still refetches Talk, so a missed event is caught up either way. Every write is a row with its
 own id, so a retried request at most adds a note again; reactions and reads are upserts.
 
 ## Speed

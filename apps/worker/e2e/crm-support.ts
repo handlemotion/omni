@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import {
+  pushFrame,
   CookieJar,
   createMember,
   createOrg,
@@ -45,7 +46,7 @@ export async function startCrmStack(options: { vars?: Record<string, string> } =
     const received: Record<string, unknown>[] = [];
     const waiters = new Set<() => void>();
     ws.addEventListener("message", (e) => {
-      received.push(JSON.parse(String(e.data)));
+      pushFrame(received, e.data);
       for (const waiter of waiters) waiter();
     });
     await new Promise<void>((resolve, reject) => {

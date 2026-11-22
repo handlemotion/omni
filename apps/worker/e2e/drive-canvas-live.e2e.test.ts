@@ -16,7 +16,7 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import * as Y from "yjs";
 import { connectAgent } from "./mcp-support.ts";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
-import { WEB_ORIGIN, type CookieJar } from "./support.ts";
+import { pushFrame, WEB_ORIGIN, type CookieJar } from "./support.ts";
 
 const S2 = { url: "http://127.0.0.1:54380/v1", basin: "omni-docs-dev" };
 
@@ -49,7 +49,7 @@ async function socket(jar: CookieJar, nodeId: string) {
   const received: Event[] = [];
   const waiters = new Set<() => void>();
   ws.addEventListener("message", (e) => {
-    received.push(JSON.parse(String(e.data)) as Event);
+    pushFrame(received, e.data);
     for (const waiter of waiters) waiter();
   });
   const waitFor = (match: (event: Event) => boolean) => {

@@ -1,4 +1,5 @@
 import type { TalkEvent } from "@omni/contracts";
+import { logOf, TEAM, teamOf } from "./realtime-log.ts";
 
 /**
  * Set (by the Worker, never the client) on a teammate's app socket: they are someone Talk shows
@@ -16,7 +17,7 @@ function hasTeamSocket(ctx: DurableObjectState, memberId: string, except?: WebSo
 }
 
 function tell(ctx: DurableObjectState, event: TalkEvent) {
-  const message = JSON.stringify(event);
+  const message = logOf(ctx).append([TEAM], event);
   for (const socket of ctx.getWebSockets(TEAM_TAG)) {
     try {
       socket.send(message);
@@ -64,9 +65,10 @@ export function closeMember(ctx: DurableObjectState, memberId: string, tags: str
 
 /** Sends a Talk event to these members' Talk apps; returns the members with none open. */
 export function sendTalk(ctx: DurableObjectState, memberIds: string[], event: TalkEvent) {
-  const message = JSON.stringify(event);
+  const members = [...new Set(memberIds)];
+  const message = logOf(ctx).append(members.map(teamOf), event);
   const away: string[] = [];
-  for (const memberId of new Set(memberIds)) {
+  for (const memberId of members) {
     const sockets = ctx
       .getWebSockets(memberId)
       .filter((s) => isOpen(s) && ctx.getTags(s).includes(TEAM_TAG));

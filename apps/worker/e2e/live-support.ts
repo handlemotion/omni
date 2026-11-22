@@ -1,7 +1,7 @@
 import type { Client } from "@modelcontextprotocol/client";
 import { expect } from "vitest";
 import type { StorageStack } from "./storage-support.ts";
-import { WEB_ORIGIN, type CookieJar } from "./support.ts";
+import { pushFrame, WEB_ORIGIN, type CookieJar } from "./support.ts";
 
 /** Live documents in e2e: a member's socket editing a file, and the S2 stream behind it. */
 export const S2 = { url: "http://127.0.0.1:54380/v1", basin: "omni-docs-dev" };
@@ -21,7 +21,7 @@ export async function editor(stack: StorageStack, jar: CookieJar, nodeId: string
   const received: Event[] = [];
   const waiters = new Set<() => void>();
   socket.addEventListener("message", (e) => {
-    received.push(JSON.parse(String(e.data)) as Event);
+    pushFrame(received, e.data);
     for (const waiter of waiters) waiter();
   });
   const waitFor = (match: (event: Event) => boolean) => {
