@@ -573,8 +573,11 @@ test("a journal more epochs behind than one run drains stays owed, and the minut
     .poll(async () => (await liveChangesOf(doc.id)).length, { timeout: 10_000 })
     .toBeGreaterThan(8);
   expect(await stack.cron("* * * * *")).toBe("ok");
-  const runs = (await liveChangesOf(doc.id)).map((run) => [run.epoch, run.firstSeq]);
-  expect(runs).toEqual(expect.arrayContaining(left));
+  const live = await liveChangesOf(doc.id);
+  expect(live.map((run) => [run.epoch, run.firstSeq])).toEqual(expect.arrayContaining(left));
+  expect(live.filter((run) => run.epoch !== start).map((run) => run.contentVersion)).toEqual(
+    left.slice(1).map(() => 3),
+  );
   const [journal] = await stack.db
     .select({ epoch: schema.storageDocJournals.epoch })
     .from(schema.storageDocJournals)
