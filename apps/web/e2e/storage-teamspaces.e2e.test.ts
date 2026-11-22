@@ -160,6 +160,30 @@ test("a deal made elsewhere shows its space in the open Drive sidebar", async ()
     .toBeGreaterThan(0);
 });
 
+test("a space's row deletes the space from its menu, and right-clicking a row selects no text", async () => {
+  const org = await createOrg(db, "delete-spaces");
+  await createMailbox(db, org.id, `hello-${Date.now()}@delete-spaces.test`);
+  const ana = await createMember(db, org.id, `ana-${Date.now()}@delete-spaces.test`);
+  const { page, api } = await signedIn(ana.id, org.id, org.slug);
+  const old = await api("POST", "/api/storage/teamspaces", { name: "Old projects" });
+  await api("POST", "/api/storage/teamspaces", { name: "Kept" });
+  await page.reload();
+
+  const row = page.getByRole("link", { name: "Old projects" });
+  await row.waitFor({ timeout: 30_000 });
+  expect(await row.evaluate((link) => getComputedStyle(link).userSelect)).toBe("none");
+  await row.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete space" }).click();
+
+  await expect.poll(() => row.count(), { timeout: 15_000 }).toBe(0);
+  expect(await page.getByRole("link", { name: "Kept" }).count()).toBeGreaterThan(0);
+  const left = await db
+    .select()
+    .from(schema.storageTeamspaces)
+    .where(eq(schema.storageTeamspaces.id, old.teamspace.id));
+  expect(left).toEqual([]);
+});
+
 async function signedIn(memberId: string, orgId: string, slug: string) {
   const origin = String(worker.url);
   const [user] = await db

@@ -19,7 +19,12 @@ import {
 import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { useNewDoc } from "@/hooks/use-new-doc.ts";
-import { useTeamspaces, useTrashNode, useUploads } from "@/hooks/use-storage.ts";
+import {
+  useDeleteTeamspace,
+  useTeamspaces,
+  useTrashNode,
+  useUploads,
+} from "@/hooks/use-storage.ts";
 import { downloadZip } from "@/lib/download.ts";
 import type { DriveRoot, StorageNode, StoragePlace } from "@/lib/storage.ts";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
@@ -78,7 +83,7 @@ const expandEntry = (expand: Expand) =>
 
 /**
  * A drive's row in the sidebar (a space, Personal, Team): open it, make or upload into it, and,
- * for a space, its settings. Spread `props` on the row; render `dialogs` beside it.
+ * for a space, its settings and, for whoever manages it, deleting it. Spread `props` on the row; render `dialogs` beside it.
  */
 export function useDriveRowMenu(drive: DriveRoot, path: string, expand: Expand) {
   const make = useMakeIn(drive, path);
@@ -86,6 +91,16 @@ export function useDriveRowMenu(drive: DriveRoot, path: string, expand: Expand) 
   const teamspace =
     "teamspaceId" in drive ? teamspaces.find((each) => each.id === drive.teamspaceId) : undefined;
   const [settings, setSettings] = useState(false);
+  const remove = useDeleteTeamspace();
+  const navigate = useNavigate();
+  const { href, place } = useWorkspacePaths();
+  const deleteSpace = (id: string) =>
+    remove.mutate(id, {
+      onSuccess: () => {
+        if (place === path || place.startsWith(`${path}/`)) void navigate({ href: href("/files") });
+      },
+      onError: (error) => storageErrorToast(error, "The space was not deleted"),
+    });
   const entries = () =>
     [
       { icon: IconArrowUpRight, label: "Open", onAction: make.open },
@@ -97,6 +112,13 @@ export function useDriveRowMenu(drive: DriveRoot, path: string, expand: Expand) 
         icon: IconSettings,
         label: "Space settings",
         onAction: () => setSettings(true),
+      },
+      teamspace?.manage && {
+        icon: IconTrash,
+        label: "Delete space",
+        danger: true,
+        disabled: remove.isPending,
+        onAction: () => deleteSpace(teamspace.id),
       },
     ] satisfies ContextMenuEntry[];
   return {

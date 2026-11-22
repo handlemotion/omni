@@ -420,7 +420,7 @@ export function SidebarItem({
         (className, { isFocusVisible, isHovered, isDisabled }) =>
           cn(
             "flex h-8 w-full min-w-0 items-center gap-2.5 rounded-lg px-2 text-start text-sm text-sidebar-foreground",
-            "group/sidebar-item relative overflow-hidden focus-visible:outline-hidden",
+            "group/sidebar-item relative overflow-hidden select-none focus-visible:outline-hidden",
             "**:[svg]:shrink-0 [&_svg:not([class*='text-'])]:text-muted-foreground",
             isCurrent && "bg-sidebar-accent [&_svg:not([class*='text-'])]:text-foreground",
             isHovered && "[&_svg:not([class*='text-'])]:text-foreground",
