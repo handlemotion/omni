@@ -98,6 +98,20 @@ export async function tokenSigningKeys(db: Db) {
   }));
 }
 
+/**
+ * How an OAuth client is named where its writes are shown ("Ana via Claude"): its registered
+ * name, cut to 64 characters, or "an agent" when it registered none.
+ */
+export async function oauthClientName(db: Db, clientId: string) {
+  const [row] = clientId
+    ? await db
+        .select({ name: oauthClients.name })
+        .from(oauthClients)
+        .where(eq(oauthClients.clientId, clientId))
+    : [];
+  return row?.name?.trim().slice(0, 64) || "an agent";
+}
+
 /** A first-party public client, as the server's own config defines it. */
 export interface FirstPartyOAuthClient {
   clientId: string;

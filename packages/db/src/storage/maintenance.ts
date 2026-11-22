@@ -90,25 +90,26 @@ export async function purgeStorageTrash(
 }
 
 /**
- * Deletes the versions replaced before `before`, rows first, and subtracts
- * their bytes. Returns the objects the caller must now delete, and whether more is waiting. Each
+ * Deletes the versions replaced before `before`, and the autosaves superseded before
+ * `supersededBefore`, rows first, and subtracts their bytes. Returns the objects the caller must now delete, and whether more is waiting. Each
  * version goes in its own transaction, and one restored meanwhile is no longer there to delete.
  * `keepReadOnly` is as for `purgeStorageTrash`: nothing is deleted for not paying.
  */
 export async function purgeStorageVersions(
   db: Db,
-  options: { before: Date; limit?: number; keepReadOnly?: boolean },
+  options: { before: Date; supersededBefore?: Date; limit?: number; keepReadOnly?: boolean },
 ) {
   const limit = options.limit ?? 100;
+  const isDue = or(
+    lt(storageVersions.replacedAt, options.before),
+    options.supersededBefore
+      ? lt(storageVersions.supersededAt, options.supersededBefore)
+      : undefined,
+  );
   const due = await db
     .select({ id: storageVersions.id, orgId: storageVersions.orgId })
     .from(storageVersions)
-    .where(
-      and(
-        lt(storageVersions.replacedAt, options.before),
-        options.keepReadOnly ? inGoodStanding(db, storageVersions.orgId) : undefined,
-      ),
-    )
+    .where(and(isDue, options.keepReadOnly ? inGoodStanding(db, storageVersions.orgId) : undefined))
     .orderBy(storageVersions.replacedAt)
     .limit(limit + 1);
   const r2Keys: string[] = [];
@@ -117,9 +118,7 @@ export async function purgeStorageVersions(
       await lockUsage(tx, version.orgId);
       const [gone] = await tx
         .delete(storageVersions)
-        .where(
-          and(eq(storageVersions.id, version.id), lt(storageVersions.replacedAt, options.before)),
-        )
+        .where(and(eq(storageVersions.id, version.id), isDue))
         .returning({ size: storageVersions.size, r2Key: storageVersions.r2Key });
       if (!gone) return null;
       await addUsage(tx, version.orgId, -gone.size);

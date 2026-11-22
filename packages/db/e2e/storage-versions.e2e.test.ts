@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
 import { ensurePersonalSpace } from "../src/personal-space.ts";
-import { storageVersions } from "../src/schema/index.ts";
+import { storageContents, storageVersions } from "../src/schema/index.ts";
 import {
   purgeStorageVersions,
   recomputeStorageUsage,
@@ -34,8 +34,14 @@ async function addVersion(
   size: number,
   limitBytes: number | null = null,
   ifContentVersion?: number,
+  agent?: string,
 ) {
-  const opened = await storage.openVersionUpload(nodeId, { size, limitBytes, ifContentVersion });
+  const opened = await storage.openVersionUpload(nodeId, {
+    size,
+    limitBytes,
+    ifContentVersion,
+    agent,
+  });
   if (opened.status !== "ok") return opened;
   await storage.recordUploadPart(opened.upload.id, { partNumber: 1, etag: "etag-1", size });
   const done = await storage.completeUpload(opened.upload.id, { limitBytes, ifContentVersion });
@@ -268,4 +274,166 @@ test("a checked save based on content the file no longer has is refused, on open
 
   expect(await addVersion(storage, file.id, 9, null, 2).then((done) => done.status)).toBe("ok");
   expect(await addVersion(storage, file.id, 4).then((done) => done.status)).toBe("ok");
+});
+
+const MINUTE_MS = 60_000;
+
+async function listed(storage: MemberStorage, nodeId: string) {
+  const versions = await storage.versions(nodeId);
+  if (versions.status !== "ok") throw new Error(versions.status);
+  return versions;
+}
+
+async function age(nodeId: string, ago: { written?: number; sessionStarted?: number }) {
+  if (ago.written) {
+    await db
+      .update(storageContents)
+      .set({ writtenAt: sql`now() - ${`${ago.written} milliseconds`}::interval` })
+      .where(eq(storageContents.nodeId, nodeId));
+  }
+  if (ago.sessionStarted) {
+    await db
+      .update(storageVersions)
+      .set({
+        replacedAt: sql`${storageVersions.replacedAt} - ${`${ago.sessionStarted} milliseconds`}::interval`,
+      })
+      .where(eq(storageVersions.nodeId, nodeId));
+  }
+}
+
+const rowsOf = async (nodeId: string) =>
+  (
+    await db
+      .select({ size: storageVersions.size })
+      .from(storageVersions)
+      .where(eq(storageVersions.nodeId, nodeId))
+  )
+    .map((row) => row.size)
+    .sort();
+
+test("a member's saves minutes apart are one session: one version, its autosaves purged a day later", async () => {
+  const { org, storage } = await workspace("versions-session");
+  const file = await addFile(storage, { space: "personal" }, "essay.md", 10);
+  for (const size of [11, 12, 13]) {
+    expect(await addVersion(storage, file.id, size)).toMatchObject({ status: "ok" });
+  }
+
+  const versions = await listed(storage, file.id);
+  expect(versions.current).toMatchObject({ size: 13, writtenByAgent: null, contentVersion: 4 });
+  expect(versions.versions.map((v) => v.size)).toEqual([10]);
+  expect(await bytesOf(org.id)).toBe(46);
+
+  expect(await rowsOf(file.id)).toEqual([10, 11, 12]);
+  await purgeStorageVersions(db, {
+    before: new Date(Date.now() - STORAGE_VERSION_DAYS * DAY_MS),
+    supersededBefore: new Date(Date.now() - DAY_MS),
+  });
+  expect(await rowsOf(file.id)).toEqual([10, 11, 12]);
+  const purged = await purgeStorageVersions(db, {
+    before: new Date(Date.now() - STORAGE_VERSION_DAYS * DAY_MS),
+    supersededBefore: new Date(Date.now() + MINUTE_MS),
+  });
+  expect(await rowsOf(file.id)).toEqual([10]);
+  expect(purged.r2Keys).toEqual(expect.arrayContaining([expect.stringContaining(org.id)]));
+  expect(await bytesOf(org.id)).toBe(23);
+  expect((await listed(storage, file.id)).versions.map((v) => v.size)).toEqual([10]);
+  expect(await recomputeStorageUsage(db, org.id)).toBe(0);
+});
+
+test("a session ends after five quiet minutes, after fifteen in all, and at someone else's save", async () => {
+  const { org, storage: ana } = await workspace("versions-session-ends");
+  const bea = forMember(db, (await createMember(db, org.id, "bea")).id).storage;
+  const file = await addFile(ana, { space: "shared" }, "plan.md", 10);
+  await addVersion(ana, file.id, 11);
+  await addVersion(ana, file.id, 12);
+  expect((await listed(ana, file.id)).versions.map((v) => v.size)).toEqual([10]);
+
+  await age(file.id, { written: 6 * MINUTE_MS });
+  await addVersion(ana, file.id, 13);
+  expect((await listed(ana, file.id)).versions.map((v) => v.size)).toEqual([12, 10]);
+
+  await age(file.id, { sessionStarted: 16 * MINUTE_MS });
+  await addVersion(ana, file.id, 14);
+  expect((await listed(ana, file.id)).versions.map((v) => v.size)).toEqual([13, 12, 10]);
+
+  await addVersion(bea, file.id, 15);
+  await addVersion(bea, file.id, 16);
+  const versions = await listed(ana, file.id);
+  expect(versions.versions.map((v) => v.size)).toEqual([14, 13, 12, 10]);
+  expect(versions.current).toMatchObject({ size: 16, writtenByName: "bea" });
+});
+
+test("an agent's edit is a version of its own, named for the agent, between its member's own saves", async () => {
+  const { storage } = await workspace("versions-agent");
+  const file = await addFile(storage, { space: "personal" }, "brief.md", 10);
+  await addVersion(storage, file.id, 11);
+  await addVersion(storage, file.id, 12, null, undefined, "Claude");
+  await addVersion(storage, file.id, 13, null, undefined, "Claude");
+  await addVersion(storage, file.id, 14);
+  await addVersion(storage, file.id, 15);
+
+  const versions = await listed(storage, file.id);
+  expect(versions.current).toMatchObject({ size: 15, writtenByAgent: null });
+  expect(versions.versions.map((v) => [v.size, v.writtenByName, v.writtenByAgent])).toEqual([
+    [13, "ana", "Claude"],
+    [12, "ana", "Claude"],
+    [11, "ana", null],
+    [10, "ana", null],
+  ]);
+});
+
+test("a file an agent creates is named for the agent, and its first content stays its own version", async () => {
+  const { storage } = await workspace("versions-agent-created");
+  const opened = await storage.openUpload(
+    { space: "personal" },
+    { name: "Brief", size: 10, limitBytes: null, agent: "Claude" },
+  );
+  if (opened.status !== "ok") throw new Error(opened.status);
+  await storage.recordUploadPart(opened.upload.id, { partNumber: 1, etag: "etag-1", size: 10 });
+  const done = await storage.completeUpload(opened.upload.id, { limitBytes: null });
+  if (done.status !== "ok") throw new Error(done.status);
+  expect((await listed(storage, done.node.id)).current).toMatchObject({
+    writtenByName: "ana",
+    writtenByAgent: "Claude",
+  });
+
+  await addVersion(storage, done.node.id, 11);
+  await addVersion(storage, done.node.id, 12);
+  const versions = await listed(storage, done.node.id);
+  expect(versions.versions.map((v) => [v.size, v.writtenByAgent])).toEqual([[10, "Claude"]]);
+});
+
+test("a save that changes the file's type ends the session, so the content before it stays a version", async () => {
+  const { storage } = await workspace("versions-session-type");
+  const file = await addFile(storage, { space: "personal" }, "notes.md", 10);
+  const save = async (size: number, mimeType: string) => {
+    const opened = await storage.openVersionUpload(file.id, { size, mimeType, limitBytes: null });
+    if (opened.status !== "ok") throw new Error(opened.status);
+    await storage.recordUploadPart(opened.upload.id, { partNumber: 1, etag: "etag-1", size });
+    expect(await storage.completeUpload(opened.upload.id, { limitBytes: null })).toMatchObject({
+      status: "ok",
+    });
+  };
+  await save(11, "text/markdown");
+  await save(12, "text/markdown");
+  await save(13, "text/vnd.omni.doc");
+
+  const versions = await listed(storage, file.id);
+  expect(versions.current).toMatchObject({ size: 13, mimeType: "text/vnd.omni.doc" });
+  expect(versions.versions.map((v) => [v.size, v.mimeType])).toEqual([
+    [12, "text/markdown"],
+    [10, null],
+  ]);
+});
+
+test("an agent ending the session keeps the content before its change, whoever saves next", async () => {
+  const { storage } = await workspace("versions-session-ended");
+  const file = await addFile(storage, { space: "personal" }, "plan.md", 10);
+  await addVersion(storage, file.id, 11);
+  await addVersion(storage, file.id, 12);
+  expect(await storage.endSession(file.id)).toBe("ok");
+  await addVersion(storage, file.id, 13);
+  await addVersion(storage, file.id, 14);
+
+  expect((await listed(storage, file.id)).versions.map((v) => v.size)).toEqual([12, 10]);
 });

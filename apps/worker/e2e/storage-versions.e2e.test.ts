@@ -162,21 +162,32 @@ test("a locked file answers 409 locked to a new version and a restore, and the r
   expect(await stack.usedBytes(org.id)).toBe(11);
 });
 
-test("the daily job deletes versions replaced more than 30 days ago, rows and objects, and no others", async () => {
+test("the daily job deletes versions replaced more than 30 days ago and autosaves superseded a day ago, rows and objects, and no others", async () => {
   const org = await stack.company(`versions-purge-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
   const file = await stack.upload(ana.jar, { space: "personal" }, "log.md", bytes("one"));
   await saveVersion(ana.jar, file.id, "two!");
+  await stack.db
+    .update(schema.storageContents)
+    .set({ writtenAt: new Date(Date.now() - 6 * 60_000) })
+    .where(eq(schema.storageContents.nodeId, file.id));
   await saveVersion(ana.jar, file.id, "three");
+  await saveVersion(ana.jar, file.id, "four");
   const rows = await stack.db
     .select()
     .from(schema.storageVersions)
     .where(eq(schema.storageVersions.nodeId, file.id));
   const oldest = rows.find((row) => row.size === 3)!;
+  const autosave = rows.find((row) => row.size === 5)!;
+  expect(autosave.supersededAt).not.toBeNull();
   await stack.db
     .update(schema.storageVersions)
     .set({ replacedAt: new Date(Date.now() - 31 * 24 * 60 * 60_000) })
     .where(eq(schema.storageVersions.id, oldest.id));
+  await stack.db
+    .update(schema.storageVersions)
+    .set({ supersededAt: new Date(Date.now() - 25 * 60 * 60_000) })
+    .where(eq(schema.storageVersions.id, autosave.id));
 
   expect(await stack.cron("47 3 * * *")).toBe("ok");
 
@@ -184,9 +195,10 @@ test("the daily job deletes versions replaced more than 30 days ago, rows and ob
     .body as StorageVersionsResponse;
   expect(versions.map((version) => version.size)).toEqual([4]);
   expect(await (await stack.bucket()).head(oldest.r2Key)).toBeNull();
+  expect(await (await stack.bucket()).head(autosave.r2Key)).toBeNull();
   expect(await objectCount(org.id)).toBe(2);
-  expect(await stack.usedBytes(org.id)).toBe(9);
-  expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "three"]);
+  expect(await stack.usedBytes(org.id)).toBe(8);
+  expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "four"]);
 });
 
 test("a checked save on stale content answers 409 with the file's content version, and changes nothing until retried", async () => {

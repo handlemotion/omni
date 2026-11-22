@@ -88,6 +88,7 @@ export async function editDoc(
     node.mimeType,
   );
   if (refused) return refused;
+  await files.endSession(nodeId);
   const { entry, through } = await live.rewrite(changed.markdown);
   passOn(deps, node.orgId, nodeId, [entry]);
   return saveLive(

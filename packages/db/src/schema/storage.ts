@@ -240,6 +240,13 @@ export const storageVersions = pgTable(
      * it can find it. Null for a version kept before this column existed.
      */
     contentVersion: integer("content_version"),
+    /** The agent that wrote it for `written_by_member_id`; null when they wrote it in the app. */
+    writtenByAgent: text("written_by_agent"),
+    /**
+     * Set when a later save in the same editing session replaced it: an autosave between the
+     * session's first and last, hidden from the file's versions and purged a day later.
+     */
+    supersededAt: timestamptz("superseded_at"),
   },
   (t) => [
     foreignKey({
@@ -251,6 +258,9 @@ export const storageVersions = pgTable(
     index("storage_versions_replaced_at_idx").on(t.replacedAt),
     index("storage_versions_org_id_idx").on(t.orgId),
     index("storage_versions_written_by_member_id_idx").on(t.writtenByMemberId),
+    index("storage_versions_superseded_at_idx")
+      .on(t.supersededAt)
+      .where(sql`${t.supersededAt} is not null`),
   ],
 );
 
@@ -269,6 +279,13 @@ export const storageContents = pgTable(
       onDelete: "set null",
     }),
     writtenAt: timestamptz("written_at").notNull(),
+    /** The agent that wrote it for `written_by_member_id`; null when they wrote it in the app. */
+    writtenByAgent: text("written_by_agent"),
+    /**
+     * Set when an agent changes the file's live document: the next save, whoever makes it, keeps
+     * this content as a version instead of continuing the editing session that wrote it.
+     */
+    sessionEnded: boolean("session_ended").notNull().default(false),
   },
   (t) => [
     foreignKey({
@@ -439,6 +456,8 @@ export const storageUploads = pgTable(
     sha256: text("sha256"),
     /** When the Worker hashed the stitched object and it matched `sha256`. */
     sha256CheckedAt: timestamptz("sha256_checked_at"),
+    /** The agent writing it for its member (an MCP client's name); null from the app. */
+    agent: text("agent"),
     /** Moves forward with every part recorded: only a day with no parts closes an upload. */
     expiresAt: timestamptz("expires_at").notNull(),
     createdAt: timestamptz("created_at").notNull().defaultNow(),

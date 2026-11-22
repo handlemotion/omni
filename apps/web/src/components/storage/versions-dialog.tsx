@@ -31,6 +31,7 @@ const SAMPLE: StorageVersions = {
     mimeType: null,
     writtenAt: new Date(0).toISOString(),
     writtenByName: "Someone",
+    writtenByAgent: null,
   },
   versions: [],
   keepDays: 30,

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
 import { storageContents, storageNodes, storageVersions } from "../schema/storage.ts";
@@ -18,12 +18,30 @@ import { LOCKED, reach, type FileResult, type Locked, type NodeResult } from "./
 /** A replaced version is kept this long, then deleted for good. */
 export const STORAGE_VERSION_DAYS = 30;
 
-/** Content a file has or had. `writtenByName` is null once its writer is gone. */
+/**
+ * Saves are one editing session, and the file keeps one version for it, while the same member
+ * saves in the app with no more than `STORAGE_SESSION_IDLE_MS` between saves, for up to
+ * `STORAGE_SESSION_MS` from the session's first save. A doc saves itself seconds after typing
+ * stops; without sessions an hour of writing left hundreds of versions.
+ */
+export const STORAGE_SESSION_IDLE_MS = 5 * 60_000;
+export const STORAGE_SESSION_MS = 15 * 60_000;
+
+/** A superseded autosave stays restorable (by id) this long, then is purged. */
+export const STORAGE_SUPERSEDED_MS = 24 * 3_600_000;
+
+/**
+ * Content a file has or had. `writtenByName` is null once its writer is gone; `writtenByAgent`
+ * names the agent that wrote it for them, null when they wrote it in the app.
+ */
 export interface StorageContent {
   size: number;
   mimeType: string | null;
   writtenAt: Date;
   writtenByName: string | null;
+  writtenByAgent: string | null;
+  /** The file's `contentVersion` while this was (or is) its content; null for old versions. */
+  contentVersion: number | null;
 }
 
 export interface StorageVersion extends StorageContent {
@@ -56,10 +74,47 @@ async function currentWriter(ex: Db, node: NodeRow) {
     .select({
       writtenByMemberId: storageContents.writtenByMemberId,
       writtenAt: storageContents.writtenAt,
+      writtenByAgent: storageContents.writtenByAgent,
+      sessionEnded: storageContents.sessionEnded,
     })
     .from(storageContents)
     .where(eq(storageContents.nodeId, node.id));
-  return row ?? { writtenByMemberId: node.createdByMemberId, writtenAt: node.createdAt };
+  return {
+    sessionEnded: row?.sessionEnded ?? false,
+    writer: row
+      ? {
+          writtenByMemberId: row.writtenByMemberId,
+          writtenAt: row.writtenAt,
+          writtenByAgent: row.writtenByAgent,
+        }
+      : {
+          writtenByMemberId: node.createdByMemberId,
+          writtenAt: node.createdAt,
+          writtenByAgent: null,
+        },
+    replaced: !!row,
+  };
+}
+
+async function continuesSession(
+  ex: Db,
+  node: NodeRow,
+  current: Awaited<ReturnType<typeof currentWriter>>,
+  save: { memberId: string; agent: string | null; at: Date; mimeType: string | null },
+) {
+  const { writer } = current;
+  if (!current.replaced || current.sessionEnded || save.agent || writer.writtenByAgent)
+    return false;
+  if (save.mimeType !== node.mimeType) return false;
+  if (writer.writtenByMemberId !== save.memberId) return false;
+  if (save.at.getTime() - writer.writtenAt.getTime() > STORAGE_SESSION_IDLE_MS) return false;
+  const [kept] = await ex
+    .select({ replacedAt: storageVersions.replacedAt })
+    .from(storageVersions)
+    .where(and(eq(storageVersions.nodeId, node.id), isNull(storageVersions.supersededAt)))
+    .orderBy(desc(storageVersions.replacedAt), desc(storageVersions.id))
+    .limit(1);
+  return !!kept && save.at.getTime() - kept.replacedAt.getTime() <= STORAGE_SESSION_MS;
 }
 
 async function setContent(
@@ -72,15 +127,16 @@ async function setContent(
     sha256: string | null;
     writtenByMemberId: string | null;
     writtenAt: Date;
+    writtenByAgent: string | null;
   },
 ) {
-  const { writtenByMemberId, writtenAt } = content;
+  const { writtenByMemberId, writtenAt, writtenByAgent } = content;
   await tx
     .insert(storageContents)
-    .values({ nodeId: node.id, orgId: node.orgId, writtenByMemberId, writtenAt })
+    .values({ nodeId: node.id, orgId: node.orgId, writtenByMemberId, writtenAt, writtenByAgent })
     .onConflictDoUpdate({
       target: storageContents.nodeId,
-      set: { writtenByMemberId, writtenAt },
+      set: { writtenByMemberId, writtenAt, writtenByAgent, sessionEnded: false },
     });
   const revision = await nextRevision(tx, node.orgId);
   const [row] = await tx
@@ -117,7 +173,13 @@ async function editable(ex: Db, door: Door, nodeId: string) {
   return { status: "ok", node: found.node, r2Key: found.node.r2Key } as const;
 }
 
-async function keepCurrent(tx: Db, node: NodeRow, r2Key: string) {
+async function keepCurrent(
+  tx: Db,
+  node: NodeRow,
+  r2Key: string,
+  current: Awaited<ReturnType<typeof currentWriter>>,
+  supersededAt: Date | null = null,
+) {
   await tx.insert(storageVersions).values({
     orgId: node.orgId,
     nodeId: node.id,
@@ -125,12 +187,14 @@ async function keepCurrent(tx: Db, node: NodeRow, r2Key: string) {
     mimeType: node.mimeType,
     r2Key,
     contentVersion: node.contentVersion,
-    ...(await currentWriter(tx, node)),
+    ...current.writer,
+    supersededAt,
   });
 }
 
 /**
- * Makes an uploaded object the file's content and keeps what it replaces. Call with the tree
+ * Makes an uploaded object the file's content and keeps what it replaces: as a version, or as a
+ * superseded autosave when the save continues the session that wrote it. Call with the tree
  * locked. The caller counts the new bytes: the replaced ones stay stored, as a version.
  */
 export const replaceContent: (
@@ -143,6 +207,7 @@ export const replaceContent: (
     r2Key: string;
     sha256: string | null;
     memberId: string;
+    agent?: string | null;
   },
   base?: number | null,
 ) => Promise<NodeResult | Locked | StaleContent> = async (
@@ -157,11 +222,17 @@ export const replaceContent: (
   if (found.node.lockedAt) return LOCKED;
   const stale = staleFor(found.node, base);
   if (stale) return stale;
-  await keepCurrent(tx, found.node, found.r2Key);
+  const at = new Date();
+  const agent = content.agent ?? null;
+  const current = await currentWriter(tx, found.node);
+  const save = { memberId: content.memberId, agent, at, mimeType: content.mimeType };
+  const superseded = (await continuesSession(tx, found.node, current, save)) ? at : null;
+  await keepCurrent(tx, found.node, found.r2Key, current, superseded);
   return setContent(tx, found.node, {
     ...content,
     writtenByMemberId: content.memberId,
-    writtenAt: new Date(),
+    writtenAt: at,
+    writtenByAgent: agent,
   });
 };
 
@@ -177,6 +248,15 @@ export function versionOperations(db: Db, door: Door) {
     async mayWrite(nodeId: string) {
       return (await mayReplace(db, door, nodeId)).status;
     },
+    async endSession(nodeId: string) {
+      const found = await editable(db, door, nodeId);
+      if (found.status !== "ok") return found.status;
+      await db
+        .update(storageContents)
+        .set({ sessionEnded: true })
+        .where(eq(storageContents.nodeId, nodeId));
+      return "ok" as const;
+    },
     async versions(nodeId: string) {
       const found = await editable(db, door, nodeId);
       if (found.status !== "ok") return found satisfies VersionsResult;
@@ -188,13 +268,15 @@ export function versionOperations(db: Db, door: Door) {
           writtenAt: storageVersions.writtenAt,
           replacedAt: storageVersions.replacedAt,
           writtenByName: users.name,
+          writtenByAgent: storageVersions.writtenByAgent,
+          contentVersion: storageVersions.contentVersion,
         })
         .from(storageVersions)
         .leftJoin(members, eq(members.id, storageVersions.writtenByMemberId))
         .leftJoin(users, eq(users.id, members.userId))
-        .where(eq(storageVersions.nodeId, nodeId))
+        .where(and(eq(storageVersions.nodeId, nodeId), isNull(storageVersions.supersededAt)))
         .orderBy(desc(storageVersions.replacedAt), desc(storageVersions.id));
-      const writer = await currentWriter(db, found.node);
+      const { writer } = await currentWriter(db, found.node);
       return {
         status: "ok",
         node: toNode(found.node),
@@ -203,6 +285,8 @@ export function versionOperations(db: Db, door: Door) {
           mimeType: found.node.mimeType,
           writtenAt: writer.writtenAt,
           writtenByName: await nameOf(db, writer.writtenByMemberId),
+          writtenByAgent: writer.writtenByAgent,
+          contentVersion: found.node.contentVersion,
         },
         versions: rows,
       } satisfies VersionsResult;
@@ -234,7 +318,7 @@ export function versionOperations(db: Db, door: Door) {
           .where(and(eq(storageVersions.id, versionId), eq(storageVersions.nodeId, nodeId)))
           .returning();
         if (!version) return NOT_FOUND satisfies RestoreVersionResult;
-        await keepCurrent(tx, found.node, found.r2Key);
+        await keepCurrent(tx, found.node, found.r2Key, await currentWriter(tx, found.node));
         return setContent(tx, found.node, {
           ...version,
           sha256: null,

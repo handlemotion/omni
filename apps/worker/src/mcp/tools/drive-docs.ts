@@ -1,6 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { applyEdits, type EditResult } from "@omni/docs";
-import { forMember, schema, type StorageContext, type StoragePlace } from "@omni/db";
+import {
+  forMember,
+  oauthClientName,
+  schema,
+  type StorageContext,
+  type StoragePlace,
+} from "@omni/db";
 import { z } from "zod";
 import { inGoodStanding } from "../../billing.ts";
 import { createDoc, editDoc } from "../../storage/docs.ts";
@@ -54,12 +60,13 @@ const outputSchema = z.object({ doc: itemSchema });
 
 type Writer = { files: ReturnType<typeof forMember>["storage"]; orgId: string; memberId: string };
 
-const deps = (context: ToolContext) => ({
+const deps = async (context: ToolContext) => ({
   env: context.env,
   db: context.db,
   config: context.config,
   log: context.log,
   waitUntil: context.waitUntil,
+  agent: await oauthClientName(context.db, context.caller.clientId),
 });
 
 async function writerIn(context: ToolContext, drive: StorageContext, orgId: string) {
@@ -154,7 +161,7 @@ async function create(context: ToolContext, input: z.infer<typeof createInput>) 
   if (!writer) return refusal("forbidden");
   const blocked = await ready(context, at.orgId);
   if (blocked) return toolError(blocked);
-  const made = await createDoc(deps(context), writer.files, at.orgId, {
+  const made = await createDoc(await deps(context), writer.files, at.orgId, {
     place: at.place,
     name: input.name,
     markdown: input.markdown,
@@ -183,7 +190,7 @@ async function edit(context: ToolContext, input: z.infer<typeof editInput>) {
     input.edits
       ? applyEdits(current, input.edits)
       : ({ ok: true, markdown: input.markdown ?? "" } satisfies EditResult);
-  const edited = await editDoc(deps(context), writer.files, input.id, change);
+  const edited = await editDoc(await deps(context), writer.files, input.id, change);
   if (edited.status === "invalid") {
     const shown = edited.markdown.slice(0, SHOWN_ON_MISS);
     const more = edited.markdown.length > shown.length ? "\n[…]" : "";

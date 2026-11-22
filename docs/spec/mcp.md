@@ -335,6 +335,9 @@ that opens in Omni as a page people edit together.
   one editing, the edit is the file's next version, checked against the version it was made on.
 - **Shared code.** `packages/docs` (`@omni/docs`) holds the editor's schema, Markdown to and
   from it, the live helpers and `applyEdits`, used by both the web editor and the Worker.
+- **Versions.** Each write is a version of its own, named for the agent (`writtenByAgent`, the
+  OAuth client's name), never folded into its person's editing session
+  (`docs/spec/docs.md`, "Versions").
 - **Limits.** Docs up to 1 MB; Markdown in up to 200k characters; up to 50 edits a call; the
   `actions` rate limit; refused in a workspace whose plan is unpaid. Every write is audited as
   `mcp.drive_doc`.

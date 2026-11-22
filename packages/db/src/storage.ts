@@ -92,6 +92,9 @@ export type {
 } from "./storage/comments.ts";
 export {
   STORAGE_VERSION_DAYS,
+  STORAGE_SESSION_IDLE_MS,
+  STORAGE_SESSION_MS,
+  STORAGE_SUPERSEDED_MS,
   type RestoreVersionResult,
   type StorageContent,
   type StorageVersion,

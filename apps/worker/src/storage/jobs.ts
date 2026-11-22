@@ -3,6 +3,7 @@ import {
   expiredStorageUploads,
   purgeStorageTrash,
   purgeStorageVersions,
+  STORAGE_SUPERSEDED_MS,
   randomStorageSweepStart,
   recomputeStorageUsage,
   removeStorageUpload,
@@ -92,10 +93,11 @@ function sweepTombstones(db: Db, now: Date) {
 function purgeVersions(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOnly: boolean) {
   return Effect.gen(function* () {
     const before = new Date(now.getTime() - STORAGE_VERSION_DAYS * DAY_MS);
+    const supersededBefore = new Date(now.getTime() - STORAGE_SUPERSEDED_MS);
     let objects = 0;
     for (let batch = 0; batch < PURGE_BATCHES; batch++) {
       const { r2Keys, more } = yield* retried("purge_versions", () =>
-        purgeStorageVersions(db, { before, keepReadOnly }),
+        purgeStorageVersions(db, { before, supersededBefore, keepReadOnly }),
       );
       yield* Effect.promise(() => deleteStorageObjects(bucket, r2Keys, log));
       objects += r2Keys.length;

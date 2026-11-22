@@ -251,12 +251,14 @@ const storageContentSchema = z.object({
   mimeType: z.string().nullable(),
   writtenAt: isoDate,
   writtenByName: z.string().nullable(),
+  writtenByAgent: z.string().nullable().optional(),
 });
 export const storageVersionSchema = storageContentSchema.extend({ id, replacedAt: isoDate });
 
 /**
  * `GET /files/:id/versions`: the file's current content and the versions it replaced, newest
- * first. `GET /files/:id/versions/:versionId/content` downloads one, and
+ * first: one for each editing session (a member's autosaves minutes apart are one session; an
+ * agent's edit is always its own). `GET /files/:id/versions/:versionId/content` downloads one, and
  * `POST /files/:id/versions/:versionId/restore` makes it the current content again (answers
  * `{ node }`); the content it displaces becomes a version. Editors only, like the upload.
  */
