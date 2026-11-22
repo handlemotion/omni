@@ -188,10 +188,12 @@ edit through the live document.
 ### Routes and contracts
 
 - `GET /files/:id/history`: `{ sessions: [{ id, startedAt, endedAt, authors: [{ kind, name,
-  agent? }], contentVersion, blocks: { added, removed, changed } }], keepDays }`. Editors only,
-  like Versions.
+  agent }], contentVersion, restorable, versionId }], keepDays }`, newest first. Editors only,
+  like Versions. Block counts come with a session's diff, not the list, which reads no content.
 - `GET /files/:id/history/:sessionId`: the session's page and its block diff with authors.
-- `POST /files/:id/history/:sessionId/restore`: restores through the live document as above.
+- Restore: each session carries `versionId`, the version holding its page (null when it is the
+  file's content now), restored with `POST /files/:id/versions/:versionId/restore`, which edits
+  the live document as above. History has no restore route of its own.
 - Expand only: `by` is optional on records, old tabs ignore it, and Versions' routes stay for the
   files that keep them.
 
