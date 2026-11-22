@@ -13,6 +13,7 @@ import { gateMeter, hasAllowance, READ_ONLY_MESSAGE } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
+import { groupSummary, memberAsk } from "./ask.ts";
 import { meetingFile } from "./audio.ts";
 import { memberFiles, memberMeetings, recordingsFolder, refused, wire } from "./http.ts";
 import { deleteMeetingObjects, meetingEngine } from "./jobs.ts";
@@ -44,10 +45,11 @@ export const meetings = new Hono<AppEnv>()
     });
   })
   .get("/groups/:key", async (c) => {
-    const digest = await memberMeetings(c).groupDigest(c.req.param("key"));
+    const key = c.req.param("key");
+    const digest = await memberMeetings(c).groupDigest(key);
     if (digest.status !== "ok") return refused(c, digest);
     return c.json({
-      summary: digest.cached?.summary ?? null,
+      summary: await groupSummary(c.var, key, digest),
       timeline: digest.meetings.flatMap((m) =>
         m.highlights.map((h) => ({ meetingId: m.id, startedAt: m.startedAt.toISOString(), ...h })),
       ),
@@ -64,6 +66,7 @@ export const meetings = new Hono<AppEnv>()
     if (found.status !== "ok") return refused(c, found);
     return c.json({ actionId: found.actionId, meeting: wire(found.meeting) });
   })
+  .route("/", memberAsk)
   .get("/search", zValidator("query", meetingsSearchQuerySchema), async (c) => {
     const { q, limit } = c.req.valid("query");
     const found = await memberMeetings(c).search(q, limit);

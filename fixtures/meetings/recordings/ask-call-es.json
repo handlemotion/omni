@@ -1,0 +1,36 @@
+{
+  "user": "Question: ¿Cuándo es el lanzamiento y de qué depende el deploy?\n\n## Meeting 1 · 2026-11-16 · Entregas sitio web\nSummary: Dana y Marta revisaron el calendario de entregas: acceso al servidor hoy, diseño el viernes y lanzamiento el día 12.\n- [00:27] Lanzamiento confirmado para el día 12.\nTranscript:\n[00:01] Dana Ruiz: Hola Marta, gracias por el tiempo. Quería revisar el calendario de entregas.\n[00:07] Marta Gil: Claro. El diseño final está listo para el viernes, pero el deploy depende de que nos den acceso al servidor.\n[00:16] Dana Ruiz: Ok, yo me encargo del acceso hoy. And for the English copy, we keep the launch date on the twelfth?\n[00:27] Marta Gil: Yes, the twelfth. Si algo cambia te mando un correo el lunes con el presupuesto actualizado, unos cuarenta y dos mil pesos.\n[00:41] Dana Ruiz: Perfecto. Entonces queda: acceso hoy, diseño el viernes, lanzamiento el doce.\n[00:48] Marta Gil: Exacto, gracias.",
+  "response": {
+    "model": "claude-haiku-5-5",
+    "id": "msg_011ChJXQRxCDY1EANgq7iYVX",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"answer\": \"El lanzamiento está confirmado para el día 12 [1]. El deploy depende de que les den acceso al servidor, y Dana se encarga de conseguirlo hoy [2].\", \"citations\": [{\"meeting\": 1, \"at\": \"00:27\"}, {\"meeting\": 1, \"at\": \"00:07\"}]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 1001,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 114,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}

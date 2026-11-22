@@ -25,6 +25,7 @@ import {
   meetingsAttendees,
   meetingsGrants,
   meetingsMeetings,
+  meetingsNotes,
   meetingsSegments,
   members,
   messageLocations,
@@ -1268,4 +1269,96 @@ test("calendar occurrences: an event by row or UID, and the one on now, only fro
     expect(await door.occurrence({ uid }, null)).toEqual({ status: "not_found" });
     expect(await door.occurrenceAt(new Date(now))).toBeNull();
   }
+});
+
+test("meetings Ask sources: only notes and transcripts of meetings the member can open, in their own workspace", async () => {
+  const t = crypto.randomUUID().slice(0, 8);
+  const home = await createOrg(db, `ask-home-${t}`);
+  const away = await createOrg(db, `ask-away-${t}`);
+  const person = async (name: string) => {
+    const [u] = await db
+      .insert(schemaUsers)
+      .values({
+        id: crypto.randomUUID(),
+        name,
+        email: `${name}-${t}@studio.test`,
+        emailVerified: true,
+      })
+      .returning();
+    return u!;
+  };
+  const join = async (orgId: string, userId: string, role = "member") => {
+    const [row] = await db
+      .insert(members)
+      .values({
+        id: crypto.randomUUID(),
+        organizationId: orgId,
+        userId,
+        role,
+        createdAt: new Date(),
+      })
+      .returning();
+    return row!;
+  };
+  const danaUser = await person("dana");
+  const dana = await join(home.id, danaUser.id);
+  await join(away.id, danaUser.id);
+  const ben = await join(home.id, (await person("ben")).id);
+  const fran = await join(home.id, (await person("fran")).id, "freelancer");
+  const group = `domain:client-${t}.test`;
+
+  const meeting = async (orgId: string, words: string, recordedBy: string | null) => {
+    const [row] = await db
+      .insert(meetingsMeetings)
+      .values({
+        orgId,
+        title: words,
+        groupKey: group,
+        recordedByMemberId: recordedBy,
+        consentAt: new Date(),
+        status: "ready",
+      })
+      .returning();
+    await db
+      .insert(meetingsSegments)
+      .values({ meetingId: row!.id, orgId, seq: 0, startMs: 0, endMs: 1000, text: words });
+    await db.insert(meetingsNotes).values({
+      meetingId: row!.id,
+      orgId,
+      summary: `summary of ${words}`,
+      highlights: [],
+      topics: [],
+      model: "test",
+      promptVersion: 1,
+    });
+    return row!.id;
+  };
+  const mine = await meeting(home.id, `launch date ${t}`, dana.id);
+  const elsewhere = await meeting(away.id, `launch secret ${t}`, null);
+  await db
+    .insert(meetingsGrants)
+    .values({ meetingId: elsewhere, orgId: away.id, address: danaUser.email, role: "viewer" });
+
+  const sources = async (memberId: string) => {
+    const found = await forMember(db, memberId).meetings.groupAskSources(group, `launch ${t}`);
+    return found.status === "ok"
+      ? found.meetings.map((m) => [m.id, m.transcript?.turns.map((x) => x.text) ?? null])
+      : found.status;
+  };
+  expect(await sources(dana.id)).toEqual([[mine, [`launch date ${t}`]]]);
+  expect(await sources(ben.id)).toBe("not_found");
+  expect(await sources(fran.id)).toBe("not_found");
+  const one = async (memberId: string, meetingId: string) =>
+    (await forMember(db, memberId).meetings.askSources(meetingId)).status;
+  expect(await one(dana.id, elsewhere)).toBe("not_found");
+  expect(await one(ben.id, mine)).toBe("not_found");
+
+  await db
+    .update(meetingsMeetings)
+    .set({ access: "workspace" })
+    .where(eq(meetingsMeetings.id, mine));
+  expect(await sources(ben.id)).toEqual([[mine, [`launch date ${t}`]]]);
+  expect(await one(ben.id, mine)).toBe("ok");
+  expect(await sources(fran.id)).toBe("not_found");
+  expect(await one(fran.id, mine)).toBe("not_found");
 });

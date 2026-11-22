@@ -1,4 +1,5 @@
 import type { Db } from "./client.ts";
+import { askGroupMeetings, askOneMeeting } from "./meetings/ask.ts";
 import { resolveStart, type StartRecording } from "./meetings/bind.ts";
 import { memberActor, userActor, type MeetingsActor } from "./meetings/core.ts";
 import {
@@ -39,6 +40,7 @@ export {
   WEBMAIL,
   type MeetingRole,
 } from "./meetings/core.ts";
+export { ASK_TRANSCRIPTS as MEETINGS_ASK_TRANSCRIPTS, type AskSource } from "./meetings/ask.ts";
 export { MEETINGS_PAGE_MAX, type MeetingView } from "./meetings/read.ts";
 export type { MeetingRecord, MeetingRecordKind, MeetingsOnQuery } from "./meetings/crm.ts";
 export type { MeetingsFilter } from "./meetings/find.ts";
@@ -58,6 +60,7 @@ const doors = (db: Db, actorOf: () => Promise<MeetingsActor | null>) => ({
     listMeetings(db, await actorOf(), page),
   search: async (query: string, limit?: number) =>
     searchMeetings(db, await actorOf(), query, limit),
+  askSources: async (meetingId: string) => askOneMeeting(db, await actorOf(), meetingId),
 });
 
 /**
@@ -74,6 +77,8 @@ export function memberMeetings(db: Db, memberId: string) {
     groupDigest: async (groupKey: string, limit?: number) =>
       groupDigest(db, await actor(), groupKey, limit),
     find: async (filter: MeetingsFilter) => findMeetings(db, await actor(), filter),
+    groupAskSources: async (groupKey: string, question: string) =>
+      askGroupMeetings(db, await actor(), groupKey, question),
     action: async (actionId: string) => getAction(db, await actor(), actionId),
     on: async (query: MeetingsOnQuery) => meetingsOn(db, await actor(), query),
     setRecord: async (meetingId: string, record: MeetingRecord | null) =>

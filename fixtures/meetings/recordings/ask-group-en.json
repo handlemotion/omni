@@ -1,0 +1,36 @@
+{
+  "user": "Question: When does the retention dashboard ship, and what was cut?\n\n## Meeting 1 · 2026-11-16 · Week Kickoff\nSummary: The team agreed to ship the retention dashboard on December 4 and to drop the CSV export from the first release.\n- [02:05] Retention dashboard ships December 4.\n- [06:50] CSV export moves to the second release.\n\n## Meeting 2 · 2026-11-09 · Week Kickoff\nSummary: Priya showed the first cohort chart; the numbers were off by one week, and José took the fix.\n- [05:00] José fixes the cohort week offset by Friday.\n\n## Meeting 3 · 2026-11-02 · Week Kickoff\nSummary: Kickoff of the retention project with a budget of 18,000 dollars and a first review in two weeks.\n- [01:35] Budget set at 18,000 dollars.",
+  "response": {
+    "model": "claude-haiku-5-5",
+    "id": "msg_011ChJXQfAw1LHGDJF2UETR3",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"answer\": \"The retention dashboard ships on December 4 [1]. The CSV export was cut from the first release and moved to the second [2].\", \"citations\": [{\"meeting\": 1, \"at\": \"02:05\"}, {\"meeting\": 1, \"at\": \"06:50\"}]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 856,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 92,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}

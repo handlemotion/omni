@@ -1,0 +1,36 @@
+{
+  "user": "## 2026-11-16 · Week Kickoff\nThe team agreed to ship the retention dashboard on December 4 and to drop the CSV export from the first release.\n- [02:05] Retention dashboard ships December 4.\n- [06:50] CSV export moves to the second release.\n\n## 2026-11-09 · Week Kickoff\nPriya showed the first cohort chart; the numbers were off by one week, and José took the fix.\n- [05:00] José fixes the cohort week offset by Friday.\n\n## 2026-11-02 · Week Kickoff\nKickoff of the retention project with a budget of 18,000 dollars and a first review in two weeks.\n- [01:35] Budget set at 18,000 dollars.",
+  "response": {
+    "model": "claude-haiku-5-5",
+    "id": "msg_011ChJXQEpiG2FhoUxJMdNnC",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"summary\": \"These weekly kickoffs track the retention dashboard project, which started on 2026-11-02 with an 18,000 dollar budget and a first review set two weeks out. On 2026-11-09 Priya's first cohort chart showed a one-week offset error, and José took the fix due by Friday. On 2026-11-16 the team agreed to ship the retention dashboard on December 4 and to move the CSV export to the second release. Still open: whether José's cohort fix landed on time, since the notes do not confirm it, and the scope of the second release beyond the CSV export.\"}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 583,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 191,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}

@@ -204,6 +204,7 @@ export async function groupDigest(
       orgId: m.orgId,
       title: m.title,
       startedAt: m.startedAt,
+      durationMs: m.durationMs,
       summary: meetingsNotes.summary,
       highlights: meetingsNotes.highlights,
     })

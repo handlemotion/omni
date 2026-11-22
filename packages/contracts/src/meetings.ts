@@ -77,6 +77,29 @@ export const meetingsSearchQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+/** `POST /api/meetings/ask`: one question about one meeting or one group. */
+export const askMeetingsBodySchema = z
+  .object({
+    meetingId: z.string().min(1).max(64).optional(),
+    groupKey: z.string().min(1).max(400).optional(),
+    question: z.string().trim().min(1).max(1_000),
+  })
+  .refine((b) => (b.meetingId === undefined) !== (b.groupKey === undefined), {
+    message: "ask about one meeting or one group",
+  });
+
+/** A moment the answer cites: `n` is its `[n]` marker in the answer. */
+export interface MeetingsAskCitation {
+  n: number;
+  meetingId: string;
+  atMs: number;
+}
+
+export interface MeetingsAskResponse {
+  answer: string;
+  citations: MeetingsAskCitation[];
+}
+
 /** A meeting's status or content changed: its page refetches. */
 export const meetingsChangedEventSchema = z.object({
   type: z.literal("meetings.changed"),
@@ -87,4 +110,5 @@ export const meetingsChangedEventSchema = z.object({
 export type StartMeetingBody = z.infer<typeof startMeetingBodySchema>;
 export type StopMeetingBody = z.infer<typeof stopMeetingBodySchema>;
 export type ChangeMeetingBody = z.infer<typeof changeMeetingBodySchema>;
+export type AskMeetingsBody = z.infer<typeof askMeetingsBodySchema>;
 export type MeetingsChangedEvent = z.infer<typeof meetingsChangedEventSchema>;

@@ -16,7 +16,7 @@ import {
 export const MIB = 1024 * 1024;
 export const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
-interface Bucket {
+export interface Bucket {
   head(key: string): Promise<{ size: number } | null>;
   put(key: string, body: string): Promise<unknown>;
   list(options: { prefix: string }): Promise<{ objects: { key: string }[] }>;

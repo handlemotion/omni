@@ -81,7 +81,7 @@ guards. Each cap is counted in one place, `capUsage`.
 | Storage | `storageLimit`, with the plan's GB |
 | Triage | `gateTriage` in the AI job, only when a model would run |
 | Meeting minutes | `POST /api/meetings` needs minutes left (`hasAllowance`); `POST /api/meetings/:id/stop` counts the recording's minutes, keyed by its audio file, so a retried stop counts once |
-| Drafts and asks | `gateMeter` with `assist`, before the model runs: wired when drafted replies ship |
+| Drafts and asks | `gateMeter` with `assist`, before the model runs: Meetings' Ask (`POST /api/meetings/ask`) now, drafted replies when they ship |
 
 ## Moving between plans
 

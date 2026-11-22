@@ -332,12 +332,19 @@ structured parts are also kept on the meeting for its page, its group and the CR
 made only from the meetings its reader can open, and kept under the group and the ids of those
 meetings, so readers who see the same meetings share it and nobody gets one built from a meeting
 they cannot open. A summary is made from the last 12 such meetings' summaries and highlights
-(not their transcripts, so it stays small), on the first read after a meeting in it is ready. The timeline is the highlights themselves, read at once, newest first.
+(not their transcripts, so it stays small), on the first read after a meeting in it is ready: a
+meeting gaining notes changes the set, so the next read makes a new one, and two reads at once
+keep one, since the set is the key. When the model fails, the page shows the timeline without
+a summary and the next read tries again. The timeline is the highlights themselves, read at once, newest first.
 
 **Ask** answers one question about one meeting or one group: the meeting's transcript, or, for
-a group, only the meetings the asker can open: their summaries and highlights plus the transcripts of the meetings that match the question
-best. Answers cite `[mm:ss]` moments, which the page links to the transcript. It is a turn, not a
-chat history, and it counts toward the AI cap.
+a group, only the meetings the asker can open (the same set their group summary reads): their
+summaries and highlights plus the transcripts of the three whose lines share the most words with
+the question. The answer marks each claim `[1]`, `[2]` and lists those citations as a meeting
+and a time; a citation to a meeting it was not given, or to a time past the meeting's end, is
+dropped with its marker, so the page links every one it shows to the transcript. It is a turn,
+not a chat history: one `assist` from the meetings' workspace (`docs/spec/billing.md`), and its
+tokens count in the workspace's AI usage.
 
 ## Sharing
 
@@ -552,7 +559,7 @@ meetings shared with them. A meeting the caller cannot see answers `404`.
 | `GET /:id/grants` · `PUT /:id/grants/:address` `{ role }` · `DELETE` | Who it is shared with; invite, change, remove                             |
 | `PUT /:id/speakers/:label` `{ name, address? }`                      | Rename a speaker                                                          |
 | `POST /actions/:id/accept` · `/dismiss`                              | A task is made through the calendar's surface; an email returns its draft |
-| `POST /ask` `{ meetingId \| groupKey, question }`                    | One answer, streamed, with cited moments                                  |
+| `POST /ask` `{ meetingId \| groupKey, question }`                    | One answer, `{ answer, citations: [{ n, meetingId, atMs }] }`             |
 | `POST /:id/retry`                                                    | Runs the failed step again                                                |
 | `DELETE /:id`                                                        | Deletes the meeting, its transcript and its audio; the notes doc stays    |
 

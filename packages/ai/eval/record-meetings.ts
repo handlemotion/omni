@@ -2,13 +2,26 @@
 import { writeFileSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
 import {
+  askMeetings,
+  askPrompt,
+  groupPrompt,
   nameSpeakers,
   namingPrompt,
   notesPrompt,
   renderTranscript,
+  summarizeGroup,
   writeNotes,
 } from "../src/index.ts";
-import { meetingsRecordingUrl, namingScenarios, notesScenarios } from "./meetings-scenarios.ts";
+import {
+  askScenarios,
+  groupScenarios,
+  meetingsRecordingUrl,
+  namingScenarios,
+  notesScenarios,
+} from "./meetings-scenarios.ts";
+
+const only = process.argv.slice(2);
+const wanted = (id: string) => only.length === 0 || only.some((prefix) => id.startsWith(prefix));
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) {
@@ -29,7 +42,7 @@ function recordingClient() {
   return { client, seen };
 }
 
-for (const { id, input, holds } of notesScenarios) {
+for (const { id, input, holds } of notesScenarios.filter((s) => wanted(s.id))) {
   const { client, seen } = recordingClient();
   const started = performance.now();
   const result = await writeNotes(client, input);
@@ -46,7 +59,7 @@ for (const { id, input, holds } of notesScenarios) {
   console.log(`     expected: ${JSON.stringify(holds)}`);
 }
 
-for (const { id, input, expect } of namingScenarios) {
+for (const { id, input, expect } of namingScenarios.filter((s) => wanted(s.id))) {
   const { client, seen } = recordingClient();
   const result = await nameSpeakers(client, input);
   writeFileSync(
@@ -55,4 +68,25 @@ for (const { id, input, expect } of namingScenarios) {
   );
   const got = Object.fromEntries(result.named.map((s) => [s.label, s.address]));
   console.log(`${id}: got ${JSON.stringify(got)}, expected ${JSON.stringify(expect)}`);
+}
+
+for (const { id, meetings, holds } of groupScenarios.filter((s) => wanted(s.id))) {
+  const { client, seen } = recordingClient();
+  const result = await summarizeGroup(client, meetings);
+  writeFileSync(
+    meetingsRecordingUrl(id),
+    JSON.stringify({ user: groupPrompt(meetings), response: seen.response }, null, 2) + "\n",
+  );
+  console.log(`${id}: ${result.summary}\n     expected words: ${JSON.stringify(holds)}`);
+}
+
+for (const { id, question, meetings, holds } of askScenarios.filter((s) => wanted(s.id))) {
+  const { client, seen } = recordingClient();
+  const result = await askMeetings(client, question, meetings);
+  writeFileSync(
+    meetingsRecordingUrl(id),
+    JSON.stringify({ user: askPrompt(question, meetings), response: seen.response }, null, 2) +
+      "\n",
+  );
+  console.log(`${id}: ${JSON.stringify(result, null, 2)}\n     expected: ${JSON.stringify(holds)}`);
 }
