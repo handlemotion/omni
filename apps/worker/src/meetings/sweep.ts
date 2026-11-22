@@ -20,20 +20,9 @@ export const STALLED_MS = 15 * 60_000;
 export const ABANDONED_MS = 12 * 3_600_000;
 
 async function stopAbandoned(env: Env, db: Db, meeting: { id: string; orgId: string }) {
-  const pipeline = meetingsPipeline(db);
-  const chunks = await pipeline.chunks(meeting.id);
-  const last = chunks.at(-1);
-  if (!last) return;
-  const durationMs = Math.max(...chunks.map((c) => c.endMs));
-  const stopped = await pipeline.stopRecording(meeting.id, {
-    endedAt: new Date(),
-    durationMs,
-    audioNodeId: null,
-    chunkCount: last.seq + 1,
-    micSpans: null,
-    cuts: [],
-  });
+  const stopped = await meetingsPipeline(db).stopAbandoned(meeting.id, ABANDONED_MS);
   if (!stopped) return;
+  const { durationMs } = stopped;
   await gateMeter(db, loadConfig(env), {
     orgId: meeting.orgId,
     meter: "meetingMinutes",

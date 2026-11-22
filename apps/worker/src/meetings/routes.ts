@@ -241,8 +241,14 @@ async function taskFor(c: Context<AppEnv>, actionId: string) {
   if (found.status !== "ok") return null;
   const { action, role, meetingTitle } = found;
   if (action.kind !== "task" || action.state !== "open" || role === "viewer") return null;
-  const payload = action.payload as { title?: string; owner?: string | null; due?: string | null };
+  const payload = action.payload as {
+    title?: string;
+    description?: string | null;
+    owner?: string | null;
+    due?: string | null;
+  };
   const notes = [
+    payload.description || null,
     `From the meeting ${meetingTitle ?? "without a title"}`,
     payload.owner ? `Owner: ${payload.owner}` : null,
     payload.due ? `Due: ${payload.due}` : null,
@@ -260,7 +266,9 @@ async function stopRefusal(
   body: { audioNodeId?: string; chunks?: number },
 ) {
   if (body.chunks !== undefined) {
-    const missing = await meetingsPipeline(c.var.db).missingChunks(meetingId, body.chunks);
+    const found = await memberMeetings(c).recordedChunks(meetingId, { missingBelow: body.chunks });
+    if (found.status !== "ok") return refused(c, found);
+    const missing = found.missing ?? [];
     if (!missing.length) return null;
     return apiError(c, "conflict", "some chunks have not arrived; send them, then stop again", {
       details: { reason: "missing_chunks", missing },

@@ -44,6 +44,21 @@ async function joinChunks(
   return { etag: written.etag, size };
 }
 
+/**
+ * The file's name in `Recordings`: the meeting's title, made a name Drive takes (no slashes or
+ * control characters, short enough for the date and extension), and the day it started.
+ */
+export function recordingName(title: string | null, day: string) {
+  const clean = (title ?? "")
+    // oxlint-disable-next-line no-control-regex
+    .replace(/[/\\\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200)
+    .trim();
+  return `${clean || "Recording"} ${day}.webm`;
+}
+
 async function openUpload(files: MemberStorage, found: Filing, size: number) {
   const folderId = await recordingsFolder(files);
   if (!folderId) throw new Error("the recorder's My files could not be reached");
@@ -51,7 +66,7 @@ async function openUpload(files: MemberStorage, found: Filing, size: number) {
   const opened = await files.openUpload(
     { parentId: folderId },
     {
-      name: `${found.meeting.title?.trim() || "Recording"} ${day}.webm`,
+      name: recordingName(found.meeting.title, day),
       size,
       mimeType: "audio/webm",
       limitBytes: null,
@@ -116,7 +131,8 @@ export async function fileRecording(run: MeetingRun, found: Filing) {
   return nodeId;
 }
 
-async function deleteChunks(env: Env, orgId: string, meetingId: string) {
+/** Deletes a recording's chunk objects once it is filed. Safe to run again. */
+export async function deleteChunks(env: Env, orgId: string, meetingId: string) {
   let cursor: string | undefined;
   do {
     const listed = await env.STORAGE_BUCKET.list({

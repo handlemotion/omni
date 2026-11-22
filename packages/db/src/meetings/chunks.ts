@@ -1,6 +1,7 @@
 import { and, asc, eq, lt, sql } from "drizzle-orm";
 import { meetingsChunks, meetingsJobs, meetingsMeetings } from "../schema/meetings.ts";
-import type { Ex } from "./core.ts";
+import { NOT_FOUND, type Ex, type MeetingsActor } from "./core.ts";
+import { stopRecording } from "./pipeline.ts";
 
 /** One chunk as the recorder sent it. */
 export interface Chunk {
@@ -149,4 +150,78 @@ export async function setAudio(ex: Ex, meetingId: string, audioNodeId: string) {
   if (row.audioNodeId && row.audioNodeId !== audioNodeId) return "kept" as const;
   await ex.update(meetingsMeetings).set({ audioNodeId }).where(eq(meetingsMeetings.id, meetingId));
   return "set" as const;
+}
+
+/**
+ * Stops an abandoned recording with the chunks it holds, deciding under the meeting row's lock
+ * (the one `receiveChunk` takes) so a chunk that arrives meanwhile is either counted or refused,
+ * never acknowledged and then left out. Null when it is not abandoned any more, or has no chunk.
+ */
+export async function stopAbandoned(ex: Ex, meetingId: string, olderThanMs: number) {
+  const [meeting] = await ex
+    .select({ status: meetingsMeetings.status })
+    .from(meetingsMeetings)
+    .where(eq(meetingsMeetings.id, meetingId))
+    .for("update");
+  if (meeting?.status !== "recording") return null;
+  const held = await ex
+    .select({
+      seq: meetingsChunks.seq,
+      endMs: meetingsChunks.endMs,
+      receivedAt: meetingsChunks.receivedAt,
+    })
+    .from(meetingsChunks)
+    .where(eq(meetingsChunks.meetingId, meetingId));
+  if (!held.length) return null;
+  const cutoff = Date.now() - olderThanMs;
+  if (held.some((c) => c.receivedAt.getTime() >= cutoff)) return null;
+  const durationMs = Math.max(...held.map((c) => c.endMs));
+  const stopped = await stopRecording(ex, meetingId, {
+    endedAt: new Date(),
+    durationMs,
+    audioNodeId: null,
+    chunkCount: Math.max(...held.map((c) => c.seq)) + 1,
+    micSpans: null,
+    cuts: [],
+  });
+  return stopped ? { durationMs } : null;
+}
+
+/**
+ * The recorder's own view of a recording's chunks: only the member who recorded it, in their
+ * workspace, reads them; anyone else gets `not_found`, so the answer never says a meeting exists.
+ * What the browser recorder's routes read, never the pipeline's unscoped readers.
+ */
+export async function recorderChunks(
+  ex: Ex,
+  actor: MeetingsActor | null,
+  meetingId: string,
+  read: { seq?: number; missingBelow?: number } = {},
+) {
+  const member = actor?.member;
+  if (!member) return NOT_FOUND;
+  const [meeting] = await ex
+    .select({ status: meetingsMeetings.status, by: meetingsMeetings.recordedByMemberId })
+    .from(meetingsMeetings)
+    .where(and(eq(meetingsMeetings.id, meetingId), eq(meetingsMeetings.orgId, member.orgId)));
+  if (!meeting || meeting.by !== member.id) return NOT_FOUND;
+  if (read.seq !== undefined) {
+    return {
+      status: "ok",
+      meetingStatus: meeting.status,
+      chunk: await chunkAt(ex, meetingId, read.seq),
+    } as const;
+  }
+  if (read.missingBelow !== undefined) {
+    return {
+      status: "ok",
+      meetingStatus: meeting.status,
+      missing: await missingChunks(ex, meetingId, read.missingBelow),
+    } as const;
+  }
+  return {
+    status: "ok",
+    meetingStatus: meeting.status,
+    chunks: await chunksOf(ex, meetingId),
+  } as const;
 }

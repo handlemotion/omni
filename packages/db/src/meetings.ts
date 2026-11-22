@@ -83,6 +83,8 @@ export function memberMeetings(db: Db, memberId: string) {
     groupAskSources: async (groupKey: string, question: string) =>
       askGroupMeetings(db, await actor(), groupKey, question),
     action: async (actionId: string) => getAction(db, await actor(), actionId),
+    recordedChunks: async (meetingId: string, read?: { seq?: number; missingBelow?: number }) =>
+      chunks.recorderChunks(db, await actor(), meetingId, read),
     on: async (query: MeetingsOnQuery) => meetingsOn(db, await actor(), query),
     setRecord: async (meetingId: string, record: MeetingRecord | null) =>
       setRecord(db, await actor(), meetingId, record),
@@ -165,6 +167,8 @@ export function meetingsPipeline(db: Db) {
     chunks: (meetingId: string, below?: number | null) => chunks.chunksOf(db, meetingId, below),
     missingChunks: (meetingId: string, count: number) => chunks.missingChunks(db, meetingId, count),
     abandoned: (olderThanMs: number) => chunks.abandoned(db, olderThanMs),
+    stopAbandoned: (meetingId: string, olderThanMs: number) =>
+      db.transaction((tx) => chunks.stopAbandoned(tx, meetingId, olderThanMs)),
     claimUpload: (meetingId: string, uploadId: string) =>
       chunks.claimUpload(db, meetingId, uploadId),
     dropUpload: (meetingId: string, uploadId: string) => chunks.dropUpload(db, meetingId, uploadId),

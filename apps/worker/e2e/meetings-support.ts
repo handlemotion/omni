@@ -61,6 +61,7 @@ export async function startMeetingsStack() {
       TRANSCRIBE_PROVIDER: "assemblyai",
       TRANSCRIBE_URL: origin,
       ANTHROPIC_BASE_URL: origin,
+      MEETINGS_FIRST_RETRY_SECONDS: "",
     },
     secrets: { ANTHROPIC_API_KEY: "recorded", TRANSCRIBE_API_KEY: "recorded" },
   });

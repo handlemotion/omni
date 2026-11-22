@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { afterAll, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
 import { handOverMemberMeetings, meetingsPipeline } from "../src/meetings.ts";
-import { members, storagePolicies, users } from "../src/schema/index.ts";
+import { and, eq, lt } from "drizzle-orm";
+import { meetingsChunks, members, storagePolicies, users } from "../src/schema/index.ts";
 import { setRole } from "./storage-support.ts";
 import { createOrg, createTestDatabase } from "./support.ts";
 
@@ -441,4 +442,44 @@ test("a leaver's meetings change hands only when someone receives them, and stil
   expect(ok(await forMember(db, s.ben.id).meetings.get(meetingId)).role).toBe("owner");
   expect(ok(await forUser(db, s.dana.userId).meetings.get(meetingId)).role).toBe("viewer");
   expect((await meetingsPipeline(db).meeting(meetingId))?.recorder?.address).toBe(s.dana.address);
+});
+
+test("the sweep stops an abandoned recording only while every chunk it holds is old, and counts them all", async () => {
+  const s = await studio();
+  const pipeline = meetingsPipeline(db);
+  const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address] }));
+  for (const seq of [0, 1, 2]) {
+    await pipeline.receiveChunk(meetingId, s.org.id, {
+      seq,
+      size: 10,
+      sha256: String(seq).repeat(64),
+      endMs: (seq + 1) * 5000,
+    });
+  }
+  const old = new Date(Date.now() - 13 * 3_600_000);
+  await db
+    .update(meetingsChunks)
+    .set({ receivedAt: old })
+    .where(and(eq(meetingsChunks.meetingId, meetingId), lt(meetingsChunks.seq, 2)));
+  const twelveHours = 12 * 3_600_000;
+  expect(await pipeline.stopAbandoned(meetingId, twelveHours)).toBeNull();
+  expect(ok(await forMember(db, s.dana.id).meetings.get(meetingId)).meeting.status).toBe(
+    "recording",
+  );
+
+  await db
+    .update(meetingsChunks)
+    .set({ receivedAt: old })
+    .where(eq(meetingsChunks.meetingId, meetingId));
+  expect(await pipeline.stopAbandoned(meetingId, twelveHours)).toEqual({ durationMs: 15_000 });
+  expect((await pipeline.meeting(meetingId))?.job.chunkCount).toBe(3);
+  expect(await pipeline.stopAbandoned(meetingId, twelveHours)).toBeNull();
+  expect(
+    await pipeline.receiveChunk(meetingId, s.org.id, {
+      seq: 3,
+      size: 10,
+      sha256: "3".repeat(64),
+      endMs: 20_000,
+    }),
+  ).toBe("not_recording");
 });

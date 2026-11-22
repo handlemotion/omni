@@ -187,6 +187,10 @@ test("a recorded call becomes a transcript with names, notes and actions, for it
   expect(email.payload.to).toContain(marta);
 
   const task = ready.body.actions.find((a: any) => a.kind === "task");
+  await stack.db
+    .update(schema.meetingsActions)
+    .set({ payload: { ...task.payload, description: "So Marta can review it before Friday." } })
+    .where(eq(schema.meetingsActions.id, task.id));
   expect((await api(ben, "POST", `/actions/${task.id}/accept`)).status).toBe(403);
   const accepted = await api(dana, "POST", `/actions/${task.id}/accept`);
   expect(accepted.body.action).toMatchObject({ state: "done" });
@@ -195,6 +199,7 @@ test("a recorded call becomes a transcript with names, notes and actions, for it
     .from(schema.calendarTasks)
     .where(eq(schema.calendarTasks.title, task.payload.title));
   expect(made).toMatchObject({ ownerMemberId: dana.id, recordKind: null });
+  expect(made?.body).toContain("So Marta can review it before Friday.");
   expect((await api(dana, "POST", `/actions/${task.id}/accept`)).status).toBe(409);
   expect(
     await stack.db
@@ -544,11 +549,13 @@ test("a recording sent in chunks, out of order and one twice, is filed whole and
   const ben = await stack.member(org.id);
   const { meetingId, folderId } = (
     await api(dana, "POST", "/", {
+      title: "Q4 / plan\u0007 review",
       attendees: [{ address: "marta@client.test", name: "Marta Gil" }],
       consent: true,
     })
   ).body;
   expect((await putChunk(ben, meetingId, 0, piece(0))).status).toBe(404);
+  expect((await api(ben, "GET", `/${meetingId}/chunks`)).status).toBe(404);
   for (const seq of [0, 2, 1, 1]) {
     const sent = await putChunk(dana, meetingId, seq, piece(seq));
     expect(sent).toMatchObject({ status: 200, body: { chunk: { seq, sha256: hex(piece(seq)) } } });
@@ -581,6 +588,7 @@ test("a recording sent in chunks, out of order and one twice, is filed whole and
     .from(schema.storageNodes)
     .where(eq(schema.storageNodes.parentId, folderId));
   expect(file).toMatchObject({ kind: "file", size: whole.length, mimeType: "audio/webm" });
+  expect(file?.name).toMatch(/^Q4 plan review \d{4}-\d{2}-\d{2}\.webm$/);
   const bucket = await stack.bucket();
   const left = await bucket.list({ prefix: `meetings/${org.id}/${meetingId}/chunks/` });
   expect(left.objects).toEqual([]);

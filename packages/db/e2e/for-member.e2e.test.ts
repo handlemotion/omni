@@ -13,6 +13,7 @@ import {
 } from "../src/domains.ts";
 import { applyAgentReply, applyConversationChange } from "../src/mail/conversations.ts";
 import { forMember, forUser } from "../src/for-member.ts";
+import { meetingsPipeline } from "../src/meetings.ts";
 import {
   attachments as attachmentsTable,
   calendarAttendees,
@@ -1453,4 +1454,43 @@ test("meetings Ask sources: only notes and transcripts of meetings the member ca
   expect(await one(ben.id, mine)).toBe("ok");
   expect(await sources(fran.id)).toBe("not_found");
   expect(await one(fran.id, mine)).toBe("not_found");
+});
+
+test("a recording's chunks: only its recorder reads them; a teammate it is shared with, or another workspace, gets not_found", async () => {
+  const t = crypto.randomUUID().slice(0, 8);
+  const home = await createOrg(db, `chunks-home-${t}`);
+  const away = await createOrg(db, `chunks-away-${t}`);
+  const dana = await createMember(db, home.id, `dana-${t}@studio.test`);
+  const ben = await createMember(db, home.id, `ben-${t}@studio.test`);
+  const stranger = await createMember(db, away.id, `eve-${t}@else.test`);
+  const started = await forMember(db, dana.id).meetings.start({
+    title: "Kickoff",
+    event: null,
+    attendees: [],
+    groupKey: null,
+    consent: true,
+  });
+  if (started.status !== "ok") throw new Error(started.status);
+  await forMember(db, dana.id).meetings.change(started.meetingId, { access: "workspace" });
+  await meetingsPipeline(db).receiveChunk(started.meetingId, home.id, {
+    seq: 0,
+    size: 10,
+    sha256: "a".repeat(64),
+    endMs: 5000,
+  });
+
+  const mine = await forMember(db, dana.id).meetings.recordedChunks(started.meetingId);
+  expect(mine).toMatchObject({ status: "ok", meetingStatus: "recording" });
+  expect(mine.status === "ok" && mine.chunks?.map((c) => c.seq)).toEqual([0]);
+  expect(
+    await forMember(db, dana.id).meetings.recordedChunks(started.meetingId, { missingBelow: 3 }),
+  ).toMatchObject({ status: "ok", missing: [1, 2] });
+  expect((await forMember(db, ben.id).meetings.get(started.meetingId)).status).toBe("ok");
+  for (const other of [ben, stranger]) {
+    for (const read of [undefined, { seq: 0 }, { missingBelow: 3 }]) {
+      expect(
+        await forMember(db, other.id).meetings.recordedChunks(started.meetingId, read),
+      ).toEqual({ status: "not_found" });
+    }
+  }
 });

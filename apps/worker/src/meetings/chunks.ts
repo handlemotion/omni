@@ -25,16 +25,11 @@ async function sha256Of(bytes: ArrayBuffer) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function recorderMeeting(c: Context<AppEnv>, meetingId: string) {
-  const found = await memberMeetings(c).get(meetingId);
-  if (found.status !== "ok") return found;
-  if (found.meeting.recordedByMemberId !== c.var.member.id) return { status: "forbidden" } as const;
-  return found;
-}
-
 async function readChunk(c: Context<AppEnv>) {
   const declared = (c.req.header("x-content-sha256") ?? "").toLowerCase();
   if (!SHA256.test(declared)) return null;
+  const length = Number(c.req.header("content-length"));
+  if (!Number.isInteger(length) || length <= 0 || length > MEETINGS_MAX_CHUNK_BYTES) return null;
   const bytes = await c.req.arrayBuffer();
   if (bytes.byteLength === 0 || bytes.byteLength > MEETINGS_MAX_CHUNK_BYTES) return null;
   return { bytes, sha256: declared, matches: (await sha256Of(bytes)) === declared };
@@ -53,7 +48,7 @@ export const meetingChunks = new Hono<AppEnv>()
     if (seq >= MEETINGS_MAX_CHUNKS) {
       return apiError(c, "bad_request", `a recording has at most ${MEETINGS_MAX_CHUNKS} chunks`);
     }
-    const found = await recorderMeeting(c, meetingId);
+    const found = await memberMeetings(c).recordedChunks(meetingId, { seq });
     if (found.status !== "ok") return refused(c, found);
     const chunk = await readChunk(c);
     if (!chunk) {
@@ -69,7 +64,7 @@ export const meetingChunks = new Hono<AppEnv>()
     const { orgId } = c.var.member;
     const pipeline = meetingsPipeline(c.var.db);
     const key = chunkKey(orgId, meetingId, seq, chunk.sha256);
-    const held = await pipeline.chunk(meetingId, seq);
+    const held = found.chunk;
     if (!held) await c.env.STORAGE_BUCKET.put(key, chunk.bytes);
     const received = held
       ? held.sha256 === chunk.sha256
@@ -97,8 +92,10 @@ export const meetingChunks = new Hono<AppEnv>()
   })
   .get("/:id/chunks", async (c) => {
     const meetingId = c.req.param("id");
-    const found = await recorderMeeting(c, meetingId);
+    const found = await memberMeetings(c).recordedChunks(meetingId);
     if (found.status !== "ok") return refused(c, found);
-    const chunks = await meetingsPipeline(c.var.db).chunks(meetingId);
-    return c.json({ status: found.meeting.status, chunks } satisfies MeetingChunksResponse);
+    return c.json({
+      status: found.meetingStatus,
+      chunks: found.chunks ?? [],
+    } satisfies MeetingChunksResponse);
   });
