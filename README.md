@@ -30,6 +30,11 @@ Sign in as `dev@example.com`. The seed connects two mailboxes on the local Green
 | `docs/spec`            | The product spec                                                          |
 | `docs/self-hosting.md` | How to run your own Omni                                                  |
 
+## Icons
+
+The web and iOS apps use [Central Icons](https://centralicons.com), a commercial icon set
+installed from npm. Using them in your own build needs your own Central licence.
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). Report vulnerabilities privately, as

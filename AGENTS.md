@@ -140,7 +140,7 @@ Each test must catch a bug we would plausibly ship; name it before writing the t
 
 ## Infrastructure
 
-- Cloudflare account **Handle** (`473fbe436e39d8f3d33b6bb09afd3dd7`) owns `omnidirectional.app`
+- Cloudflare account **Handle** (its ID is `CLOUDFLARE_ACCOUNT_ID` in `prd_github`) owns `omnidirectional.app`
   and every Worker, R2 bucket, Queue and Hyperdrive config. Inspect and change it with `cf`
   (token from `doppler run -p omni -c prd_github -- cf ...`); `wrangler` only for local dev and
   type generation.

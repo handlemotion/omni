@@ -17,7 +17,7 @@ env files. Two files do the work:
 
 ## Set up the environment
 
-In claude.ai, open the environment settings for `handlemotion/omni`:
+In claude.ai, open the environment settings for `wokshop/omni`:
 
 1. **Setup script**: paste `kickoff.sh` as it is on `main`. Re-paste it whenever the
    file changes; the snapshot rebuilds when the script does.

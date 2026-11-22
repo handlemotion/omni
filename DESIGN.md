@@ -42,8 +42,9 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   `@/components/icons/central` under our own `Icon<Name>` (add one there if it's missing). Never
   draw an icon inline, paste SVG paths, or add a one-off icon file; when a glyph looks wrong, pick
   another Central glyph. Where a glyph comes in sizes (`Small`, `Medium`, `Large`), use `Medium`,
-  always: it matches the rest of the set. Central's licence forbids sharing its glyphs publicly, so
-  Omni's web app stays closed source.
+  always: it matches the rest of the set. The glyphs come from Central's npm packages, never from
+  this repository: copying a glyph's SVG into the repo would publish it, which Central's licence
+  forbids.
 - **File types a brand owns show its mark.** PDF, Word, Excel and PowerPoint files show their
   brand's icon from svgl (`@ridemountainpig/svgl-react`), in its own colours, wherever a file's
   type is drawn: `FileGlyph` and `FileTile` for files, `AttachmentGlyph` for attachment chips
