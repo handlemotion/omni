@@ -1,4 +1,4 @@
-import { sql, type SQL } from "drizzle-orm";
+import { desc, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageLocks, storageNodes } from "../schema/storage.ts";
 import type { Door } from "./access.ts";
@@ -12,7 +12,7 @@ export function inDrives(drives: Drive[], alias: string) {
   return sql.join(
     drives.map(
       (drive) =>
-        sql`(${t}.org_id = ${drive.orgId} and ${t}.space = ${drive.space} and coalesce(${t}.owner_member_id, '') = ${drive.ownerMemberId ?? ""})`,
+        sql`(${t}.org_id = ${drive.orgId} and ${t}.space = ${drive.space} and coalesce(${t}.owner_member_id, '') = ${drive.ownerMemberId ?? ""} and coalesce(${t}.teamspace_id, '') = ${drive.teamspaceId ?? ""})`,
     ),
     sql` or `,
   );
@@ -50,10 +50,7 @@ function firstLiveMatches(drives: Drive[], pattern: string, type: string | undef
 export const likeEscaped = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 export function findOperations(db: Db, door: Door) {
-  const drives = async () => {
-    const found = await Promise.all([door.root(db, "personal"), door.root(db, "shared")]);
-    return found.filter((drive): drive is Drive => drive !== null);
-  };
+  const drives = () => door.drives(db);
   return {
     async search(query: string, filter: StorageSearchFilter = {}) {
       const text = query.trim();
@@ -69,5 +66,38 @@ export function findOperations(db: Db, door: Door) {
         .orderBy(storageNodes.kind, sql`lower(${storageNodes.name})`, storageNodes.id);
       return rows.map(toNode) satisfies StorageNode[];
     },
+
+    async recent(limit = STORAGE_FIND_LIMIT) {
+      const reach = await drives();
+      if (!reach.length) return [] satisfies StorageNode[];
+      const rows = (await db.execute(sql`
+        select n.id from ${storageNodes} n
+        where (${inDrives(reach, "n")}) and n.kind = 'file' and n.trashed_at is null
+          and not n.attached and ${noTrashAbove(sql`n.parent_id`)}
+        order by n.updated_at desc, n.id desc
+        limit ${Math.min(Math.max(1, limit), STORAGE_FIND_LIMIT)}`)) as unknown as { id: string }[];
+      if (!rows.length) return [] satisfies StorageNode[];
+      const nodes = await db
+        .select(nodeColumns)
+        .from(storageNodes)
+        .leftJoin(storageLocks, lockJoin)
+        .where(
+          inArray(
+            storageNodes.id,
+            rows.map((row) => row.id),
+          ),
+        )
+        .orderBy(desc(storageNodes.updatedAt), desc(storageNodes.id));
+      return nodes.map(toNode) satisfies StorageNode[];
+    },
   };
 }
+
+const noTrashAbove = (parent: SQL) => sql`not exists (
+  with recursive up(parent_id, trashed, depth) as (
+    select p.parent_id, p.trashed_at is not null, 1 from ${storageNodes} p where p.id = ${parent}
+    union all
+    select p.parent_id, p.trashed_at is not null, up.depth + 1 from ${storageNodes} p
+      join up on p.id = up.parent_id
+      where not up.trashed and up.depth < ${MAX_WALK}
+  ) select 1 from up where trashed)`;

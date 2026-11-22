@@ -2,8 +2,15 @@ import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
 import { storageNodes } from "../schema/storage.ts";
-import { insertNode, lockTree, STORAGE_NAME_MAX_LENGTH, type Drive } from "./core.ts";
+import {
+  insertNode,
+  lockTree,
+  personalDrive,
+  STORAGE_NAME_MAX_LENGTH,
+  type Drive,
+} from "./core.ts";
 import { leaveTombstones, nextRevision } from "./revision.ts";
+import { handOverTeamspaces } from "./teamspaces.ts";
 
 export type StorageHandOverResult =
   | { status: "ok"; moved: number; folderId: string | null; toMemberId: string | null }
@@ -22,7 +29,8 @@ function folderName(person: string) {
  * `Files from <name>` at the root of the My files of `toMemberId` (whoever removed them), or of
  * the workspace's oldest other owner when that is absent, not in the workspace, or the member
  * themselves. By `owner_member_id`, in one transaction. Run again it finds nothing to move and
- * changes nothing, so it is safe before every removal. Shared files, grants and links stay as
+ * changes nothing, so it is safe before every removal. A teamspace the member alone owns gets the
+ * same recipient as an owner, so it never loses its last one. Shared files, grants and links stay as
  * they are. The folder sits one level above what was a root, so a tree ends one deeper each
  * time it changes hands, past the depth cap if it was at it; the walks are not bound by the cap
  * (`MAX_WALK` in `core.ts`).
@@ -51,21 +59,6 @@ export async function handOverMemberStorage(
       eq(storageNodes.orgId, leaving.orgId),
       eq(storageNodes.ownerMemberId, input.memberId),
     );
-    const [first] = await tx
-      .select({ id: storageNodes.id })
-      .from(storageNodes)
-      .where(owned)
-      .limit(1);
-    if (!first) {
-      const result: StorageHandOverResult = {
-        status: "ok",
-        moved: 0,
-        folderId: null,
-        toMemberId: null,
-      };
-      return result;
-    }
-
     const others = and(eq(members.organizationId, leaving.orgId), ne(members.id, input.memberId));
     const [named] = input.toMemberId
       ? await tx
@@ -81,12 +74,30 @@ export async function handOverMemberStorage(
           .where(and(others, isOwner))
           .orderBy(asc(members.createdAt), asc(members.id))
           .limit(1);
+    if (owner) await handOverTeamspaces(tx, input.memberId, owner.id);
+
+    const [first] = await tx
+      .select({ id: storageNodes.id })
+      .from(storageNodes)
+      .where(owned)
+      .limit(1);
     if (!owner) {
-      const result: StorageHandOverResult = { status: "no_recipient" };
+      const result: StorageHandOverResult = first
+        ? { status: "no_recipient" }
+        : { status: "ok", moved: 0, folderId: null, toMemberId: null };
+      return result;
+    }
+    if (!first) {
+      const result: StorageHandOverResult = {
+        status: "ok",
+        moved: 0,
+        folderId: null,
+        toMemberId: null,
+      };
       return result;
     }
 
-    const drive: Drive = { orgId: leaving.orgId, space: "personal", ownerMemberId: owner.id };
+    const drive: Drive = personalDrive(leaving.orgId, owner.id);
     const folder = await insertNode(tx, {
       drive,
       parentId: null,

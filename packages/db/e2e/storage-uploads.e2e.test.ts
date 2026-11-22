@@ -188,7 +188,7 @@ test("purging Trash frees the bytes of everything inside, only once it is 30 day
   expect(await storage.deleteForever(recent.id)).toEqual({
     status: "ok",
     r2Keys: [`orgs/${org.id}/${recent.id}`],
-    drive: { orgId: org.id, space: "personal", ownerMemberId: member.id },
+    drive: { orgId: org.id, space: "personal", ownerMemberId: member.id, teamspaceId: null },
   });
   expect((await storageUsageOf(db, org.id)).bytes).toBe(7);
 });

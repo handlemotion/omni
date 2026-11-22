@@ -155,7 +155,7 @@ func items(_ count: Int) -> [String: Any] {
             contentSha256: nil, contentVersion: 1, createdAt: "2026-11-16T10:20:30.123Z", createdByMemberId: nil,
             id: "n\(index)", kind: .file, lockedAt: nil, mimeType: "application/pdf", name: "Report \(index).pdf",
             orgId: "org", ownerMemberId: nil, parentId: nil, revision: index, size: index, space: .personal,
-            trashedAt: nil, updatedAt: "2026-11-17T10:20:30.123Z"
+            teamOnly: nil, teamspaceId: nil, trashedAt: nil, updatedAt: "2026-11-17T10:20:30.123Z"
         )
         checksum &+= inspect(Item(node: node))
     }
@@ -166,7 +166,7 @@ func upload(_ file: URL, sync: Sync, name: String) async throws -> Int {
     let org = sync.settings.workspaces[0]
     let bytes = try await Uploader.measure(file)
     let node = try await Uploader(sync: sync, orgId: org, key: "bench-\(UUID().uuidString)").send(bytes, open: { size, sha256 in
-        let body = StorageOpenUploadBody(mimeType: nil, name: name, parentId: nil, sha256: sha256, size: size, space: .personal)
+        let body = StorageOpenUploadBody(mimeType: nil, name: name, parentId: nil, sha256: sha256, size: size, space: .personal, teamspaceId: nil)
         return try await sync.client.openUpload(orgId: org, body)
     }, progress: Progress(totalUnitCount: 1))
     return node.size

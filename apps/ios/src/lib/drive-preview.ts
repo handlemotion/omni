@@ -87,7 +87,11 @@ export const useFileText = (node: DriveNode) =>
  * while the folder loads, since the viewer opens on `node`'s page of the list.
  */
 export function useFolderImages(node: DriveNode | undefined) {
-  const place = node?.parentId ? { parent: node.parentId } : { space: node?.space ?? "personal" };
+  const place = node?.parentId
+    ? { parent: node.parentId }
+    : node?.teamspaceId
+      ? { teamspace: node.teamspaceId }
+      : { space: node?.space === "shared" ? ("shared" as const) : ("personal" as const) };
   const folder = useInfiniteQuery({ ...folderQuery(place), enabled: !!node });
   if (!node || folder.isPending) return null;
   const images = (folder.data ?? []).filter(

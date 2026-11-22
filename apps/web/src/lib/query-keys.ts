@@ -121,7 +121,7 @@ export const keys = {
   /** Storage: every folder listing, Trash and usage. */
   storage: () => storage(),
   /** One folder's contents: a space's root, or a folder by id. */
-  storageList: (place: { space: string } | { parentId: string }) =>
+  storageList: (place: { space: string } | { teamspaceId: string } | { parentId: string }) =>
     [...storage(), "list", place] as const,
   /** Every folder's contents. */
   storageLists: () => [...storage(), "list"] as const,
@@ -131,6 +131,11 @@ export const keys = {
     [...storage(), "search", q, ...(filter ? [filter] : [])] as const,
   storageIcons: (space: string) => [...storage(), "icons", space] as const,
   storageUsage: () => [...storage(), "usage"] as const,
+  /** The workspace's teamspaces the member reaches. */
+  storageTeamspaces: () => [...storage(), "teamspaces"] as const,
+  /** Who is in one teamspace. */
+  storageTeamspaceMembers: (teamspaceId: string) =>
+    [...storage(), "teamspaces", teamspaceId, "members"] as const,
   /** Where a node is now: its folder and space. */
   storageNode: (nodeId: string) => [...storage(), "node", nodeId] as const,
   /** Who a file or folder is shared with, and its link. */

@@ -1,5 +1,5 @@
-import type { StorageFilePresenceEvent, StorageSpace } from "@omni/contracts";
-import { forMember } from "@omni/db";
+import type { StorageFilePresenceEvent, StorageNodeSpace } from "@omni/contracts";
+import { forMember, teamspaceFileAudience } from "@omni/db";
 import { z } from "zod";
 import { openDb } from "./db.ts";
 
@@ -14,8 +14,10 @@ export type FilePresenceMessage = z.infer<typeof filePresenceMessage>;
 /** The file a socket is editing, and the drive that says who may hear it. */
 export interface Editing {
   nodeId: string;
-  space: StorageSpace;
+  space: StorageNodeSpace;
   ownerMemberId: string | null;
+  /** In a teamspace: the members who reach it, the only ones told about it. */
+  audience?: string[];
   /** Locked when last checked (a signed contract): its live document takes no records. */
   locked?: boolean;
   /** When the member's access was last checked (ms), so an append can tell a stale check. */
@@ -63,9 +65,11 @@ const event = (nodeId: string, memberId: string, state: "editing" | "left") =>
 /** The app sockets that see the drive: everyone's for Shared, the owner's for My files. */
 export function audience(ctx: DurableObjectState, at: Editing) {
   const sockets = at.ownerMemberId ? ctx.getWebSockets(at.ownerMemberId) : ctx.getWebSockets();
+  const only = at.space === "teamspace" ? new Set(at.audience ?? []) : null;
   return sockets.filter((socket) => {
     const tag = ctx.getTags(socket)[0];
-    return !tag?.startsWith("sync:") && !tag?.startsWith("watch:");
+    if (!tag || tag.startsWith("sync:") || tag.startsWith("watch:")) return false;
+    return !only || only.has(tag);
   });
 }
 
@@ -114,8 +118,13 @@ export const checkEditing: (
 ) => Promise<Editing | null> = async (env, memberId, nodeId) => {
   const { db, close } = openDb(env, 1);
   let found;
+  let teamspace: string[] | undefined;
   try {
     found = await forMember(db, memberId).storage.file(nodeId);
+    teamspace =
+      found.status === "ok" && found.file.teamspaceId
+        ? await teamspaceFileAudience(db, found.file.id)
+        : undefined;
   } finally {
     await close({ timeout: 0 });
   }
@@ -124,6 +133,7 @@ export const checkEditing: (
     nodeId: found.file.id,
     space: found.file.space,
     ownerMemberId: found.file.ownerMemberId,
+    ...(teamspace ? { audience: teamspace } : {}),
     locked: !!found.file.lockedAt,
     checkedAt: Date.now(),
   };

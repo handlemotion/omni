@@ -1,4 +1,4 @@
-import type { StorageSpace } from "@omni/contracts";
+import type { StorageNodeSpace } from "@omni/contracts";
 import type { Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import type { Logger } from "../log.ts";
@@ -6,8 +6,9 @@ import type { Logger } from "../log.ts";
 /** Where a node lives: its drive. */
 interface Placed {
   orgId: string;
-  space: StorageSpace;
+  space: StorageNodeSpace;
   ownerMemberId: string | null;
+  teamspaceId?: string | null;
 }
 
 /**
@@ -44,16 +45,16 @@ export function announceTo(
   const drives = new Map<string, Placed & { parentIds: Set<string | null> }>();
   for (const one of touched) {
     if (!one) continue;
-    const key = `${one.orgId}:${one.space}:${one.ownerMemberId ?? ""}`;
+    const key = `${one.orgId}:${one.space}:${one.ownerMemberId ?? ""}:${one.teamspaceId ?? ""}`;
     const drive = drives.get(key) ?? { ...one, parentIds: new Set<string | null>() };
     for (const parentId of listingsOf(one)) drive.parentIds.add(parentId);
     drives.set(key, drive);
   }
-  for (const { orgId, space, ownerMemberId, parentIds } of drives.values()) {
+  for (const { orgId, space, ownerMemberId, teamspaceId, parentIds } of drives.values()) {
     const stub = at.env.REALTIME.get(at.env.REALTIME.idFromName(orgId));
     at.waitUntil(
       stub
-        .storageChanged(space, ownerMemberId, [...parentIds])
+        .storageChanged(space, ownerMemberId, [...parentIds], teamspaceId ?? null)
         .catch((error: unknown) => at.log.warn("storage.announce_failed", { error })),
     );
   }

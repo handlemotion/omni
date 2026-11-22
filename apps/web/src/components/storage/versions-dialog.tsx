@@ -13,6 +13,7 @@ import {
 import { FileTrigger } from "@/components/ui/file-trigger";
 import { useRestoreVersion, useStorageVersions, useUploads } from "@/hooks/use-storage.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
+import { placeOf } from "@/lib/storage-cache.ts";
 import { storageVersionUrl, type StorageVersions } from "@/lib/storage-versions.ts";
 import { storageErrorToast } from "./storage-errors.ts";
 import { downloadFile } from "@/lib/download.ts";
@@ -51,7 +52,7 @@ export function VersionsDialog(props: {
     upload(
       [file],
       {
-        place: node.parentId ? { parentId: node.parentId } : { space: node.space },
+        place: placeOf(node),
         shareId,
         replaces: node.id,
       },

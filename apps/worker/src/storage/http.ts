@@ -31,6 +31,9 @@ const FAILURES = {
   version_conflict: ["version_conflict", "it changed since you read it"],
   policy: ["sharing_policy", "your workspace's sharing policy does not allow that"],
   too_many_uploads: ["too_many_uploads", "finish or cancel some uploads first"],
+  not_empty: ["not_empty", "the teamspace still holds files: move them out or to Trash first"],
+  last_owner: ["last_owner", "a teamspace keeps one owner"],
+  not_in_workspace: ["not_in_workspace", "only members of the workspace can be in its teamspaces"],
 } as const satisfies Record<string, readonly [ErrorCode, string]>;
 
 /** The API's error answer for a result `@omni/db` refused, with a code the client can act on. */
@@ -121,9 +124,12 @@ export async function download(c: Context<AppEnv>, found: FileResult) {
 }
 
 /** A request's `parentId` or `space` (the schemas require exactly one) as a place. */
-export const placeOf: (input: { parentId?: string; space?: StorageSpace }) => StoragePlace = (
-  input,
-) => {
+export const placeOf: (input: {
+  parentId?: string;
+  space?: StorageSpace;
+  teamspaceId?: string;
+}) => StoragePlace = (input) => {
   if (input.parentId !== undefined) return { parentId: input.parentId };
+  if (input.teamspaceId !== undefined) return { teamspaceId: input.teamspaceId };
   return { space: input.space ?? "personal" };
 };

@@ -20,12 +20,18 @@ import { useMember } from "@/hooks/use-session.ts";
 import { canConvertToDoc, useConvertToDoc } from "@/hooks/use-convert-doc.ts";
 import { useExportDoc } from "@/hooks/use-export-doc.ts";
 import { useStorageList, useTrashNode } from "@/hooks/use-storage.ts";
-import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
+import {
+  driveOf,
+  type DriveRoot,
+  type StorageNode,
+  type StoragePlace,
+  type StorageSpace,
+} from "@/lib/storage.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import { FolderCrumbs } from "./folder-crumbs.tsx";
 import { FolderView, type FolderDialog } from "./folder-view.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
-import { SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
+import { drivePath, SPACE_LABEL } from "./storage-nav.tsx";
 import { workspaceHref } from "@/lib/workspaces.ts";
 import { downloadFile, downloadZip } from "@/lib/download.ts";
 import { isOmniDoc } from "@omni/docs/file";
@@ -52,10 +58,10 @@ export function useOptionalStorageHref() {
   return useMemo(
     () =>
       workspace
-        ? (space: StorageSpace, folderId?: string) =>
+        ? (drive: StorageSpace | DriveRoot, folderId?: string) =>
             workspaceHref(
               workspace,
-              `${SPACE_PATH[space]}${folderId ? `/${encodeURIComponent(folderId)}` : ""}${mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ""}`,
+              `${drivePath(typeof drive === "string" ? { space: drive } : drive)}${folderId ? `/${encodeURIComponent(folderId)}` : ""}${mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ""}`,
             )
         : null,
     [mailbox, workspace],
@@ -69,7 +75,7 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
   const canTrash = useCanTrash();
   const menu = useRowMenu(canTrash);
   const path = list.folder?.path ?? [];
-  const folderHref = useMemo(() => (node: StorageNode) => href(node.space, node.id), [href]);
+  const folderHref = useMemo(() => (node: StorageNode) => href(driveOf(node), node.id), [href]);
   return (
     <FolderView
       title={(leaf) => (

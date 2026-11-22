@@ -13,6 +13,8 @@ import {
   MAX_WALK,
   nodeColumns,
   pageSize,
+  personalDrive,
+  sharedDrive,
   toNode,
   type Drive,
   type NodeRow,
@@ -61,6 +63,7 @@ const inDrive: (
     eq(table.orgId, drive.orgId),
     eq(table.space, drive.space),
     sql`coalesce(${table.ownerMemberId}, '') = ${drive.ownerMemberId ?? ""}`,
+    sql`coalesce(${table.teamspaceId}, '') = ${drive.teamspaceId ?? ""}`,
   );
 };
 
@@ -203,37 +206,48 @@ async function feedPage(tx: Db, drive: Drive, cursor: StorageSyncCursor | null, 
     .slice(0, limit + 1);
 }
 
-const driveKey = (drive: Drive) => `${drive.orgId}:${drive.space}:${drive.ownerMemberId ?? ""}`;
+const driveKey = (drive: Drive) =>
+  `${drive.orgId}:${drive.space}:${drive.ownerMemberId ?? ""}:${drive.teamspaceId ?? ""}`;
 
 const latestIn = (table: typeof storageNodes | typeof storageTombstones) =>
   sql`(select max(t.revision) from ${table} t
     where t.org_id = d.org_id and t.space = d.space::storage_space
-      and coalesce(t.owner_member_id, '') = d.owner)`;
+      and coalesce(t.owner_member_id, '') = d.owner
+      and coalesce(t.teamspace_id, '') = d.teamspace)`;
 
 async function driveRevisions(ex: Db, drives: Drive[]) {
   if (drives.length === 0) return new Map<string, number>();
   const rows = (await ex.execute(sql`
-    select d.org_id, d.space, d.owner,
+    select d.org_id, d.space, d.owner, d.teamspace,
       greatest(coalesce(${latestIn(storageNodes)}, 0), coalesce(${latestIn(storageTombstones)}, 0)) as revision
     from (values ${sql.join(
-      drives.map((drive) => sql`(${drive.orgId}, ${drive.space}, ${drive.ownerMemberId ?? ""})`),
+      drives.map(
+        (drive) =>
+          sql`(${drive.orgId}, ${drive.space}, ${drive.ownerMemberId ?? ""}, ${drive.teamspaceId ?? ""})`,
+      ),
       sql`, `,
-    )}) as d(org_id, space, owner)`)) as unknown as {
+    )}) as d(org_id, space, owner, teamspace)`)) as unknown as {
     org_id: string;
     space: StorageSpace;
     owner: string;
+    teamspace: string;
     revision: string | number;
   }[];
   return new Map(
     rows.map((row) => [
-      driveKey({ orgId: row.org_id, space: row.space, ownerMemberId: row.owner || null }),
+      driveKey({
+        orgId: row.org_id,
+        space: row.space,
+        ownerMemberId: row.owner || null,
+        teamspaceId: row.teamspace || null,
+      }),
       Number(row.revision),
     ]),
   );
 }
 
 export interface StorageSyncDrive {
-  space: StorageSpace;
+  space: Exclude<StorageSpace, "teamspace">;
   revision: number;
 }
 
@@ -269,8 +283,8 @@ export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: st
     )
     .orderBy(asc(members.createdAt), asc(members.id));
   const drivesOf = (row: (typeof rows)[number]) => {
-    const mine: Drive = { orgId: row.orgId, space: "personal", ownerMemberId: row.memberId };
-    const shared: Drive = { orgId: row.orgId, space: "shared", ownerMemberId: null };
+    const mine: Drive = personalDrive(row.orgId, row.memberId);
+    const shared: Drive = sharedDrive(row.orgId);
     return row.personal ? [mine] : [mine, shared];
   };
   const revisions = await driveRevisions(db, rows.flatMap(drivesOf));
@@ -282,7 +296,7 @@ export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: st
     drives: drivesOf(row).map(
       (drive) =>
         ({
-          space: drive.space,
+          space: drive.space === "personal" ? "personal" : "shared",
           revision: revisions.get(driveKey(drive)) ?? 0,
         }) satisfies StorageSyncDrive,
     ),

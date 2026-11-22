@@ -33,6 +33,8 @@ export interface StorageNode {
   orgId: string;
   space: StorageSpace;
   ownerMemberId: string | null;
+  /** The teamspace it is in, when `space` is `teamspace`. */
+  teamspaceId: string | null;
   parentId: string | null;
   kind: StorageNodeKind;
   name: string;
@@ -60,6 +62,7 @@ export function toNode(row: NodeRow) {
     orgId: row.orgId,
     space: row.space,
     ownerMemberId: row.ownerMemberId,
+    teamspaceId: row.teamspaceId,
     parentId: row.parentId,
     kind: row.kind,
     name: row.name,
@@ -77,22 +80,43 @@ export function toNode(row: NodeRow) {
   } satisfies StorageNode;
 }
 
-/** A drive: one member's My files, or a company's Shared. */
+/** A drive: one member's My files, a company's Shared, or one of its teamspaces. */
 export interface Drive {
   orgId: string;
   space: StorageSpace;
   ownerMemberId: string | null;
+  teamspaceId: string | null;
 }
 
-export const driveOf = (row: NodeRow) =>
+export const driveOf = (row: Pick<NodeRow, "orgId" | "space" | "ownerMemberId" | "teamspaceId">) =>
   ({
     orgId: row.orgId,
     space: row.space,
     ownerMemberId: row.ownerMemberId,
+    teamspaceId: row.teamspaceId,
   }) satisfies Drive;
 
 export const sameDrive = (a: Drive, b: Drive) =>
-  a.orgId === b.orgId && a.space === b.space && a.ownerMemberId === b.ownerMemberId;
+  a.orgId === b.orgId &&
+  a.space === b.space &&
+  a.ownerMemberId === b.ownerMemberId &&
+  a.teamspaceId === b.teamspaceId;
+
+/** The drives of a workspace that are not a teamspace: a member's My files, and Shared. */
+export const personalDrive = (orgId: string, memberId: string) =>
+  ({ orgId, space: "personal", ownerMemberId: memberId, teamspaceId: null }) satisfies Drive;
+export const sharedDrive = (orgId: string) =>
+  ({ orgId, space: "shared", ownerMemberId: null, teamspaceId: null }) satisfies Drive;
+export const teamspaceDrive = (orgId: string, teamspaceId: string) =>
+  ({ orgId, space: "teamspace", ownerMemberId: null, teamspaceId }) satisfies Drive;
+
+/** SQL condition: the row at `alias` (a node, upload or tombstone) is in `drive`. */
+export function inDriveSql(drive: Drive, alias: string) {
+  const t = sql.raw(alias);
+  return sql`(${t}.org_id = ${drive.orgId} and ${t}.space = ${drive.space}
+    and coalesce(${t}.owner_member_id, '') = ${drive.ownerMemberId ?? ""}
+    and coalesce(${t}.teamspace_id, '') = ${drive.teamspaceId ?? ""})`;
+}
 
 /** The one rule for where a file's bytes live. The name is not in it. */
 export const storageObjectKey = (orgId: string, fileId: string) => `orgs/${orgId}/${fileId}`;
@@ -244,6 +268,7 @@ function siblings(drive: Drive, parentId: string | null) {
     eq(storageNodes.orgId, drive.orgId),
     eq(storageNodes.space, drive.space),
     sql`coalesce(${storageNodes.ownerMemberId}, '') = ${drive.ownerMemberId ?? ""}`,
+    sql`coalesce(${storageNodes.teamspaceId}, '') = ${drive.teamspaceId ?? ""}`,
     sql`coalesce(${storageNodes.parentId}, '') = ${parentId ?? ""}`,
   );
 }
@@ -322,6 +347,7 @@ export function freeName(
       select 1 from ${storageNodes} s
       where s.org_id = ${drive.orgId} and s.space = ${drive.space}
         and coalesce(s.owner_member_id, '') = ${drive.ownerMemberId ?? ""}
+        and coalesce(s.teamspace_id, '') = ${drive.teamspaceId ?? ""}
         and coalesce(s.parent_id, '') = ${parentId ?? ""}
         and lower(s.name) = lower(c.name) and s.trashed_at is null${except}
     )
@@ -359,6 +385,7 @@ export async function insertNode(tx: Db, input: NewNode) {
         orgId: input.drive.orgId,
         space: input.drive.space,
         ownerMemberId: input.drive.ownerMemberId,
+        teamspaceId: input.drive.teamspaceId,
         parentId: input.parentId,
         kind: input.kind,
         name: freeName(input.drive, input.parentId, input.name, input.kind),

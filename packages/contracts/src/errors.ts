@@ -79,6 +79,12 @@ export const ERROR_CODES = {
   cycle: spec(409, "conflict"),
   parent_trashed: spec(409, "conflict"),
   not_trashed: spec(409, "conflict"),
+  /** A teamspace still holds something outside Trash, or an upload in progress. */
+  not_empty: spec(409, "conflict"),
+  /** The change would leave a teamspace without an owner. */
+  last_owner: spec(409, "conflict"),
+  /** Someone who is not a member of the workspace cannot be in its teamspaces. */
+  not_in_workspace: spec(422, "validation"),
   /**
    * A locked file, or a folder holding one, cannot be renamed, moved, trashed or deleted, and a
    * locked file's content cannot be replaced.

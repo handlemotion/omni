@@ -13,6 +13,11 @@ export const STORAGE_MAX_PARTS = 10_000;
 
 /** `personal` is the member's My files; `shared` is the company's shared drive. */
 export const storageSpaceSchema = z.enum(["personal", "shared"]);
+/**
+ * The drive a node is in: `personal` and `shared` as above, or `teamspace`, one of the
+ * workspace's teamspaces (`teamspaceId`, `docs/spec/teamspaces.md`).
+ */
+export const storageNodeSpaceSchema = z.enum(["personal", "shared", "teamspace"]);
 export const storageNodeKindSchema = z.enum(["folder", "file"]);
 /**
  * `member` is someone in the node's space; the others come from a grant or a link. A `commenter`
@@ -59,9 +64,11 @@ export const storageFolderIconSchema = z.enum(STORAGE_FOLDER_ICONS);
 export const storageNodeSchema = z.object({
   id,
   orgId: id,
-  space: storageSpaceSchema,
-  /** Whose My files it is in; null in Shared. */
+  space: storageNodeSpaceSchema,
+  /** Whose My files it is in; null in Shared and in a teamspace. */
   ownerMemberId: id.nullable(),
+  /** The teamspace it is in; null in My files and Shared. Absent from an older Worker. */
+  teamspaceId: id.nullable().optional(),
   /** Null at the root of its space. */
   parentId: id.nullable(),
   kind: storageNodeKindSchema,
@@ -111,18 +118,28 @@ const page = {
   limit: z.coerce.number().int().min(1).max(200).optional(),
 };
 
-const place = { parentId: id.optional(), space: storageSpaceSchema.optional() };
+const place = {
+  parentId: id.optional(),
+  space: storageSpaceSchema.optional(),
+  teamspaceId: id.optional(),
+};
+const exactlyOne = (...values: unknown[]) => values.filter((v) => v !== undefined).length === 1;
 const onePlace = [
-  (value: { parentId?: string; space?: string }) =>
-    (value.parentId === undefined) !== (value.space === undefined),
-  { message: "give either parentId or space" },
+  (value: { parentId?: string; space?: string; teamspaceId?: string }) =>
+    exactlyOne(value.parentId, value.space, value.teamspaceId),
+  { message: "give one of parentId, space or teamspaceId" },
 ] as const;
 
-/** `GET /nodes?space=&parent=`: a folder's contents, folders first, then by name. */
+/** `GET /nodes?space=&teamspace=&parent=`: a folder's contents, folders first, then by name. */
 export const storageListQuerySchema = z
-  .object({ space: storageSpaceSchema.optional(), parent: id.optional(), ...page })
-  .refine((query) => (query.parent === undefined) !== (query.space === undefined), {
-    message: "give either parent or space",
+  .object({
+    space: storageSpaceSchema.optional(),
+    teamspace: id.optional(),
+    parent: id.optional(),
+    ...page,
+  })
+  .refine((query) => exactlyOne(query.parent, query.space, query.teamspace), {
+    message: "give one of parent, space or teamspace",
   });
 export const storageListResponseSchema = z.object({
   /** The folder listed; null at the root of a space. */
@@ -172,10 +189,15 @@ export const storageSearchQuerySchema = z.object({
 export const storageFindResponseSchema = z.object({ nodes: z.array(storageNodeSchema) });
 
 /**
- * Drive's `GET /icons?space=`: the chosen glyphs of a drive's top-level folders, by folder id. A
- * folder without one is absent. Strings, not the enum, so an older client still reads a new glyph.
+ * Drive's `GET /icons?space=` or `?teamspace=`: the chosen glyphs of a drive's top-level folders,
+ * by folder id. A folder without one is absent. Strings, not the enum, so an older client still
+ * reads a new glyph.
  */
-export const storageFolderIconsQuerySchema = z.object({ space: storageSpaceSchema });
+export const storageFolderIconsQuerySchema = z
+  .object({ space: storageSpaceSchema.optional(), teamspace: id.optional() })
+  .refine((query) => exactlyOne(query.space, query.teamspace), {
+    message: "give either space or teamspace",
+  });
 export const storageFolderIconsResponseSchema = z.object({
   icons: z.record(z.string(), z.string()),
 });
@@ -205,7 +227,9 @@ export const storageUploadSchema = z.object({
   name: z.string(),
   size: z.number().int().nonnegative(),
   mimeType: z.string().nullable(),
-  space: storageSpaceSchema,
+  space: storageNodeSpaceSchema,
+  /** The teamspace whose root it lands in, when it has no `parentId`. */
+  teamspaceId: id.nullable().optional(),
   parentId: id.nullable(),
   partSize: z.number().int().positive(),
   partCount: z.number().int().nonnegative(),
@@ -594,7 +618,10 @@ export const storageRevisionGuardQuerySchema = z.object({
  */
 export const storageChangedEventSchema = z.object({
   type: z.literal("storage.changed"),
-  space: storageSpaceSchema,
+  /** `teamspace` goes to the web app only, never to a sync provider. */
+  space: storageNodeSpaceSchema,
+  /** The teamspace that changed, when `space` is `teamspace`. */
+  teamspaceId: id.optional(),
   parentIds: z.array(id.nullable()).optional(),
 });
 
@@ -659,6 +686,8 @@ export const desktopSyncDoneSchema = z.object({ ok: z.literal(true) });
 
 /** The schemas the native sync providers are generated from, by the name their type takes. */
 export const STORAGE_SYNC_NATIVE_TYPES = {
+  Space: storageSpaceSchema,
+  StorageNodeSpace: storageNodeSpaceSchema,
   StorageNode: storageNodeSchema,
   StorageNodeView: storageNodeViewSchema,
   StorageListResponse: storageListResponseSchema,
@@ -727,6 +756,7 @@ export const storageZipQuerySchema = z.object({
 });
 
 export type StorageSpace = z.infer<typeof storageSpaceSchema>;
+export type StorageNodeSpace = z.infer<typeof storageNodeSpaceSchema>;
 export type StorageChangedEvent = z.infer<typeof storageChangedEventSchema>;
 export type StorageFilePresenceEvent = z.infer<typeof storageFilePresenceEventSchema>;
 export type StorageNodeKind = z.infer<typeof storageNodeKindSchema>;

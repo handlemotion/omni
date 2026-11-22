@@ -20,7 +20,8 @@ import { useNodeSelection, type NodeSelection } from "@/hooks/use-node-selection
 import { useOptimisticSearch } from "@/hooks/use-optimistic-search.ts";
 import { useUploads } from "@/hooks/use-storage.ts";
 import { storageNodeQuery } from "@/lib/storage-comments.ts";
-import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
+import { driveKey, driveOf, type StorageNode, type StoragePlace } from "@/lib/storage.ts";
+import { placeKey } from "./node-drag.tsx";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderIconDialog } from "./folder-icons.tsx";
@@ -352,7 +353,7 @@ function useDeepLinkedFile(
   const here =
     "parentId" in place
       ? node.parentId === place.parentId
-      : node.parentId === null && node.space === place.space;
+      : node.parentId === null && driveKey(driveOf(node)) === driveKey(place);
   return here ? node : undefined;
 }
 
@@ -394,8 +395,7 @@ function isControl(target: EventTarget) {
   );
 }
 
-const placeKeyOf = (source: FolderSource) =>
-  `${source.shareId ?? ""}:${"parentId" in source.place ? source.place.parentId : source.place.space}`;
+const placeKeyOf = (source: FolderSource) => `${source.shareId ?? ""}:${placeKey(source.place)}`;
 
 function useSelectionKeys(selection: NodeSelection, source: FolderSource) {
   const trash = useBulkTrash(source.shareId);

@@ -1,3 +1,4 @@
+import { driveOf } from "@/lib/storage.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
@@ -156,7 +157,7 @@ function RecordFolder(
         {
           icon: IconFolder,
           label: "Show in Drive",
-          onAction: () => nav.go(driveHref(node.space, node.parentId ?? undefined)),
+          onAction: () => nav.go(driveHref(driveOf(node), node.parentId ?? undefined)),
         },
         {
           icon: IconUnlink,
@@ -200,7 +201,8 @@ function RecordFolder(
           nodes,
           isPending: list.isPending || (top && props.links.isPending),
         },
-        folderHref: (node) => (isLink(node) ? driveHref(node.space, node.id) : nav.href(node.id)),
+        folderHref: (node) =>
+          isLink(node) ? driveHref(driveOf(node), node.id) : nav.href(node.id),
         fileUrl,
         download,
         menu,

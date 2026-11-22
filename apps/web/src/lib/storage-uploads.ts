@@ -292,7 +292,11 @@ function pump() {
 }
 
 const placeKey = (place: StoragePlace) =>
-  "parentId" in place ? `folder:${place.parentId}` : `space:${place.space}`;
+  "parentId" in place
+    ? `folder:${place.parentId}`
+    : "teamspaceId" in place
+      ? `teamspace:${place.teamspaceId}`
+      : `space:${place.space}`;
 
 /**
  * Queues `files` for `target`: a place, through a shared link's door when `shareId` is set, or

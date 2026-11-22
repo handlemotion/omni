@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api.ts";
 import type { LiveDoc } from "@/lib/live-doc.ts";
 import { fileType, TEXT_PREVIEW_BYTES } from "@/lib/file-kind.ts";
 import { storageChanged, type StorageNode } from "@/lib/storage.ts";
+import { placeOf } from "@/lib/storage-cache.ts";
 import { previewTextQuery } from "@/lib/storage-preview.ts";
 import { abortUpload, uploadFile } from "@/lib/storage-upload.ts";
 import { identityChecks, identityOf } from "@/lib/storage-uploads.ts";
@@ -161,7 +162,7 @@ export function useEditSession(
     try {
       const saved = await uploadFile({
         file: new File([text], node.name, { type: node.mimeType ?? "text/plain" }),
-        place: node.parentId ? { parentId: node.parentId } : { space: node.space },
+        place: placeOf(node),
         replaces: node.id,
         ifContentVersion: base.current,
         shareId,

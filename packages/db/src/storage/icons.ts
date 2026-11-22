@@ -29,8 +29,13 @@ export function iconOperations(db: Db, door: Door) {
       return { status: "ok", node: toNode(node) } satisfies IconResult;
     },
 
-    async folderIcons(space: StorageSpace) {
-      const drive = await door.root(db, space);
+    async folderIcons(place: StorageSpace | { teamspaceId: string }) {
+      const drive =
+        typeof place === "object"
+          ? await door.teamspace(db, place.teamspaceId)
+          : place === "teamspace"
+            ? null
+            : await door.root(db, place);
       if (!drive) return {} satisfies Record<string, string>;
       const rows = await db
         .select({ nodeId: storageFolderIcons.nodeId, icon: storageFolderIcons.icon })
@@ -41,6 +46,7 @@ export function iconOperations(db: Db, door: Door) {
             eq(storageNodes.orgId, drive.orgId),
             eq(storageNodes.space, drive.space),
             sql`coalesce(${storageNodes.ownerMemberId}, '') = ${drive.ownerMemberId ?? ""}`,
+            sql`coalesce(${storageNodes.teamspaceId}, '') = ${drive.teamspaceId ?? ""}`,
             isNull(storageNodes.parentId),
             isNull(storageNodes.trashedAt),
           ),

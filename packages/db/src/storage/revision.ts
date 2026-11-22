@@ -30,6 +30,7 @@ export async function leaveTombstones(tx: Db, where: SQL | undefined, revision: 
       nodeId: storageNodes.id,
       space: storageNodes.space,
       ownerMemberId: storageNodes.ownerMemberId,
+      teamspaceId: storageNodes.teamspaceId,
     })
     .from(storageNodes)
     .where(where);

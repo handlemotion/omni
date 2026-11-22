@@ -39,7 +39,11 @@ export function nodeUrl(webAppURL: string, found: ContextNode) {
 
 /** Where a node a member reaches in their own workspace opens: its folder, with a file open. */
 export function memberNodeUrl(webAppURL: string, slug: string, node: StorageNode) {
-  const drive = `/${encodeURIComponent(slug)}/files/${DRIVE_PATH[node.space]}`;
+  const drive = `/${encodeURIComponent(slug)}/files/${
+    node.space === "teamspace" && node.teamspaceId
+      ? `t/${encodeURIComponent(node.teamspaceId)}`
+      : DRIVE_PATH[node.space === "personal" ? "personal" : "shared"]
+  }`;
   if (node.kind === "folder") {
     return new URL(`${drive}/${encodeURIComponent(node.id)}`, webAppURL).toString();
   }

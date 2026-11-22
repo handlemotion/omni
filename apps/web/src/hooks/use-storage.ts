@@ -11,9 +11,10 @@ import {
   trashNodeMutation,
   type StorageNode,
   type StoragePlace,
-  type StorageSpace,
+  type DriveRoot,
 } from "../lib/storage.ts";
 import { keys } from "../lib/query-keys.ts";
+import { storageTeamspacesQuery } from "../lib/storage-teamspaces.ts";
 import {
   linkUploading,
   putPersonMutation,
@@ -80,8 +81,8 @@ export function useStorageTrash() {
 }
 
 /** A drive's cluster glyphs by folder id; empty until they load, or if they fail to. */
-export function useFolderIcons(space: StorageSpace) {
-  const query = useQuery(storageFolderIconsQuery(space));
+export function useFolderIcons(drive: DriveRoot) {
+  const query = useQuery(storageFolderIconsQuery(drive));
   return { icons: query.data?.icons ?? {}, isLoaded: query.isSuccess };
 }
 
@@ -272,4 +273,16 @@ export function useLinkUploading(
     if (finished) void client.invalidateQueries({ queryKey: keys.storageLink(shareId, nodeId) });
   }, [client, nodeId, shareId, uploading]);
   return uploading;
+}
+
+/** The workspace's teamspaces the member reaches; empty until they load. */
+export function useTeamspaces() {
+  const query = useQuery(storageTeamspacesQuery());
+  return { teamspaces: query.data ?? [], isPending: query.isPending };
+}
+
+/** A teamspace's name, once the list has it. */
+export function useTeamspaceName(teamspaceId: string | undefined) {
+  const { teamspaces } = useTeamspaces();
+  return teamspaces.find((teamspace) => teamspace.id === teamspaceId)?.name;
 }

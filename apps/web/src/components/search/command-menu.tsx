@@ -1,3 +1,4 @@
+import { driveOf } from "@/lib/storage.ts";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { defaultFilter } from "cmdk";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -187,10 +188,10 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
       return;
     }
     if (node.kind === "folder") {
-      void router.navigate({ href: storageHref(node.space, node.id) });
+      void router.navigate({ href: storageHref(driveOf(node), node.id) });
       return;
     }
-    const folder = storageHref(node.space, node.parentId ?? undefined);
+    const folder = storageHref(driveOf(node), node.parentId ?? undefined);
     const file = `file=${encodeURIComponent(node.id)}`;
     void router.navigate({ href: `${folder}${folder.includes("?") ? "&" : "?"}${file}` });
   };

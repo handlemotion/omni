@@ -10,13 +10,21 @@ import {
   SidebarSection,
 } from "@/components/ui/sidebar";
 import { useHasSharedFiles, useUploads } from "@/hooks/use-storage.ts";
-import type { StoragePlace } from "@/lib/storage.ts";
+import type { DriveRoot, StoragePlace } from "@/lib/storage.ts";
 import { SidebarGroup } from "./sidebar-tree.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export const SPACE_LABEL = { personal: "Personal", shared: "Team" } as const;
 export const SPACE_PATH = { personal: "/files/my", shared: "/files/shared" } as const;
+/** Where a teamspace's top opens. */
+export const TEAMSPACE_PATH = "/files/t";
+
+/** Where a drive's top opens in the workspace. */
+export const drivePath = (drive: DriveRoot) =>
+  "teamspaceId" in drive
+    ? `${TEAMSPACE_PATH}/${encodeURIComponent(drive.teamspaceId)}`
+    : SPACE_PATH[drive.space];
 export const SPACE_ICON = {
   personal: <IconUserRound className="size-icon" />,
   shared: <IconUsers className="size-icon" />,
@@ -54,8 +62,20 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
         <Rows rows={PLACES} mailbox={mailbox} />
       </SidebarSection>
       <SidebarSection label="Folders">
-        {hasShared && <SidebarGroup space="shared" search={search} />}
-        <SidebarGroup space="personal" search={search} />
+        {hasShared && (
+          <SidebarGroup
+            drive={{ space: "shared" }}
+            label={SPACE_LABEL.shared}
+            icon={SPACE_ICON.shared}
+            search={search}
+          />
+        )}
+        <SidebarGroup
+          drive={{ space: "personal" }}
+          label={SPACE_LABEL.personal}
+          icon={SPACE_ICON.personal}
+          search={search}
+        />
       </SidebarSection>
     </>
   );
@@ -108,6 +128,11 @@ function UploadRow() {
 
 const useUploadPlace: () => StoragePlace = () => {
   const { place: pathname } = useWorkspacePaths();
+  if (pathname.startsWith(`${TEAMSPACE_PATH}/`)) {
+    const [teamspaceId, folderId] = pathname.slice(TEAMSPACE_PATH.length + 1).split("/");
+    if (folderId) return { parentId: decodeURIComponent(folderId) };
+    if (teamspaceId) return { teamspaceId: decodeURIComponent(teamspaceId) };
+  }
   for (const space of ["personal", "shared"] as const) {
     const root = SPACE_PATH[space];
     if (pathname === root) return { space };

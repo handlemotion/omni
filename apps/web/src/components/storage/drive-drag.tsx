@@ -28,7 +28,7 @@ import {
   type Aim,
   type DriveDragState,
 } from "./drive-drag-state.ts";
-import { canMove, type DragSource, type DropData, type Look } from "./node-drag.tsx";
+import { canMove, placeKey, type DragSource, type DropData, type Look } from "./node-drag.tsx";
 import { FileTile } from "./file-glyph.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 
@@ -205,8 +205,7 @@ function aimAt(over: Over | null, pointer: { x: number; y: number }, source: Dra
   return canMove(source, aim.to) ? aim : null;
 }
 
-const key = (aim: Aim | null) =>
-  aim ? `${"parentId" in aim.to.place ? aim.to.place.parentId : aim.to.place.space}` : "";
+const key = (aim: Aim | null) => (aim ? placeKey(aim.to.place) : "");
 const sameAim = (a: Aim | null, b: Aim | null) => key(a) === key(b);
 
 function nearestGap() {

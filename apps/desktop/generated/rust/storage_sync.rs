@@ -63,10 +63,13 @@ pub struct StorageNode {
 
     pub size: i64,
 
-    pub space: Space,
+    pub space: StorageNodeSpace,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub team_only: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teamspace_id: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trashed_at: Option<String>,
@@ -84,10 +87,12 @@ pub enum Kind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Space {
+pub enum StorageNodeSpace {
     Personal,
 
     Shared,
+
+    Teamspace,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -124,6 +129,17 @@ pub struct StorageCreateFolderBody {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub space: Option<Space>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teamspace_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Space {
+    Personal,
+
+    Shared,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -140,6 +156,9 @@ pub struct StorageChangeNodeBody {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub space: Option<Space>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teamspace_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -205,6 +224,9 @@ pub struct StorageOpenUploadBody {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub space: Option<Space>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teamspace_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -253,7 +275,10 @@ pub struct Upload {
 
     pub size: i64,
 
-    pub space: Space,
+    pub space: StorageNodeSpace,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teamspace_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -354,7 +379,10 @@ pub struct StorageChangedEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_ids: Option<Vec<Option<String>>>,
 
-    pub space: Space,
+    pub space: StorageNodeSpace,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teamspace_id: Option<String>,
 
     #[serde(rename = "type")]
     pub storage_changed_event_type: Type,

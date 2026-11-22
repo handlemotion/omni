@@ -6,7 +6,17 @@ import { storageGrants, storagePolicies } from "../schema/storage.ts";
 import { ensurePersonalSpace } from "../personal-space.ts";
 import { companyForAddress } from "../session-scopes.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
-import { holdsOthersWork, inTrash, type Drive, type NodeRow, type StorageSpace } from "./core.ts";
+import {
+  holdsOthersWork,
+  inTrash,
+  personalDrive,
+  sharedDrive,
+  teamspaceDrive,
+  type Drive,
+  type NodeRow,
+  type StorageSpace,
+} from "./core.ts";
+import { ownsTeamspace, teamspaceDrives, teamspaceReach } from "./teamspaces.ts";
 
 /** `member` is someone in the node's space; the others come from a grant or a link. */
 export type StorageRole = "member" | "editor" | "commenter" | "viewer";
@@ -54,7 +64,11 @@ export interface Door {
    */
   removesWhole(ex: Db, node: NodeRow): Promise<boolean>;
   /** The root of `space` for the holder: their My files, or their company's Shared. */
-  root(ex: Db, space: StorageSpace): Promise<Drive | null>;
+  root(ex: Db, space: Exclude<StorageSpace, "teamspace">): Promise<Drive | null>;
+  /** The root of a teamspace the holder reaches as a member of it or of its open workspace. */
+  teamspace(ex: Db, teamspaceId: string): Promise<Drive | null>;
+  /** Every drive the holder reaches as a member: My files, Shared and teamspaces. */
+  drives(ex: Db): Promise<Drive[]>;
   /** The member recorded as having made a node or opened an upload in `orgId`. */
   actor(ex: Db, orgId: string): Promise<string | null>;
   /** Whether an upload opened by `memberId` is the holder's. */
@@ -107,17 +121,22 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
 };
 
 /**
- * A member reaches their own My files and, in a company, Shared. Nobody reaches another
- * member's My files, whatever their role. In Shared everyone writes, and only the uploader,
- * owners and admins move a node out of it (to Trash or to My files); a folder's uploader only
- * while everything inside it is theirs too, or moving a colleague's file into a folder of one's
- * own would be a way to take it. A freelancer reaches in Shared only what was shared with them,
- * as the grant door would let them: `viaGrants` false leaves that out, for the grant door itself.
+ * A member reaches their own My files and, in a company, Shared and its open teamspaces, and
+ * the private teamspaces they are in. Nobody reaches another member's My files, whatever their
+ * role. In Shared and a teamspace everyone writes, and only the uploader, owners and admins (and
+ * a teamspace's owners) move a node out of it (to Trash or to another drive); a folder's uploader
+ * only while everything inside it is theirs too, or moving a colleague's file into a folder of
+ * one's own would be a way to take it. A freelancer reaches in Shared only what was shared with
+ * them, as the grant door would let them, and a member reaches what was shared with them in a
+ * teamspace they do not: `viaGrants` false leaves that out, for the grant door itself.
  */
 export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
   memberId,
   viaGrants = true,
 ) => {
+  async function teamspaceOf(ex: Db, member: StorageMember, node: NodeRow) {
+    return node.teamspaceId ? teamspaceReach(ex, member, node.teamspaceId) : null;
+  }
   return {
     kind: "member",
     async access(ex, chain) {
@@ -127,33 +146,41 @@ export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
       if (viaGrants && member.freelancer && node.space === "shared") {
         return grantDoor(member.userId).access(ex, chain);
       }
+      const teamspace = node.space === "teamspace" ? await teamspaceOf(ex, member, node) : null;
+      if (node.space === "teamspace" && !teamspace) {
+        return viaGrants ? grantDoor(member.userId).access(ex, chain) : null;
+      }
       const mine = node.space === "personal" && node.ownerMemberId === member.id;
       const shared = node.space === "shared" && !member.personal && !member.freelancer;
-      if (!mine && !shared) return null;
-      return {
-        role: "member",
-        top: chain.length - 1,
-        inside: node.kind === "folder",
-        change: true,
-        remove: mine || member.admin || node.createdByMemberId === member.id,
-        share: true,
-      };
+      if (!mine && !shared && !teamspace) return null;
+      return memberAccess(chain, mine || takesOut(member, node, teamspace?.role === "owner"));
     },
     async removesWhole(ex, node) {
-      if (node.space !== "shared" || node.kind !== "folder") return true;
+      if (node.space === "personal" || node.kind !== "folder") return true;
       const member = await loadMember(ex, memberId);
       if (!member) return false;
-      return member.admin || !(await holdsOthersWork(ex, node.id, member.id));
+      if (member.admin) return true;
+      if (node.teamspaceId && (await ownsTeamspace(ex, node.teamspaceId, member.id))) return true;
+      return !(await holdsOthersWork(ex, node.id, member.id));
     },
     async root(ex, space) {
       const member = await loadMember(ex, memberId);
       if (!member) return null;
-      if (space === "personal") {
-        return { orgId: member.orgId, space, ownerMemberId: member.id };
-      }
-      return member.personal || member.freelancer
-        ? null
-        : { orgId: member.orgId, space, ownerMemberId: null };
+      if (space === "personal") return personalDrive(member.orgId, member.id);
+      return member.personal || member.freelancer ? null : sharedDrive(member.orgId);
+    },
+    async teamspace(ex, teamspaceId) {
+      const member = await loadMember(ex, memberId);
+      if (!member) return null;
+      const found = await teamspaceReach(ex, member, teamspaceId);
+      return found ? teamspaceDrive(found.orgId, found.id) : null;
+    },
+    async drives(ex) {
+      const member = await loadMember(ex, memberId);
+      if (!member) return [];
+      const legacy: Drive[] = [personalDrive(member.orgId, member.id)];
+      if (!member.personal && !member.freelancer) legacy.push(sharedDrive(member.orgId));
+      return [...legacy, ...(await teamspaceDrives(ex, member))];
     },
     async actor(ex, orgId) {
       const member = await loadMember(ex, memberId);
@@ -162,6 +189,19 @@ export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
     ownsUpload: async (_ex, uploader) => uploader === memberId,
   };
 };
+
+const takesOut = (member: StorageMember, node: NodeRow, ownsTeamspace: boolean) =>
+  member.admin || ownsTeamspace || node.createdByMemberId === member.id;
+
+const memberAccess = (chain: NodeRow[], remove: boolean) =>
+  ({
+    role: "member",
+    top: chain.length - 1,
+    inside: chain[0]!.kind === "folder",
+    change: true,
+    remove,
+    share: true,
+  }) satisfies Access;
 
 /**
  * The part of a node's chain a grant or a link can reach it from: up to the nearest team-only
@@ -206,12 +246,20 @@ export const grantDoor: (
   underShareId?: string,
 ) => Door = (userId, scopeOrgId, underShareId) => {
   async function asMember(ex: Db, node: NodeRow) {
-    if (node.space !== "shared") return null;
+    if (node.space === "personal") return null;
     const [row] = await ex
       .select({ id: members.id })
       .from(members)
       .where(and(eq(members.userId, userId), eq(members.organizationId, node.orgId)));
-    return row ? memberDoor(row.id, false) : null;
+    return row ? { id: row.id, door: memberDoor(row.id, false) } : null;
+  }
+  async function memberRemoves(ex: Db, chain: NodeRow[]) {
+    const node = chain[0]!;
+    const member = await asMember(ex, node);
+    if (!member) return true;
+    const access = await member.door.access(ex, chain);
+    if (access) return access.remove;
+    return node.space === "teamspace" && node.createdByMemberId === member.id;
   }
   return {
     kind: "grant",
@@ -242,21 +290,22 @@ export const grantDoor: (
       const editorAbove = chain.slice(1).some((row) => editing.has(row.id));
       const editor = editorAbove || editing.has(node.id);
       const commenter = grants.some((grant) => grant.role === "commenter");
-      const member = editorAbove ? await asMember(ex, node) : null;
-      const memberRemoves = member ? ((await member.access(ex, chain))?.remove ?? false) : true;
+      const removes = editorAbove && (await memberRemoves(ex, chain));
       return {
         role: editor ? "editor" : commenter ? "commenter" : "viewer",
         top: chain.findLastIndex((row) => granted.has(row.id)),
         inside: editor && node.kind === "folder",
         change: editorAbove,
-        remove: editorAbove && memberRemoves,
+        remove: removes,
         share: false,
       };
     },
     async removesWhole(ex, node) {
-      return (await (await asMember(ex, node))?.removesWhole(ex, node)) ?? true;
+      return (await (await asMember(ex, node))?.door.removesWhole(ex, node)) ?? true;
     },
     root: async () => null,
+    teamspace: async () => null,
+    drives: async () => [],
     async actor(ex, orgId) {
       const [row] = await ex
         .select({ id: members.id })
@@ -373,6 +422,8 @@ export const linkDoor: (shareId: string, visitor?: LinkVisitor) => Door = (
     },
     removesWhole: async () => false,
     root: async () => null,
+    teamspace: async () => null,
+    drives: async () => [],
     actor: async () => null,
     ownsUpload: async () => false,
   };

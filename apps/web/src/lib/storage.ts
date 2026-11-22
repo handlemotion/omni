@@ -19,9 +19,30 @@ import {
 export type StorageListPage = InferResponseType<Api["storage"]["nodes"]["$get"], 200>;
 export type StorageNode = StorageListPage["nodes"][number];
 export type StorageFolderView = NonNullable<StorageListPage["folder"]>;
-export type StorageSpace = StorageNode["space"];
-/** Where a listing, a new folder or an upload goes: a space's root, or inside a folder. */
-export type StoragePlace = { space: StorageSpace } | { parentId: string };
+export type StorageSpace = Exclude<StorageNode["space"], "teamspace">;
+/** Where a listing, a new folder or an upload goes: a drive's root, or inside a folder. */
+export type StoragePlace = { space: StorageSpace } | { teamspaceId: string } | { parentId: string };
+
+/** The query that lists a place: `parent`, `teamspace` or `space`. */
+export const placeQuery = (place: StoragePlace) =>
+  "parentId" in place
+    ? { parent: place.parentId }
+    : "teamspaceId" in place
+      ? { teamspace: place.teamspaceId }
+      : { space: place.space };
+
+/** A drive's root: My files, Shared, or a teamspace. */
+export type DriveRoot = { space: StorageSpace } | { teamspaceId: string };
+
+/** The drive a node is in. */
+export const driveOf: (node: Pick<StorageNode, "space" | "teamspaceId">) => DriveRoot = (node) =>
+  node.teamspaceId
+    ? { teamspaceId: node.teamspaceId }
+    : { space: node.space === "personal" ? "personal" : "shared" };
+
+/** A drive's key: two drives are one when their keys match. */
+export const driveKey = (drive: DriveRoot) =>
+  "teamspaceId" in drive ? `teamspace:${drive.teamspaceId}` : drive.space;
 
 const pageSize = (cursor: string | null) => (cursor ? "200" : "100");
 
@@ -41,7 +62,7 @@ export const storageListQuery = (place: StoragePlace) =>
         api.storage.nodes.$get(
           {
             query: {
-              ...("parentId" in place ? { parent: place.parentId } : { space: place.space }),
+              ...placeQuery(place),
               ...(pageParam ? { cursor: pageParam } : {}),
               limit: pageSize(pageParam),
             },
@@ -142,7 +163,7 @@ export const changeNodeMutation = (client: QueryClient) =>
         ? storageChanged(client)
         : "icon" in change
           ? client.invalidateQueries({
-              queryKey: keys.storageIcons(node.space),
+              queryKey: keys.storageIcons(driveKey(driveOf(node))),
             })
           : storageNodeChanged(client, node),
   });

@@ -14,6 +14,11 @@ const inputSchema = z.object({
     .enum(["my_files", "shared"])
     .optional()
     .describe("The top of a drive: the person's My files, or the company's Shared."),
+  teamspace_id: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("A teamspace id from `drives`: list the top of that teamspace."),
   limit: z.number().int().min(1).max(100).default(50),
   cursor: z.string().optional().describe("`next_cursor` from the last page."),
 });
@@ -29,7 +34,9 @@ const outputSchema = z.object({
       z.object({
         workspace_id: z.string(),
         workspace: z.string(),
-        space: z.enum(["my_files", "shared"]),
+        space: z.enum(["my_files", "shared", "teamspace"]),
+        teamspace_id: z.string().optional(),
+        teamspace: z.string().optional().describe("The teamspace's name."),
       }),
     )
     .optional()
@@ -67,14 +74,24 @@ const decodeCursor: (cursor: string | undefined) => StorageListCursor | null | u
 };
 
 async function overview(context: ToolContext, drive: StorageContext) {
-  const [workspaces, shared] = await Promise.all([
+  const [workspaces, shared, teamspaces] = await Promise.all([
     drive.workspaces(),
     drive.sharedWithMe(SHARED_WITH_YOU),
+    drive.teamspaces(),
   ]);
   const opened = await drive.read(shared.map((entry) => entry.node.id));
   return result({
     items: [],
     drives: workspaces.flatMap((w) => [
+      ...teamspaces
+        .filter((t) => t.orgId === w.id)
+        .map((t) => ({
+          workspace_id: w.id,
+          workspace: w.name,
+          space: "teamspace" as const,
+          teamspace_id: t.id,
+          teamspace: t.name,
+        })),
       { workspace_id: w.id, workspace: w.name, space: "my_files" as const },
       ...(w.personal ? [] : [{ workspace_id: w.id, workspace: w.name, space: "shared" as const }]),
     ]),
@@ -105,6 +122,16 @@ async function list(context: ToolContext, input: Input) {
     });
   }
 
+  if (input.teamspace_id) {
+    const teamspace = (await drive.teamspaces()).find((t) => t.id === input.teamspace_id);
+    if (!teamspace) {
+      return toolError("No teamspace with that id you can open. Ids come from `drive_list`.");
+    }
+    const listed = await drive.listDrive(teamspace.orgId, { teamspaceId: teamspace.id }, page);
+    if (!listed) return toolError("That teamspace could not be listed.");
+    return topOf(context, listed);
+  }
+
   if (!input.space) return overview(context, drive);
   const workspaces = await drive.workspaces();
   const workspaceId = scoped.workspace ?? (workspaces.length === 1 ? workspaces[0]!.id : undefined);
@@ -122,6 +149,13 @@ async function list(context: ToolContext, input: Input) {
     return toolError(
       "No such drive you can open. Call `drive_list` without arguments to see them.",
     );
+  return topOf(context, listed);
+}
+
+function topOf(
+  context: ToolContext,
+  listed: NonNullable<Awaited<ReturnType<StorageContext["listDrive"]>>>,
+) {
   const parent = {
     role: "member" as const,
     via: "member" as const,
@@ -141,7 +175,7 @@ export function registerDriveList(server: McpServer, context: ToolContext) {
     {
       title: "Browse Drive",
       description:
-        "Browse Drive. Without arguments: the drives the person reaches (My files, and Shared in each company) and what others shared with them. With `workspace` and `space`: the top of that drive. With `folder_id`: what is inside that folder. Folders first, then files, by name, with `next_cursor` for more.",
+        "Browse Drive. Without arguments: the drives the person reaches (their teamspaces, My files, and Shared in each company) and what others shared with them. With `workspace` and `space`, or with `teamspace_id`: the top of that drive. With `folder_id`: what is inside that folder. Folders first, then files, by name, with `next_cursor` for more.",
       inputSchema,
       outputSchema,
       annotations: {

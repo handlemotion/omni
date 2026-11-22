@@ -11,7 +11,7 @@ private func node(
     id: String = nodeId,
     kind: Kind = .file,
     parentId: String? = nil,
-    space: Space = .personal,
+    space: StorageNodeSpace = .personal,
     contentVersion: Int? = 3,
     revision: Int? = 41,
     lockedAt: String? = nil
@@ -20,7 +20,7 @@ private func node(
         contentSha256: nil, contentVersion: contentVersion, createdAt: "2026-11-16T00:00:00Z",
         createdByMemberId: nil, id: id, kind: kind, lockedAt: lockedAt, mimeType: nil, name: "a.txt",
         orgId: org, ownerMemberId: nil, parentId: parentId, revision: revision, size: 1, space: space,
-        trashedAt: nil, updatedAt: "2026-11-16T00:00:00Z"
+        teamOnly: nil, teamspaceId: nil, trashedAt: nil, updatedAt: "2026-11-16T00:00:00Z"
     )
 }
 

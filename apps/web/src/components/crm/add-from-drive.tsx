@@ -18,33 +18,50 @@ import {
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
-import { useHasSharedFiles, useStorageList } from "@/hooks/use-storage.ts";
+import { useHasSharedFiles, useStorageList, useTeamspaces } from "@/hooks/use-storage.ts";
 import { linkFilesMutation, type FileRecordKind } from "@/lib/crm-files.ts";
 import { fileType } from "@/lib/file-kind.ts";
-import type { StorageNode, StorageSpace } from "@/lib/storage.ts";
+import { driveKey, driveOf, type DriveRoot, type StorageNode } from "@/lib/storage.ts";
 import { storageSearchQuery } from "@/lib/storage-find.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 
-type At = { space: StorageSpace; path: { id: string; name: string }[] } | null;
+type At = { drive: DriveRoot; path: { id: string; name: string }[] } | null;
 
-const SPACES = ["personal", "shared"] as const;
+function useDrives() {
+  const hasShared = useHasSharedFiles();
+  const { teamspaces } = useTeamspaces();
+  const legacy = (hasShared ? (["shared", "personal"] as const) : (["personal"] as const)).map(
+    (space) => ({ drive: { space } as DriveRoot, label: SPACE_LABEL[space] }),
+  );
+  return [
+    ...teamspaces.map((t) => ({ drive: { teamspaceId: t.id } as DriveRoot, label: t.name })),
+    ...legacy,
+  ];
+}
 
 function useBrowse(q: string) {
-  const hasShared = useHasSharedFiles();
-  const [at, setAt] = useState<At>(hasShared ? null : { space: "personal", path: [] });
+  const drives = useDrives();
+  const single = drives.length === 1 ? drives[0]!.drive : null;
+  const [at, setAt] = useState<At>(single ? { drive: single, path: [] } : null);
   const folder = at?.path.at(-1);
   const list = useStorageList(
-    folder ? { parentId: folder.id } : { space: at?.space ?? "personal" },
+    folder ? { parentId: folder.id } : (at?.drive ?? { space: "personal" }),
     {
       enabled: !!at && !q,
     },
   );
+  const labelOf = (drive: DriveRoot) =>
+    drives.find((each) => driveKey(each.drive) === driveKey(drive))?.label ?? "";
   const found = useQuery(storageSearchQuery(q));
   const crumbs = [
-    ...(hasShared ? [{ id: "top", name: "Drive", go: () => setAt(null) }] : []),
+    ...(single ? [] : [{ id: "top", name: "Drive", go: () => setAt(null) }]),
     ...(at
       ? [
-          { id: at.space, name: SPACE_LABEL[at.space], go: () => setAt({ ...at, path: [] }) },
+          {
+            id: driveKey(at.drive),
+            name: labelOf(at.drive),
+            go: () => setAt({ ...at, path: [] }),
+          },
           ...at.path.map((entry, i) => ({
             ...entry,
             go: () => setAt({ ...at, path: at.path.slice(0, i + 1) }),
@@ -55,7 +72,7 @@ function useBrowse(q: string) {
   const nodes = q ? (found.data?.nodes ?? []) : at ? list.nodes : [];
   const enter = (node: StorageNode) =>
     setAt((now) => ({
-      space: node.space,
+      drive: driveOf(node),
       path: [...(q || !now ? [] : now.path), { id: node.id, name: node.name }],
     }));
   return {
@@ -63,7 +80,11 @@ function useBrowse(q: string) {
     crumbs,
     nodes,
     enter,
-    enterSpace: (space: StorageSpace) => setAt({ space, path: [] }),
+    drives,
+    enterDrive: (key: string) => {
+      const found = drives.find((each) => driveKey(each.drive) === key);
+      if (found) setAt({ drive: found.drive, path: [] });
+    },
     loadMore: !q && at && list.hasNextPage ? () => void list.fetchNextPage() : undefined,
     isLoadingMore: list.isFetchingNextPage,
   };
@@ -126,17 +147,17 @@ export function AddFromDriveDialog(props: {
           <GridList
             aria-label="Drives"
             className="h-72 overflow-y-auto"
-            onAction={(key) => browse.enterSpace(key as StorageSpace)}
+            onAction={(key) => browse.enterDrive(String(key))}
           >
-            {SPACES.map((space) => (
+            {browse.drives.map(({ drive, label }) => (
               <GridListItem
-                key={space}
-                id={space}
-                textValue={SPACE_LABEL[space]}
+                key={driveKey(drive)}
+                id={driveKey(drive)}
+                textValue={label}
                 className="h-10 shrink-0 cursor-pointer gap-2.5 rounded-lg px-2 hover:bg-accent"
               >
                 <FileTile kind="folder" size="xs" />
-                <span className="truncate">{SPACE_LABEL[space]}</span>
+                <span className="truncate">{label}</span>
               </GridListItem>
             ))}
           </GridList>

@@ -68,7 +68,7 @@ public enum ItemID: Hashable, Sendable {
     /// A node's parent in Finder: its folder, or its drive's space folder at the top level.
     public static func parent(of node: StorageNode) -> ItemID {
         if let parentId = node.parentId { return .node(orgId: node.orgId, nodeId: parentId) }
-        return .space(orgId: node.orgId, space: node.space)
+        return .space(orgId: node.orgId, space: Space(rawValue: node.space.rawValue) ?? .shared)
     }
 
     // A workspace id `ws` would make `ws:<id>` ambiguous with a node; Storage ids are UUIDs.

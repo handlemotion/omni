@@ -1,7 +1,8 @@
-import { and, desc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageNodes } from "../schema/storage.ts";
 import { loadMember, type Door } from "./access.ts";
+import { reachableTeamspaces } from "./teamspaces.ts";
 import {
   deleteSubtree,
   driveOf,
@@ -62,6 +63,18 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
         eq(storageNodes.space, "shared"),
         member.admin ? undefined : eq(storageNodes.createdByMemberId, member.id),
       );
+      const teamspaces = await reachableTeamspaces(db, member);
+      const owned = teamspaces.filter((t) => t.manage).map((t) => t.id);
+      const others = teamspaces.filter((t) => !t.manage).map((t) => t.id);
+      const inTeamspaces = or(
+        owned.length ? inArray(storageNodes.teamspaceId, owned) : undefined,
+        others.length
+          ? and(
+              inArray(storageNodes.teamspaceId, others),
+              eq(storageNodes.createdByMemberId, member.id),
+            )
+          : undefined,
+      );
       const after = page.cursor
         ? or(
             lt(storageNodes.trashedAt, page.cursor.trashedAt),
@@ -78,7 +91,7 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
           and(
             eq(storageNodes.orgId, member.orgId),
             isNotNull(storageNodes.trashedAt),
-            member.personal ? mine : or(mine, shared),
+            or(member.personal ? mine : or(mine, shared), inTeamspaces),
             after,
           ),
         )

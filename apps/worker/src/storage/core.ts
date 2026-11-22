@@ -118,6 +118,7 @@ export function wireUpload(upload: UploadRow) {
     size: upload.size,
     mimeType: upload.mimeType,
     space: upload.space,
+    teamspaceId: upload.teamspaceId,
     parentId: upload.parentId,
     partSize: STORAGE_PART_BYTES,
     partCount: partCount(upload.size),

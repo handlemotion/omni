@@ -1,3 +1,4 @@
+import { driveOf } from "@/lib/storage.ts";
 import { useQuery } from "@tanstack/react-query";
 import { Collaboration, isChangeOrigin } from "@tiptap/extension-collaboration";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
@@ -189,9 +190,9 @@ function useDriveOptions(props: EditorProps) {
   const storageHref = useOptionalStorageHref();
   const filePlace = useFilePlace();
   const router = useRouter();
-  const hrefOf = (node: { id: string; space: StorageNode["space"]; parentId: string | null }) => {
+  const hrefOf = (node: Pick<StorageNode, "id" | "space" | "teamspaceId" | "parentId">) => {
     if (!storageHref) return "#";
-    const folder = storageHref(node.space, node.parentId ?? undefined);
+    const folder = storageHref(driveOf(node), node.parentId ?? undefined);
     return `${folder}${folder.includes("?") ? "&" : "?"}file=${encodeURIComponent(node.id)}`;
   };
   const latest = useRef({ drive, hrefOf, filePlace, router });

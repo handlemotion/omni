@@ -5,7 +5,7 @@ import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tre
 import { SidebarSection } from "@/components/ui/sidebar";
 import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
 import { useFolderIcons, useStorageList } from "@/hooks/use-storage.ts";
-import type { StorageNode, StorageSpace } from "@/lib/storage.ts";
+import { driveKey, driveOf, type DriveRoot, type StorageNode } from "@/lib/storage.ts";
 import { FolderIcon } from "./folder-icons.tsx";
 import { GAP_MS, useDriveDrag } from "./drive-drag-state.ts";
 import {
@@ -19,40 +19,49 @@ import {
   type DropData,
   type DropPlace,
 } from "./node-drag.tsx";
-import { SPACE_ICON, SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
+import { drivePath } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 const SHOWN = 40;
 
-export function SidebarGroup(props: { space: StorageSpace; search: string }) {
-  const { space } = props;
-  const closed = useSidebarExpanded("drive-groups-closed", space);
+/** A drive's group in the sidebar: its top, then its folders. */
+export function SidebarGroup(props: {
+  drive: DriveRoot;
+  label: string;
+  icon: ReactNode;
+  search: string;
+}) {
+  const { drive } = props;
+  const key = driveKey(drive);
+  const closed = useSidebarExpanded("drive-groups-closed", key);
   const open = { value: !closed.value, toggle: closed.toggle };
   const { place: pathname, href } = useWorkspacePaths();
-  const to = useMemo<DropPlace>(() => ({ place: { space }, canWrite: true }), [space]);
+  const path = drivePath(drive);
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- the drive is its key
+  const to = useMemo<DropPlace>(() => ({ place: drive, canWrite: true }), [key]);
   return (
     <SidebarSection className="pb-1">
       <DragRow to={to} expand={open}>
         <SidebarTreeRow
-          href={href(SPACE_PATH[space] + props.search)}
-          isCurrent={pathname === SPACE_PATH[space]}
+          href={href(path + props.search)}
+          isCurrent={pathname === path}
           depth={0}
-          icon={SPACE_ICON[space]}
-          label={SPACE_LABEL[space]}
+          icon={props.icon}
+          label={props.label}
           expand={open}
           onPress={() => !open.value && open.toggle()}
         />
       </DragRow>
-      {open.value && <Clusters space={space} search={props.search} />}
+      {open.value && <Clusters drive={drive} search={props.search} />}
     </SidebarSection>
   );
 }
 
-function Clusters(props: { space: StorageSpace; search: string }) {
-  const root = useStorageList({ space: props.space });
-  const { icons } = useFolderIcons(props.space);
+function Clusters(props: { drive: DriveRoot; search: string }) {
+  const root = useStorageList(props.drive);
+  const { icons } = useFolderIcons(props.drive);
   const shown = folders(root.nodes);
-  const gap = useGapAt(root.isPending ? null : { space: props.space }, shown, "folder");
+  const gap = useGapAt(root.isPending ? null : props.drive, shown, "folder");
   if (root.isPending) return <SidebarTreeBones depth={1} />;
   return (
     <WithGap
@@ -107,22 +116,26 @@ function FolderRow(props: {
 }) {
   const { node, cluster } = props;
   const { place: pathname, href: inWorkspace } = useWorkspacePaths();
-  const href = `${SPACE_PATH[node.space]}/${encodeURIComponent(node.id)}`;
+  const drive = driveOf(node);
+  const href = `${drivePath(drive)}/${encodeURIComponent(node.id)}`;
+  const key = driveKey(drive);
   const to = useMemo<DropPlace>(
     () => ({
       place: { parentId: node.id },
-      space: node.space,
+      drive,
       canWrite: true,
       within: cluster ? [cluster.id] : undefined,
     }),
-    [node.id, node.space, cluster],
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the drive is its key
+    [node.id, key, cluster],
   );
   const beside = useMemo<DropPlace>(
     () =>
       cluster
-        ? { place: { parentId: cluster.id }, space: node.space, canWrite: true }
-        : { place: { space: node.space }, canWrite: true },
-    [cluster, node.space],
+        ? { place: { parentId: cluster.id }, drive, canWrite: true }
+        : { place: drive, canWrite: true },
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the drive is its key
+    [cluster, key],
   );
   return (
     <DragRow to={to} beside={beside} node={node} expand={props.expand}>

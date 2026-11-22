@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useChangeNode, useFolderIcons } from "@/hooks/use-storage.ts";
-import type { StorageFolderIcon, StorageNode } from "@/lib/storage.ts";
+import { driveOf, type StorageFolderIcon, type StorageNode } from "@/lib/storage.ts";
 import { FileGlyph } from "./file-glyph.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 
@@ -78,7 +78,7 @@ const FOLDER = "folder";
 /** Picks a top-level folder's sidebar glyph, the folder first. */
 export function FolderIconDialog(props: { node: StorageNode; onClose: () => void }) {
   const change = useChangeNode();
-  const saved = useFolderIcons(props.node.space);
+  const saved = useFolderIcons(driveOf(props.node));
   const current = saved.icons[props.node.id];
   const [choice, setChoice] = useState<string | null>(null);
   const picked = choice ?? (known(current) ? current : FOLDER);

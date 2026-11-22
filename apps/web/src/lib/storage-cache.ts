@@ -1,13 +1,19 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import { currentWorkspaceId } from "./current-workspace.ts";
 import { keys } from "./query-keys.ts";
-import type { StorageListPage, StorageNode, StoragePlace } from "./storage.ts";
+import {
+  driveKey,
+  driveOf,
+  type StorageListPage,
+  type StorageNode,
+  type StoragePlace,
+} from "./storage.ts";
 
 type ListData = InfiniteData<StorageListPage, string | null>;
 
-/** Where a node is listed: inside its folder, or at its space's root. */
-export const placeOf = (node: StorageNode) =>
-  (node.parentId ? { parentId: node.parentId } : { space: node.space }) satisfies StoragePlace;
+/** Where a node is listed: inside its folder, or at its drive's root. */
+export const placeOf = (node: Pick<StorageNode, "parentId" | "space" | "teamspaceId">) =>
+  (node.parentId ? { parentId: node.parentId } : driveOf(node)) satisfies StoragePlace;
 
 const placeIn = (key: QueryKey) => key.at(-1) as StoragePlace;
 
@@ -17,7 +23,10 @@ const lists = (client: QueryClient) =>
 const holds = (place: StoragePlace, node: StorageNode) =>
   "parentId" in place
     ? place.parentId === node.parentId
-    : node.parentId === null && place.space === node.space;
+    : node.parentId === null &&
+      ("teamspaceId" in place
+        ? place.teamspaceId === node.teamspaceId
+        : !node.teamspaceId && place.space === node.space);
 
 /** The Worker's order: folders first, then by lowercased name, then by id. */
 export function compareNodes(a: StorageNode, b: StorageNode) {
@@ -194,24 +203,30 @@ export async function storageNodeRemoved(client: QueryClient, id: string) {
 /** What `storage.changed` said: a drive, and the folders whose listing changed (all, absent). */
 export interface StorageDriveChange {
   space: string;
+  /** The teamspace that changed, when `space` is `teamspace`. */
+  teamspaceId?: string | undefined;
   parentIds?: (string | null)[] | undefined;
 }
 
 const LIVE_BRANCHES = new Set(["trash", "search", "usage", "icons", "shared-with-me", "node"]);
 
-const spaceOf = (key: QueryKey, data: ListData | undefined) => {
+const driveOfList = (key: QueryKey, data: ListData | undefined) => {
   const place = placeIn(key);
-  return "space" in place ? place.space : data?.pages[0]?.folder?.node.space;
+  if ("teamspaceId" in place) return driveKey(place);
+  if ("space" in place) return driveKey(place);
+  const folder = data?.pages[0]?.folder?.node;
+  return folder ? driveKey(driveOf(folder)) : undefined;
 };
 
 const staleFor = (change: StorageDriveChange) => {
   const named = change.parentIds && new Set(change.parentIds);
+  const changed = change.teamspaceId ? `teamspace:${change.teamspaceId}` : change.space;
   return (key: QueryKey, data: ListData | undefined) => {
-    const space = spaceOf(key, data);
-    if (space !== undefined && space !== change.space) return false;
+    const drive = driveOfList(key, data);
+    if (drive !== undefined && drive !== changed) return false;
     if (!named) return true;
     const place = placeIn(key);
-    if ("space" in place) return named.has(null);
+    if (!("parentId" in place)) return named.has(null);
     return (
       named.has(place.parentId) || !!data?.pages[0]?.folder?.path.some((step) => named.has(step.id))
     );

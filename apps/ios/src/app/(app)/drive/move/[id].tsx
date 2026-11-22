@@ -15,7 +15,7 @@ import { keys } from "@/lib/query-keys.ts";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 import { colors, space } from "@/theme/tokens.ts";
 
-type Space = DriveNode["space"];
+type Space = Exclude<DriveNode["space"], "teamspace">;
 type Step = { id: string; name: string };
 type At = { space: Space; path: Step[] } | null;
 
@@ -49,7 +49,8 @@ function MovePicker({ node }: { node: DriveNode }) {
     const parent = node.parentId
       ? client.getQueryData<FolderPages>(keys.drive("folder", node.parentId))?.pages[0]?.folder
       : null;
-    return { space: node.space, path: parent?.path.map(({ id, name }) => ({ id, name })) ?? [] };
+    const space = node.space === "shared" ? "shared" : "personal";
+    return { space, path: parent?.path.map(({ id, name }) => ({ id, name })) ?? [] };
   });
   const folder = at?.path.at(-1);
   const place = at ? (folder ? { parentId: folder.id } : { space: at.space }) : null;

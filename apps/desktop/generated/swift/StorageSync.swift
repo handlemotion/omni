@@ -4,6 +4,8 @@
 // This file was generated from JSON Schema using quicktype, do not modify it directly.
 // To parse the JSON, add this file to your project and do:
 //
+//   let space = try? JSONDecoder().decode(Space.self, from: jsonData)
+//   let storageNodeSpace = try? JSONDecoder().decode(StorageNodeSpace.self, from: jsonData)
 //   let storageNode = try StorageNode(json)
 //   let storageNodeView = try StorageNodeView(json)
 //   let storageListResponse = try StorageListResponse(json)
@@ -179,8 +181,9 @@ public struct StorageNode: Codable, Equatable {
     public let parentId: String?
     public let revision: Int?
     public let size: Int
-    public let space: Space
+    public let space: StorageNodeSpace
     public let teamOnly: Bool?
+    public let teamspaceId: String?
     public let trashedAt: String?
     public let updatedAt: String
 
@@ -201,11 +204,12 @@ public struct StorageNode: Codable, Equatable {
         case size = "size"
         case space = "space"
         case teamOnly = "teamOnly"
+        case teamspaceId = "teamspaceId"
         case trashedAt = "trashedAt"
         case updatedAt = "updatedAt"
     }
 
-    public init(contentSha256: String?, contentVersion: Int?, createdAt: String, createdByMemberId: String?, id: String, kind: Kind, lockedAt: String?, mimeType: String?, name: String, orgId: String, ownerMemberId: String?, parentId: String?, revision: Int?, size: Int, space: Space, teamOnly: Bool?, trashedAt: String?, updatedAt: String) {
+    public init(contentSha256: String?, contentVersion: Int?, createdAt: String, createdByMemberId: String?, id: String, kind: Kind, lockedAt: String?, mimeType: String?, name: String, orgId: String, ownerMemberId: String?, parentId: String?, revision: Int?, size: Int, space: StorageNodeSpace, teamOnly: Bool?, teamspaceId: String?, trashedAt: String?, updatedAt: String) {
         self.contentSha256 = contentSha256
         self.contentVersion = contentVersion
         self.createdAt = createdAt
@@ -222,6 +226,7 @@ public struct StorageNode: Codable, Equatable {
         self.size = size
         self.space = space
         self.teamOnly = teamOnly
+        self.teamspaceId = teamspaceId
         self.trashedAt = trashedAt
         self.updatedAt = updatedAt
     }
@@ -260,8 +265,9 @@ public extension StorageNode {
         parentId: String?? = nil,
         revision: Int?? = nil,
         size: Int? = nil,
-        space: Space? = nil,
+        space: StorageNodeSpace? = nil,
         teamOnly: Bool?? = nil,
+        teamspaceId: String?? = nil,
         trashedAt: String?? = nil,
         updatedAt: String? = nil
     ) -> StorageNode {
@@ -282,6 +288,7 @@ public extension StorageNode {
             size: size ?? self.size,
             space: space ?? self.space,
             teamOnly: teamOnly ?? self.teamOnly,
+            teamspaceId: teamspaceId ?? self.teamspaceId,
             trashedAt: trashedAt ?? self.trashedAt,
             updatedAt: updatedAt ?? self.updatedAt
         )
@@ -301,9 +308,10 @@ public enum Kind: String, Codable, Equatable {
     case folder = "folder"
 }
 
-public enum Space: String, Codable, Equatable {
+public enum StorageNodeSpace: String, Codable, Equatable {
     case personal = "personal"
     case shared = "shared"
+    case teamspace = "teamspace"
 }
 
 //
@@ -437,17 +445,20 @@ public struct StorageCreateFolderBody: Codable, Equatable {
     public let name: String
     public let parentId: String?
     public let space: Space?
+    public let teamspaceId: String?
 
     public enum CodingKeys: String, CodingKey {
         case name = "name"
         case parentId = "parentId"
         case space = "space"
+        case teamspaceId = "teamspaceId"
     }
 
-    public init(name: String, parentId: String?, space: Space?) {
+    public init(name: String, parentId: String?, space: Space?, teamspaceId: String?) {
         self.name = name
         self.parentId = parentId
         self.space = space
+        self.teamspaceId = teamspaceId
     }
 }
 
@@ -472,12 +483,14 @@ public extension StorageCreateFolderBody {
     func with(
         name: String? = nil,
         parentId: String?? = nil,
-        space: Space?? = nil
+        space: Space?? = nil,
+        teamspaceId: String?? = nil
     ) -> StorageCreateFolderBody {
         return StorageCreateFolderBody(
             name: name ?? self.name,
             parentId: parentId ?? self.parentId,
-            space: space ?? self.space
+            space: space ?? self.space,
+            teamspaceId: teamspaceId ?? self.teamspaceId
         )
     }
 
@@ -488,6 +501,11 @@ public extension StorageCreateFolderBody {
     func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
         return String(data: try self.jsonData(), encoding: encoding)
     }
+}
+
+public enum Space: String, Codable, Equatable {
+    case personal = "personal"
+    case shared = "shared"
 }
 
 //
@@ -502,19 +520,22 @@ public struct StorageChangeNodeBody: Codable, Equatable {
     public let icon: Icon?
     public let parentId: String?
     public let space: Space?
+    public let teamspaceId: String?
 
     public enum CodingKeys: String, CodingKey {
         case name = "name"
         case icon = "icon"
         case parentId = "parentId"
         case space = "space"
+        case teamspaceId = "teamspaceId"
     }
 
-    public init(name: String?, icon: Icon?, parentId: String?, space: Space?) {
+    public init(name: String?, icon: Icon?, parentId: String?, space: Space?, teamspaceId: String?) {
         self.name = name
         self.icon = icon
         self.parentId = parentId
         self.space = space
+        self.teamspaceId = teamspaceId
     }
 }
 
@@ -540,13 +561,15 @@ public extension StorageChangeNodeBody {
         name: String?? = nil,
         icon: Icon?? = nil,
         parentId: String?? = nil,
-        space: Space?? = nil
+        space: Space?? = nil,
+        teamspaceId: String?? = nil
     ) -> StorageChangeNodeBody {
         return StorageChangeNodeBody(
             name: name ?? self.name,
             icon: icon ?? self.icon,
             parentId: parentId ?? self.parentId,
-            space: space ?? self.space
+            space: space ?? self.space,
+            teamspaceId: teamspaceId ?? self.teamspaceId
         )
     }
 
@@ -596,6 +619,7 @@ public struct StorageOpenUploadBody: Codable, Equatable {
     public let sha256: String?
     public let size: Int
     public let space: Space?
+    public let teamspaceId: String?
 
     public enum CodingKeys: String, CodingKey {
         case mimeType = "mimeType"
@@ -604,15 +628,17 @@ public struct StorageOpenUploadBody: Codable, Equatable {
         case sha256 = "sha256"
         case size = "size"
         case space = "space"
+        case teamspaceId = "teamspaceId"
     }
 
-    public init(mimeType: String?, name: String, parentId: String?, sha256: String?, size: Int, space: Space?) {
+    public init(mimeType: String?, name: String, parentId: String?, sha256: String?, size: Int, space: Space?, teamspaceId: String?) {
         self.mimeType = mimeType
         self.name = name
         self.parentId = parentId
         self.sha256 = sha256
         self.size = size
         self.space = space
+        self.teamspaceId = teamspaceId
     }
 }
 
@@ -640,7 +666,8 @@ public extension StorageOpenUploadBody {
         parentId: String?? = nil,
         sha256: String?? = nil,
         size: Int? = nil,
-        space: Space?? = nil
+        space: Space?? = nil,
+        teamspaceId: String?? = nil
     ) -> StorageOpenUploadBody {
         return StorageOpenUploadBody(
             mimeType: mimeType ?? self.mimeType,
@@ -648,7 +675,8 @@ public extension StorageOpenUploadBody {
             parentId: parentId ?? self.parentId,
             sha256: sha256 ?? self.sha256,
             size: size ?? self.size,
-            space: space ?? self.space
+            space: space ?? self.space,
+            teamspaceId: teamspaceId ?? self.teamspaceId
         )
     }
 
@@ -802,7 +830,8 @@ public struct Upload: Codable, Equatable {
     public let parts: [Part]
     public let partSize: Int
     public let size: Int
-    public let space: Space
+    public let space: StorageNodeSpace
+    public let teamspaceId: String?
 
     public enum CodingKeys: String, CodingKey {
         case expiresAt = "expiresAt"
@@ -816,9 +845,10 @@ public struct Upload: Codable, Equatable {
         case partSize = "partSize"
         case size = "size"
         case space = "space"
+        case teamspaceId = "teamspaceId"
     }
 
-    public init(expiresAt: String, id: String, mimeType: String?, name: String, nodeId: String?, parentId: String?, partCount: Int, parts: [Part], partSize: Int, size: Int, space: Space) {
+    public init(expiresAt: String, id: String, mimeType: String?, name: String, nodeId: String?, parentId: String?, partCount: Int, parts: [Part], partSize: Int, size: Int, space: StorageNodeSpace, teamspaceId: String?) {
         self.expiresAt = expiresAt
         self.id = id
         self.mimeType = mimeType
@@ -830,6 +860,7 @@ public struct Upload: Codable, Equatable {
         self.partSize = partSize
         self.size = size
         self.space = space
+        self.teamspaceId = teamspaceId
     }
 }
 
@@ -862,7 +893,8 @@ public extension Upload {
         parts: [Part]? = nil,
         partSize: Int? = nil,
         size: Int? = nil,
-        space: Space? = nil
+        space: StorageNodeSpace? = nil,
+        teamspaceId: String?? = nil
     ) -> Upload {
         return Upload(
             expiresAt: expiresAt ?? self.expiresAt,
@@ -875,7 +907,8 @@ public extension Upload {
             parts: parts ?? self.parts,
             partSize: partSize ?? self.partSize,
             size: size ?? self.size,
-            space: space ?? self.space
+            space: space ?? self.space,
+            teamspaceId: teamspaceId ?? self.teamspaceId
         )
     }
 
@@ -1409,18 +1442,21 @@ public extension StorageSyncChange {
 // MARK: - StorageChangedEvent
 public struct StorageChangedEvent: Codable, Equatable {
     public let parentIds: [String?]?
-    public let space: Space
+    public let space: StorageNodeSpace
+    public let teamspaceId: String?
     public let type: TypeEnum
 
     public enum CodingKeys: String, CodingKey {
         case parentIds = "parentIds"
         case space = "space"
+        case teamspaceId = "teamspaceId"
         case type = "type"
     }
 
-    public init(parentIds: [String?]?, space: Space, type: TypeEnum) {
+    public init(parentIds: [String?]?, space: StorageNodeSpace, teamspaceId: String?, type: TypeEnum) {
         self.parentIds = parentIds
         self.space = space
+        self.teamspaceId = teamspaceId
         self.type = type
     }
 }
@@ -1445,12 +1481,14 @@ public extension StorageChangedEvent {
 
     func with(
         parentIds: [String?]?? = nil,
-        space: Space? = nil,
+        space: StorageNodeSpace? = nil,
+        teamspaceId: String?? = nil,
         type: TypeEnum? = nil
     ) -> StorageChangedEvent {
         return StorageChangedEvent(
             parentIds: parentIds ?? self.parentIds,
             space: space ?? self.space,
+            teamspaceId: teamspaceId ?? self.teamspaceId,
             type: type ?? self.type
         )
     }

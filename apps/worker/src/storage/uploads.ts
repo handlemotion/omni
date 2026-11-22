@@ -145,14 +145,14 @@ async function prepareObject(c: Context<AppEnv>, upload: StorageUpload) {
 
 export const storageUploads = new Hono<AppEnv>()
   .post("/uploads", zValidator("json", storageOpenUploadBodySchema), async (c) => {
-    const { name, size, mimeType, sha256, parentId, space } = c.req.valid("json");
+    const { name, size, mimeType, sha256, parentId, space, teamspaceId } = c.req.valid("json");
     const { db, config } = c.var;
     const { files, orgId } = writeDoor(c);
     if (size > config.STORAGE_MAX_FILE_BYTES || partCount(size) > STORAGE_MAX_PARTS) {
       return apiError(c, "file_too_large", "the file is larger than one file may be");
     }
     const { limitBytes } = await storageLimit(db, config, orgId);
-    const opened = await files.openUpload(placeOf({ parentId, space }), {
+    const opened = await files.openUpload(placeOf({ parentId, space, teamspaceId }), {
       name,
       size,
       mimeType,
@@ -180,12 +180,12 @@ export const storageUploads = new Hono<AppEnv>()
   })
 
   .patch("/uploads/:id", zValidator("json", storageMoveUploadBodySchema), async (c) => {
-    const { name, parentId, space } = c.req.valid("json");
+    const { name, parentId, space, teamspaceId } = c.req.valid("json");
     const upload = await findUploadRow(c, c.req.param("id"));
     if (!upload) return refused(c, "not_found");
     const moved = await writeDoor(c).files.moveUpload(
       upload.id,
-      placeOf({ parentId, space }),
+      placeOf({ parentId, space, teamspaceId }),
       name,
     );
     if (moved.status === "upload_complete") {

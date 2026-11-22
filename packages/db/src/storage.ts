@@ -25,6 +25,7 @@ import {
 import { signerOperations } from "./storage/signer.ts";
 import { signingOperations } from "./storage/signing.ts";
 import { listChanges, listSyncWorkspaces, type StorageSyncCursor } from "./storage/sync.ts";
+import { teamspaceOperations } from "./storage/teamspaces.ts";
 import { trashOperations } from "./storage/trash.ts";
 import {
   reach,
@@ -200,6 +201,17 @@ export {
   type StorageTextStatus,
 } from "./storage/texts.ts";
 export { handOverMemberStorage, type StorageHandOverResult } from "./storage/handover.ts";
+export { teamspaceFileAudience } from "./storage/audience.ts";
+export {
+  teamspaceAudience,
+  type DeleteTeamspaceResult,
+  type NewTeamspace,
+  type StorageTeamspace,
+  type StorageTeamspaceMember,
+  type StorageTeamspaceRole,
+  type TeamspaceMembersResult,
+  type TeamspaceResult,
+} from "./storage/teamspaces.ts";
 export {
   deletedStorageWorkspaces,
   deleteWorkspaceStorage,
@@ -243,8 +255,9 @@ export function memberStorage(db: Db, memberId: string) {
     ...policyOperations(db, memberId),
     ...lockOperations(db, door, memberId),
     ...signingOperations(db, door, memberId),
+    ...teamspaceOperations(db, () => loadMember(db, memberId)),
     async changes(
-      space: StorageSpace,
+      space: Exclude<StorageSpace, "teamspace">,
       page: { cursor?: StorageSyncCursor | null; limit?: number } = {},
     ) {
       const drive = await door.root(db, space);

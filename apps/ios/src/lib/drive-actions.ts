@@ -12,11 +12,18 @@ import { keys } from "./query-keys.ts";
 import { cacheEpoch } from "./workspace-id.ts";
 
 /** Where a new folder or an upload goes: a space's top, or inside a folder. */
-export type DrivePlace = { space: "personal" | "shared" } | { parentId: string };
+export type DrivePlace =
+  | { space: "personal" | "shared" }
+  | { teamspaceId: string }
+  | { parentId: string };
 
-/** Where `node` is listed: inside its folder, or at its space's top. */
+/** Where `node` is listed: inside its folder, or at its drive's top. */
 export const placeOf = (node: DriveNode) =>
-  (node.parentId ? { parentId: node.parentId } : { space: node.space }) satisfies DrivePlace;
+  (node.parentId
+    ? { parentId: node.parentId }
+    : node.teamspaceId
+      ? { teamspaceId: node.teamspaceId }
+      : { space: node.space === "personal" ? "personal" : "shared" }) satisfies DrivePlace;
 
 /** What a new folder is called when it is left unnamed, as on the web. */
 export const NEW_FOLDER_NAME = "Untitled folder";

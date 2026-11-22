@@ -20,6 +20,7 @@ import {
   type StorageNode,
 } from "./core.ts";
 import {
+  placeOf,
   reach,
   resolvePlace,
   resolveUploadPlace,
@@ -138,12 +139,7 @@ export function uploadOperations(db: Db, door: Door) {
       if (!target.nodeId) return null;
       return (await mayReplace(ex, door, target.nodeId)).status === "ok" ? upload : null;
     }
-    const at = await resolveUploadPlace(
-      ex,
-      door,
-      upload.parentId ? { parentId: upload.parentId } : { space: upload.space },
-      upload.name,
-    );
+    const at = await resolveUploadPlace(ex, door, placeOf(upload), upload.name);
     return at?.writable ? upload : null;
   }
 
@@ -210,6 +206,7 @@ export function uploadOperations(db: Db, door: Door) {
             orgId,
             memberId: actor,
             space: at.drive.space,
+            teamspaceId: at.drive.teamspaceId,
             parentId: at.parentId,
             name,
             size: file.size,
@@ -258,6 +255,7 @@ export function uploadOperations(db: Db, door: Door) {
             orgId: node.orgId,
             memberId: actor,
             space: node.space,
+            teamspaceId: node.teamspaceId,
             parentId: node.parentId,
             name: node.name,
             size: file.size,
@@ -366,7 +364,12 @@ export function uploadOperations(db: Db, door: Door) {
         if (!at.writable) return FORBIDDEN satisfies MoveUploadResult;
         const [row] = await tx
           .update(storageUploads)
-          .set({ space: at.drive.space, parentId: at.parentId, ...(name ? { name } : {}) })
+          .set({
+            space: at.drive.space,
+            teamspaceId: at.drive.teamspaceId,
+            parentId: at.parentId,
+            ...(name ? { name } : {}),
+          })
           .where(eq(storageUploads.id, uploadId))
           .returning();
         return { status: "ok", upload: await withParts(tx, row!) } satisfies MoveUploadResult;
@@ -431,12 +434,7 @@ export function uploadOperations(db: Db, door: Door) {
             created: true,
           } satisfies CompleteUploadResult;
         }
-        const at = await resolveUploadPlace(
-          tx,
-          door,
-          upload.parentId ? { parentId: upload.parentId } : { space: upload.space },
-          upload.name,
-        );
+        const at = await resolveUploadPlace(tx, door, placeOf(upload), upload.name);
         if (!at) {
           return (
             upload.parentId ? { status: "parent_trashed" } : NOT_FOUND

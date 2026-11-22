@@ -2,7 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, organizations } from "../schema/auth.ts";
 import { personalSpaces } from "../schema/identity.ts";
-import { storageGrants, storageNodes, storageTexts } from "../schema/storage.ts";
+import { storageGrants, storageNodes, storageTeamspaces, storageTexts } from "../schema/storage.ts";
 import {
   grantAddresses,
   grantDoor,
@@ -23,6 +23,7 @@ import {
 } from "./core.ts";
 import { inDrives, likeEscaped } from "./find.ts";
 import { listSharedWith } from "./sharing.ts";
+import { reachableTeamspaces } from "./teamspaces.ts";
 import type { StorageTextStatus } from "./texts.ts";
 import { reach, treeOperations, type ListResult } from "./tree.ts";
 
@@ -173,16 +174,13 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
         where c.trashed_at is null and not c.team_only and granted.depth < ${MAX_WALK}
     ) select id from granted)`;
 
-  const reachesShared = async (w: { personal: boolean; memberId: string }) =>
-    !w.personal && !(await loadMember(db, w.memberId))?.freelancer;
+  const drivesOf = async (reached: { memberId: string }[]) =>
+    (await Promise.all(reached.map((w) => memberDoor(w.memberId).drives(db)))).flat();
+  const driveKey = (drive: Pick<Drive, "orgId" | "space" | "ownerMemberId" | "teamspaceId">) =>
+    `${drive.orgId}:${drive.space}:${drive.ownerMemberId ?? ""}:${drive.teamspaceId ?? ""}`;
 
   async function scope(only?: string) {
-    const reached = await workspaces(only);
-    const shared = await Promise.all(reached.map(reachesShared));
-    const drives: Drive[] = reached.flatMap((w, i) => [
-      { orgId: w.id, space: "personal" as const, ownerMemberId: w.memberId },
-      ...(shared[i] ? [{ orgId: w.id, space: "shared" as const, ownerMemberId: null }] : []),
-    ]);
+    const drives: Drive[] = await drivesOf(await workspaces(only));
     const addresses = await grantAddresses(db, userId, scopeOrgId);
     const within = [
       ...(drives.length
@@ -233,9 +231,7 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
 
   async function facts(ids: string[]) {
     if (!ids.length) return [] satisfies ContextFile[];
-    const reached = await workspaces();
-    const sharedOf = await Promise.all(reached.map(reachesShared));
-    const shared = new Set(reached.filter((_, i) => sharedOf[i]).map((w) => w.id));
+    const reachable = new Set((await drivesOf(await workspaces())).map(driveKey));
     const rows = await db
       .select({
         id: storageNodes.id,
@@ -244,12 +240,15 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
         orgName: organizations.name,
         space: storageNodes.space,
         ownerMemberId: storageNodes.ownerMemberId,
+        teamspaceId: storageNodes.teamspaceId,
+        teamspaceName: storageTeamspaces.name,
         contentVersion: storageNodes.contentVersion,
         modifiedAt: storageNodes.updatedAt,
         excerpt: sql<string>`coalesce(left(${storageTexts.text}, ${EXCERPT_CHARS}), '')`,
       })
       .from(storageNodes)
       .innerJoin(organizations, eq(organizations.id, storageNodes.orgId))
+      .leftJoin(storageTeamspaces, eq(storageTeamspaces.id, storageNodes.teamspaceId))
       .leftJoin(
         storageTexts,
         and(
@@ -260,11 +259,13 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
       .where(and(inArray(storageNodes.id, ids), noTrashAbove));
     const byId = new Map(
       rows.map((row) => {
-        const member = reached.find((w) => w.id === row.orgId);
-        const mine =
-          member &&
-          (row.space === "shared" ? shared.has(row.orgId) : row.ownerMemberId === member.memberId);
-        const drive = row.space === "shared" ? "Shared" : "My files";
+        const mine = reachable.has(driveKey(row));
+        const drive =
+          row.space === "shared"
+            ? "Shared"
+            : row.space === "teamspace"
+              ? (row.teamspaceName ?? "Teamspace")
+              : "My files";
         return [
           row.id,
           {
@@ -413,14 +414,26 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
 
     async listDrive(
       orgId: string,
-      space: StorageSpace,
+      drive: Exclude<StorageSpace, "teamspace"> | { teamspaceId: string },
       page: { cursor?: StorageListCursor | null; limit?: number },
     ) {
       const [workspace] = await workspaces(orgId);
       if (!workspace) return null;
-      const listed = await treeOperations(db, memberDoor(workspace.memberId)).list({ space }, page);
+      const place = typeof drive === "object" ? drive : { space: drive };
+      const listed = await treeOperations(db, memberDoor(workspace.memberId)).list(place, page);
       if (listed.status !== "ok") return null;
       return { workspace, nodes: listed.nodes, nextCursor: listed.nextCursor };
+    },
+
+    async teamspaces() {
+      const reached = await workspaces();
+      const lists = await Promise.all(
+        reached.map(async (w) => {
+          const member = await loadMember(db, w.memberId);
+          return member ? reachableTeamspaces(db, member) : [];
+        }),
+      );
+      return lists.flat().map((t) => ({ id: t.id, orgId: t.orgId, name: t.name }));
     },
 
     async sharedWithMe(limit: number) {

@@ -26,8 +26,11 @@ function guardOf(c: Context<AppEnv>) {
 
 export const storageChanges = new Hono<AppEnv>()
   .post("/folders", zValidator("json", storageCreateFolderBodySchema), async (c) => {
-    const { name, parentId, space } = c.req.valid("json");
-    const made = await writeDoor(c).files.createFolder(placeOf({ parentId, space }), name);
+    const { name, parentId, space, teamspaceId } = c.req.valid("json");
+    const made = await writeDoor(c).files.createFolder(
+      placeOf({ parentId, space, teamspaceId }),
+      name,
+    );
     if (made.status !== "ok") return refused(c, made.status);
     announceDrives(c, [made.node]);
     return c.json({ node: wireNode(made.node) } satisfies StorageNodeResponse, 201);
@@ -53,10 +56,10 @@ export const storageChanges = new Hono<AppEnv>()
     }
     const changed = await files.move(id, placeOf(body), guard);
     if (changed.status !== "ok") return refused(c, changed.status);
-    const { orgId, space, ownerMemberId } = changed.left ?? changed.node;
+    const { orgId, space, ownerMemberId, teamspaceId } = changed.left ?? changed.node;
     announceDrives(c, [
       changed.node,
-      { orgId, space, ownerMemberId, parentId: changed.fromParentId },
+      { orgId, space, ownerMemberId, teamspaceId, parentId: changed.fromParentId },
     ]);
     return c.json({ node: wireNode(changed.node) } satisfies StorageNodeResponse);
   })

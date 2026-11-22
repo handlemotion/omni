@@ -30,6 +30,7 @@ import {
 } from "./http.ts";
 import { storageLive } from "./live.ts";
 import { storageSharing } from "./sharing.ts";
+import { storageTeamspaces } from "./teamspaces.ts";
 import { storageSigningMember } from "./signing.ts";
 import { thumbnail } from "./thumbnails.ts";
 import { zip } from "./zip.ts";
@@ -42,8 +43,9 @@ const trashCursor = z.object({ trashedAt: z.coerce.date(), id: z.string().min(1)
  */
 export const storageReads = new Hono<AppEnv>()
   .get("/nodes", zValidator("query", storageListQuerySchema), async (c) => {
-    const { space, parent, cursor, limit } = c.req.valid("query");
-    const listed = await memberStorage(c).list(placeOf({ parentId: parent, space }), {
+    const { space, teamspace, parent, cursor, limit } = c.req.valid("query");
+    const place = placeOf({ parentId: parent, space, teamspaceId: teamspace });
+    const listed = await memberStorage(c).list(place, {
       cursor: decodeCursor(cursor, listCursor),
       limit,
     });
@@ -130,11 +132,20 @@ export const storage = new Hono<AppEnv>()
     return c.json({ nodes: nodes.map(wireNode) } satisfies StorageFindResponse);
   })
 
+  .get("/recent", async (c) => {
+    const nodes = await memberStorage(c).recent();
+    return c.json({ nodes: nodes.map(wireNode) } satisfies StorageFindResponse);
+  })
+
   .get("/icons", zValidator("query", storageFolderIconsQuerySchema), async (c) => {
-    const icons = await memberStorage(c).folderIcons(c.req.valid("query").space);
+    const { space, teamspace } = c.req.valid("query");
+    const icons = await memberStorage(c).folderIcons(
+      teamspace ? { teamspaceId: teamspace } : (space ?? "personal"),
+    );
     return c.json({ icons } satisfies StorageFolderIconsResponse);
   })
 
+  .route("/", storageTeamspaces)
   .route("/", storageLive)
   .route("/", storageSharing)
   .route("/", storageSigningMember)

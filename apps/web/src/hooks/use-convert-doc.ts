@@ -7,6 +7,7 @@ import { appToast } from "@/components/ui/toast";
 import { useChangeNode } from "@/hooks/use-storage.ts";
 import { eachAtMost } from "@/lib/each-at-most.ts";
 import { storageChanged, type StorageNode } from "@/lib/storage.ts";
+import { placeOf } from "@/lib/storage-cache.ts";
 import { fileTextExact } from "@/lib/storage-export.ts";
 import { abortUpload, uploadFile } from "@/lib/storage-upload.ts";
 import { identityChecks, identityOf } from "@/lib/storage-uploads.ts";
@@ -36,7 +37,7 @@ export function useConvertToDoc() {
     try {
       await uploadFile({
         file: new File([text], node.name, { type: DOC_TYPE }),
-        place: node.parentId ? { parentId: node.parentId } : { space: node.space },
+        place: placeOf(node),
         replaces: node.id,
         ifContentVersion: node.contentVersion,
         shareId: undefined,

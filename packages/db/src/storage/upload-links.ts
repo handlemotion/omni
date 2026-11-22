@@ -29,7 +29,7 @@ import {
   type StorageLinkAccess,
   type StorageLinkSettings,
 } from "./sharing.ts";
-import { resolvePlace } from "./tree.ts";
+import { placeOf, resolvePlace } from "./tree.ts";
 
 type UploadRow = typeof storageUploads.$inferSelect;
 type LinkRow = typeof storageUploadLinks.$inferSelect;
@@ -121,7 +121,7 @@ async function membersReach(ex: Db, upload: UploadRow, visitor: LinkVisitor) {
       if (
         upload.space === "personal"
           ? id === upload.memberId
-          : await memberDoor(id).root(ex, "shared")
+          : await resolvePlace(ex, memberDoor(id), placeOf(upload))
       ) {
         return true;
       }
@@ -236,8 +236,7 @@ export function uploadLinkOperations(db: Db, door: Door) {
       .from(storageUploads)
       .where(stillUploading(uploadId));
     if (!live) return NOT_FOUND;
-    const place = upload.parentId ? { parentId: upload.parentId } : { space: upload.space };
-    const resolved = await resolvePlace(ex, door, place);
+    const resolved = await resolvePlace(ex, door, placeOf(upload));
     if (!resolved) return NOT_FOUND;
     if (resolved.access && !resolved.access.share) return FORBIDDEN;
     const above = upload.parentId ? ((await chainOf(ex, upload.parentId)) ?? []) : [];

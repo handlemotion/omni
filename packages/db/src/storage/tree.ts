@@ -28,8 +28,23 @@ import {
 } from "./core.ts";
 import { leaveTombstones, nextRevision } from "./revision.ts";
 
-/** Where something goes or is listed: inside a folder, or at the root of a space. */
-export type StoragePlace = { parentId: string } | { space: StorageSpace };
+/** Where something goes or is listed: inside a folder, or at the root of a drive. */
+export type StoragePlace =
+  | { parentId: string }
+  | { space: Exclude<StorageSpace, "teamspace"> }
+  | { teamspaceId: string };
+
+/** Where a row with a drive and a folder (an upload, a node) sits: its folder, or its drive's root. */
+export const placeOf = (row: {
+  parentId: string | null;
+  space: StorageSpace;
+  teamspaceId: string | null;
+}) =>
+  (row.parentId
+    ? { parentId: row.parentId }
+    : row.teamspaceId
+      ? { teamspaceId: row.teamspaceId }
+      : { space: row.space === "personal" ? "personal" : "shared" }) satisfies StoragePlace;
 
 export interface StoragePathEntry {
   id: string;
@@ -144,7 +159,10 @@ export async function resolvePlace(ex: Db, door: Door, place: StoragePlace) {
     if (!found || found.node.kind !== "folder" || inTrash(found.chain)) return null;
     return placeIn(found, found.access.inside, false);
   }
-  const drive = await door.root(ex, place.space);
+  const drive =
+    "teamspaceId" in place
+      ? await door.teamspace(ex, place.teamspaceId)
+      : await door.root(ex, place.space);
   if (!drive) return null;
   return {
     drive,
@@ -246,6 +264,7 @@ const moveInto: (
       .set({
         space: dest.drive.space,
         ownerMemberId: dest.drive.ownerMemberId,
+        teamspaceId: dest.drive.teamspaceId,
         revision,
         updatedAt: keepUpdatedAt,
       })
@@ -256,6 +275,7 @@ const moveInto: (
     .set({
       space: dest.drive.space,
       ownerMemberId: dest.drive.ownerMemberId,
+      teamspaceId: dest.drive.teamspaceId,
       parentId: dest.parentId,
       name: freeName(dest.drive, dest.parentId, node.name, node.kind, node.id),
       revision,

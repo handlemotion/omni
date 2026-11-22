@@ -66,7 +66,7 @@ export async function startStorageStack(options: {
 
   async function upload(
     jar: CookieJar,
-    place: { space: "personal" | "shared" } | { parentId: string },
+    place: { space: "personal" | "shared" } | { teamspaceId: string } | { parentId: string },
     name: string,
     bytes: Uint8Array,
     mimeType?: string,

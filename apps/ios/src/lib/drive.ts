@@ -42,11 +42,13 @@ export function drivePageIn(page: string | undefined, company: boolean) {
 }
 
 /** A space's top (`my`, `shared`) or a folder's contents: folders first, then by name. */
-export const folderQuery = (place: { space: "personal" | "shared" } | { parent: string }) =>
+export const folderQuery = (
+  place: { space: "personal" | "shared" } | { teamspace: string } | { parent: string },
+) =>
   infiniteQueryOptions({
     queryKey: keys.drive(
-      "space" in place ? place.space : "folder",
-      "parent" in place ? place.parent : undefined,
+      "space" in place ? place.space : "teamspace" in place ? "teamspace" : "folder",
+      "parent" in place ? place.parent : "teamspace" in place ? place.teamspace : undefined,
     ),
     queryFn: ({ pageParam, signal }) =>
       call(

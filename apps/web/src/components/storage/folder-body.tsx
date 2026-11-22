@@ -21,7 +21,7 @@ import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { FileSections, FileSectionsBones, type Drafts } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
 import { NodeMenu } from "./node-menu.tsx";
-import { dropOperation, useDropInto, useRoomDrop, type NodeDrag } from "./node-drag.tsx";
+import { dropOperation, placeKey, useDropInto, useRoomDrop, type NodeDrag } from "./node-drag.tsx";
 
 interface Actions {
   onNewFolder: () => void;
@@ -79,7 +79,7 @@ const useFolderDrag: (source: FolderSource) => NodeDrag = (source) => {
     const door = { shareId, canWrite };
     return { door, here: { ...door, place } };
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [shareId, canWrite, "parentId" in place ? place.parentId : place.space]);
+  }, [shareId, canWrite, placeKey(place)]);
 };
 
 function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {

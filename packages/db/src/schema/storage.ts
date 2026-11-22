@@ -17,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import { members, organizations } from "./auth.ts";
+import { storageTeamspaces } from "./storage/teamspaces.ts";
 
 const id = () =>
   text("id")
@@ -30,8 +31,11 @@ const orgId = () =>
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
-/** `personal` is a member's My files; `shared` is the company's one shared drive. */
-export const storageSpace = pgEnum("storage_space", ["personal", "shared"]);
+/**
+ * `personal` is a member's My files; `shared` is the company's one shared drive; `teamspace` is
+ * one of the workspace's teamspaces (`teamspace_id`).
+ */
+export const storageSpace = pgEnum("storage_space", ["personal", "shared", "teamspace"]);
 /** In this order: a folder lists before a file. */
 export const storageNodeKind = pgEnum("storage_node_kind", ["folder", "file"]);
 /**
@@ -57,8 +61,8 @@ export interface StorageUploadPart {
 }
 
 /**
- * A file or folder. There is no drives table: a drive is `(org_id, space, owner_member_id)`,
- * and a node whose `parent_id` is null sits at its root.
+ * A file or folder. A drive is `(org_id, space, owner_member_id, teamspace_id)`, and a node
+ * whose `parent_id` is null sits at its root.
  */
 export const storageNodes = pgTable(
   "storage_nodes",
@@ -72,6 +76,8 @@ export const storageNodes = pgTable(
      * them. Deleting the workspace still cascades through `org_id`.
      */
     ownerMemberId: text("owner_member_id").references(() => members.id),
+    /** The teamspace it is in, when `space` is `teamspace`. A teamspace holding nodes stays. */
+    teamspaceId: text("teamspace_id"),
     parentId: text("parent_id"),
     kind: storageNodeKind("kind").notNull(),
     name: text("name").notNull(),
@@ -127,9 +133,18 @@ export const storageNodes = pgTable(
       columns: [t.parentId, t.orgId],
       foreignColumns: [t.id, t.orgId],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "storage_nodes_teamspace_org_fk",
+      columns: [t.teamspaceId, t.orgId],
+      foreignColumns: [storageTeamspaces.id, storageTeamspaces.orgId],
+    }),
     check(
       "storage_nodes_space_owner",
       sql`(${t.space} = 'personal') = (${t.ownerMemberId} is not null)`,
+    ),
+    check(
+      "storage_nodes_space_teamspace",
+      sql`(${t.space}::text = 'teamspace') = (${t.teamspaceId} is not null)`,
     ),
     check("storage_nodes_file_key", sql`(${t.kind} = 'file') = (${t.r2Key} is not null)`),
     uniqueIndex("storage_nodes_sibling_name_key")
@@ -137,6 +152,7 @@ export const storageNodes = pgTable(
         t.orgId,
         t.space,
         sql`coalesce(${t.ownerMemberId}, '')`,
+        sql`coalesce(${t.teamspaceId}, '')`,
         sql`coalesce(${t.parentId}, '')`,
         sql`lower(${t.name})`,
       )
@@ -145,6 +161,7 @@ export const storageNodes = pgTable(
       t.orgId,
       t.space,
       sql`coalesce(${t.ownerMemberId}, '')`,
+      sql`coalesce(${t.teamspaceId}, '')`,
       sql`coalesce(${t.parentId}, '')`,
       t.kind,
       sql`lower(${t.name})`,
@@ -152,6 +169,7 @@ export const storageNodes = pgTable(
     ),
     index("storage_nodes_parent_id_idx").on(t.parentId),
     index("storage_nodes_owner_member_id_idx").on(t.ownerMemberId),
+    index("storage_nodes_teamspace_id_idx").on(t.teamspaceId),
     unique("storage_nodes_share_id_unique").on(t.shareId),
     index("storage_nodes_trash_idx")
       .on(t.orgId, t.trashedAt)
@@ -160,6 +178,7 @@ export const storageNodes = pgTable(
       t.orgId,
       t.space,
       sql`coalesce(${t.ownerMemberId}, '')`,
+      sql`coalesce(${t.teamspaceId}, '')`,
       t.revision,
       t.id,
     ),
@@ -199,6 +218,8 @@ export const storageTombstones = pgTable(
     /** The drive it left. */
     space: storageSpace("space").notNull(),
     ownerMemberId: text("owner_member_id").references(() => members.id, { onDelete: "cascade" }),
+    /** No foreign key: the teamspace may be gone. */
+    teamspaceId: text("teamspace_id"),
     revision: bigint("revision", { mode: "number" }).notNull(),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
@@ -207,6 +228,7 @@ export const storageTombstones = pgTable(
       t.orgId,
       t.space,
       sql`coalesce(${t.ownerMemberId}, '')`,
+      sql`coalesce(${t.teamspaceId}, '')`,
       t.revision,
       t.nodeId,
     ),
@@ -437,7 +459,9 @@ export const storageUploads = pgTable(
       .notNull()
       .references(() => members.id, { onDelete: "cascade" }),
     space: storageSpace("space").notNull(),
-    /** The folder it lands in; null is the root of the member's My files or of Shared. */
+    /** The teamspace whose root it lands in, when `space` is `teamspace`. */
+    teamspaceId: text("teamspace_id"),
+    /** The folder it lands in; null is the root of the member's My files, of Shared or of a teamspace. */
     parentId: text("parent_id"),
     name: text("name").notNull(),
     /** Declared bytes: counted against the quota from the moment the upload opens. */
@@ -463,6 +487,11 @@ export const storageUploads = pgTable(
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (t) => [
+    foreignKey({
+      name: "storage_uploads_teamspace_org_fk",
+      columns: [t.teamspaceId, t.orgId],
+      foreignColumns: [storageTeamspaces.id, storageTeamspaces.orgId],
+    }).onDelete("cascade"),
     foreignKey({
       name: "storage_uploads_parent_org_fk",
       columns: [t.parentId, t.orgId],
@@ -580,3 +609,4 @@ export const storageOverage = pgTable("storage_overage", {
 export * from "./storage/comments.ts";
 export * from "./storage/signing.ts";
 export * from "./storage/texts.ts";
+export * from "./storage/teamspaces.ts";

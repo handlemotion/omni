@@ -4,7 +4,13 @@ import type { DropItem, DropOperation } from "react-aria-components";
 import { useUploads } from "@/hooks/use-storage.ts";
 import { compareNodes } from "@/lib/storage-cache.ts";
 import { pickedFromDropItems, pickedFromTransfer } from "@/lib/storage-upload-tree.ts";
-import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
+import {
+  driveKey,
+  driveOf,
+  type DriveRoot,
+  type StorageNode,
+  type StoragePlace,
+} from "@/lib/storage.ts";
 import { useDriveDrag } from "./drive-drag-state.ts";
 import { storageErrorToast } from "./storage-errors.ts";
 
@@ -41,11 +47,11 @@ export interface DragSource extends Dragged {
   look: Look;
 }
 
-/** Where a drop goes: a folder or a space's top, through a door; `within` its known ancestors. */
+/** Where a drop goes: a folder or a drive's top, through a door; `within` its known ancestors. */
 export interface DropPlace {
   place: StoragePlace;
-  /** The space a top-level place is in; a folder's, where it is known. */
-  space?: StorageSpace | undefined;
+  /** The drive a folder is in, where it is known; a drive's top names its own. */
+  drive?: DriveRoot | undefined;
   shareId?: string | undefined;
   canWrite: boolean;
   /** Folders this place is inside, so a folder is never offered a drop into itself. */
@@ -62,7 +68,7 @@ export interface DropData {
 
 /** A place's key: two places are one when their keys match. */
 export const placeKey = (place: StoragePlace) =>
-  "parentId" in place ? `folder:${place.parentId}` : `space:${place.space}`;
+  "parentId" in place ? `folder:${place.parentId}` : `drive:${driveKey(place)}`;
 
 /** Whether `dragged` can move to `to`: through the same door, not into itself, not where it is. */
 export function canMove(dragged: Dragged, to: DropPlace) {
@@ -70,8 +76,11 @@ export function canMove(dragged: Dragged, to: DropPlace) {
   if (!to.canWrite || (dragged.shareId ?? null) !== (to.shareId ?? null)) return false;
   const into = "parentId" in to.place ? to.place.parentId : null;
   if (into === node.id || to.within?.includes(node.id)) return false;
-  const space = "space" in to.place ? to.place.space : to.space;
-  return into !== node.parentId || (into === null && space !== node.space);
+  const drive = "parentId" in to.place ? to.drive : to.place;
+  return (
+    into !== node.parentId ||
+    (into === null && !!drive && driveKey(drive) !== driveKey(driveOf(node)))
+  );
 }
 
 /**
@@ -136,9 +145,9 @@ export function useSurfaceDrag(node: StorageNode, look: Look, drag: NodeDrag | u
   const drop = useMemo<DropData | null>(
     () =>
       door && node.kind === "folder"
-        ? { to: { ...door, place: { parentId: node.id }, space: node.space }, folder: true }
+        ? { to: { ...door, place: { parentId: node.id }, drive: driveOf(node) }, folder: true }
         : null,
-    [node.id, node.kind, node.space, door],
+    [node.id, node.kind, node.space, node.teamspaceId, door],
   );
   const lift = useNodeDrag(`${look}:${node.id}`, source, drop);
   const files = useFilesDropOn(drop?.to ?? null);
