@@ -47,7 +47,8 @@ import {
   useGoogleReturn,
 } from "@/hooks/use-google-connection";
 import { useInviteWithInbox } from "@/hooks/use-workspace-admin";
-import { formatPrice, type Interval } from "@/lib/billing";
+import type { PlanChoice } from "@/lib/billing";
+import { PlanPicker, SAMPLE_PLANS } from "@/components/billing/plan-picker";
 import { googleErrorText, type GoogleOutcome } from "@/lib/google-connection";
 import {
   needsSetup,
@@ -902,40 +903,11 @@ function MailboxesForm(props: {
   );
 }
 
-type Billing = Extract<NonNullable<ReturnType<typeof useBilling>["data"]>, { enabled: true }>;
-
-function planChoices(billing: Billing) {
-  const { month, year } = billing.prices;
-  const choices: { id: Interval; label: string; description: string }[] = [
-    {
-      id: "month",
-      label: "Monthly",
-      description: month ? `${formatPrice(month)} a month` : "Billed every month",
-    },
-  ];
-  if ((billing.intervals as readonly string[]).includes("year")) {
-    const free = month && year ? Math.floor((month.amount * 12 - year.amount) / month.amount) : 0;
-    choices.push({
-      id: "year",
-      label: "Yearly",
-      description: year
-        ? `${formatPrice(year)} a year${free > 0 ? `, ${free} months free` : ""}`
-        : "Billed every year",
-    });
-  }
-  return choices;
-}
-
-const SAMPLE_CHOICES = [
-  { id: "month", label: "Monthly", description: "$19 a month" },
-  { id: "year", label: "Yearly", description: "$190 a year, 2 months free" },
-] as const;
-
 function PlanForm(props: { finishing: boolean; finishProblem: string | null; onDone: () => void }) {
   const billing = useBilling();
   const startTrial = useStartTrial();
   const checkout = useStartCheckout();
-  const [picked, setPicked] = useState<Interval>("month");
+  const [picked, setPicked] = useState<PlanChoice>({ plan: "team", interval: "month" });
   const [problem, setProblem] = useState<string | null>(null);
   const plan = billing.data?.enabled ? billing.data : null;
   const trial = plan?.trialAvailable ?? true;
@@ -946,8 +918,8 @@ function PlanForm(props: { finishing: boolean; finishProblem: string | null; onD
       title={trial ? "Start your free trial" : "Choose your plan"}
       description={
         trial
-          ? `Free for ${plan?.trialDays ?? 14} days. Add a card before it ends to keep going.`
-          : "One price for everyone, every inbox and every domain."
+          ? `Free for ${plan?.trialDays ?? 7} days. Add a card before it ends to keep going.`
+          : "One price for the whole workspace, never per member."
       }
       submit={trial ? "Start free trial" : "Continue to payment"}
       isPending={startTrial.isPending || checkout.isPending || props.finishing}
@@ -955,31 +927,14 @@ function PlanForm(props: { finishing: boolean; finishProblem: string | null; onD
       onSubmit={() => {
         setProblem(null);
         if (trial) startTrial.mutate(picked, { onSuccess: props.onDone, onError: fail });
-        else checkout.mutate({ interval: picked, returnPath: "/onboarding" }, { onError: fail });
+        else checkout.mutate({ ...picked, returnPath: "/onboarding" }, { onError: fail });
       }}
     >
-      <Skeleton
-        data={plan ? planChoices(plan) : null}
-        sample={[...SAMPLE_CHOICES]}
-        label="Loading plans"
-      >
-        {(choices) => (
-          <ChoiceBox
-            className="mt-1"
-            aria-label="Plan"
-            selectionMode="single"
-            disallowEmptySelection
-            selectedKeys={[picked]}
-            onSelectionChange={(keys) => {
-              const [key] = [...(keys as Set<Key>)];
-              if (key === "month" || key === "year") setPicked(key);
-            }}
-            items={choices}
-          >
-            {(item) => (
-              <ChoiceBoxItem id={item.id} label={item.label} description={item.description} />
-            )}
-          </ChoiceBox>
+      <Skeleton data={plan?.plans} sample={SAMPLE_PLANS} label="Loading plans">
+        {(plans) => (
+          <div className="mt-1">
+            <PlanPicker plans={plans} value={picked} onChange={setPicked} />
+          </div>
         )}
       </Skeleton>
     </PageForm>

@@ -5,6 +5,7 @@ import {
   billingQuery,
   cardAddedMutation,
   cardSetupMutation,
+  changePlanMutation,
   checkoutMutation,
   defaultCardMutation,
   removeCardMutation,
@@ -17,14 +18,19 @@ export function useBilling(options: { enabled?: boolean } = {}) {
   return useQuery({ ...billingQuery(), enabled: options.enabled ?? true });
 }
 
-/** `mutate(interval)` starts the free trial now (no card); setup's plan step is then done. */
+/** `mutate({ plan, interval })` starts the free trial now (no card); setup's plan step is then done. */
 export function useStartTrial() {
   return useMutation(startTrialMutation(useQueryClient()));
 }
 
-/** `mutate({ interval, returnPath })` leaves for Stripe Checkout to pay. */
+/** `mutate({ plan, interval, returnPath })` leaves for Stripe Checkout to pay. */
 export function useStartCheckout() {
   return useMutation(checkoutMutation());
+}
+
+/** `mutate({ plan, interval })` moves the workspace's plan; answers whether it is `pending`. */
+export function useChangePlan() {
+  return useMutation(changePlanMutation(useQueryClient()));
 }
 
 /** `mutate(returnPath)` leaves for the Stripe customer portal: card, interval, invoices, cancel. */

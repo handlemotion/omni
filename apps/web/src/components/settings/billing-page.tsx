@@ -13,19 +13,27 @@ import { CardBrandMark } from "@/components/icons/card-brand-mark";
 import { StorageUsageSection } from "@/components/storage/storage-usage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/field";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { appToast } from "@/components/ui/toast";
+import { PlanPicker, SAMPLE_PLANS } from "@/components/billing/plan-picker";
 import {
   useBilling,
   useBillingCards,
   useBillingInvoices,
+  useChangePlan,
   useMakeDefaultCard,
   useOpenBillingPortal,
   useRemoveCard,
   useStartCheckout,
+  useStartTrial,
 } from "@/hooks/use-billing.ts";
-import { type Card, type Cards, formatPrice, type Invoice } from "@/lib/billing.ts";
+import {
+  type Card,
+  type Cards,
+  formatPrice,
+  type Invoice,
+  type PlanChoice,
+  planOption,
+} from "@/lib/billing.ts";
 import { BillingAddCardDialog } from "./billing-add-card-dialog";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
@@ -43,7 +51,6 @@ import { SettingsValueRow } from "./kit/settings-value-row";
 type Billing = NonNullable<ReturnType<typeof useBilling>["data"]>;
 type EnabledBilling = Extract<Billing, { enabled: true }>;
 type Subscription = NonNullable<EnabledBilling["subscription"]>;
-type Triage = NonNullable<EnabledBilling["triage"]>;
 type Interval = EnabledBilling["intervals"][number];
 
 const RETURN_PATH = "/settings/billing";
@@ -54,36 +61,24 @@ const NUMBER = new Intl.NumberFormat();
 const day = (iso: string) => DAY.format(new Date(iso));
 const shortDay = (iso: string) => SHORT_DAY.format(new Date(iso));
 
-const SAMPLE_LIMITS = {
-  members: 15,
-  mailboxes: 30,
-  domains: 5,
-  storageGb: 100,
-  triage: 20_000,
-  assist: 250,
-  meetingMinutes: 900,
-};
 const SAMPLE_PLAN: Billing = {
   enabled: true,
   plan: "team",
-  limits: SAMPLE_LIMITS,
+  readOnly: false,
+  limits: SAMPLE_PLANS[0]!.limits,
   usage: {
     members: 4,
     mailboxes: 6,
     domains: 1,
     storageGb: 3.2,
-    triage: 120,
+    triage: 1_200,
     assist: 12,
     meetingMinutes: 180,
   },
   month: { start: "2026-11-04T00:00:00.000Z", end: "2026-12-04T00:00:00.000Z" },
-  plans: [],
-  readOnly: false,
+  plans: SAMPLE_PLANS,
   canManage: true,
-  intervals: ["month"],
-  planName: "Omnipresent",
-  prices: { month: { amount: 1900, currency: "usd" }, year: null },
-  trialDays: 0,
+  trialDays: 7,
   trialAvailable: false,
   subscription: {
     status: "active",
@@ -92,13 +87,10 @@ const SAMPLE_PLAN: Billing = {
     trialEnd: null,
     cancelAtPeriodEnd: false,
   },
+  intervals: ["month", "year"],
+  planName: "Omni Team",
+  prices: SAMPLE_PLANS[0]!.prices,
   triage: null,
-};
-const SAMPLE_TRIAGE: Triage = {
-  used: 120,
-  allowance: 500,
-  periodEnd: "2026-12-04T00:00:00.000Z",
-  pausedUntil: null,
 };
 const SAMPLE_CARDS: Cards = {
   addCard: true,
@@ -125,15 +117,13 @@ const SAMPLE_INVOICES: Invoice[] = ["2026-11-04", "2026-10-04"].map((date, index
   pdfUrl: null,
 }));
 
-const INTERVAL_LABELS: Record<Interval, string> = { month: "Monthly", year: "Yearly" };
-
 type Intent = "success" | "info" | "warning" | "danger" | "secondary";
 
 const planState: (subscription: Subscription | null) => {
   badge?: { label: string; intent: Intent };
   date?: string;
 } = (subscription) => {
-  if (!subscription) return { badge: { label: "No plan", intent: "secondary" } };
+  if (!subscription) return {};
   const { status, periodEnd, trialEnd, cancelAtPeriodEnd } = subscription;
   const end = (status === "trialing" ? (trialEnd ?? periodEnd) : periodEnd) ?? null;
   if (status === "trialing") {
@@ -165,7 +155,6 @@ export function BillingPage() {
   const billing = useBilling();
   const data = billing.data;
   const enabled = data?.enabled ? data : undefined;
-  const triage = enabled?.triage;
   const manager = data === undefined || enabled?.canManage === true;
   const failed = billing.isError && (
     <SettingsEmptyState title="Billing didn't load" description="Try again in a moment." />
@@ -193,26 +182,14 @@ export function BillingPage() {
       </Skeleton>
 
       {(data === undefined || enabled) && (
-        <SettingsSection
-          title="AI triage"
-          info="Each email the AI sorts counts once. Past the allowance, new mail waits untriaged until the reset; everything else keeps working."
-        >
+        <SettingsSection title="Usage">
           <Skeleton
-            id="settings-billing-triage"
-            data={enabled ? { usage: triage ?? null } : undefined}
-            sample={{ usage: SAMPLE_TRIAGE }}
+            id="settings-billing-usage"
+            data={enabled}
+            sample={SAMPLE_PLAN as EnabledBilling}
             label="Loading usage"
           >
-            {({ usage }) =>
-              usage ? (
-                <TriageGroup triage={usage} />
-              ) : (
-                <SettingsEmptyState
-                  title="No allowance right now"
-                  description="AI triage counts against a plan in good standing."
-                />
-              )
-            }
+            {(state) => <UsageGroup billing={state} />}
           </Skeleton>
         </SettingsSection>
       )}
@@ -247,25 +224,26 @@ export function BillingPage() {
   );
 }
 
+type PlanMode = "trial" | "checkout" | "change";
+
 function PlanCard({ billing }: { billing: EnabledBilling }) {
   const { subscription, readOnly, canManage } = billing;
   const state = planState(subscription);
   const interval = subscription?.interval as Interval | null | undefined;
-  const price = interval ? billing.prices[interval] : null;
+  const current = billing.plans.find((plan) => plan.key === billing.plan);
+  const price = interval && current ? current.prices[interval] : null;
   const pastDue = subscription?.status === "past_due";
-  const note = readOnly
-    ? canManage
-      ? "Read-only: mail keeps syncing, nothing is sent until the plan is back."
-      : "Read-only until an owner or admin subscribes again."
-    : undefined;
+  const [mode, setMode] = useState<PlanMode | null>(null);
   const line = [price && `${formatPrice(price)} / ${interval}`, state.date].filter(Boolean);
 
   return (
     <SettingsGroup>
-      <div className="flex min-h-21 items-center gap-4 py-4 ps-4 pe-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <div className="flex min-h-21 flex-wrap items-center gap-4 py-4 ps-4 pe-3">
+        <div className="flex min-w-48 flex-1 flex-col gap-1.5">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-lg text-foreground">{billing.planName ?? "Plan"}</h3>
+            <h3 className="truncate text-lg text-foreground">
+              {current ? planOption(current, interval ?? "month").label : "No plan"}
+            </h3>
             {state.badge && <Badge intent={state.badge.intent}>{state.badge.label}</Badge>}
           </div>
           {line.length > 0 && (
@@ -275,88 +253,90 @@ function PlanCard({ billing }: { billing: EnabledBilling }) {
           )}
         </div>
         {canManage &&
-          (readOnly ? <SubscribeButton billing={billing} /> : <PortalButton primary={pastDue} />)}
+          (readOnly ? (
+            <Button onPress={() => setMode(billing.trialAvailable ? "trial" : "checkout")}>
+              {billing.trialAvailable ? "Start free trial" : "Subscribe"}
+            </Button>
+          ) : (
+            <div className="flex shrink-0 items-center gap-2">
+              <Button intent="outline" onPress={() => setMode("change")}>
+                Change plan
+              </Button>
+              <PortalButton primary={pastDue} />
+            </div>
+          ))}
       </div>
-      {note && <p className="px-4 py-3 text-xs/4 text-muted-foreground">{note}</p>}
+      {mode && (
+        <PlanDialog
+          billing={billing}
+          mode={mode}
+          current={current && interval ? { plan: current.key, interval } : null}
+          onClose={() => setMode(null)}
+        />
+      )}
     </SettingsGroup>
   );
 }
 
-function SubscribeButton({ billing }: { billing: EnabledBilling }) {
-  const checkout = useStartCheckout();
-  const [choosing, setChoosing] = useState(false);
-  const leaving = checkout.isPending || checkout.isSuccess;
-  const start = (interval: Interval) =>
-    checkout.mutate(
-      { interval, returnPath: RETURN_PATH },
-      { onError: (error) => appToast.error(error.message || "Checkout could not be opened.") },
-    );
-  return (
-    <>
-      <Button
-        isPending={leaving && !choosing}
-        onPress={() =>
-          billing.intervals.length > 1 ? setChoosing(true) : start(billing.intervals[0])
-        }
-      >
-        Subscribe
-      </Button>
-      {choosing && (
-        <IntervalDialog
-          billing={billing}
-          saving={leaving}
-          onClose={() => setChoosing(false)}
-          onContinue={start}
-        />
-      )}
-    </>
-  );
-}
+const PLAN_DIALOG: Record<PlanMode, { title: string; action: string }> = {
+  trial: { title: "Start free trial", action: "Start free trial" },
+  checkout: { title: "Subscribe", action: "Continue to checkout" },
+  change: { title: "Change plan", action: "Change plan" },
+};
 
-function IntervalDialog(props: {
+function PlanDialog(props: {
   billing: EnabledBilling;
-  saving: boolean;
+  mode: PlanMode;
+  current: PlanChoice | null;
   onClose: () => void;
-  onContinue: (interval: Interval) => void;
 }) {
-  const { intervals, prices } = props.billing;
-  const [interval, setInterval] = useState<Interval>(intervals[0] ?? "month");
-  const options = intervals.map((value) => {
-    const price = prices[value];
-    return {
-      id: value,
-      label: price
-        ? `${INTERVAL_LABELS[value]} · ${formatPrice(price)} / ${value}`
-        : INTERVAL_LABELS[value],
-    };
-  });
+  const { billing, mode, current, onClose } = props;
+  const trial = useStartTrial();
+  const checkout = useStartCheckout();
+  const change = useChangePlan();
+  const [choice, setChoice] = useState<PlanChoice>(
+    current ?? { plan: billing.plans[0]?.key ?? "team", interval: "month" },
+  );
+  const fail = (error: Error) => appToast.error(error.message || "The plan didn't change.");
+  const saving = trial.isPending || checkout.isPending || checkout.isSuccess || change.isPending;
+  const submit = () => {
+    if (mode === "trial") {
+      trial.mutate(choice, {
+        onSuccess: () => {
+          appToast.success("Free trial started.");
+          onClose();
+        },
+        onError: fail,
+      });
+    } else if (mode === "checkout") {
+      checkout.mutate({ ...choice, returnPath: RETURN_PATH }, { onError: fail });
+    } else {
+      change.mutate(choice, {
+        onSuccess: (result) => {
+          if ("pending" in result && result.pending) {
+            appToast.error("The card was declined. The plan stays as it is.");
+          } else if (result.changed) {
+            appToast.success("Plan changed.");
+          }
+          onClose();
+        },
+        onError: fail,
+      });
+    }
+  };
+  const same = current?.plan === choice.plan && current.interval === choice.interval;
+
   return (
     <SettingsFormDialog
       isOpen
-      onOpenChange={(open) => !open && props.onClose()}
-      title="Subscribe"
-      description="Promo codes are entered at checkout."
-      action="Continue to checkout"
-      saving={props.saving}
-      onSubmit={() => props.onContinue(interval)}
+      onOpenChange={(open) => !open && onClose()}
+      title={PLAN_DIALOG[mode].title}
+      action={PLAN_DIALOG[mode].action}
+      saving={saving}
+      disabled={mode === "change" && same}
+      onSubmit={submit}
     >
-      <Select
-        value={interval}
-        onChange={(next) => {
-          const option = intervals.find((value) => value === next);
-          if (option) setInterval(option);
-        }}
-      >
-        <Label>Billing</Label>
-        <SelectTrigger />
-        <SelectContent items={options}>
-          {(option) => (
-            <SelectItem id={option.id} textValue={option.label}>
-              {option.label}
-            </SelectItem>
-          )}
-        </SelectContent>
-      </Select>
+      <PlanPicker plans={billing.plans} value={choice} onChange={setChoice} current={current} />
     </SettingsFormDialog>
   );
 }
@@ -373,27 +353,40 @@ function PortalButton({ primary }: { primary: boolean }) {
         })
       }
     >
-      Manage plan
+      Manage
     </Button>
   );
 }
 
-function TriageGroup({ triage }: { triage: Triage }) {
-  const paused = triage.pausedUntil !== null;
+const count = (used: number, limit: number) => `${NUMBER.format(used)} of ${NUMBER.format(limit)}`;
+
+function UsageGroup({ billing }: { billing: EnabledBilling }) {
+  const { usage, limits, month } = billing;
+  const rows = [
+    { label: "Members", used: usage.members, limit: limits.members },
+    { label: "Inboxes", used: usage.mailboxes, limit: limits.mailboxes },
+    { label: "Domains", used: usage.domains, limit: limits.domains },
+    { label: "Emails triaged", used: usage.triage, limit: limits.triage },
+    { label: "Drafts and asks", used: usage.assist, limit: limits.assist },
+    {
+      label: "Meeting hours",
+      used: Math.round((usage.meetingMinutes / 60) * 10) / 10,
+      limit: limits.meetingMinutes / 60,
+    },
+  ];
   return (
     <SettingsGroup>
-      <SettingsMeterRow
-        label="Emails triaged"
-        amount={`${NUMBER.format(triage.used)} of ${NUMBER.format(triage.allowance)}`}
-        value={triage.used}
-        max={triage.allowance}
-        warn={triage.used >= triage.allowance * 0.9}
-      />
-      <SettingsValueRow
-        label={paused ? "Paused until" : "Resets"}
-        value={day(triage.pausedUntil ?? triage.periodEnd)}
-        tone={paused ? "danger" : "default"}
-      />
+      {rows.map((row) => (
+        <SettingsMeterRow
+          key={row.label}
+          label={row.label}
+          amount={count(row.used, row.limit)}
+          value={row.used}
+          max={row.limit}
+          warn={row.used >= row.limit * 0.9}
+        />
+      ))}
+      {month && <SettingsValueRow label="Resets" value={day(month.end)} />}
     </SettingsGroup>
   );
 }

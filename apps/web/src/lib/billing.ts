@@ -13,15 +13,22 @@ export const billingQuery = () =>
   });
 
 export type Interval = "month" | "year";
+export type PlanKey = "team" | "business";
+
+/** A plan and how often it is billed. */
+export interface PlanChoice {
+  plan: PlanKey;
+  interval: Interval;
+}
 
 /**
- * `mutate(interval)` starts the workspace's free trial now, with no card and no Stripe page, then
- * reloads what depends on it (setup's plan step, the plan itself).
+ * `mutate(choice)` starts the workspace's free trial of that plan now, with no card and no Stripe
+ * page, then reloads what depends on it (setup's plan step, the plan itself).
  */
 export const startTrialMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
-    mutationFn: (interval: Interval) => call(api.billing.trial.$post({ json: { interval } })),
+    mutationFn: (choice: PlanChoice) => call(api.billing.trial.$post({ json: choice })),
     onSuccess: () =>
       Promise.all([
         client.refetchQueries({ queryKey: keys.onboarding() }),
@@ -29,8 +36,7 @@ export const startTrialMutation = (client: QueryClient) =>
       ]),
   });
 
-export interface CheckoutChoice {
-  interval: Interval;
+export interface CheckoutChoice extends PlanChoice {
   /** An app path Stripe returns to, paid or not (e.g. `/onboarding`). */
   returnPath: string;
 }
@@ -46,6 +52,17 @@ export const checkoutMutation = () =>
       const { url } = await call(api.billing.checkout.$post({ json: choice }));
       window.location.assign(url);
     },
+  });
+
+/**
+ * `mutate(choice)` moves a workspace with a plan to another plan or interval. A move up is
+ * charged now and applies once paid (`pending` while it isn't); a move down is credited.
+ */
+export const changePlanMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: (choice: PlanChoice) => call(api.billing.plan.$post({ json: choice })),
+    onSuccess: () => client.refetchQueries({ queryKey: keys.billing() }),
   });
 
 /** `mutate(returnPath)` leaves for the Stripe customer portal: card, interval, invoices, cancel. */
@@ -122,3 +139,23 @@ export const removeCardMutation = (client: QueryClient) =>
     mutationFn: (id: string) => call(api.billing.cards[":id"].$delete({ param: { id } })),
     onSuccess: cardsChanged(client),
   });
+
+/** What a plan option shows: its name, its price for `interval`, and what it holds. */
+export function planOption(
+  plan: {
+    key: PlanKey;
+    name: string | null;
+    limits: { members: number; storageGb: number; meetingMinutes: number };
+    prices: Record<Interval, { amount: number; currency: string } | null>;
+  },
+  interval: Interval,
+) {
+  const price = plan.prices[interval];
+  const hours = Math.round(plan.limits.meetingMinutes / 60);
+  return {
+    id: plan.key,
+    label: plan.name ?? (plan.key === "team" ? "Team" : "Business"),
+    price: price ? `${formatPrice(price)} a ${interval}` : null,
+    holds: `${plan.limits.members} members · ${plan.limits.storageGb} GB · ${hours} h meetings`,
+  };
+}
