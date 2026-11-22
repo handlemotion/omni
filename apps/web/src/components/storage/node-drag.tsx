@@ -20,7 +20,7 @@ export const DROP_TARGET =
 
 /** A folder card a drag would drop into: its preview alone, as Finder marks a folder's icon. */
 export const CARD_DROP_TARGET =
-  "data-drive-target:bg-transparent! data-drive-target:**:data-[slot=folder-art]:border-primary data-drive-target:**:data-[slot=folder-art]:bg-primary/5";
+  "data-drive-target:bg-transparent! data-drive-target:**:data-[slot=folder-art]:outline-2 data-drive-target:**:data-[slot=folder-art]:outline-offset-2 data-drive-target:**:data-[slot=folder-art]:outline-primary";
 
 /**
  * Where a lifted item was: its content hidden and a dashed edge where its hover fill sits, in the

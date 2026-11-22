@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useMember } from "@/hooks/use-session.ts";
 import { IconSearch, IconTrash } from "@/components/icons/sidebar";
 import { openSearch } from "@/components/search/command-menu.tsx";
-import { SidebarItem, SidebarLabel, SidebarSection } from "@/components/ui/sidebar";
+import { SidebarItem, SidebarLabel, SidebarSection, useSidebar } from "@/components/ui/sidebar";
 import { useHasSharedFiles, useStorageList, useTeamspaces } from "@/hooks/use-storage.ts";
 import type { DriveRoot, StorageSpace } from "@/lib/storage.ts";
 import { StorageFrame } from "./storage-frame.tsx";
@@ -98,13 +98,21 @@ export function NoTeamspaces() {
   );
 }
 
-type Row = { label: string; path: string; icon: ReactNode; company?: boolean; action?: () => void };
+type Row = {
+  label: string;
+  path: string;
+  icon: ReactNode;
+  company?: boolean;
+  mobile?: boolean;
+  action?: () => void;
+};
 
 const PLACES: Row[] = [
   {
     label: "Search",
     path: "search",
     icon: <IconSearch />,
+    mobile: true,
     action: () => openSearch({ q: "", scope: "files" }),
   },
   {
@@ -153,9 +161,10 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
 function Rows(props: { rows: Row[]; mailbox: string | undefined }) {
   const { place: pathname, href } = useWorkspacePaths();
   const hasShared = useHasSharedFiles();
+  const { isMobile } = useSidebar();
   const search = props.mailbox ? `?mailbox=${encodeURIComponent(props.mailbox)}` : "";
   return props.rows
-    .filter((row) => !row.company || hasShared)
+    .filter((row) => (!row.company || hasShared) && (!row.mobile || isMobile))
     .map((row) => (
       <SidebarItem
         key={row.path}

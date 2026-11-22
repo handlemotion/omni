@@ -140,7 +140,7 @@ export function useSeen(ref: RefObject<HTMLElement | null>) {
 /** Cards while they load: skullet's squares and captions on the cards' own grid. */
 export function FileCardBones(props: { count: number }) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,11.5rem)] gap-x-3 gap-y-4 px-3.5">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(8.75rem,1fr))] gap-x-3 gap-y-4 ps-3.5 pe-1">
       {Array.from({ length: props.count }, (_, i) => (
         <div key={i} className="flex flex-col gap-2 p-1.5">
           <div className="aspect-square">

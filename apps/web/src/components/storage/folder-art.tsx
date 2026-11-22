@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties } from "react";
-import { IconFolderFilled, IconFolderOpenFilled } from "@/components/icons/central";
+import { IconFolderFilled } from "@/components/icons/central";
 import { useStorageList } from "@/hooks/use-storage.ts";
 import { usePdfPages } from "@/hooks/use-storage-preview.ts";
 import { fileType } from "@/lib/file-kind.ts";
@@ -8,23 +8,28 @@ import { useSeen } from "./file-card.tsx";
 import { FileGlyph } from "./file-glyph.tsx";
 import { hasThumbnail, ThumbnailImage } from "./thumbnail-image.tsx";
 
-type Spot = readonly [left: number, top: number, width: number, height: number];
+type Spot = readonly [left: number, top: number, width: number, turn: number];
 
-const EMPTY: Spot = [27, 22, 46, 50];
-const STACK: readonly (readonly Spot[])[] = [
-  [EMPTY],
+const ONE: Spot = [21, 6, 58, -3];
+
+const PEEK: readonly (readonly Spot[])[] = [
+  [ONE],
   [
-    [38, 36, 40, 40],
-    [22, 20, 40, 40],
+    [5, 8, 56, -5],
+    [39, 10, 56, 5],
   ],
   [
-    [30, 40, 40, 38],
-    [14, 18, 40, 38],
-    [46, 24, 40, 38],
+    [3, 11, 50, -7],
+    [25, 5, 50, 0],
+    [47, 11, 50, 7],
   ],
 ];
 
-/** The folder drawn; without `node` (a folder being named), or `peek` off, one dashed card. */
+/**
+ * A folder drawn as a pocket, tinted blue: a back panel, its first few items standing in it as
+ * cards, and a front flap over their lower half. Without `node` (a folder being named), or with
+ * `peek` off, the pocket is empty; a folder with nothing in it, or one being named, is grey.
+ */
 export function FolderArt(props: {
   node?: StorageNode;
   peek?: boolean | undefined;
@@ -36,33 +41,41 @@ export function FolderArt(props: {
   const enabled = !!node && !!fileUrl && props.peek !== false && near;
   const contents = useStorageList({ parentId: node?.id ?? "" }, { enabled });
   const cards = enabled ? pick(contents.nodes) : [];
-  const spots = STACK[cards.length - 1] ?? [];
+  const spots = PEEK[cards.length - 1] ?? [];
   const empty = !node || (contents.isSuccess && contents.nodes.length === 0);
+  const back = empty
+    ? "border-folder-empty-edge/40 bg-(image:--folder-empty-back)"
+    : "border-folder-edge/40 bg-(image:--folder-back)";
+  const front = empty
+    ? "border-folder-empty-edge/40 bg-(image:--folder-empty-front)"
+    : "border-folder-edge/40 bg-(image:--folder-front)";
   return (
     <div
       aria-hidden
       data-slot="folder-art"
-      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface"
+      className="relative aspect-square overflow-hidden rounded-lg"
     >
       <span ref={anchor} className="absolute inset-0" />
-      {empty && <IconFolderOpenFilled className="size-12 text-subtle-foreground" />}
+      <span
+        className={`absolute inset-0 rounded-lg border ${back} inset-shadow-[0_1px_0] inset-shadow-folder-shine`}
+      />
       {fileUrl &&
-        cards.length > 0 &&
-        cards
-          .map((card, i) => (
-            <Card key={card.id} node={card} url={fileUrl(card)} style={place(spots[i] ?? EMPTY)} />
-          ))
-          .toReversed()}
+        cards.map((card, i) => (
+          <Card key={card.id} node={card} url={fileUrl(card)} style={place(spots[i] ?? ONE)} />
+        ))}
+      <span
+        className={`absolute inset-x-0 top-[40%] bottom-0 rounded-lg border ${front} inset-shadow-[0_1px_0] inset-shadow-folder-shine backdrop-blur-sm`}
+      />
     </div>
   );
 }
 
-const place = ([left, top, width, height]: Spot) => {
+const place = ([left, top, width, turn]: Spot) => {
   const result: CSSProperties = {
     left: `${left}%`,
     top: `${top}%`,
     width: `${width}%`,
-    height: `${height}%`,
+    rotate: `${turn}deg`,
   };
   return result;
 };
@@ -70,7 +83,7 @@ const place = ([left, top, width, height]: Spot) => {
 function pick(nodes: StorageNode[]) {
   const files = nodes.filter((n) => n.kind === "file");
   const folders = nodes.filter((n) => n.kind === "folder");
-  return [...files, ...folders].slice(0, STACK.length);
+  return [...files, ...folders].slice(0, PEEK.length);
 }
 
 function Card(props: { node: StorageNode; url: string; style: CSSProperties }) {
@@ -79,7 +92,7 @@ function Card(props: { node: StorageNode; url: string; style: CSSProperties }) {
   return (
     <div
       style={props.style}
-      className="absolute flex items-center justify-center overflow-hidden rounded-md border bg-background"
+      className="absolute flex aspect-4/3 items-center justify-center overflow-hidden rounded-md border bg-background transition-[translate] duration-200 ease-out group-hover:-translate-y-[6%] motion-reduce:transition-none"
     >
       {type ? (
         <FileGlyph kind={type.kind} className="size-6 text-muted-foreground" />

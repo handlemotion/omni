@@ -17,11 +17,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg",
-      "nsis"
-    ],
+    "targets": ["app", "dmg", "nsis"],
     "category": "Productivity",
     "icon": [
       "icons/32x32.png",
@@ -34,9 +30,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": [
-          "omni"
-        ]
+        "schemes": ["omni"]
       }
     },
     "updater": {

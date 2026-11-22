@@ -90,6 +90,33 @@
   --calendar-line: color-mix(in oklab, var(--border) 55%, transparent);
   --module-foreground: #ffffff;
   --primary-subtle-foreground: var(--primary);
+  /* A folder card's pocket (`folder-art.tsx`), after Drive's module mark in the brand blue: a
+     deeper back panel and a lighter, slightly clear front flap over the items standing in it,
+     each lit from above, with a darker edge. */
+  --folder-back: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--primary) 70%, white),
+    color-mix(in oklab, var(--primary) 90%, black)
+  );
+  --folder-front: linear-gradient(
+    to bottom,
+    color-mix(in oklab, color-mix(in oklab, var(--primary) 45%, white) 86%, transparent),
+    color-mix(in oklab, color-mix(in oklab, var(--primary) 80%, white) 94%, transparent)
+  );
+  --folder-edge: color-mix(in oklab, var(--primary) 75%, black);
+  --folder-shine: color-mix(in oklab, white 55%, transparent);
+  /* The same pocket in grey, for a folder with nothing in it. */
+  --folder-empty-back: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--foreground) 12%, white),
+    color-mix(in oklab, var(--foreground) 22%, white)
+  );
+  --folder-empty-front: linear-gradient(
+    to bottom,
+    color-mix(in oklab, color-mix(in oklab, var(--foreground) 4%, white) 86%, transparent),
+    color-mix(in oklab, color-mix(in oklab, var(--foreground) 12%, white) 94%, transparent)
+  );
+  --folder-empty-edge: color-mix(in oklab, var(--foreground) 45%, white);
   --chart-1: var(--primary);
   --chart-2: color-mix(in oklab, var(--primary) 80%, white);
   --chart-3: color-mix(in oklab, var(--primary) 60%, white);
@@ -171,6 +198,9 @@
   --color-brand-cream: var(--brand-cream);
   --color-primary-subtle: var(--primary-subtle);
   --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+  --color-folder-edge: var(--folder-edge);
+  --color-folder-shine: var(--folder-shine);
+  --color-folder-empty-edge: var(--folder-empty-edge);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);

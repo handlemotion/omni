@@ -76,7 +76,7 @@ export function VideoArt(props: { node: StorageNode; url: string }) {
           />
           <IconPlayFilled
             aria-hidden
-            className={`relative size-10 text-background drop-shadow-sm transition-[opacity,scale] duration-200 ease-out motion-reduce:transition-none ${playing ? "scale-90 opacity-0" : "opacity-100"}`}
+            className={`relative size-7 text-background drop-shadow-sm transition-[opacity,scale] duration-200 ease-out motion-reduce:transition-none ${playing ? "scale-90 opacity-0" : "opacity-100"}`}
           />
         </>
       )}

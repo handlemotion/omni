@@ -112,7 +112,7 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
     const recipes = await post({ name: "Recipes", space: "personal" });
     return post({ name: "Chow Mein", parentId: recipes });
   });
-  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await page.getByRole("button", { name: "Search", exact: true }).click();
   await menu.getByRole("radio", { name: "Drive", checked: true }).waitFor();
   await page.keyboard.type("chow");
   await menu.getByRole("option", { name: "Chow Mein" }).click();
