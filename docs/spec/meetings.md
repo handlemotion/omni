@@ -556,9 +556,13 @@ at the engine or in R2.
 
 ## API
 
-Under `/api/meetings`, behind the plan's read-only gate. Recording needs minutes left in the plan's month (`hasAllowance`); stopping counts the recording's minutes once, keyed by its audio file (`docs/spec/billing.md`). Member sessions reach everything below;
-a signed-in user outside the workspace reaches `GET /:id`, its transcript, audio and Ask on
-meetings shared with them. A meeting the caller cannot see answers `404`.
+Under `/api/meetings`, behind the plan's read-only gate. Recording needs minutes left in the plan's month (`hasAllowance`); stopping counts the recording's minutes once, keyed by its audio file (`docs/spec/billing.md`). Member sessions reach everything below.
+A signed-in person outside the workspace (or anyone, by their own grants alone) uses the user
+door under `/api/meetings/shared`: `GET /` (the meetings shared with them, newest first),
+`GET /:id`, `GET /:id/transcript`, `GET /:id/audio` and `POST /ask` `{ meetingId, question }`,
+with the same grant checks through `forUser`. It only reads; an editor grant changes the
+meeting from a workspace session. An Ask there counts against the meeting's workspace. A
+meeting the caller cannot see answers `404`, and a removed grant closes it on the next request.
 
 | Route                                                                | What                                                                      |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------- |

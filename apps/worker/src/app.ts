@@ -24,6 +24,7 @@ import { calendar } from "./calendar/routes.ts";
 import { crm } from "./crm/routes.ts";
 import { talk } from "./talk/routes.ts";
 import { meetings } from "./meetings/routes.ts";
+import { meetingsShared } from "./meetings/shared.ts";
 import { answerThrown, apiError } from "./errors.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER, WATCH_HEADER } from "./realtime.ts";
@@ -219,6 +220,7 @@ export const app = new Hono<AppEnv>()
   .route("/api/storage/shared", storageShared)
   .route("/api/storage/signing", storageSigning)
   .route("/api/portal", portal)
+  .route("/api/meetings/shared", meetingsShared)
   .route("/api/storage/sync", storageSync)
   .use("/api/connect/google/callback", desktopGoogleReturn)
   .route("/api", api)

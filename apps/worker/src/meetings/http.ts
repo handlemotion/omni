@@ -5,7 +5,8 @@ import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 
 export const memberMeetings = (c: Context<AppEnv>) => forMember(c.var.db, c.var.member.id).meetings;
-export const userMeetings = (c: Context<AppEnv>) => forUser(c.var.db, c.var.member.userId).meetings;
+export const userMeetings = (c: Context<AppEnv>) =>
+  forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).meetings;
 export const memberFiles: (c: Context<AppEnv>) => MemberStorage = (c) =>
   forMember(c.var.db, c.var.member.id).storage;
 

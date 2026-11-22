@@ -1,5 +1,6 @@
 import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { storageAddresses } from "../storage.ts";
 import { members, users } from "../schema/auth.ts";
 import { userEmails } from "../schema/identity.ts";
 import { meetingsGrants, meetingsMeetings } from "../schema/meetings.ts";
@@ -64,7 +65,9 @@ export async function memberActor(ex: Ex, memberId: string) {
 export async function userActor(ex: Ex, userId: string, scopeOrgId: string | null) {
   return {
     userId,
-    addresses: await addressesOf(ex, userId),
+    addresses: scopeOrgId
+      ? await storageAddresses(ex as Db, userId, scopeOrgId)
+      : await addressesOf(ex, userId),
     member: null,
     scopeOrgId,
   } satisfies MeetingsActor;
@@ -74,11 +77,14 @@ export async function userActor(ex: Ex, userId: string, scopeOrgId: string | nul
  * The meetings `actor` may open, as a condition on `meetings_meetings`: a grant to one of their
  * addresses, being its recorder, or `workspace` access for a teammate of its workspace. A member
  * reaches only their own workspace's meetings; the user door any it was granted, or one scope.
+ * The user door never counts an `owner` grant: a recorder reaches their meetings as a member, so
+ * one who left the workspace keeps none of them, as their My files go to someone else.
  */
 export function reachable(actor: MeetingsActor) {
   const m = meetingsMeetings;
+  const byOwner = actor.member ? sql`` : sql` and g.role <> 'owner'`;
   const granted = actor.addresses.length
-    ? sql`exists (select 1 from ${meetingsGrants} g where g.meeting_id = ${m.id} and g.address in ${actor.addresses})`
+    ? sql`exists (select 1 from ${meetingsGrants} g where g.meeting_id = ${m.id} and g.address in ${actor.addresses}${byOwner})`
     : sql`false`;
   const ways: SQL[] = [granted];
   if (actor.member) {
@@ -113,7 +119,9 @@ export async function access(ex: Ex, actor: MeetingsActor, meetingId: string) {
           ),
         )
     : [];
-  const roles: MeetingRole[] = grants.map((g) => g.role);
+  const roles: MeetingRole[] = grants
+    .map((g) => g.role)
+    .filter((role) => actor.member || role !== "owner");
   if (actor.member && meeting.recordedByMemberId === actor.member.id) roles.push("owner");
   if (actor.member?.teammate && meeting.access === "workspace") roles.push("viewer");
   const role = best(roles) ?? "viewer";
