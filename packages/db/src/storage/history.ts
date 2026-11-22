@@ -7,6 +7,7 @@ import {
   storageDocChanges,
   storageDocJournals,
   storageNodes,
+  storageVersions,
 } from "../schema/storage.ts";
 
 /** One run of a live document's change log, as the journal job writes it. */
@@ -19,6 +20,8 @@ export interface DocRun {
   startedAt: Date;
   endedAt: Date;
   update: string;
+  /** The content version this run is of, when it is not the journal run's (a recovered save). */
+  contentVersion?: number;
 }
 
 /** Where a doc's journal stands; null when it has none yet. */
@@ -144,7 +147,7 @@ export async function writeDocJournal(
             orgId,
             nodeId,
             epoch,
-            contentVersion: input.contentVersion,
+            contentVersion: run.contentVersion ?? input.contentVersion,
           })),
         )
         .onConflictDoNothing();
@@ -203,4 +206,137 @@ export async function purgeDocHistory(db: Db, before: Date) {
             2147483647)
       )`);
   return gone.length;
+}
+
+/** Someone who wrote in a session: a member (by name), an agent for them, or unknown. */
+export interface DocAuthor {
+  by: string;
+  name: string | null;
+  agent: string | null;
+}
+
+/** An editing session of a doc's history, newest first in `docSessions`. */
+export interface DocSession {
+  id: string;
+  startedAt: Date;
+  endedAt: Date;
+  authors: DocAuthor[];
+  /** The file's content version once the session was journaled. */
+  contentVersion: number;
+  /**
+   * Where the session lies in its epoch's change log: replaying the epoch through `lastSeq`
+   * gives the page at its end, and through `firstSeq - 1` the page before it. Null for a save
+   * the live document did not record (an upload, an agent's edit with nobody editing).
+   */
+  span: { epoch: number; firstSeq: number; lastSeq: number } | null;
+}
+
+const IDLE_MS = 5 * 60_000;
+const SPAN_MS = 15 * 60_000;
+
+/**
+ * A doc's journal as editing sessions: runs at most 5 minutes apart, for 15 minutes at most, in
+ * one epoch, by whoever wrote in them; an agent's runs, and a save outside the live document,
+ * are always a session of their own. Newest first.
+ */
+export async function docSessions(db: Db, nodeId: string, limit = 200) {
+  const runs = await db
+    .select()
+    .from(storageDocChanges)
+    .where(eq(storageDocChanges.nodeId, nodeId))
+    .orderBy(asc(storageDocChanges.startedAt), asc(storageDocChanges.firstSeq));
+  const sessions: (DocSession & { alone: boolean })[] = [];
+  for (const run of runs) {
+    const live = run.update !== "";
+    const alone = run.agent !== null || !live;
+    const open = sessions.at(-1);
+    const continues =
+      open &&
+      !alone &&
+      !open.alone &&
+      open.span?.epoch === run.epoch &&
+      run.startedAt.getTime() - open.endedAt.getTime() <= IDLE_MS &&
+      run.endedAt.getTime() - open.startedAt.getTime() <= SPAN_MS;
+    const author = { by: run.by, name: run.authorName, agent: run.agent };
+    if (continues && open.span) {
+      open.endedAt = run.endedAt;
+      open.contentVersion = Math.max(open.contentVersion, run.contentVersion);
+      open.span.lastSeq = Math.max(open.span.lastSeq, run.lastSeq);
+      if (!open.authors.some((a) => a.by === run.by)) open.authors.push(author);
+      continue;
+    }
+    sessions.push({
+      id: `${run.epoch}:${run.firstSeq}`,
+      startedAt: run.startedAt,
+      endedAt: run.endedAt,
+      authors: [author],
+      contentVersion: run.contentVersion,
+      span: live ? { epoch: run.epoch, firstSeq: run.firstSeq, lastSeq: run.lastSeq } : null,
+      alone,
+    });
+  }
+  return sessions
+    .reverse()
+    .slice(0, limit)
+    .map((session) => {
+      const shown: DocSession = {
+        id: session.id,
+        startedAt: session.startedAt,
+        endedAt: session.endedAt,
+        authors: session.authors,
+        contentVersion: session.contentVersion,
+        span: session.span,
+      };
+      return shown;
+    });
+}
+
+/**
+ * Who wrote the file's content at `contentVersion`, as a live record would name them, and when:
+ * from its current content (its creator, when nobody has written it since), or the version
+ * (superseded or not) that held it. Null once gone.
+ */
+export async function contentWriterOf(db: Db, nodeId: string, contentVersion: number) {
+  const [node] = await db
+    .select({
+      contentVersion: storageNodes.contentVersion,
+      createdBy: storageNodes.createdByMemberId,
+      createdAt: storageNodes.createdAt,
+    })
+    .from(storageNodes)
+    .where(eq(storageNodes.id, nodeId));
+  const [row] =
+    node?.contentVersion === contentVersion
+      ? await db
+          .select({
+            memberId: storageContents.writtenByMemberId,
+            agent: storageContents.writtenByAgent,
+            at: storageContents.writtenAt,
+          })
+          .from(storageContents)
+          .where(eq(storageContents.nodeId, nodeId))
+          .then((rows) =>
+            rows.length ? rows : [{ memberId: node.createdBy, agent: null, at: node.createdAt }],
+          )
+      : await db
+          .select({
+            memberId: storageVersions.writtenByMemberId,
+            agent: storageVersions.writtenByAgent,
+            at: storageVersions.writtenAt,
+          })
+          .from(storageVersions)
+          .where(
+            and(
+              eq(storageVersions.nodeId, nodeId),
+              eq(storageVersions.contentVersion, contentVersion),
+            ),
+          )
+          .limit(1);
+  if (!row) return null;
+  const by = !row.memberId
+    ? "unknown"
+    : row.agent
+      ? `a:${row.memberId}:${row.agent}`
+      : `m:${row.memberId}`;
+  return { by, memberId: row.memberId, agent: row.agent, at: row.at };
 }

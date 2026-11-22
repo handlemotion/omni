@@ -145,8 +145,12 @@ text.
   stream's order, so when two people take turns in one block each turn is a row of its own, and a
   replay applies them in the order they were typed. Unique on `(node_id, epoch, first_seq)`, so a
   job run twice writes nothing new. A write outside the live layer (an upload of a new version, an
-  agent edit with nobody editing, a restore) journals one row for its writer, with no update: the
-  versions around it already hold both sides.
+  agent edit with nobody editing, a restore, the file's first upload) journals one row for its
+  writer, at its own `content_version`, with no update: the versions around it already hold both
+  sides. A save is outside the live layer when no `fold` (or folded `snap`) in the stream names
+  its version and it is not the version its epoch started from; a page records its save with a
+  `fold` only after the save, so a save up to 2 minutes old waits for one, and the journal's
+  version stays below it until the fold arrives or the wait ends.
 - **Baselines.** A run's update refers to the Yjs identities of the epoch it was typed in, and a
   document rebuilt from Markdown has new ones, so runs replay only onto Yjs state. The job keeps
   that state in `storage_doc_baselines` (`org_id`, `node_id`, `epoch`, `seq`, `state` bytea): the

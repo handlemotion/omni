@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export * from "./storage.ts";
 export * from "./storage-live.ts";
+export * from "./storage-history.ts";
 export * from "./storage-teamspaces.ts";
 export * from "./crm.ts";
 export * from "./crm-access.ts";

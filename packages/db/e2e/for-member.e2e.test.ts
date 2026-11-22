@@ -244,6 +244,11 @@ describe("forMember isolation", () => {
     const shared = await mine.createFolder({ space: "shared" }, "Team");
     if (shared.status !== "ok") throw new Error(shared.status);
     expect((await mine.file(file.node.id)).status).toBe("ok");
+    expect(await mine.history(file.node.id)).toMatchObject({ status: "ok", sessions: [] });
+    expect(await mine.contentAt(file.node.id, file.node.contentVersion)).toMatchObject({
+      r2Key: expect.any(String),
+      versionId: null,
+    });
     const comment = await mine.addComment(file.node.id, { body: "salary is wrong" });
     if (comment.status !== "ok") throw new Error(comment.status);
     const commentId = comment.comment.id;
@@ -274,6 +279,8 @@ describe("forMember isolation", () => {
       expect(await theirs.node(file.node.id)).toBeNull();
       expect((await theirs.list({ parentId: folder.node.id })).status).toBe("not_found");
       expect((await theirs.file(file.node.id)).status).toBe("not_found");
+      expect((await theirs.history(file.node.id)).status).toBe("not_found");
+      expect(await theirs.contentAt(file.node.id, file.node.contentVersion)).toBeNull();
       expect(await theirs.list({ space: "personal" })).toMatchObject({ status: "ok", nodes: [] });
       expect((await theirs.rename(file.node.id, "seen.pdf")).status).toBe("not_found");
       expect((await theirs.move(file.node.id, { space: "personal" })).status).toBe("not_found");

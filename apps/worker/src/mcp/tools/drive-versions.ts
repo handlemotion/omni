@@ -48,6 +48,20 @@ const outputSchema = z.object({
     .optional()
     .describe("Earlier versions, newest first: one for each editing session, and each agent edit."),
   keep_days: z.number().optional().describe("Days a replaced version is kept."),
+  sessions: z
+    .array(
+      z.object({
+        id: z.string(),
+        started_at: z.string(),
+        ended_at: z.string(),
+        authors: z.array(z.object({ name: z.string().nullable(), agent: z.string().nullable() })),
+        content_version: z.number(),
+      }),
+    )
+    .optional()
+    .describe(
+      "A doc's History, newest first: its editing sessions and everyone who wrote in each, agents named.",
+    ),
   version: versionSchema.optional().describe("The version asked for with `version_id`."),
   text: z.string().optional().describe("The version's text."),
   diff: z
@@ -88,6 +102,20 @@ const cut = (text: string, budget: number) =>
     ? { text: `${text.slice(0, budget)}\n[…]`, cut: true }
     : { text, cut: false };
 
+async function sessionsOf(files: ReturnType<typeof forMember>["storage"], nodeId: string) {
+  const history = await files.history(nodeId);
+  if (history.status !== "ok" || history.sessions.length === 0) return {};
+  return {
+    sessions: history.sessions.slice(0, 20).map((session) => ({
+      id: session.id,
+      started_at: session.startedAt.toISOString(),
+      ended_at: session.endedAt.toISOString(),
+      authors: session.authors.map(({ name, agent }) => ({ name, agent })),
+      content_version: session.contentVersion,
+    })),
+  };
+}
+
 async function versionsOf(context: ToolContext, input: z.infer<typeof inputSchema>) {
   const scoped = driveFor(context, undefined);
   if ("error" in scoped) return toolError(scoped.error);
@@ -115,6 +143,7 @@ async function versionsOf(context: ToolContext, input: z.infer<typeof inputSchem
       current,
       versions: listed.versions.map((version) => wire(version.id, version)),
       keep_days: STORAGE_VERSION_DAYS,
+      ...(await sessionsOf(files, input.id)),
     });
   }
   const version = listed.versions.find((each) => each.id === input.version_id);

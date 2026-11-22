@@ -20,6 +20,7 @@ import {
   type NodeRow,
   type StorageNode,
 } from "./core.ts";
+import { docSessions } from "./history.ts";
 import { nextRevision } from "./revision.ts";
 import { LOCKED, reach, type FileResult, type Locked, type NodeResult } from "./tree.ts";
 
@@ -445,6 +446,41 @@ export function versionOperations(db: Db, door: Door) {
           coauthors: coauthors ?? [],
         })),
       } satisfies VersionsResult;
+    },
+
+    async history(nodeId: string) {
+      const found = await editable(db, door, nodeId);
+      if (found.status !== "ok") return found;
+      return {
+        status: "ok",
+        node: toNode(found.node),
+        sessions: await docSessions(db, nodeId),
+      } as const;
+    },
+
+    async contentAt(nodeId: string, contentVersion: number) {
+      const found = await editable(db, door, nodeId);
+      if (found.status !== "ok") return null;
+      if (found.node.contentVersion === contentVersion) {
+        return { r2Key: found.r2Key, versionId: null, mimeType: found.node.mimeType };
+      }
+      const [version] = await db
+        .select({
+          id: storageVersions.id,
+          r2Key: storageVersions.r2Key,
+          mimeType: storageVersions.mimeType,
+        })
+        .from(storageVersions)
+        .where(
+          and(
+            eq(storageVersions.nodeId, nodeId),
+            eq(storageVersions.contentVersion, contentVersion),
+          ),
+        )
+        .limit(1);
+      return version
+        ? { r2Key: version.r2Key, versionId: version.id, mimeType: version.mimeType }
+        : null;
     },
 
     async versionFile(nodeId: string, versionId: string) {
