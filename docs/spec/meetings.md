@@ -359,7 +359,7 @@ How "once" holds (`apps/worker/src/meetings/doc.ts`): the write step queues a `m
 just before it saves the notes, and that job does the writing with retries of its own.
 
 - **The doc.** A meeting with no doc yet (the calendar's notes doc is not made from the event
-  yet) gets one in the recorder's private `Recordings`, named `<title> notes, <date>`, made as
+  yet) gets one in the recorder's private `Recordings`, named `<title> notes, <date>` (in the title, `/`, `\` and control characters become ` - `, and it keeps at most 200 characters, so Drive always takes the name), made as
   the recorder. Two runs at once each make one; only one becomes the meeting's, and the other is
   trashed.
 - **The block.** It opens with a line of Omni's that links to the meeting's page. A doc that

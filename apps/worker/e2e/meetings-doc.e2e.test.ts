@@ -178,3 +178,23 @@ test("a doc under a folder that a link opens, however far up, gets only the link
   expect(doc.startsWith("_Omni's notes from the recording of")).toBe(true);
   expect(doc).not.toMatch(/acceso/i);
 });
+
+test.each([
+  ["a slash and a backslash", "Sales / Engineering \\ sync"],
+  ["300 characters", "x".repeat(300)],
+])(
+  "a meeting whose title Drive would refuse as a name (%s) still gets its notes doc",
+  async (_, title) => {
+    const org = await m.stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+    const dana = await m.stack.member(org.id);
+    const { meetingId } = await m.record(dana, { title, attendees: [marta] });
+    const docId = await written(dana, meetingId);
+    const [doc] = await m.stack.db
+      .select({ name: schema.storageNodes.name })
+      .from(schema.storageNodes)
+      .where(eq(schema.storageNodes.id, docId));
+    expect(doc!.name).not.toMatch(/[/\\]/);
+    expect(doc!.name.length).toBeLessThanOrEqual(255);
+    expect(doc!.name).toMatch(/ notes, \d{4}-\d{2}-\d{2}$/);
+  },
+);

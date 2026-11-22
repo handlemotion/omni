@@ -103,10 +103,20 @@ async function audienceFits(files: MemberStorage, nodeId: string, granted: Set<s
   return true;
 }
 
-const docName = (target: Target, n: number) => {
-  const base = `${target.meeting.title ?? "Meeting"} notes, ${day(target.meeting.startedAt)}`;
+const TITLE_IN_NAME_MAX = 200;
+
+/** The notes doc's name: the meeting's title made safe for Drive, the date, and a number on a clash. */
+export function docName(title: string | null, startedAt: Date, n: number) {
+  const safe = (title ?? "")
+    // oxlint-disable-next-line no-control-regex
+    .replace(/[/\\\u0000-\u001f\u007f]+/g, " - ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, TITLE_IN_NAME_MAX)
+    .trim();
+  const base = `${safe || "Meeting"} notes, ${day(startedAt)}`;
   return n ? `${base} (${n + 1})` : base;
-};
+}
 
 async function docOf(deps: WriteDeps, files: MemberStorage, target: Target) {
   if (target.meeting.notesNodeId) return target.meeting.notesNodeId;
@@ -116,7 +126,7 @@ async function docOf(deps: WriteDeps, files: MemberStorage, target: Target) {
   for (let n = 0; n < NAME_TRIES; n++) {
     const made = await createDoc(deps, files, target.meeting.orgId, {
       place: { parentId: folderId },
-      name: docName(target, n),
+      name: docName(target.meeting.title, target.meeting.startedAt, n),
       markdown: "",
     });
     if (made.status === "refused" && made.reason === "name_taken") continue;
