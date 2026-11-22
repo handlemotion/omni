@@ -91,8 +91,8 @@ is the meeting the recorder is in when there is one, and of no event otherwise.
 
 Starting asks once per recording: "Everyone in this meeting knows it is being recorded." The
 person confirms; Omni keeps who and when. Then a small floating pill stays on top of every window:
-a red dot, the time, the microphone level, pause and stop. Stopping is instant: the audio is
-already mostly uploaded.
+a red dot, the time, the microphone level, pause and stop. Stopping is instant: the pill goes and
+the file (about 14 MB an hour) goes up in the background.
 
 **Take notes while it records.** The meeting's notes doc (the calendar's, one per meeting per
 workspace) opens beside the pill. What the person types is theirs: the AI writes around it, never
@@ -179,12 +179,21 @@ Tauri in it so `omni-record` drives the same code from a terminal):
   noted when it opens, so one cut off by a crash still counts. A crash, a sleep or a quit leaves
   the spool; when the app opens again it cuts the file at its last whole page, marks the stream's
   end, and the upload finishes from there. The spool is deleted once the meeting has its file.
+- **The upload starts at stop.** Drive's upload needs the file's size when it opens, in parts of
+  16 MiB, and an hour of audio is under one part, so uploading while recording would buy nothing.
+  On stop (or when the app opens with a spool left), the page, which holds the session, runs
+  `finishRecording` from `@omni/client`: it opens the upload into `Recordings`, sends the parts
+  the upload does not have yet, completes it, calls `POST /api/meetings/:id/stop` and deletes the
+  spool. The spool keeps the upload's id and then the file's, so a crash at any step resumes the
+  same upload and never makes a second file; a repeated stop is safe (the pipeline submits a
+  meeting to the engine once, `claimSubmission`). A spool is finished only by the member who
+  started it; one whose meeting was deleted meanwhile keeps its file in Drive and is let go.
 - **In a room**, with no call, the right channel is silent: the transcript relies on the engine's
   speaker labels and the names step alone.
 
 **The browser recorder** mixes nothing: it records the tab's sound and the mic as two channels
 with `MediaRecorder` (Opus in WebM), computes the same mic intervals with an `AnalyserNode`, and
-uploads parts the same way. It is the fallback, so it keeps no spool: closing the tab ends the
+uploads through the same Drive upload and stop. It is the fallback, so it keeps no spool: closing the tab ends the
 recording where it was.
 
 ## Transcription
@@ -447,8 +456,8 @@ the status before it.
 
 1. **Start.** `POST /api/meetings` makes the meeting in `recording`, copies the event's attendees
    and answers with the recorder's private `Recordings` folder, made on first use. The app
-   uploads the audio there through Drive's own resumable upload (`/api/storage/uploads`), part
-   by part as it records, so the upload, its limits and its checks are Drive's.
+   uploads the audio there through Drive's own resumable upload (`/api/storage/uploads`) once it
+   stops (`finishRecording`, above), so the upload, its limits and its checks are Drive's.
 2. **Stop.** `POST /api/meetings/:id/stop` names the uploaded file (it must be an audio file of the
    recorder's own, in their My files), the mic intervals and the dropped silences, sets `uploaded` and enqueues
    `transcribe`.

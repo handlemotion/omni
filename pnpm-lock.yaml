@@ -902,6 +902,9 @@ importers:
       '@omni/db':
         specifier: workspace:*
         version: link:../db
+      '@omni/mail-core':
+        specifier: workspace:*
+        version: link:../mail-core
       '@omni/worker':
         specifier: workspace:*
         version: link:../../apps/worker
