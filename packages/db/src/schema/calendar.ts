@@ -210,3 +210,21 @@ export const calendarSweep = pgTable("calendar_sweep", {
   cursorId: text("cursor_id").notNull(),
   updatedAt: updatedAt(),
 });
+
+/** How one person shows a calendar: its color and whether it is on. Theirs alone. */
+export const calendarMemberPrefs = pgTable(
+  "calendar_member_prefs",
+  {
+    memberId: text("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    calendarId: text("calendar_id")
+      .notNull()
+      .references(() => calendarCalendars.id, { onDelete: "cascade" }),
+    orgId: orgId(),
+    color: text("color"),
+    hidden: boolean("hidden").notNull().default(false),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.memberId, t.calendarId] })],
+);

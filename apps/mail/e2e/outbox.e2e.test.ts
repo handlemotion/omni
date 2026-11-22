@@ -1,4 +1,6 @@
 import { forMember, schema } from "@omni/db";
+import { buildCalendar, parseCalendar } from "@omni/mail-core/calendar";
+import { parseMessage } from "@omni/mail-core";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { type MailboxConfig, MailboxConnection } from "../src/mailbox-connection.ts";
@@ -112,6 +114,69 @@ describe("OutboxExecutor against GreenMail", () => {
     const sentRows = await stored(db, box.id, "Sent");
     expect(sentRows.map((r) => r.messageIdHeader)).toEqual([messageId]);
     expect(await messageRows(db, box.id)).toHaveLength(1);
+  });
+
+  it("a send with a calendar part reaches its recipient as an iMIP message their calendar can act on", async () => {
+    const { seeded, box, actions, connection, executor } = await setup();
+    const organizer = mailbox();
+    await connection.start();
+    const ics = buildCalendar(
+      "REPLY",
+      {
+        uid: "kickoff@acme.example",
+        recurrenceId: null,
+        sequence: 0,
+        dtstamp: new Date("2026-11-22T10:00:00Z"),
+        status: "confirmed",
+        busy: true,
+        title: "Kickoff",
+        description: null,
+        location: null,
+        conferenceUrl: null,
+        allDay: false,
+        start: new Date("2026-11-24T15:30:00Z"),
+        end: new Date("2026-11-24T16:15:00Z"),
+        startDay: null,
+        endDay: null,
+        organizer: { address: organizer.address, name: null },
+        attendees: [{ address: box.address, name: null, role: "required", response: "accepted" }],
+      },
+      { replying: box.address },
+    );
+    await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-reply-${box.id}`,
+      payload: {
+        from: box.address,
+        to: [organizer.address],
+        subject: "Accepted: Kickoff",
+        text: "Accepted.",
+        calendar: { method: "REPLY", ics },
+      },
+    });
+    const [claimed] = await actions.claim(1);
+    if (!claimed) throw new Error("nothing claimed");
+    await executor.execute(claimed);
+
+    const raw = await waitFor(() =>
+      otherClient(organizer, async (client) => {
+        const lock = await client.getMailboxLock("INBOX");
+        try {
+          const [found] = await client.fetchAll("1:*", { source: true });
+          return found?.source;
+        } finally {
+          lock.release();
+        }
+      }),
+    );
+    const { message, attachmentContents } = await parseMessage(raw);
+    const index = message.attachments.findIndex((a) => a.mimeType === "text/calendar");
+    expect(raw.toString()).toMatch(/Content-Type: text\/calendar; charset=utf-8; method=REPLY/i);
+    const parsed = parseCalendar(new TextDecoder().decode(attachmentContents[index]));
+    expect(parsed.ok && parsed.calendar.method).toBe("REPLY");
+    expect(parsed.ok && parsed.calendar.events[0]?.attendees).toEqual([
+      { address: box.address.toLowerCase(), name: null, role: "required", response: "accepted" },
+    ]);
   });
 
   it("a new email we send stays out of the Inbox until someone replies, but is awaiting reply", async () => {

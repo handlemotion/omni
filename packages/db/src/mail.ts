@@ -68,3 +68,4 @@ export {
   calendarAttachmentsOf,
   type CalendarAttachment,
 } from "./mail/calendar-attachments.ts";
+export { replyHeadersOf } from "./mail/message-headers.ts";

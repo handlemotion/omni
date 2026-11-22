@@ -11,10 +11,11 @@ export interface ApiOptions {
   fetch?: typeof fetch;
 }
 
-const typedHc = (...args: Parameters<typeof hc>) => hc<AppType>(...args);
-
 /** The whole Worker, typed from its routes: `client.api.threads.$get({ query: {} })`. */
-export type Client = ReturnType<typeof typedHc>;
+export type Client = ReturnType<typeof hc<AppType>>;
+
+// WARNING: keep this typed by name; inferred, its type is too long for the declaration emitter (TS7056).
+const typedHc: (...args: Parameters<typeof hc>) => Client = (...args) => hc<AppType>(...args);
 /** The member-facing routes under `/api`. */
 export type Api = Client["api"];
 

@@ -10,6 +10,7 @@ export * from "./crm-links.ts";
 export * from "./crm-plan.ts";
 export * from "./crm-portal.ts";
 export * from "./crm-tasks.ts";
+export * from "./calendar.ts";
 export * from "./invitations.ts";
 export * from "./mail.ts";
 export * from "./errors.ts";
@@ -190,6 +191,19 @@ export const sendPayloadSchema = z.object({
   messageId: z
     .string()
     .regex(/^<[^<>\s@]+@[^<>\s@]+>$/)
+    .optional(),
+  /**
+   * An iMIP message (RFC 6047): the event as a `text/calendar; method=…` part beside the text,
+   * which calendar apps act on. A mail service from before this field sends the text alone.
+   */
+  calendar: z
+    .object({
+      method: z.enum(["REQUEST", "REPLY", "CANCEL"]),
+      ics: z
+        .string()
+        .min(1)
+        .max(256 * 1024),
+    })
     .optional(),
 });
 

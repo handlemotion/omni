@@ -362,6 +362,9 @@ function composeMessage(payload: SendPayload, messageId: string, files: SendFile
     messageId,
     inReplyTo: payload.inReplyTo,
     references: payload.references,
+    ...(payload.calendar
+      ? { icalEvent: { method: payload.calendar.method, content: payload.calendar.ics } }
+      : {}),
     date: new Date(),
   })
     .compile()

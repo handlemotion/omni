@@ -505,6 +505,13 @@
       "when": 1795321374965,
       "tag": "0071_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795321396362,
+      "tag": "0072_calendar_prefs",
+      "breakpoints": true
     }
   ]
 }

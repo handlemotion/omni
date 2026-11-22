@@ -1,3 +1,4 @@
+import type { Executor } from "./conversation-core.ts";
 import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import type { ActionPayload, MailActionKind } from "@omni/contracts";
@@ -179,7 +180,7 @@ export type NewMailAction = Pick<
   MailActionRequest;
 
 /** Adds an action to the outbox. A repeated idempotency key returns the existing row. */
-export async function enqueueAction(db: Db, input: NewMailAction) {
+export async function enqueueAction(db: Executor, input: NewMailAction) {
   const [created] = await db
     .insert(mailActions)
     .values(input)

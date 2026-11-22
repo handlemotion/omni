@@ -55,6 +55,14 @@ export const ERROR_CODES = {
   unauthorized: spec(401, "unauthenticated"),
   forbidden: spec(403, "permission"),
   not_found: spec(404, "not_found"),
+  /** Only an event's organizer changes it: an invitation's details are its organizer's. */
+  not_organizer: spec(409, "conflict"),
+  /** The inbox is not among the event's attendees, so there is nothing for it to answer. */
+  not_invited: spec(409, "conflict"),
+  /** A calendar read covers at most `CALENDAR_WINDOW_MAX_DAYS` days. */
+  window_too_large: spec(400, "validation"),
+  /** An event's fields do not hold together; `param` names the first that does not. */
+  invalid_event: spec(400, "validation"),
   conflict: spec(409, "conflict"),
   gone: spec(410, "not_found"),
   length_required: spec(411, "validation"),
