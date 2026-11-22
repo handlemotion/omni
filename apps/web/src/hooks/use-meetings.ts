@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { createDraft } from "@/lib/compose.ts";
 import { keys } from "@/lib/query-keys.ts";
@@ -21,9 +21,9 @@ import {
 } from "@/lib/meetings.ts";
 
 export const useMeetingsEnabled = () => useQuery(meetingsEnabledQuery()).data === true;
-export const useMeetingGroups = () => useQuery(meetingGroupsQuery());
+export const useMeetingGroups = () => useInfiniteQuery(meetingGroupsQuery());
 export const useMeetingGroup = (key: string) => useQuery(meetingGroupQuery(key));
-export const useMeetingList = (group: string) => useQuery(meetingListQuery(group));
+export const useMeetingList = (group: string) => useInfiniteQuery(meetingListQuery(group));
 export const useMeeting = (id: string) => useQuery(meetingQuery(id));
 export const useMeetingTranscript = (id: string) => useQuery(meetingTranscriptQuery(id));
 

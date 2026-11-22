@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Skeleton } from "skullet/react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty/empty-state";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { useMeetingGroup, useMeetingGroups, useMeetingList } from "@/hooks/use-meetings.ts";
@@ -66,6 +67,17 @@ export function GroupPage({ groupKey }: { groupKey: string }) {
                     )}
                   </Link>
                 ))}
+                {list.hasNextPage && (
+                  <Button
+                    intent="outline"
+                    size="sm"
+                    className="self-start"
+                    isPending={list.isFetchingNextPage}
+                    onPress={() => void list.fetchNextPage()}
+                  >
+                    Show older
+                  </Button>
+                )}
               </section>
             </div>
           )}

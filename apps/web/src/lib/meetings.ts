@@ -1,5 +1,11 @@
 import { withWorkspace } from "./current-workspace.ts";
-import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import {
+  infiniteQueryOptions,
+  mutationOptions,
+  queryOptions,
+  type QueryClient,
+} from "@tanstack/react-query";
+import { calendarTaskKeys } from "./calendar-tasks.ts";
 import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, ApiError, call } from "./api.ts";
@@ -50,12 +56,23 @@ export const meetingsEnabledQuery = () =>
     staleTime: 5 * 60_000,
   });
 
+const PAGE = 50;
+
+/** The groups, by when they last met, newest first, a page at a time. */
 export const meetingGroupsQuery = () =>
-  queryOptions({
+  infiniteQueryOptions({
     queryKey: meetingKeys.groups(),
-    queryFn: ({ signal }) =>
-      call(api.meetings.groups.$get({ query: { limit: "100" } }, { init: { signal } })),
-    select: (body) => body.groups,
+    queryFn: ({ pageParam, signal }) =>
+      call(
+        api.meetings.groups.$get(
+          { query: { limit: String(PAGE), ...(pageParam ? { before: pageParam } : {}) } },
+          { init: { signal } },
+        ),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) =>
+      page.groups.length < PAGE ? null : (page.groups.at(-1)?.lastStartedAt ?? null),
+    select: (data) => data.pages.flatMap((page) => page.groups),
   });
 
 export const meetingGroupQuery = (key: string) =>
@@ -65,13 +82,21 @@ export const meetingGroupQuery = (key: string) =>
       call(api.meetings.groups[":key"].$get({ param: { key } }, { init: { signal } })),
   });
 
-/** Every meeting in a group, newest first, whatever its status: failed and working ones too. */
+/** Every meeting in a group, newest first, whatever its status, a page at a time. */
 export const meetingListQuery = (group: string) =>
-  queryOptions({
+  infiniteQueryOptions({
     queryKey: meetingKeys.list(group),
-    queryFn: ({ signal }) =>
-      call(api.meetings.$get({ query: { group, limit: "100" } }, { init: { signal } })),
-    select: (body) => body.meetings,
+    queryFn: ({ pageParam, signal }) =>
+      call(
+        api.meetings.$get(
+          { query: { group, limit: String(PAGE), ...(pageParam ? { before: pageParam } : {}) } },
+          { init: { signal } },
+        ),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) =>
+      page.meetings.length < PAGE ? null : (page.meetings.at(-1)?.startedAt ?? null),
+    select: (data) => data.pages.flatMap((page) => page.meetings),
   });
 
 export const meetingQuery = (id: string) =>
@@ -114,14 +139,22 @@ export const renameSpeakerMutation = (client: QueryClient) =>
     ),
   );
 
+/** Accepting a task puts it in the calendar, so the calendar's task lists are stale too. */
 export const decideActionMutation = (client: QueryClient) =>
-  write(client, (input: { id: string; accept: boolean }) =>
-    call(
-      api.meetings.actions[":id"][":decision{accept|dismiss}"].$post({
-        param: { id: input.id, decision: input.accept ? "accept" : "dismiss" },
-      }),
-    ),
-  );
+  mutationOptions({
+    mutationKey: meetingKeys.writes(),
+    mutationFn: (input: { id: string; accept: boolean }) =>
+      call(
+        api.meetings.actions[":id"][":decision{accept|dismiss}"].$post({
+          param: { id: input.id, decision: input.accept ? "accept" : "dismiss" },
+        }),
+      ),
+    onSettled: () =>
+      Promise.all([
+        meetingsChanged(client),
+        client.invalidateQueries({ queryKey: calendarTaskKeys.all() }),
+      ]),
+  });
 
 export const changeMeetingMutation = (client: QueryClient) =>
   write(client, (input: { id: string; change: MeetingChange }) =>

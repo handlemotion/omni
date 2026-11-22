@@ -196,6 +196,7 @@ test("a recorded meeting reads as its client's group, its notes, actions and nam
 
   await dialog.getByRole("textbox", { name: "Email" }).press("Escape");
   await dialog.waitFor({ state: "hidden" });
+  await page.getByText(/ben@studio\.example/).waitFor();
   await page.getByRole("button", { name: "Open draft" }).click();
   await expect.poll(() => page.url()).toContain("/mail/drafts");
   await page.getByRole("textbox", { name: /Subject/ }).waitFor();

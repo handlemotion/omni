@@ -171,7 +171,12 @@ function MetaRow({ meeting }: { meeting: Meeting }) {
 
 function Properties(props: { meeting: Meeting; onShare: (() => void) | undefined }) {
   const player = usePlayer();
-  const people = props.meeting.attendees;
+  const names = new Map(props.meeting.attendees.map((a) => [a.address, a.name]));
+  const people = (props.meeting.sharing?.grants ?? []).map((g) => ({
+    address: g.address,
+    name: names.get(g.address) ?? null,
+  }));
+  const workspace = props.meeting.sharing?.access === "workspace";
   return (
     <dl className="grid grid-cols-[6rem_1fr] items-center gap-x-4 gap-y-3 text-sm">
       {player.hasAudio && (
@@ -179,29 +184,34 @@ function Properties(props: { meeting: Meeting; onShare: (() => void) | undefined
           <PlayerRow />
         </Property>
       )}
-      <Property label="Shared with">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <div className="flex -space-x-1">
-            {people.slice(0, 5).map((person) => (
-              <Avatar
-                key={person.address}
-                size="xs"
-                initials={initial(person.name ?? person.address)}
-                className="ring-2 ring-background"
-                title={person.name ?? person.address}
-              />
-            ))}
+      {props.meeting.sharing && (
+        <Property label="Shared with">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="flex -space-x-1">
+              {people.slice(0, 5).map((person) => (
+                <Avatar
+                  key={person.address}
+                  size="xs"
+                  initials={initial(person.name ?? person.address)}
+                  className="ring-2 ring-background"
+                  title={person.name ?? person.address}
+                />
+              ))}
+            </div>
+            <span className="truncate text-muted-foreground">
+              {[
+                ...(workspace ? ["Everyone in the workspace"] : []),
+                ...people.map((p) => (p.name ?? p.address).split(" ")[0]),
+              ].join(", ")}
+            </span>
+            {props.onShare && (
+              <Button intent="plain" size="sm" onPress={props.onShare} className="ms-auto">
+                Manage
+              </Button>
+            )}
           </div>
-          <span className="truncate text-muted-foreground">
-            {people.map((p) => (p.name ?? p.address).split(" ")[0]).join(", ")}
-          </span>
-          {props.onShare && (
-            <Button intent="plain" size="sm" onPress={props.onShare} className="ms-auto">
-              Manage
-            </Button>
-          )}
-        </div>
-      </Property>
+        </Property>
+      )}
     </dl>
   );
 }
