@@ -184,6 +184,38 @@ test("a space's row deletes the space from its menu, and right-clicking a row se
   expect(left).toEqual([]);
 });
 
+test("a space's row changes its icon, and a folder's row no longer offers one", async () => {
+  const org = await createOrg(db, "space-icons");
+  await createMailbox(db, org.id, `hello-${Date.now()}@space-icons.test`);
+  const ana = await createMember(db, org.id, `ana-${Date.now()}@space-icons.test`);
+  const { page, api } = await signedIn(ana.id, org.id, org.slug);
+  const launch = await api("POST", "/api/storage/teamspaces", { name: "Launch" });
+  await api("POST", "/api/storage/folders", { name: "Plans", teamspaceId: launch.teamspace.id });
+  await page.reload();
+
+  const sidebarRow = (name: string) =>
+    page.locator('a[data-slot="sidebar-item"]', { hasText: new RegExp(`^${name}$`) });
+  const row = sidebarRow("Launch");
+  await row.waitFor({ timeout: 30_000 });
+  await row.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Change icon" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("radio", { name: "Rocket" }).click();
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await dialog.waitFor({ state: "detached" });
+
+  const { teamspaces } = await api("GET", "/api/storage/teamspaces");
+  expect(
+    teamspaces.map((each: { name: string; icon: string | null }) => [each.name, each.icon]),
+  ).toEqual([["Launch", "rocket"]]);
+
+  const folder = sidebarRow("Plans");
+  await folder.waitFor();
+  await folder.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Share" }).waitFor();
+  expect(await page.getByRole("menuitem", { name: "Change icon" }).count()).toBe(0);
+});
+
 async function signedIn(memberId: string, orgId: string, slug: string) {
   const origin = String(worker.url);
   const [user] = await db

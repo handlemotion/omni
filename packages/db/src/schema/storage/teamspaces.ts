@@ -25,6 +25,8 @@ export const storageTeamspaces = pgTable(
     orgId: orgId(),
     name: text("name").notNull(),
     private: boolean("private").notNull().default(false),
+    /** Its chosen glyph in Drive's sidebar (`STORAGE_FOLDER_ICONS`); null is the default. */
+    icon: text("icon"),
     createdByMemberId: text("created_by_member_id").references(() => members.id, {
       onDelete: "set null",
     }),

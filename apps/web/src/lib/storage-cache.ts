@@ -208,15 +208,7 @@ export interface StorageDriveChange {
   parentIds?: (string | null)[] | undefined;
 }
 
-const LIVE_BRANCHES = new Set([
-  "trash",
-  "search",
-  "usage",
-  "icons",
-  "shared-with-me",
-  "node",
-  "recent",
-]);
+const LIVE_BRANCHES = new Set(["trash", "search", "usage", "shared-with-me", "node", "recent"]);
 
 const driveOfList = (key: QueryKey, data: ListData | undefined) => {
   const place = placeIn(key);

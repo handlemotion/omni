@@ -19,6 +19,7 @@ import {
   IconStar,
   IconTarget,
   IconTrophy,
+  IconUsers,
   IconVideo,
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
@@ -31,15 +32,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useChangeNode, useFolderIcons } from "@/hooks/use-storage.ts";
-import { driveOf, type StorageFolderIcon, type StorageNode } from "@/lib/storage.ts";
-import { FileGlyph } from "./file-glyph.tsx";
+import { useUpdateTeamspace } from "@/hooks/use-storage.ts";
+import type { StorageSpaceIcon } from "@/lib/storage.ts";
+import type { StorageTeamspace } from "@/lib/storage-teamspaces.ts";
 import { storageErrorToast } from "./storage-errors.ts";
 
 type Glyph = ComponentType<{ className?: string }>;
 
 /** Each glyph and the name a screen reader gives it: `STORAGE_FOLDER_ICONS`, which the API checks. */
-export const FOLDER_ICONS = {
+export const SPACE_ICONS = {
   rocket: { icon: IconRocket, label: "Rocket" },
   star: { icon: IconStar, label: "Star" },
   heart: { icon: IconHeart, label: "Heart" },
@@ -61,39 +62,47 @@ export const FOLDER_ICONS = {
   package: { icon: IconPackage, label: "Package" },
   lock: { icon: IconLock, label: "Lock" },
 } as const satisfies Record<string, { icon: Glyph; label: string }>;
-type FolderIconKey = keyof typeof FOLDER_ICONS & StorageFolderIcon;
+type SpaceIconKey = keyof typeof SPACE_ICONS & StorageSpaceIcon;
 
-const known = (icon: string | null | undefined): icon is FolderIconKey =>
-  !!icon && icon in FOLDER_ICONS;
+const known = (icon: string | null | undefined): icon is SpaceIconKey =>
+  !!icon && icon in SPACE_ICONS;
 
-/** The folder's glyph: its chosen one, or the folder (also for a glyph this build doesn't know). */
-export function FolderIcon(props: { icon: string | null | undefined; className?: string }) {
-  if (!known(props.icon)) return <FileGlyph kind="folder" className={props.className} />;
-  const Icon = FOLDER_ICONS[props.icon].icon;
+function DefaultIcon(props: { private: boolean; className?: string }) {
+  const Icon = props.private ? IconLock : IconUsers;
   return <Icon className={props.className} />;
 }
 
-const FOLDER = "folder";
+/** A space's glyph: its chosen one, or the default (also for a glyph this build doesn't know). */
+export function SpaceIcon(props: {
+  teamspace: Pick<StorageTeamspace, "icon" | "private">;
+  className?: string;
+}) {
+  const { icon } = props.teamspace;
+  if (!known(icon))
+    return <DefaultIcon private={props.teamspace.private} className={props.className} />;
+  const Icon = SPACE_ICONS[icon].icon;
+  return <Icon className={props.className} />;
+}
 
-/** Picks a top-level folder's sidebar glyph, the folder first. */
-export function FolderIconDialog(props: { node: StorageNode; onClose: () => void }) {
-  const change = useChangeNode();
-  const saved = useFolderIcons(driveOf(props.node));
-  const current = saved.icons[props.node.id];
-  const [choice, setChoice] = useState<string | null>(null);
-  const picked = choice ?? (known(current) ? current : FOLDER);
+const DEFAULT = "default";
+
+/** Picks a space's sidebar glyph, its default first. */
+export function SpaceIconDialog(props: { teamspace: StorageTeamspace; onClose: () => void }) {
+  const { teamspace } = props;
+  const update = useUpdateTeamspace();
+  const [picked, setPicked] = useState<string>(known(teamspace.icon) ? teamspace.icon : DEFAULT);
   const save = () =>
-    change.mutate(
-      { id: props.node.id, icon: picked === FOLDER ? null : (picked as FolderIconKey) },
+    update.mutate(
+      { id: teamspace.id, icon: picked === DEFAULT ? null : (picked as SpaceIconKey) },
       {
         onSuccess: props.onClose,
         onError: (error) => storageErrorToast(error, "The icon was not changed"),
       },
     );
   return (
-    <Dialog size="sm" isOpen onOpenChange={(open) => !open && !change.isPending && props.onClose()}>
+    <Dialog size="sm" isOpen onOpenChange={(open) => !open && !update.isPending && props.onClose()}>
       <DialogHeader className="pe-0">
-        <DialogTitle className="break-words">Icon for “{props.node.name}”</DialogTitle>
+        <DialogTitle className="break-words">Icon for “{teamspace.name}”</DialogTitle>
       </DialogHeader>
       <DialogBody>
         <ToggleGroup
@@ -104,14 +113,14 @@ export function FolderIconDialog(props: { node: StorageNode; onClose: () => void
           selectedKeys={[picked]}
           onSelectionChange={(keys) => {
             const [key] = [...keys];
-            if (key !== undefined) setChoice(String(key));
+            if (key !== undefined) setPicked(String(key));
           }}
           className="flex-wrap"
         >
-          <ToggleGroupItem id={FOLDER} aria-label="Folder">
-            <FileGlyph kind="folder" />
+          <ToggleGroupItem id={DEFAULT} aria-label="Default">
+            <DefaultIcon private={teamspace.private} />
           </ToggleGroupItem>
-          {Object.entries(FOLDER_ICONS).map(([key, { icon: Icon, label }]) => (
+          {Object.entries(SPACE_ICONS).map(([key, { icon: Icon, label }]) => (
             <ToggleGroupItem key={key} id={key} aria-label={label}>
               <Icon />
             </ToggleGroupItem>
@@ -120,11 +129,7 @@ export function FolderIconDialog(props: { node: StorageNode; onClose: () => void
       </DialogBody>
       <DialogFooter>
         <DialogClose>Cancel</DialogClose>
-        <Button
-          isPending={change.isPending}
-          isDisabled={choice === null && !saved.isLoaded}
-          onPress={save}
-        >
+        <Button isPending={update.isPending} onPress={save}>
           Save
         </Button>
       </DialogFooter>

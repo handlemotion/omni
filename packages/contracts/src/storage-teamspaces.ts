@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { storageFolderIconSchema } from "./storage.ts";
 
 const id = z.string().min(1);
 const isoDate = z.iso.datetime();
@@ -14,6 +15,8 @@ export const storageTeamspaceSchema = z.object({
   name: z.string(),
   /** Reached only by its members; open, every member of the workspace reaches it. */
   private: z.boolean(),
+  /** Its glyph in the sidebar (`STORAGE_FOLDER_ICONS`); null is the default. Absent from an older Worker. */
+  icon: z.string().nullable().optional(),
   /** The caller's role in it; null in an open teamspace they reach without being in it. */
   role: storageTeamspaceRoleSchema.nullable(),
   /** The caller may rename it, make it open or private, change its members and delete it. */
@@ -38,10 +41,16 @@ export const storageCreateTeamspaceBodySchema = z.object({
 
 /** `PATCH /api/storage/teamspaces/:id`, for whoever manages it. Answers `{ teamspace }`. */
 export const storageUpdateTeamspaceBodySchema = z
-  .object({ name: name.optional(), private: z.boolean().optional() })
-  .refine((body) => body.name !== undefined || body.private !== undefined, {
-    message: "give name or private",
-  });
+  .object({
+    name: name.optional(),
+    private: z.boolean().optional(),
+    /** A glyph from `STORAGE_FOLDER_ICONS`, or null for the default. */
+    icon: storageFolderIconSchema.nullable().optional(),
+  })
+  .refine(
+    (body) => body.name !== undefined || body.private !== undefined || body.icon !== undefined,
+    { message: "give name, private or icon" },
+  );
 
 export const storageTeamspaceResponseSchema = z.object({ teamspace: storageTeamspaceSchema });
 

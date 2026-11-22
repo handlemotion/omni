@@ -12,7 +12,6 @@ import {
   IconNewDoc,
   IconPencil,
   IconSettings,
-  IconSparkle,
   IconTrash,
   IconUserAdd,
 } from "@/components/icons/central";
@@ -221,15 +220,6 @@ export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
           : []),
         { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
         { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
-        ...(node.kind === "folder" && node.parentId === null
-          ? [
-              {
-                icon: IconSparkle,
-                label: "Change icon",
-                onAction: () => open({ dialog: "icon", node }),
-              },
-            ]
-          : []),
         { icon: IconFolderMove, label: "Move", onAction: () => open({ dialog: "move", node }) },
         ...(node.kind === "file"
           ? [

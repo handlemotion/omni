@@ -35,8 +35,9 @@ with them by address beside them, so Shared with me and the sidebar's Upload row
   teamspace. Whoever wants a place of their own makes a private teamspace with only themselves
   in it.
 - **Managing it.** Its owners and the workspace's owners and admins rename it, make it open or
-  private, add and remove members, change roles and delete it. A teamspace always keeps one
-  owner. Deleting one needs it to hold nothing outside Trash; what is in its Trash goes for good.
+  private, pick its icon in the sidebar, add and remove members, change roles and delete it. A
+  teamspace always keeps one owner. Deleting one needs it to hold nothing outside Trash; what is
+  in its Trash goes for good. Folders take no icon of their own: the folder glyph everywhere.
 - **Inside it,** a member does what they do in Shared now: everyone writes, and the uploader, the
   teamspace's owners and the workspace's owners and admins move something out of it (to Trash or
   to another teamspace). Grants, links, comments, versions, locks and signatures work as before.

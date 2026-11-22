@@ -50,7 +50,6 @@ import {
   storageCommentsQuery,
   storageNodeQuery,
 } from "../lib/storage-comments.ts";
-import { storageFolderIconsQuery } from "../lib/storage-find.ts";
 import type { Picked } from "../lib/storage-upload-tree.ts";
 import { restoreVersionMutation, storageVersionsQuery } from "../lib/storage-versions.ts";
 import { useSession } from "./use-session.ts";
@@ -87,12 +86,6 @@ export function useStorageTrash() {
   const query = useInfiniteQuery(storageTrashQuery());
   const nodes = useMemo(() => query.data?.pages.flatMap((page) => page.nodes) ?? [], [query.data]);
   return { ...query, nodes };
-}
-
-/** A drive's cluster glyphs by folder id; empty until they load, or if they fail to. */
-export function useFolderIcons(drive: DriveRoot) {
-  const query = useQuery(storageFolderIconsQuery(drive));
-  return { icons: query.data?.icons ?? {}, isLoaded: query.isSuccess };
 }
 
 /** True in a company workspace: only those have Shared (a Personal space has My files alone). */

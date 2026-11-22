@@ -18,6 +18,8 @@ export interface StorageTeamspace {
   orgId: string;
   name: string;
   private: boolean;
+  /** Its chosen glyph in the sidebar; null is the default. */
+  icon: string | null;
   /** The viewer's role in it; null in an open teamspace they reach without being in it. */
   role: StorageTeamspaceRole | null;
   /** May rename it, make it open or private, change who is in it and delete it. */
@@ -60,6 +62,7 @@ interface TeamspaceRow {
   orgId: string;
   name: string;
   private: boolean;
+  icon: string | null;
   createdAt: Date;
 }
 
@@ -74,6 +77,7 @@ export async function teamspaceReach(ex: Db, member: StorageMember, teamspaceId:
       orgId: storageTeamspaces.orgId,
       name: storageTeamspaces.name,
       private: storageTeamspaces.private,
+      icon: storageTeamspaces.icon,
       createdAt: storageTeamspaces.createdAt,
       role: storageTeamspaceMembers.role,
     })
@@ -99,6 +103,7 @@ const toTeamspace = (row: TeamspaceRow, role: StorageTeamspaceRole | null, manag
     orgId: row.orgId,
     name: row.name,
     private: row.private,
+    icon: row.icon,
     role,
     manage,
     createdAt: row.createdAt,
@@ -112,6 +117,7 @@ export async function reachableTeamspaces(ex: Db, member: StorageMember) {
       orgId: storageTeamspaces.orgId,
       name: storageTeamspaces.name,
       private: storageTeamspaces.private,
+      icon: storageTeamspaces.icon,
       createdAt: storageTeamspaces.createdAt,
       role: storageTeamspaceMembers.role,
     })
@@ -259,7 +265,10 @@ export function teamspaceOperations(db: Db, load: () => Promise<StorageMember | 
       return createTeamspace(db, member, input);
     },
 
-    async updateTeamspace(teamspaceId: string, patch: { name?: string; private?: boolean }) {
+    async updateTeamspace(
+      teamspaceId: string,
+      patch: { name?: string; private?: boolean; icon?: string | null },
+    ) {
       const name = patch.name === undefined ? undefined : cleanName(patch.name);
       if (name === null) return { status: "invalid_name" } satisfies TeamspaceResult;
       const found = await managed(db, teamspaceId);
@@ -269,6 +278,7 @@ export function teamspaceOperations(db: Db, load: () => Promise<StorageMember | 
         .set({
           ...(name === undefined ? {} : { name }),
           ...(patch.private === undefined ? {} : { private: patch.private }),
+          ...(patch.icon === undefined ? {} : { icon: patch.icon }),
         })
         .where(eq(storageTeamspaces.id, teamspaceId))
         .returning();

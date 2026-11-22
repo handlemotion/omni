@@ -3,6 +3,7 @@ import type { Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
+import type { StorageSpaceIcon } from "./storage.ts";
 
 export type StorageTeamspace = InferResponseType<
   Api["storage"]["teamspaces"]["$get"],
@@ -52,8 +53,15 @@ export const createTeamspaceMutation = (client: QueryClient) =>
 export const updateTeamspaceMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
-    mutationFn: ({ id, ...body }: { id: string; name?: string; private?: boolean }) =>
-      call(api.storage.teamspaces[":id"].$patch({ param: { id }, json: body })),
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      name?: string;
+      private?: boolean;
+      icon?: StorageSpaceIcon | null;
+    }) => call(api.storage.teamspaces[":id"].$patch({ param: { id }, json: body })),
     onSuccess: () => refreshTeamspaces(client),
   });
 

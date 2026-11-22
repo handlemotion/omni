@@ -12,9 +12,9 @@ import { useDrop } from "react-aria-components/useDrop";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
 import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
-import { useFolderIcons, useStorageList } from "@/hooks/use-storage.ts";
+import { useStorageList } from "@/hooks/use-storage.ts";
 import { driveKey, driveOf, type DriveRoot, type StorageNode } from "@/lib/storage.ts";
-import { FolderIcon } from "./folder-icons.tsx";
+import { FileGlyph } from "./file-glyph.tsx";
 import { GAP_MS, useDriveDrag } from "./drive-drag-state.ts";
 import {
   GAP,
@@ -70,7 +70,6 @@ export function SidebarGroup(props: {
 
 function Clusters(props: { drive: DriveRoot; search: string }) {
   const root = useStorageList(props.drive);
-  const { icons } = useFolderIcons(props.drive);
   const shown = folders(root.nodes);
   const gap = useGapAt(root.isPending ? null : props.drive, shown, "folder");
   if (root.isPending) return <SidebarTreeBones depth={1} />;
@@ -78,13 +77,13 @@ function Clusters(props: { drive: DriveRoot; search: string }) {
     <WithGap
       gap={gap}
       rows={shown.map((node) => (
-        <Cluster key={node.id} node={node} icon={icons[node.id]} search={props.search} />
+        <Cluster key={node.id} node={node} search={props.search} />
       ))}
     />
   );
 }
 
-function Cluster(props: { node: StorageNode; icon: string | undefined; search: string }) {
+function Cluster(props: { node: StorageNode; search: string }) {
   const open = useSidebarExpanded("drive", props.node.id);
   const list = useStorageList({ parentId: props.node.id });
   const hasFolders = list.isPending || list.nodes.some((node) => node.kind === "folder");
@@ -92,7 +91,6 @@ function Cluster(props: { node: StorageNode; icon: string | undefined; search: s
     <>
       <FolderRow
         node={props.node}
-        icon={props.icon}
         depth={1}
         search={props.search}
         expand={hasFolders ? open : undefined}
@@ -119,7 +117,6 @@ function ClusterFolders(props: { node: StorageNode; search: string }) {
 
 function FolderRow(props: {
   node: StorageNode;
-  icon?: string | undefined;
   depth: number;
   search: string;
   expand?: { value: boolean; toggle: () => void } | undefined;
@@ -157,7 +154,7 @@ function FolderRow(props: {
           href={inWorkspace(href + props.search)}
           isCurrent={pathname === href}
           depth={props.depth}
-          icon={<FolderIcon icon={props.icon} className="size-icon" />}
+          icon={<FileGlyph kind="folder" className="size-icon" />}
           label={node.name}
           {...(props.expand ? { expand: props.expand } : {})}
           onPress={() => props.expand && !props.expand.value && props.expand.toggle()}

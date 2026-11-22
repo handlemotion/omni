@@ -46,12 +46,10 @@ export const driveKey = (drive: DriveRoot) =>
 
 const pageSize = (cursor: string | null) => (cursor ? "200" : "100");
 
-/** A folder's sidebar glyph, as `PATCH /nodes/:id` takes it. */
-export type StorageFolderIcon = Extract<
-  NonNullable<Parameters<Api["storage"]["nodes"][":id"]["$patch"]>[0]["json"]>,
-  { icon: unknown }
->["icon"] &
-  string;
+/** A space's sidebar glyph, as `PATCH /teamspaces/:id` takes it. */
+export type StorageSpaceIcon = NonNullable<
+  NonNullable<Parameters<Api["storage"]["teamspaces"][":id"]["$patch"]>[0]["json"]>["icon"]
+>;
 
 /** A folder's contents, folders first, then by name. The first page carries the folder itself. */
 export const storageListQuery = (place: StoragePlace) =>
@@ -138,17 +136,8 @@ export const changeNodeMutation = (client: QueryClient) =>
     mutationFn: ({
       shareId,
       ...change
-    }: { id: string; shareId?: string } & (
-      | { name: string }
-      | { place: StoragePlace }
-      | { icon: StorageFolderIcon | null }
-    )) => {
-      const json =
-        "name" in change
-          ? { name: change.name }
-          : "icon" in change
-            ? { icon: change.icon }
-            : change.place;
+    }: { id: string; shareId?: string } & ({ name: string } | { place: StoragePlace })) => {
+      const json = "name" in change ? { name: change.name } : change.place;
       return shareId
         ? call(
             sharedDoor().nodes[":id"].$patch({
@@ -159,13 +148,7 @@ export const changeNodeMutation = (client: QueryClient) =>
         : call(api.storage.nodes[":id"].$patch({ param: { id: change.id }, json }));
     },
     onSuccess: ({ node }, change) =>
-      change.shareId
-        ? storageChanged(client)
-        : "icon" in change
-          ? client.invalidateQueries({
-              queryKey: keys.storageIcons(driveKey(driveOf(node))),
-            })
-          : storageNodeChanged(client, node),
+      change.shareId ? storageChanged(client) : storageNodeChanged(client, node),
   });
 
 /** `mutate({ id, shareId? })` moves a file or folder to Trash. */

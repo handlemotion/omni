@@ -24,7 +24,6 @@ import { driveKey, driveOf, type StorageNode, type StoragePlace } from "@/lib/st
 import { placeKey } from "./node-drag.tsx";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
-import { FolderIconDialog } from "./folder-icons.tsx";
 import { canEditFile, isDoc } from "./editor/document-editor.tsx";
 import { ViewToggle } from "./file-sections.tsx";
 import { FolderBody, folderIsEmpty, HeaderActions } from "./folder-body.tsx";
@@ -41,7 +40,7 @@ import { VersionsDialog } from "./versions-dialog.tsx";
 import { CommentsPanel } from "./comments-panel.tsx";
 
 export type FolderDialog = {
-  dialog: "rename" | "move" | "share" | "versions" | "comments" | "signatures" | "icon";
+  dialog: "rename" | "move" | "share" | "versions" | "comments" | "signatures";
   node: StorageNode;
 } | null;
 
@@ -311,8 +310,6 @@ function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onCl
       return <ShareDialog node={node} onClose={onClose} />;
     case "versions":
       return <VersionsDialog node={node} shareId={source.shareId} onClose={onClose} />;
-    case "icon":
-      return <FolderIconDialog node={node} onClose={onClose} />;
     case "comments":
     case "rename":
       return null;

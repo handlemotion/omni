@@ -1,0 +1,1 @@
+ALTER TABLE "storage_teamspaces" ADD COLUMN "icon" text;

@@ -1,11 +1,5 @@
 import { useState, type ReactNode } from "react";
-import {
-  IconClock3,
-  IconLock,
-  IconPlus,
-  IconUserRound,
-  IconUsers,
-} from "@/components/icons/central";
+import { IconClock3, IconPlus, IconUserRound, IconUsers } from "@/components/icons/central";
 import { EmptyState } from "@/components/empty/empty-state";
 import { Button } from "@/components/ui/button";
 import { useMember } from "@/hooks/use-session.ts";
@@ -18,6 +12,7 @@ import { StorageFrame } from "./storage-frame.tsx";
 import { BrowseTeamspacesDialog, NewTeamspaceDialog } from "./teamspace-dialogs.tsx";
 import { SpacesArea } from "./sidebar-menus.tsx";
 import { SidebarGroup } from "./sidebar-tree.tsx";
+import { SpaceIcon } from "./space-icons.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export const SPACE_LABEL = { personal: "Personal", shared: "Team" } as const;
@@ -33,11 +28,6 @@ export const drivePath = (drive: DriveRoot) =>
 export const SPACE_ICON = {
   personal: <IconUserRound className="size-icon" />,
   shared: <IconUsers className="size-icon" />,
-} as const;
-
-const TEAMSPACE_ICON = {
-  open: <IconUsers className="size-icon" />,
-  private: <IconLock className="size-icon" />,
 } as const;
 
 function HeldGroup(props: { space: StorageSpace; search: string }) {
@@ -146,7 +136,7 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
               key={teamspace.id}
               drive={{ teamspaceId: teamspace.id }}
               label={teamspace.name}
-              icon={teamspace.private ? TEAMSPACE_ICON.private : TEAMSPACE_ICON.open}
+              icon={<SpaceIcon teamspace={teamspace} className="size-icon" />}
               search={search}
             />
           ))}

@@ -526,6 +526,13 @@
       "when": 1795338447554,
       "tag": "0074_exotic_sentry",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1795364690248,
+      "tag": "0075_slimy_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

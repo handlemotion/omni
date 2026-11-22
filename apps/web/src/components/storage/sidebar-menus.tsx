@@ -30,8 +30,8 @@ import type { DriveRoot, StorageNode, StoragePlace } from "@/lib/storage.ts";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { useCanTrash } from "./file-list.tsx";
 import { pickFiles, requestNewFolder } from "./folder-context.tsx";
-import { FolderIconDialog } from "./folder-icons.tsx";
 import { ShareDialog } from "./share-dialog.tsx";
+import { SpaceIconDialog } from "./space-icons.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { TeamspaceSettingsDialog } from "./teamspace-dialogs.tsx";
 
@@ -83,14 +83,14 @@ const expandEntry = (expand: Expand) =>
 
 /**
  * A drive's row in the sidebar (a space, Personal, Team): open it, make or upload into it, and,
- * for a space, its settings and, for whoever manages it, deleting it. Spread `props` on the row; render `dialogs` beside it.
+ * for a space, its settings and, for whoever manages it, its icon and deleting it. Spread `props` on the row; render `dialogs` beside it.
  */
 export function useDriveRowMenu(drive: DriveRoot, path: string, expand: Expand) {
   const make = useMakeIn(drive, path);
   const { teamspaces } = useTeamspaces();
   const teamspace =
     "teamspaceId" in drive ? teamspaces.find((each) => each.id === drive.teamspaceId) : undefined;
-  const [settings, setSettings] = useState(false);
+  const [dialog, setDialog] = useState<"settings" | "icon" | null>(null);
   const remove = useDeleteTeamspace();
   const navigate = useNavigate();
   const { href, place } = useWorkspacePaths();
@@ -111,7 +111,12 @@ export function useDriveRowMenu(drive: DriveRoot, path: string, expand: Expand) 
       teamspace && {
         icon: IconSettings,
         label: "Space settings",
-        onAction: () => setSettings(true),
+        onAction: () => setDialog("settings"),
+      },
+      teamspace?.manage && {
+        icon: IconSparkle,
+        label: "Change icon",
+        onAction: () => setDialog("icon"),
       },
       teamspace?.manage && {
         icon: IconTrash,
@@ -123,9 +128,12 @@ export function useDriveRowMenu(drive: DriveRoot, path: string, expand: Expand) 
     ] satisfies ContextMenuEntry[];
   return {
     props: contextMenuProps(entries),
-    dialogs: settings && teamspace && (
-      <TeamspaceSettingsDialog teamspace={teamspace} onClose={() => setSettings(false)} />
-    ),
+    dialogs:
+      teamspace && dialog === "settings" ? (
+        <TeamspaceSettingsDialog teamspace={teamspace} onClose={() => setDialog(null)} />
+      ) : teamspace && dialog === "icon" ? (
+        <SpaceIconDialog teamspace={teamspace} onClose={() => setDialog(null)} />
+      ) : null,
   };
 }
 
@@ -134,7 +142,7 @@ export function useFolderRowMenu(node: StorageNode, path: string, expand: Expand
   const make = useMakeIn({ parentId: node.id }, path);
   const canTrash = useCanTrash();
   const trash = useTrashNode();
-  const [dialog, setDialog] = useState<"share" | "icon" | null>(null);
+  const [share, setShare] = useState(false);
   const entries = () =>
     [
       { icon: IconArrowUpRight, label: "Open", onAction: make.open },
@@ -142,12 +150,7 @@ export function useFolderRowMenu(node: StorageNode, path: string, expand: Expand
       "separator",
       ...make.entries,
       "separator",
-      { icon: IconUserAdd, label: "Share", onAction: () => setDialog("share") },
-      node.parentId === null && {
-        icon: IconSparkle,
-        label: "Change icon",
-        onAction: () => setDialog("icon"),
-      },
+      { icon: IconUserAdd, label: "Share", onAction: () => setShare(true) },
       { icon: IconFileZip, label: "Download", onAction: () => downloadZip([node.id]) },
       canTrash(node) && "separator",
       canTrash(node) && {
@@ -161,15 +164,9 @@ export function useFolderRowMenu(node: StorageNode, path: string, expand: Expand
           ),
       },
     ] satisfies ContextMenuEntry[];
-  const close = () => setDialog(null);
   return {
     props: contextMenuProps(entries, `Actions for ${node.name}`),
-    dialogs:
-      dialog === "share" ? (
-        <ShareDialog node={node} onClose={close} />
-      ) : dialog === "icon" ? (
-        <FolderIconDialog node={node} onClose={close} />
-      ) : null,
+    dialogs: share && <ShareDialog node={node} onClose={() => setShare(false)} />,
   };
 }
 

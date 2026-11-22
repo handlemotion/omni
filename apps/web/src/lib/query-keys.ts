@@ -137,7 +137,6 @@ export const keys = {
   /** Drive's Search for one query, and its filter when it has one. */
   storageSearch: (q: string, filter?: { drive?: string; type?: string }) =>
     [...storage(), "search", q, ...(filter ? [filter] : [])] as const,
-  storageIcons: (space: string) => [...storage(), "icons", space] as const,
   storageUsage: () => [...storage(), "usage"] as const,
   /** The workspace's teamspaces the member reaches. */
   storageTeamspaces: () => [...storage(), "teamspaces"] as const,
