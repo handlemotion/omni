@@ -61,7 +61,7 @@ export function BreadcrumbsItem({
       {({ isCurrent }) => (
         <>
           <Link
-            className="min-w-0 truncate current:opacity-100 has-data-[slot=icon]:inline-flex has-data-[slot=icon]:items-center has-data-[slot=icon]:gap-x-2 *:data-[slot=icon]:size-5 sm:*:data-[slot=icon]:size-4 *:data-[slot=icon]:text-muted-foreground hover:*:data-[slot=icon]:text-foreground"
+            className="min-w-0 truncate transition-colors duration-150 not-current:hover:text-foreground current:opacity-100 has-data-[slot=icon]:inline-flex has-data-[slot=icon]:items-center has-data-[slot=icon]:gap-x-2 *:data-[slot=icon]:size-5 sm:*:data-[slot=icon]:size-4 *:data-[slot=icon]:text-muted-foreground hover:*:data-[slot=icon]:text-foreground"
             {...props}
           />
           {!isCurrent && separator !== false && <Separator separator={separatorValue} />}

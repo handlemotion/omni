@@ -9,6 +9,7 @@ import {
 } from "@ui-sdk/react/popover";
 import { Children, type ReactElement, type ReactNode } from "react";
 import { cn } from "cn";
+import { useSteadyTrigger } from "./steady-trigger";
 import { toSideAlign, type Placement } from "./placement";
 
 /** The raised surface every popup shares: popovers, menus. */
@@ -44,13 +45,21 @@ export function PopoverTrigger({
   children,
 }: PopoverTriggerProps) {
   const [trigger, ...rest] = Children.toArray(children);
+  const steady = useSteadyTrigger();
   return (
     <PopoverRoot
       open={isOpen}
       defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange && ((open) => onOpenChange(open))}
+      onOpenChange={(open) => {
+        steady.onOpenChange(open);
+        onOpenChange?.(open);
+      }}
+      onOpenChangeComplete={steady.onOpenChangeComplete}
     >
-      <PopoverTriggerPrimitive render={trigger as ReactElement<Record<string, unknown>>} />
+      <PopoverTriggerPrimitive
+        ref={steady.ref as React.Ref<HTMLButtonElement>}
+        render={trigger as ReactElement<Record<string, unknown>>}
+      />
       {rest}
     </PopoverRoot>
   );

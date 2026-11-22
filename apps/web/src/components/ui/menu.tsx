@@ -38,6 +38,7 @@ import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { FluidHoverHighlight } from "./fluid-hover-highlight";
 import { toSideAlign, type Placement } from "./placement";
 import { popupSurface } from "./popover";
+import { useSteadyTrigger } from "./steady-trigger";
 
 type Key = string;
 
@@ -55,6 +56,7 @@ const MenuStateContext = createContext<MenuState>({
   actions: new Map(),
 });
 const SubmenuContext = createContext(false);
+const AfterCloseContext = createContext<(change: () => void) => void>((change) => change());
 
 export interface MenuTriggerProps {
   isOpen?: boolean;
@@ -70,14 +72,22 @@ export interface MenuTriggerProps {
  */
 export function MenuTrigger({ isOpen, defaultOpen, onOpenChange, children }: MenuTriggerProps) {
   const [trigger, ...rest] = Children.toArray(children);
+  const steady = useSteadyTrigger();
   return (
     <MenuRoot
       open={isOpen}
       defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange && ((open) => onOpenChange(open))}
+      onOpenChange={(open) => {
+        steady.onOpenChange(open);
+        onOpenChange?.(open);
+      }}
+      onOpenChangeComplete={steady.onOpenChangeComplete}
     >
-      <MenuTriggerPrimitive render={trigger as ReactElement<Record<string, unknown>>} />
-      {rest}
+      <MenuTriggerPrimitive
+        ref={steady.ref as React.Ref<HTMLButtonElement>}
+        render={trigger as ReactElement<Record<string, unknown>>}
+      />
+      <AfterCloseContext.Provider value={steady.afterClose}>{rest}</AfterCloseContext.Provider>
     </MenuRoot>
   );
 }
@@ -146,6 +156,7 @@ export function Menu<T extends { id?: Key }>({
   ...props
 }: MenuProps<T>) {
   const nested = useContext(SubmenuContext);
+  const afterClose = useContext(AfterCloseContext);
   const actions = useRef(new Map<Key, () => void>()).current;
   const selected = new Set(selectedKeys ?? []);
   const hover = useFluidHoverList({
@@ -184,10 +195,12 @@ export function Menu<T extends { id?: Key }>({
               <MenuRadioGroup
                 className={ON_GRID}
                 value={[...selected][0] ?? null}
-                onValueChange={(key) => {
-                  onSelectionChange?.(new Set([key]));
-                  actions.get(key)?.();
-                }}
+                onValueChange={(key) =>
+                  afterClose(() => {
+                    onSelectionChange?.(new Set([key]));
+                    actions.get(key)?.();
+                  })
+                }
               >
                 {rows}
               </MenuRadioGroup>

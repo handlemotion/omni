@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { IconChevronRight } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
@@ -51,7 +50,7 @@ export function CalendarCrumbs(props: {
                 intent="plain"
                 size="sm"
                 onPress={() => props.onView(crumb.view)}
-                className={cn("px-1.5 text-md text-muted-foreground tabular-nums")}
+                className="px-1.5 text-md text-muted-foreground tabular-nums hover:text-foreground"
               >
                 {crumb.label}
               </Button>

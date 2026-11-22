@@ -9,6 +9,7 @@ import {
   placeInWorkspace,
   workspaceBySlug,
   workspaceHref,
+  warmWorkspaces,
   workspacesQuery,
 } from "../lib/workspaces.ts";
 import type { Workspace } from "../lib/types.ts";
@@ -100,4 +101,17 @@ export function useThreadInItsWorkspace() {
       replace: true,
     });
   }, [move, router]);
+}
+
+/** Reads the user's member in their other workspaces once the shell is idle, so a switch is instant. */
+export function useWarmWorkspaces() {
+  const client = useQueryClient();
+  const workspaces = useWorkspaces().data?.workspaces;
+  useEffect(() => {
+    if (!workspaces) return;
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 500));
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout;
+    const handle = idle(() => warmWorkspaces(client, workspaces));
+    return () => cancel(handle);
+  }, [client, workspaces]);
 }
