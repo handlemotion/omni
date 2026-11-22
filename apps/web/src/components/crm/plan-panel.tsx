@@ -19,6 +19,7 @@ import {
 import { crmErrorToast } from "./crm-errors.ts";
 import { ChoiceValue, DayValue, FieldRow, PlainValue, TextValue } from "./record-fields.tsx";
 import { DAY } from "./record-list.tsx";
+import { stableId } from "@/lib/crm-pending.ts";
 
 const NONE = "none";
 
@@ -108,7 +109,7 @@ function MilestoneDetails(props: { milestone: CrmMilestone; onClose: () => void 
       />
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-4">
         <Description
-          key={milestone.id}
+          key={stableId(milestone.id)}
           value={milestone.description}
           onSave={(d) => save({ description: d })}
         />
@@ -167,7 +168,7 @@ function DeliverableDetails(props: {
       />
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-4">
         <Description
-          key={deliverable.id}
+          key={stableId(deliverable.id)}
           value={deliverable.description}
           onSave={(d) => save({ description: d })}
         />

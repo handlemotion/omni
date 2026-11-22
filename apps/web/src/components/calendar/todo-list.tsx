@@ -13,6 +13,7 @@ import { useCreateTask, useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks
 import { useMember } from "@/hooks/use-session.ts";
 import { useOpenTask } from "@/components/crm/task-panel.tsx";
 import { endDrag, startDrag, timedTodo } from "@/lib/calendar-drag.ts";
+import { stableId } from "@/lib/crm-pending.ts";
 import {
   dayOf,
   dueAtOf,
@@ -119,7 +120,7 @@ function Todos() {
               )}
             </div>
             {inSection.map((task) => (
-              <TodoRow key={task.id} task={task} overdue={section.id === "overdue"} />
+              <TodoRow key={stableId(task.id)} task={task} overdue={section.id === "overdue"} />
             ))}
             {adding === section.id && (
               <NewTodo section={section.id} onDone={() => setAdding(null)} />
@@ -143,9 +144,9 @@ function NewTodo({ section, onDone }: { section: DueGroup; onDone: () => void })
     const trimmed = title.trim();
     if (!trimmed) return onDone();
     setTitle("");
-    create.mutate(
+    create.create(
       { title: trimmed, assigneeMemberId: member.id, dueAt: dueFor(section) },
-      { onError: (error) => crmErrorToast(error, "The to-do was not added") },
+      (error) => crmErrorToast(error, "The to-do was not added"),
     );
   };
   return (

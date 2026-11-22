@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
-import { chromium, type Browser } from "playwright-core";
+import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createMailbox,
@@ -497,6 +497,120 @@ test("in a window too narrow for both, the task takes the whole screen, and sits
   expect(await panel.isVisible()).toBe(true);
   await context.close();
 });
+
+test("New › Task shows the task beside the list at once, then on its saved id, keeping what was typed meanwhile", async () => {
+  const { page, org, headers, context } = await signedIn("dialog-at-once");
+  const madeDeal = await fetch(new URL("/api/crm/deals", origin()), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Gallery opening" }),
+  });
+  expect(madeDeal.status).toBe(201);
+  const release = holdTaskCreates(page);
+  await page.goto(new URL(`/${org.slug}/crm/tasks?assignee=anyone`, origin()).toString());
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Task" }).click();
+  await page
+    .getByRole("dialog", { name: "Choose a record" })
+    .getByRole("option", { name: "Gallery opening" })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "New task" });
+  await dialog.getByRole("textbox", { name: "Title" }).fill("Hang the prints");
+  await dialog.getByRole("button", { name: "Create" }).click();
+
+  const panel = page.getByRole("region", { name: "Task", exact: true });
+  await expect
+    .poll(() => panel.getByRole("textbox", { name: "Title" }).inputValue())
+    .toBe("Hang the prints");
+  expect(await page.getByRole("main").getByRole("link", { name: "Hang the prints" }).count()).toBe(
+    1,
+  );
+  expect(await taskTitled("Hang the prints")).toBeUndefined();
+  await panel.getByRole("textbox", { name: "Description" }).fill("Level them first.");
+  release();
+  await expect.poll(async () => (await taskTitled("Hang the prints"))?.id ?? null).not.toBeNull();
+  const { id } = (await taskTitled("Hang the prints"))!;
+  await expect.poll(() => new URL(page.url()).searchParams.get("task")).toBe(id);
+  expect(await panel.getByRole("textbox", { name: "Description" }).inputValue()).toBe(
+    "Level them first.",
+  );
+  await context.close();
+});
+
+test("a task checked off and reopened on a record's Tasks tab shows once in every frame, whichever list answers first", async () => {
+  const { page, org, headers, context } = await signedIn("rail-once");
+  const madeDeal = await fetch(new URL("/api/crm/deals", origin()), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Pier dinner" }),
+  });
+  const { deal } = (await madeDeal.json()) as { deal: { id: string } };
+  for (const title of ["Seat the guests", "Light the candles"]) {
+    const made = await fetch(new URL("/api/crm/tasks", origin()), {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ title, dealId: deal.id }),
+    });
+    expect(made.status).toBe(201);
+  }
+  await page.goto(new URL(`/${org.slug}/crm/deals/${deal.id}`, origin()).toString());
+  await page.getByRole("tab", { name: "Tasks" }).click();
+  const rail = page.getByRole("list", { name: "Tasks" });
+  await rail.getByRole("checkbox", { name: "Complete Seat the guests" }).waitFor();
+  await page.evaluate(() => {
+    const seen = { min: Infinity, max: 0 };
+    Object.assign(window, { venueRows: seen });
+    const count = () => {
+      const list = document.querySelector('ol[aria-label="Tasks"]');
+      const n = list ? list.querySelectorAll('input[aria-label$=" Seat the guests"]').length : 0;
+      seen.min = Math.min(seen.min, n);
+      seen.max = Math.max(seen.max, n);
+    };
+    new MutationObserver(count).observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+    });
+  });
+  const counted = () =>
+    page.evaluate(
+      () => (window as unknown as { venueRows: { min: number; max: number } }).venueRows,
+    );
+
+  for (const [slow, label] of [
+    ["status=open", "Complete Seat the guests"],
+    ["status=done", "Reopen Seat the guests"],
+  ] as const) {
+    await page.route(`**/api/crm/tasks?*${slow}*`, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.continue().catch(() => undefined);
+    });
+    const box = rail.getByRole("checkbox", { name: label });
+    await expect.poll(() => box.isEnabled()).toBe(true);
+    const saved = page.waitForResponse(
+      (response) => response.request().method() === "PATCH" && response.ok(),
+    );
+    await box.click({ force: true });
+    await saved;
+    expect(!!(await taskTitled("Seat the guests"))?.completedAt).toBe(label.startsWith("Complete"));
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  }
+  expect(await counted()).toEqual({ min: 1, max: 1 });
+  expect(await rail.getByRole("checkbox", { name: "Complete Seat the guests" }).count()).toBe(1);
+  await context.close();
+});
+
+function holdTaskCreates(page: Page) {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  void page.route("**/api/crm/tasks", async (route) => {
+    if (route.request().method() === "POST") await released;
+    await route.continue().catch(() => undefined);
+  });
+  return release;
+}
 
 async function signedIn(slug: string) {
   const org = await createOrg(db, slug);

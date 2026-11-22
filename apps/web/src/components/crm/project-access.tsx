@@ -90,16 +90,12 @@ function GrantAccessDialog(props: { dealId: string; onClose: () => void }) {
       title="Add to project"
       action="Add"
       disabled={!email.trim()}
-      saving={grant.isPending}
-      onSubmit={() =>
-        grant.mutate(
-          { dealId: props.dealId, email: email.trim(), scope },
-          {
-            onSuccess: props.onClose,
-            onError: (error) => crmErrorToast(error, "They were not added"),
-          },
-        )
-      }
+      onSubmit={() => {
+        grant
+          .mutateAsync({ dealId: props.dealId, email: email.trim(), scope })
+          .catch((error: unknown) => crmErrorToast(error, "They were not added"));
+        props.onClose();
+      }}
     >
       <TextField
         isRequired

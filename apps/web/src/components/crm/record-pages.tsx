@@ -147,7 +147,7 @@ export function PersonPage({ id }: { id: string }) {
 
 export function DealPage({ id }: { id: string }) {
   const query = useCrmDeal(id);
-  const update = useUpdateDeal();
+  const update = useUpdateDeal(id);
   const move = useMoveDeal();
   const stages = useCrmStages().data ?? [];
   const workspaceCurrency = useCrmDefaultCurrency();
@@ -223,7 +223,6 @@ export function DealPage({ id }: { id: string }) {
             </DetailSection>
             <PeopleSection
               people={people}
-              picking={update.isPending}
               onPick={(personId) => save({ id, personIds: [...people.map((p) => p.id), personId] })}
               onRemove={(personId) =>
                 save({ id, personIds: people.map((p) => p.id).filter((p) => p !== personId) })

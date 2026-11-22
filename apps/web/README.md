@@ -158,6 +158,11 @@ thread at once (`lib/cache.ts`), then roll back if the request fails. Move just 
 **CRM writes** (`lib/crm-cache.ts`) show at once wherever the record is cached: its page, every list
 and board, and the records that embed it, matched by id. A note appears at the top of the timeline
 and a deleted task, note, milestone or deliverable leaves at once; any failure puts the cache back.
+A new task, milestone or deliverable shows at once under a pending id (`lib/crm-pending.ts`) and
+takes the Worker's id when it answers; a change or delete made before then waits for that id. A
+task checked off or reopened also joins the cached lists of its new state at once, and the record's
+Tasks tab lists each task once, open or done by its own state. Domains, addresses, a deal's people,
+project access and bulk actions show at once too; a dialog for one closes on submit.
 The write answers its caller as soon as the Worker does; the CRM then refetches once the last
 write in flight has answered, and a `crm.changed` heard while one is in flight waits for it, so an
 echo of an earlier write never shows a later one undone. Drive's trash and delete take the file

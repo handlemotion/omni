@@ -178,8 +178,15 @@ export function useUpdatePerson() {
   return useMutation(updatePersonMutation(useQueryClient()));
 }
 
-export function useUpdateDeal() {
-  return useMutation(updateDealMutation(useQueryClient()));
+/**
+ * `mutate({ id, ...change })`. With `dealId`, that deal's changes run one at a time in the order
+ * made, so a whole list of its people sent twice in a row lands in that order.
+ */
+export function useUpdateDeal(dealId?: string) {
+  return useMutation({
+    ...updateDealMutation(useQueryClient()),
+    ...(dealId ? { scope: { id: `crm-deal:${dealId}` } } : {}),
+  });
 }
 
 export function useSetDealIcon() {

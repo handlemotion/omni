@@ -3,7 +3,14 @@ import type { Api } from "@omni/client";
 import type { InferRequestType } from "hono/client";
 import { api, call } from "./api.ts";
 import type { CrmContractStatus, CrmRecordKind, CrmStage } from "./crm.ts";
-import { dropFromPages, optimisticCrm, setCrmFields, settleCrm } from "./crm-cache.ts";
+import {
+  dropFromPages,
+  findCrmEntity,
+  optimisticCrm,
+  patchCrmEntity,
+  setCrmFields,
+  settleCrm,
+} from "./crm-cache.ts";
 import { keys } from "./query-keys.ts";
 import { storageChanged } from "./storage.ts";
 
@@ -31,6 +38,38 @@ function stageKindOf(client: QueryClient, stageId: string | undefined) {
   if (!stageId) return undefined;
   const pipeline = client.getQueryData<{ stages: CrmStage[] }>(keys.crmStages());
   return pipeline?.stages.find((stage) => stage.id === stageId)?.kind;
+}
+
+type Addresses = { address: string; isPrimary: boolean }[];
+
+function changedAddresses(current: Addresses, change: NonNullable<PersonChange["addresses"]>) {
+  const removed = new Set(change.remove ?? []);
+  const kept = current.filter(({ address }) => !removed.has(address));
+  for (const address of change.add ?? []) {
+    if (!kept.some((each) => each.address === address)) kept.push({ address, isPrimary: false });
+  }
+  const primary =
+    change.primary ?? kept.find((each) => each.isPrimary)?.address ?? kept[0]?.address;
+  return kept
+    .map(({ address }) => ({ address, isPrimary: address === primary }))
+    .toSorted(
+      (a, b) => Number(b.isPrimary) - Number(a.isPrimary) || (a.address < b.address ? -1 : 1),
+    );
+}
+
+function dealPeopleAtOnce(client: QueryClient, dealId: string, personIds: string[]) {
+  client.setQueryData<{ people: unknown[] }>(keys.crmDeal(dealId), (data) => {
+    if (!data) return data;
+    const people = personIds.map((id) => findCrmEntity(client, id)).filter(Boolean);
+    return people.length === personIds.length ? { ...data, people } : data;
+  });
+}
+
+function changeDomains(client: QueryClient, id: string, change: (domains: string[]) => string[]) {
+  client.setQueryData<{ domains: string[] }>(
+    keys.crmCompany(id),
+    (data) => data && { ...data, domains: change(data.domains) },
+  );
 }
 
 export const createCompanyMutation = (client: QueryClient) =>
@@ -75,11 +114,17 @@ export const updatePersonMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, ...json }: PersonChange & { id: string }) =>
       call(api.crm.people[":id"].$patch({ param: { id }, json })),
-    ...optimisticCrm(
-      client,
-      ({ id, name, companyId, jobTitle, phone, ownerMemberId }: PersonChange & { id: string }) =>
-        setCrmFields(client, id, { name, companyId, jobTitle, phone, ownerMemberId }),
-    ),
+    ...optimisticCrm(client, (change: PersonChange & { id: string }) => {
+      const { id, name, companyId, jobTitle, phone, ownerMemberId, addresses } = change;
+      setCrmFields(client, id, { name, companyId, jobTitle, phone, ownerMemberId });
+      if (addresses) {
+        patchCrmEntity(client, id, (person) =>
+          Array.isArray(person.addresses)
+            ? { ...person, addresses: changedAddresses(person.addresses, addresses) }
+            : person,
+        );
+      }
+    }),
     ...settle(client),
   });
 
@@ -88,7 +133,7 @@ export const updateDealMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, ...json }: DealChange & { id: string }) =>
       call(api.crm.deals[":id"].$patch({ param: { id }, json })),
-    ...optimisticCrm(client, (change: DealChange & { id: string }) =>
+    ...optimisticCrm(client, (change: DealChange & { id: string }) => {
       setCrmFields(client, change.id, {
         name: change.name,
         companyId: change.companyId,
@@ -98,8 +143,9 @@ export const updateDealMutation = (client: QueryClient) =>
         expectedCloseOn: change.expectedCloseOn,
         stageId: change.stageId,
         stageKind: stageKindOf(client, change.stageId),
-      }),
-    ),
+      });
+      if (change.personIds) dealPeopleAtOnce(client, change.id, change.personIds);
+    }),
     ...settle(client),
   });
 
@@ -126,6 +172,11 @@ export const addDomainMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, domain }: { id: string; domain: string }) =>
       call(api.crm.companies[":id"].domains[":domain"].$put({ param: { id, domain } })),
+    ...optimisticCrm(client, ({ id, domain }: { id: string; domain: string }) =>
+      changeDomains(client, id, (domains) =>
+        [...domains.filter((d) => d !== domain), domain].toSorted(),
+      ),
+    ),
     ...settle(client),
   });
 
@@ -135,6 +186,9 @@ export const removeDomainMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, domain }: { id: string; domain: string }) =>
       call(api.crm.companies[":id"].domains[":domain"].$delete({ param: { id, domain } })),
+    ...optimisticCrm(client, ({ id, domain }: { id: string; domain: string }) =>
+      changeDomains(client, id, (domains) => domains.filter((d) => d !== domain)),
+    ),
     ...settle(client),
   });
 
@@ -207,6 +261,17 @@ async function bulk(kind: CrmRecordKind, ids: string[], action: BulkAction) {
   return result;
 }
 
+function bulkAtOnce(client: QueryClient, kind: CrmRecordKind, ids: string[], action: BulkAction) {
+  if (action.action === "delete") return dropFromPages(client, keys.crm(), kind, new Set(ids));
+  const fields =
+    action.action === "owner"
+      ? { ownerMemberId: action.ownerMemberId }
+      : action.action === "stage"
+        ? { stageId: action.stageId, stageKind: stageKindOf(client, action.stageId) }
+        : { archivedAt: action.action === "archive" ? new Date().toISOString() : null };
+  for (const id of ids) setCrmFields(client, id, fields);
+}
+
 /** `mutateAsync({ kind, ids, action })` → what changed and what was refused, by id. */
 export const bulkMutation = (client: QueryClient) =>
   mutationOptions({
@@ -220,6 +285,11 @@ export const bulkMutation = (client: QueryClient) =>
       ids: string[];
       action: BulkAction;
     }) => bulk(kind, ids, action),
+    ...optimisticCrm(
+      client,
+      ({ kind, ids, action }: { kind: CrmRecordKind; ids: string[]; action: BulkAction }) =>
+        bulkAtOnce(client, kind, ids, action),
+    ),
     ...settle(client),
   });
 

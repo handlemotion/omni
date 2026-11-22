@@ -7,7 +7,9 @@ import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDeleteTask } from "@/hooks/use-crm-tasks.ts";
+import { useMember } from "@/hooks/use-session.ts";
 import { CRM_WRITE } from "@/lib/crm-cache.ts";
+import { stableId } from "@/lib/crm-pending.ts";
 import {
   dayOf,
   dueAtOf,
@@ -34,15 +36,16 @@ const BODY_MAX = 20_000;
  */
 export function useSaveTask(id: string) {
   const client = useQueryClient();
-  const base = updateTaskMutation(client);
-  const mutationKey = [...CRM_WRITE, "task-save", id];
+  const base = updateTaskMutation(client, useMember().member.id);
+  const queue = stableId(id);
+  const mutationKey = [...CRM_WRITE, "task-save", queue];
   const update = useMutation({
     ...base,
     mutationKey,
-    scope: { id: `crm-task:${id}` },
+    scope: { id: `crm-task:${queue}` },
     onSettled: (...args) => {
       if (client.isMutating({ mutationKey }) > 1) return;
-      if (args[0]) client.setQueryData(taskKeys.one(id), args[0]);
+      if (args[0]) client.setQueryData(taskKeys.one(args[0].task.id), args[0]);
       return base.onSettled?.(...args);
     },
   });
@@ -80,7 +83,7 @@ export function TaskHeading(props: { task: CrmTask; onSave: (change: TaskChange)
           <Checkbox />
         </CheckboxField>
       </div>
-      <TitleField key={task.id} task={task} onSave={(title) => onSave({ title })} />
+      <TitleField key={stableId(task.id)} task={task} onSave={(title) => onSave({ title })} />
     </div>
   );
 }
@@ -93,7 +96,7 @@ export function TaskContent(props: {
   const { task, onSave } = props;
   return (
     <div className="flex flex-col gap-5">
-      <BodyField key={task.id} task={task} onSave={(body) => onSave({ body })} />
+      <BodyField key={stableId(task.id)} task={task} onSave={(body) => onSave({ body })} />
       <Subtasks task={task} onSave={onSave} />
     </div>
   );

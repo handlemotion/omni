@@ -28,6 +28,7 @@ import { useTaskMenu } from "./task-menu.ts";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import type { CrmRecordKind } from "@/lib/crm.ts";
+import { currentId, stableId } from "@/lib/crm-pending.ts";
 import {
   DUE_GROUPS,
   dueGroup,
@@ -146,7 +147,7 @@ export function TasksPage(props: {
                 onResizingChange={setResizing}
               />
             )}
-            <TaskPanel key={props.task} id={props.task} onClose={open.close} />
+            <TaskPanel key={stableId(props.task)} id={props.task} onClose={open.close} />
           </div>
         )}
       </div>
@@ -184,7 +185,8 @@ export function RecordTasks(props: { kind: CrmRecordKind; id: string }) {
   const [adding, setAdding] = useState(false);
   const filter = recordFilter(props.kind, props.id);
   const open = useOpenTask();
-  if (open.id) return <TaskPanel key={open.id} id={open.id} onClose={open.close} inPlace />;
+  if (open.id)
+    return <TaskPanel key={stableId(open.id)} id={open.id} onClose={open.close} inPlace />;
   return (
     <div className="flex flex-col gap-6 lg:min-h-[calc(100dvh-8rem)]">
       <TaskRail filter={filter} onNew={() => setAdding(true)} />
@@ -339,7 +341,7 @@ function DueSection(props: {
       </h3>
       <ul className="flex min-h-12 flex-col">
         {props.tasks.map((task) => (
-          <DraggableTask key={task.id} task={task} showRecord={props.showRecord} />
+          <DraggableTask key={stableId(task.id)} task={task} showRecord={props.showRecord} />
         ))}
       </ul>
     </section>
@@ -365,7 +367,7 @@ function TaskRows(props: { tasks: CrmTask[]; showRecord: boolean }) {
   return (
     <ul className="flex flex-col">
       {props.tasks.map((task) => (
-        <TaskRow key={task.id} task={task} showRecord={props.showRecord} />
+        <TaskRow key={stableId(task.id)} task={task} showRecord={props.showRecord} />
       ))}
     </ul>
   );
@@ -402,7 +404,7 @@ export function TaskRow(props: {
       {...contextMenuProps(() => menu(task, href), task.title)}
       ref={props.lift?.ref}
       onPointerDownCapture={props.lift?.onPointerDownCapture}
-      className={`group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out ${opened?.id === task.id ? "bg-accent" : "hover:bg-hover"} ${props.lift?.hidden ? "opacity-0" : ""}`}
+      className={`group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out ${isOpen(opened?.id, task.id) ? "bg-accent" : "hover:bg-hover"} ${props.lift?.hidden ? "opacity-0" : ""}`}
     >
       <CheckboxField
         aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
@@ -442,6 +444,9 @@ export function TaskRow(props: {
     </li>
   );
 }
+
+const isOpen = (opened: string | null | undefined, id: string) =>
+  !!opened && currentId(opened) === currentId(id);
 
 function TaskBones() {
   return (

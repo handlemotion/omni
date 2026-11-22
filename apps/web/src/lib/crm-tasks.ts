@@ -1,5 +1,6 @@
 import {
   infiniteQueryOptions,
+  type InfiniteData,
   mutationOptions,
   queryOptions,
   type QueryClient,
@@ -8,7 +9,17 @@ import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import type { CrmRecordKind } from "./crm.ts";
-import { dropFromPages, holdCrm, restoreCrm, setCrmFields, settleCrm } from "./crm-cache.ts";
+import {
+  dropCrmEntity,
+  dropFromPages,
+  findCrmEntity,
+  holdCrm,
+  patchCrmEntity,
+  restoreCrm,
+  setCrmFields,
+  settleCrm,
+} from "./crm-cache.ts";
+import { currentId, pendingFailed, pendingMade, settledId } from "./crm-pending.ts";
 import { keys } from "./query-keys.ts";
 
 type Tasks = Api["crm"]["tasks"];
@@ -79,8 +90,8 @@ export const MY_TODOS = { status: "open", assignee: "me" } satisfies TaskFilter;
 export const crmTaskQuery = (id: string) =>
   queryOptions({
     queryKey: taskKeys.one(id),
-    queryFn: ({ signal }) =>
-      call(api.crm.tasks[":id"].$get({ param: { id } }, { init: { signal } })),
+    queryFn: async ({ signal }) =>
+      call(api.crm.tasks[":id"].$get({ param: { id: await settledId(id) } }, { init: { signal } })),
   });
 
 export const crmTaskCountsQuery = () =>
@@ -92,12 +103,130 @@ export const crmTaskCountsQuery = () =>
 
 const settle = (client: QueryClient) => settleCrm(client);
 
-export const createTaskMutation = (client: QueryClient) =>
+/** A new task, with the pending id (`pendingId()`) its row shows under until the Worker answers. */
+export type PendingTask = NewTask & { pendingId: string };
+
+/**
+ * `mutate({ pendingId, ...task })`: the task shows at once in every cached list it fits and under
+ * its pending id; once the Worker answers it takes the Worker's id, and a failure takes it out.
+ * `self` is the member creating it, its assignee unless the task names another.
+ */
+export const createTaskMutation = (client: QueryClient, self: string | null = null) =>
   mutationOptions({
     meta: { handlesError: true },
-    mutationFn: (json: NewTask) => call(api.crm.tasks.$post({ json })),
+    mutationFn: ({ pendingId: _pending, ...json }: PendingTask) =>
+      call(api.crm.tasks.$post({ json })),
+    onMutate: async (input) => {
+      await client.cancelQueries({ queryKey: taskKeys.all() });
+      const task = draftTask(client, input, self);
+      showInLists(client, task, self);
+      client.setQueryData(taskKeys.one(task.id), { task });
+    },
+    onSuccess: ({ task }, { pendingId }) => {
+      pendingMade(pendingId, task.id);
+      patchCrmEntity(client, pendingId, (shown) => ({ ...shown, ...madeFields(task) }));
+      const shown = findCrmEntity(client, task.id) ?? task;
+      client.setQueryData(taskKeys.one(task.id), { task: shown });
+    },
+    onError: (error, { pendingId }) => {
+      pendingFailed(pendingId, error);
+      dropCrmEntity(client, pendingId);
+      client.removeQueries({ queryKey: taskKeys.one(pendingId) });
+    },
     ...settle(client),
   });
+
+const madeFields = (task: CrmTask) => ({
+  id: task.id,
+  recordName: task.recordName,
+  recordDomain: task.recordDomain,
+  createdByMemberId: task.createdByMemberId,
+  createdAt: task.createdAt,
+  updatedAt: task.updatedAt,
+});
+
+function draftTask(client: QueryClient, input: PendingTask, self: string | null) {
+  const at = new Date().toISOString();
+  const recordId = input.companyId ?? input.personId ?? input.dealId ?? null;
+  const record = recordId ? findCrmEntity(client, recordId) : undefined;
+  return {
+    id: input.pendingId,
+    title: input.title,
+    body: input.body ?? null,
+    subtasks: [],
+    companyId: input.companyId ?? null,
+    personId: input.personId ?? null,
+    dealId: input.dealId ?? null,
+    recordName: typeof record?.name === "string" ? record.name : null,
+    recordDomain: typeof record?.domain === "string" ? record.domain : null,
+    assigneeMemberId: input.assigneeMemberId === undefined ? self : input.assigneeMemberId,
+    dueAt: input.dueAt ?? null,
+    completedAt: null,
+    completedByMemberId: null,
+    createdByMemberId: self,
+    createdAt: at,
+    updatedAt: at,
+  } satisfies CrmTask;
+}
+
+/** Whether `task` belongs in the list `filter` asks for, as the Worker would answer it. */
+export function fitsFilter(
+  filter: TaskFilter,
+  task: CrmTask,
+  self: string | null,
+  now = Date.now(),
+) {
+  if ((filter.status === "done") !== !!task.completedAt) return false;
+  if (filter.assignee) {
+    const assignee =
+      filter.assignee === "me" ? self : filter.assignee === "none" ? null : filter.assignee;
+    if (task.assigneeMemberId !== assignee) return false;
+  }
+  if (!task.completedAt && !dueFits(filter.due, task.dueAt, now)) return false;
+  if (filter.company && task.companyId !== filter.company) return false;
+  if (filter.person && task.personId !== filter.person) return false;
+  if (filter.deal && task.dealId !== filter.deal) return false;
+  const title = task.title.toLowerCase();
+  const words = (filter.q ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return words.every((word) => title.includes(word));
+}
+
+function dueFits(due: TaskFilter["due"], dueAt: string | null, now: number) {
+  const at = dueAt ? Date.parse(dueAt) : null;
+  if (due === "none") return at === null;
+  if (due === "overdue") return at !== null && at < now;
+  if (due === "upcoming") return at !== null && at >= now;
+  return true;
+}
+
+const dueBefore = (task: CrmTask, row: CrmTask) =>
+  task.dueAt !== null && (row.dueAt === null || Date.parse(row.dueAt) > Date.parse(task.dueAt));
+
+function showInLists(client: QueryClient, task: CrmTask, self: string | null) {
+  for (const [key, data] of client.getQueriesData<InfiniteData<CrmTaskPage>>({
+    queryKey: taskKeys.lists(),
+  })) {
+    const filter = key.at(-1) as TaskFilter;
+    if (!data?.pages.length || !fitsFilter(filter, task, self)) continue;
+    if (data.pages.some((page) => page.tasks.some((row) => row.id === task.id))) continue;
+    client.setQueryData(key, placeTask(data, task));
+  }
+}
+
+function placeTask(data: InfiniteData<CrmTaskPage>, task: CrmTask) {
+  const pages = data.pages.map((page) => ({ ...page, tasks: [...page.tasks] }));
+  const before = task.completedAt ? () => true : (row: CrmTask) => dueBefore(task, row);
+  for (const page of pages) {
+    const at = page.tasks.findIndex(before);
+    if (at === -1) continue;
+    page.tasks.splice(at, 0, task);
+    return { ...data, pages };
+  }
+  const last = pages.at(-1)!;
+  if (last.nextCursor) return data;
+  last.tasks.push(task);
+  return { ...data, pages };
+}
 
 /**
  * `mutate({ id, ...change })`: the change shows on the task and in every list at once (a done task
@@ -107,11 +236,11 @@ export const createTaskMutation = (client: QueryClient) =>
 export const updateTaskMutation = (client: QueryClient, completedBy: string | null = null) =>
   mutationOptions({
     meta: { handlesError: true },
-    mutationFn: ({ id, ...json }: TaskChange & { id: string }) =>
-      call(api.crm.tasks[":id"].$patch({ param: { id }, json })),
+    mutationFn: async ({ id, ...json }: TaskChange & { id: string }) =>
+      call(api.crm.tasks[":id"].$patch({ param: { id: await settledId(id) }, json })),
     onMutate: async ({ id, done, ...change }) => {
       const snapshot = await holdCrm(client);
-      setCrmFields(client, id, {
+      setCrmFields(client, currentId(id), {
         title: change.title,
         body: change.body,
         subtasks: change.subtasks,
@@ -124,6 +253,8 @@ export const updateTaskMutation = (client: QueryClient, completedBy: string | nu
               completedByMemberId: done ? completedBy : null,
             }),
       });
+      const task = findCrmEntity(client, currentId(id)) as CrmTask | undefined;
+      if (task) showInLists(client, task, completedBy);
       return { snapshot };
     },
     onError: (_error, _change, context) => restoreCrm(client, context?.snapshot),
@@ -134,10 +265,11 @@ export const updateTaskMutation = (client: QueryClient, completedBy: string | nu
 export const deleteTaskMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
-    mutationFn: (id: string) => call(api.crm.tasks[":id"].$delete({ param: { id } })),
+    mutationFn: async (id: string) =>
+      call(api.crm.tasks[":id"].$delete({ param: { id: await settledId(id) } })),
     onMutate: async (id) => {
       const snapshot = await holdCrm(client);
-      dropFromPages(client, taskKeys.lists(), "tasks", new Set([id]));
+      dropFromPages(client, taskKeys.lists(), "tasks", new Set([id, currentId(id)]));
       return { snapshot };
     },
     onError: (_error, _id, context) => restoreCrm(client, context?.snapshot),

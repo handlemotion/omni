@@ -84,6 +84,18 @@ export function patchCrmEntity(
   }
 }
 
+/** The first copy of the record with `id` the CRM cache holds, wherever it is. */
+export function findCrmEntity(client: QueryClient, id: string) {
+  const stack = client.getQueriesData({ queryKey: keys.crm() }).map(([, data]) => data);
+  while (stack.length) {
+    const value = stack.shift();
+    if (!value || typeof value !== "object") continue;
+    if (!Array.isArray(value) && (value as { id?: unknown }).id === id) return value as Entity;
+    stack.unshift(...Object.values(value));
+  }
+  return undefined;
+}
+
 /** Sets `fields` on the record with `id` everywhere it is cached; undefined fields are left. */
 export function setCrmFields(client: QueryClient, id: string, fields: Record<string, unknown>) {
   const defined = Object.fromEntries(

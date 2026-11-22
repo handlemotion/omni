@@ -21,16 +21,12 @@ export function NewMilestoneDialog(props: { dealId: string; onClose: () => void 
       title="New milestone"
       action="Add"
       disabled={!title.trim()}
-      saving={create.isPending}
-      onSubmit={() =>
-        create.mutate(
-          { dealId: props.dealId, title: title.trim() },
-          {
-            onSuccess: props.onClose,
-            onError: (error) => crmErrorToast(error, "The milestone was not added"),
-          },
-        )
-      }
+      onSubmit={() => {
+        create.create({ dealId: props.dealId, title: title.trim() }, (error) =>
+          crmErrorToast(error, "The milestone was not added"),
+        );
+        props.onClose();
+      }}
     >
       <TextField isRequired autoFocus maxLength={300} value={title} onChange={setTitle}>
         <Label>Title</Label>
@@ -56,21 +52,18 @@ export function NewDeliverableDialog(props: {
       title="New deliverable"
       action="Add"
       disabled={!title.trim()}
-      saving={create.isPending}
-      onSubmit={() =>
-        create.mutate(
+      onSubmit={() => {
+        create.create(
           {
             dealId: props.dealId,
             title: title.trim(),
             milestoneId: milestoneId === NO_MILESTONE ? null : milestoneId,
             clientVisible,
           },
-          {
-            onSuccess: props.onClose,
-            onError: (error) => crmErrorToast(error, "The deliverable was not added"),
-          },
-        )
-      }
+          (error) => crmErrorToast(error, "The deliverable was not added"),
+        );
+        props.onClose();
+      }}
     >
       <TextField isRequired autoFocus maxLength={300} value={title} onChange={setTitle}>
         <Label>Title</Label>

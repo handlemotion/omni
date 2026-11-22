@@ -16,16 +16,12 @@ export function AddDomainDialog(props: { companyId: string; onClose: () => void 
       title="Add domain"
       action="Add"
       disabled={!domain.trim()}
-      saving={add.isPending}
-      onSubmit={() =>
-        add.mutate(
-          { id: props.companyId, domain: domain.trim().toLowerCase() },
-          {
-            onSuccess: props.onClose,
-            onError: (error) => crmErrorToast(error, "The domain was not added"),
-          },
-        )
-      }
+      onSubmit={() => {
+        add
+          .mutateAsync({ id: props.companyId, domain: domain.trim().toLowerCase() })
+          .catch((error: unknown) => crmErrorToast(error, "The domain was not added"));
+        props.onClose();
+      }}
     >
       <TextField isRequired autoFocus maxLength={253} value={domain} onChange={setDomain}>
         <Label>Domain</Label>
@@ -45,16 +41,12 @@ export function AddAddressDialog(props: { personId: string; onClose: () => void 
       title="Add address"
       action="Add"
       disabled={!address.trim()}
-      saving={update.isPending}
-      onSubmit={() =>
-        update.mutate(
-          { id: props.personId, addresses: { add: [address.trim()] } },
-          {
-            onSuccess: props.onClose,
-            onError: (error) => crmErrorToast(error, "The address was not added"),
-          },
-        )
-      }
+      onSubmit={() => {
+        update
+          .mutateAsync({ id: props.personId, addresses: { add: [address.trim()] } })
+          .catch((error: unknown) => crmErrorToast(error, "The address was not added"));
+        props.onClose();
+      }}
     >
       <TextField
         isRequired

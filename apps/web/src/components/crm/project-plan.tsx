@@ -37,6 +37,7 @@ import {
 } from "@/lib/crm-project.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { PlanPanel, useOpenPlanItem, type PlanItem } from "./plan-panel.tsx";
+import { currentId, stableId } from "@/lib/crm-pending.ts";
 import { NewDeliverableDialog, NewMilestoneDialog } from "./project-plan-dialogs.tsx";
 import { RailRow, railPlace, type RailPlace } from "./rail-row.tsx";
 import { RowWithMenu } from "./record-sections.tsx";
@@ -176,11 +177,11 @@ export function ProjectPlan(props: { dealId: string }) {
                 case "milestone":
                   return (
                     <MilestoneRow
-                      key={row.milestone.id}
+                      key={stableId(row.milestone.id)}
                       {...row}
                       place={place}
                       href={href(row.milestone.id)}
-                      current={opened.id === row.milestone.id}
+                      current={!!opened.id && currentId(opened.id) === row.milestone.id}
                     />
                   );
                 case "loose":
@@ -188,12 +189,12 @@ export function ProjectPlan(props: { dealId: string }) {
                 case "deliverable":
                   return (
                     <DeliverableRow
-                      key={row.deliverable.id}
+                      key={stableId(row.deliverable.id)}
                       deliverable={row.deliverable}
                       open={row.open}
                       place={place}
                       href={href(row.deliverable.id)}
-                      current={opened.id === row.deliverable.id}
+                      current={!!opened.id && currentId(opened.id) === row.deliverable.id}
                     />
                   );
               }
@@ -210,9 +211,10 @@ export function ProjectPlan(props: { dealId: string }) {
 
 function openItem(id: string | null, milestones: CrmMilestone[], deliverables: CrmDeliverable[]) {
   if (!id) return null;
-  const milestone = milestones.find((m) => m.id === id);
+  const saved = currentId(id);
+  const milestone = milestones.find((m) => m.id === id || m.id === saved);
   if (milestone) return { kind: "milestone", milestone } satisfies PlanItem;
-  const deliverable = deliverables.find((d) => d.id === id);
+  const deliverable = deliverables.find((d) => d.id === id || d.id === saved);
   return deliverable ? ({ kind: "deliverable", deliverable } satisfies PlanItem) : null;
 }
 

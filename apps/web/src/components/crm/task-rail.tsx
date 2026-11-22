@@ -7,6 +7,7 @@ import { useTaskMenu } from "./task-menu.ts";
 import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
+import { currentId, stableId } from "@/lib/crm-pending.ts";
 import { dueLabel, type CrmTask, type TaskFilter } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MemberAvatar } from "./member-avatar.tsx";
@@ -31,10 +32,11 @@ export function TaskRail({ filter, onNew }: { filter: TaskFilter; onNew: () => v
     );
   }
   if (open.isError) return <ListFailed retry={() => void open.refetch()} />;
+  const { opened, finished } = splitTasks(open.tasks, done.tasks);
   const items: RailItem[] = [
-    ...open.tasks.map((task) => ({ kind: "task" as const, task })),
-    ...(done.tasks.length ? [{ kind: "done" as const }] : []),
-    ...done.tasks.map((task) => ({ kind: "task" as const, task })),
+    ...opened.map((task) => ({ kind: "task" as const, task })),
+    ...(finished.length ? [{ kind: "done" as const }] : []),
+    ...finished.map((task) => ({ kind: "task" as const, task })),
   ];
   if (!items.length) {
     return (
@@ -74,7 +76,7 @@ export function TaskRail({ filter, onNew }: { filter: TaskFilter; onNew: () => v
                 <h3 className="flex h-10 items-center px-2 text-xs text-muted-foreground">Done</h3>
               </RailRow>
             ) : (
-              <TaskRailRow key={item.task.id} task={item.task} place={place} />
+              <TaskRailRow key={stableId(item.task.id)} task={item.task} place={place} />
             );
           })}
         </ol>
@@ -89,6 +91,19 @@ export function TaskRail({ filter, onNew }: { filter: TaskFilter; onNew: () => v
       </div>
     </>
   );
+}
+
+function splitTasks(open: CrmTask[], done: CrmTask[]) {
+  const seen = new Set<string>();
+  const all = [...open, ...done].filter((task) => !seen.has(task.id) && !!seen.add(task.id));
+  const due = (task: CrmTask) => (task.dueAt ? Date.parse(task.dueAt) : Infinity);
+  const opened = all
+    .filter((task) => !task.completedAt)
+    .toSorted((a, b) => due(a) - due(b) || (a.id < b.id ? -1 : 1));
+  const finished = all
+    .filter((task) => task.completedAt)
+    .toSorted((a, b) => Date.parse(b.completedAt!) - Date.parse(a.completedAt!));
+  return { opened, finished };
 }
 
 function TaskRailRow(props: { task: CrmTask; place: RailPlace }) {
@@ -109,7 +124,7 @@ function TaskRailRow(props: { task: CrmTask; place: RailPlace }) {
       menu={contextMenuProps(() => menu(task, opened.href(task.id)), task.title)}
       place={props.place}
       href={opened.href(task.id)}
-      current={opened.id === task.id}
+      current={!!opened.id && currentId(opened.id) === currentId(task.id)}
       label={task.title}
       date={
         <span className={overdue ? "text-danger" : "text-muted-foreground"}>

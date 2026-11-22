@@ -509,6 +509,34 @@ test("crumbs deepen from month to week to day, and an earlier crumb zooms out", 
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("month");
 });
 
+test("a to-do shows in its section the moment Enter is pressed, before the Worker answers", async () => {
+  const { page, origin, org } = await invited();
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/crm/tasks", async (route) => {
+    if (route.request().method() === "POST") await released;
+    await route.continue().catch(() => undefined);
+  });
+  await openWeek(page, origin, org.slug);
+  const section = page.getByRole("region", { name: "No date" });
+  await section.hover();
+  await page.getByRole("button", { name: "New to-do in No date" }).click();
+  const field = page.getByRole("textbox", { name: "New to-do" });
+  await field.fill("Water the plants");
+  await field.press("Enter");
+
+  const row = section.getByRole("link", { name: "Water the plants" });
+  await expect.poll(() => row.count()).toBe(1);
+  const saved = () =>
+    db.select().from(schema.crmTasks).where(eq(schema.crmTasks.title, "Water the plants"));
+  expect(await saved()).toEqual([]);
+  release();
+  await expect.poll(async () => (await saved()).length).toBe(1);
+  const [made] = await saved();
+  await expect.poll(() => row.getAttribute("href")).toContain(made?.id);
+  expect(await row.count()).toBe(1);
+});
+
 test("a to-do checked off stays in its section, crossed out", async () => {
   const { org, member, page, origin } = await invited();
   await db.insert(schema.crmTasks).values({

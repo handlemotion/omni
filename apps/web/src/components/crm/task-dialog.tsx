@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { IconX } from "@/components/icons/central";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
@@ -152,6 +152,7 @@ export function NewTaskDialog(props: {
 }) {
   const create = useCreateTask();
   const navigate = useNavigate();
+  const router = useRouter();
   const workspace = useWorkspaceSlug();
   const self = useSelfMemberId();
   const [title, setTitle] = useState("");
@@ -167,29 +168,34 @@ export function NewTaskDialog(props: {
       title="New task"
       action="Create"
       disabled={!title.trim()}
-      saving={create.isPending}
-      onSubmit={() =>
-        create.mutate(
+      onSubmit={() => {
+        const { id, made } = create.create(
           {
             title: title.trim(),
             dueAt: dueAtOf(due),
             ...(assignee === undefined ? {} : { assigneeMemberId: assignee }),
             ...(on ? onRecord(on.kind, on.id) : {}),
           },
-          {
-            onSuccess: ({ task }) => {
-              props.onClose();
-              if (props.record) return;
-              void navigate({
-                to: "/$workspace/crm/tasks",
-                params: { workspace },
-                search: { assignee: "anyone", task: task.id },
-              });
-            },
-            onError: (error) => crmErrorToast(error, "The task was not created"),
+          (error) => crmErrorToast(error, "The task was not created"),
+        );
+        props.onClose();
+        if (props.record) return;
+        const open = (task: string, replace = false) =>
+          void navigate({
+            to: "/$workspace/crm/tasks",
+            params: { workspace },
+            search: { assignee: "anyone", task },
+            replace,
+          });
+        open(id);
+        void made.then(
+          ({ task }) => {
+            const { search } = router.state.location as { search: { task?: string } };
+            if (search.task === id) open(task.id, true);
           },
-        )
-      }
+          () => undefined,
+        );
+      }}
     >
       <TextField isRequired autoFocus maxLength={NAME_MAX} value={title} onChange={setTitle}>
         <Label>Title</Label>
