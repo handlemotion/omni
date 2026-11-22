@@ -155,3 +155,5 @@ export function meetingsPipeline(db: Db) {
 }
 
 export type MemberMeetings = ReturnType<typeof memberMeetings>;
+
+export { handOverMemberMeetings } from "./meetings/leave.ts";

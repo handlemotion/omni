@@ -3,11 +3,11 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { schema } from "@omni/db";
+import { forUser, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
-import { WEB_ORIGIN } from "./support.ts";
+import { authPost, WEB_ORIGIN } from "./support.ts";
 
 const fixtures = new URL("../../../fixtures/meetings/", import.meta.url);
 const read = (path: string) => JSON.parse(readFileSync(new URL(path, fixtures), "utf8")) as any;
@@ -477,4 +477,30 @@ test("an engine that is briefly down is tried again after a pause, and the meeti
     .from(schema.meetingsJobs)
     .where(eq(schema.meetingsJobs.meetingId, meetingId));
   expect(job?.attempts).toBe(0);
+});
+
+test("a recorder who leaves loses the meetings they recorded; whoever is handed their files owns them", async () => {
+  const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const admin = await stack.member(org.id, "owner");
+  const dana = await stack.member(org.id);
+  const ben = await stack.member(org.id);
+  const start = (attendees: string[]) =>
+    api(dana, "POST", "/", {
+      attendees: attendees.map((address) => ({ address })),
+      consent: true,
+    });
+  const attended = (await start([dana.email, ben.email])).body.meetingId as string;
+  const recorded = (await start([ben.email])).body.meetingId as string;
+
+  const removed = await authPost(stack.worker, admin.jar, "/organization/remove-member", {
+    memberIdOrEmail: dana.email,
+  });
+  expect(removed.status).toBe(200);
+
+  const gone = forUser(stack.db, dana.userId).meetings;
+  expect((await gone.get(recorded)).status).toBe("not_found");
+  expect(await gone.get(attended)).toMatchObject({ status: "ok", role: "viewer" });
+  expect((await api(ben, "GET", `/${recorded}`)).body.role).toBe("viewer");
+  expect((await api(admin, "GET", `/${recorded}`)).body.role).toBe("owner");
+  expect((await api(admin, "DELETE", `/${recorded}`)).status).toBe(204);
 });

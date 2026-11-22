@@ -25,6 +25,33 @@ function folderName(person: string) {
 }
 
 /**
+ * Who receives what a leaving member held: `toMemberId` (whoever removed them) when that is
+ * another member of the workspace, else its oldest other owner; null when there is none.
+ */
+export async function handOverRecipient(
+  ex: Db,
+  orgId: string,
+  memberId: string,
+  toMemberId?: string | null,
+) {
+  const others = and(eq(members.organizationId, orgId), ne(members.id, memberId));
+  const [named] = toMemberId
+    ? await ex
+        .select({ id: members.id })
+        .from(members)
+        .where(and(others, eq(members.id, toMemberId)))
+    : [];
+  if (named) return named;
+  const [owner] = await ex
+    .select({ id: members.id })
+    .from(members)
+    .where(and(others, isOwner))
+    .orderBy(asc(members.createdAt), asc(members.id))
+    .limit(1);
+  return owner ?? null;
+}
+
+/**
  * Moves everything in `memberId`'s My files, Trash included, into a new folder
  * `Files from <name>` at the root of the My files of `toMemberId` (whoever removed them), or of
  * the workspace's oldest other owner when that is absent, not in the workspace, or the member
@@ -59,21 +86,7 @@ export async function handOverMemberStorage(
       eq(storageNodes.orgId, leaving.orgId),
       eq(storageNodes.ownerMemberId, input.memberId),
     );
-    const others = and(eq(members.organizationId, leaving.orgId), ne(members.id, input.memberId));
-    const [named] = input.toMemberId
-      ? await tx
-          .select({ id: members.id })
-          .from(members)
-          .where(and(others, eq(members.id, input.toMemberId)))
-      : [];
-    const [owner] = named
-      ? [named]
-      : await tx
-          .select({ id: members.id })
-          .from(members)
-          .where(and(others, isOwner))
-          .orderBy(asc(members.createdAt), asc(members.id))
-          .limit(1);
+    const owner = await handOverRecipient(tx, leaving.orgId, input.memberId, input.toMemberId);
     if (owner) await handOverTeamspaces(tx, input.memberId, owner.id);
 
     const [first] = await tx

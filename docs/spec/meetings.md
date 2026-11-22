@@ -346,7 +346,9 @@ access covers the meeting page, its transcript, its notes, its actions, and its 
 
 - **Attendees get access by themselves.** When the recording starts, every attendee address on
   the event gets a `viewer` grant: teammates, freelancers and people outside the workspace alike.
-  They were in the meeting, so they can read it. The recorder is its `owner`.
+  They were in the meeting, so they can read it. The recorder is its `owner`. While the
+  workspace's Drive settings close outside sharing, an outside attendee is listed but gets no
+  grant.
 - **Anyone can be invited.** Share takes addresses, like Drive: `viewer` reads, `editor` also
   renames speakers, edits the title, moves it to a deal, accepts actions and shares it on. An
   address outside the workspace opens it by signing in with that address (`forUser`), as with a
@@ -358,6 +360,9 @@ access covers the meeting page, its transcript, its notes, its actions, and its 
   no sign-in when the workspace's Drive settings allow public links (`public_links`). The same
   workspace settings that close Drive's public links and outside sharing close these.
 - **Removing a grant**, an attendee's included, takes the access away. Owners and editors can.
+- **When the recorder leaves the workspace**, whoever receives their files (the person who
+  removed them, else the oldest owner) becomes the owner of the meetings they recorded. The
+  leaver keeps none of them, except as a `viewer` of a meeting they attended.
 - **Groups** show only the meetings the viewer can open; a group's summary and timeline are made
   from those meetings only, per viewer: a group page with a meeting you cannot open shows its
   date and title at most.
@@ -669,6 +674,8 @@ every meeting; voiceprints with per-person consent; templates per kind of meetin
 - [x] Audio: kept as long as the meeting (founder, Nov 22, 2026).
 - [ ] Do outside attendees get their grant at once, or when the recorder first opens the notes,
       so they never get a summary nobody has read? v1: at once, as decided.
-- [ ] With Drive's outside sharing closed, do outside attendees still get their `viewer` grant at
-      the start? v1: they do; Share refuses them, as Drive does.
+- [x] With Drive's outside sharing closed, outside attendees get no grant at the start, as Share
+      refuses them (Nov 22, 2026).
+- [x] A recorder who leaves: their meetings go to whoever receives their files, who can delete
+      them; the leaver keeps only what they attended (Nov 22, 2026).
 - [ ] Figma frames for the Meetings module, the pill, the sharing panel and the deal's tab.

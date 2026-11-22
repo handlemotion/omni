@@ -1,6 +1,7 @@
 import type { BillingConfig, ModuleLifecycle } from "@omni/auth";
 import {
   deleteWorkspaceStorage,
+  handOverMemberMeetings,
   handOverMemberStorage,
   releaseCalendarTasks,
   releaseCrmTasks,
@@ -88,6 +89,8 @@ const calendar: Module = {
 const meetings: Module = {
   name: "meetings",
   minute: meetingsMinute,
+  memberRemoved: (db, { memberId, byMemberId }) =>
+    handOverMemberMeetings(db, { memberId, toMemberId: byMemberId }),
 };
 
 export const modules: readonly Module[] = [mail, storage, crm, calendar, meetings];

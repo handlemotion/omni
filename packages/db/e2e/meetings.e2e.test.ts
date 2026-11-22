@@ -159,6 +159,12 @@ test("with outside sharing and public links closed, a meeting is shared inside t
     (await forMember(db, s.ben.id).meetings.grant(meetingId, "someone@else.test", "editor")).status,
   ).toBe("policy");
 
+  const outsideCall = ok(
+    await record(s.dana.id, { attendees: [s.dana.address, s.ben.address, s.client.address] }),
+  ).meetingId;
+  expect((await forUser(db, s.client.id).meetings.get(outsideCall)).status).toBe("not_found");
+  expect(ok(await forMember(db, s.ben.id).meetings.get(outsideCall)).attendees.length).toBe(3);
+
   expect((await dana.change(meetingId, { linkAccess: "anyone" })).status).toBe("policy");
   ok(await dana.change(meetingId, { linkAccess: "signed_in" }));
   expect(ok(await dana.get(meetingId)).sharing?.linkAccess).toBe("signed_in");

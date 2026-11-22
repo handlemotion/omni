@@ -30,7 +30,7 @@ const POLICY = { status: "policy" } as const;
  * it, a second start answers `recording_elsewhere`; after that recording stopped, it becomes the
  * meeting's next part. The recorder owns it; every attendee gets `viewer`.
  */
-export async function startMeeting(ex: Ex, actor: MeetingsActor, input: StartMeeting) {
+export async function startMeeting(ex: Db, actor: MeetingsActor, input: StartMeeting) {
   const member = actor.member;
   if (!member) return NOT_FOUND;
   if (!input.consent) return { status: "consent_required" } as const;
@@ -77,7 +77,7 @@ export async function startMeeting(ex: Ex, actor: MeetingsActor, input: StartMee
 }
 
 async function shareWithAttendees(
-  ex: Ex,
+  ex: Db,
   actor: MeetingsActor,
   member: NonNullable<MeetingsActor["member"]>,
   meetingId: string,
@@ -99,11 +99,14 @@ async function shareWithAttendees(
       )
       .onConflictDoNothing();
   }
+  const viewers = await shareable(
+    ex,
+    member.orgId,
+    [...attendees.keys()].filter((a) => !actor.addresses.includes(a)),
+  );
   const grants = [
     ...(owner ? [{ address: owner, role: "owner" as const }] : []),
-    ...[...attendees.keys()]
-      .filter((a) => !actor.addresses.includes(a))
-      .map((address) => ({ address, role: "viewer" as const })),
+    ...viewers.map((address) => ({ address, role: "viewer" as const })),
   ];
   if (grants.length) {
     await ex
@@ -118,6 +121,12 @@ async function shareWithAttendees(
       )
       .onConflictDoNothing();
   }
+}
+
+async function shareable(ex: Db, orgId: string, addresses: string[]) {
+  if (!addresses.length || (await storagePolicyOf(ex, orgId)).outsideSharing) return addresses;
+  const inside = await Promise.all(addresses.map((a) => storageInsideCompany(ex, orgId, a)));
+  return addresses.filter((_, i) => inside[i]);
 }
 
 async function latestPart(ex: Ex, orgId: string, uid: string, recurrenceId: string) {
