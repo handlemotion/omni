@@ -167,6 +167,27 @@ export const pdfThumbnailQuery = (source: PreviewSource) =>
     retry: false,
   });
 
+const CARD_TEXT_BYTES = 8 * 1024;
+
+/**
+ * A card's page: the first 8 KB as UTF-8, enough for the lines a card draws. A cut multi-byte
+ * character at the end decodes as U+FFFD, past what the card shows.
+ */
+export const cardTextQuery = (source: PreviewSource) =>
+  queryOptions({
+    queryKey: keys.storagePreview("card-text", source.url, source.version),
+    queryFn: async ({ signal }) => {
+      const partial = source.size > CARD_TEXT_BYTES;
+      const response = await bytes(source.url, signal, partial ? CARD_TEXT_BYTES : undefined);
+      const buffer = new Uint8Array(await response.arrayBuffer());
+      const binary = buffer.subarray(0, CARD_TEXT_BYTES).includes(0);
+      return { text: binary ? "" : new TextDecoder().decode(buffer), binary };
+    },
+    enabled: source.size > 0,
+    ...KEEP,
+    retry: false,
+  });
+
 const READ_AHEAD_MAX_BYTES = 12 * 1024 * 1024;
 
 /**

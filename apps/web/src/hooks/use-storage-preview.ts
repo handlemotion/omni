@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import type { StorageNode } from "../lib/storage.ts";
 import {
+  cardTextQuery,
   previewImageQuery,
   previewSheetsQuery,
   pdfThumbnailQuery,
@@ -33,6 +34,17 @@ export function usePdfPages(source: PreviewSource, enabled: boolean) {
   revokePreviewUrls(useQueryClient());
   const options = pdfThumbnailQuery(source);
   return useQuery({ ...options, enabled: enabled && options.enabled !== false });
+}
+
+/** A card's page: the file's first 8 KB as text, once `enabled` (the card is on screen). */
+export function useCardText(source: PreviewSource, enabled: boolean) {
+  const options = cardTextQuery(source);
+  return useQuery({ ...options, enabled: enabled && options.enabled !== false });
+}
+
+/** A workbook's sheets for its card, once `enabled`: read whole, shared with its preview. */
+export function useCardSheets(source: PreviewSource, enabled: boolean) {
+  return useQuery({ ...previewSheetsQuery(source), enabled });
 }
 
 /**
