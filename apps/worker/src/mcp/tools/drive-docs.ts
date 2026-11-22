@@ -1,16 +1,18 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { applyEdits, type EditResult } from "@omni/docs";
-import {
-  forMember,
-  oauthClientName,
-  schema,
-  type StorageContext,
-  type StoragePlace,
-} from "@omni/db";
+import type { StorageContext } from "@omni/db";
 import { z } from "zod";
-import { inGoodStanding } from "../../billing.ts";
 import { createDoc, editDoc } from "../../storage/docs.ts";
 import { driveFor, item, itemSchema } from "../drive.ts";
+import {
+  audit as auditWrite,
+  placeFor,
+  placeInput,
+  ready,
+  writeDeps as deps,
+  writerIn,
+  type Writer,
+} from "../drive-write.ts";
 import { result, toolError } from "../format.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
@@ -32,12 +34,7 @@ const createInput = z.object({
     .max(200)
     .describe('Its title, without an extension (".md" is not needed).'),
   markdown,
-  folder_id: z.string().min(1).optional().describe("A folder to put it in, from `drive_list`."),
-  workspace: z.string().min(1).optional().describe("A workspace id, without `folder_id`."),
-  space: z
-    .enum(["my_files", "shared"])
-    .default("my_files")
-    .describe("Without `folder_id`: the person's My files (default), or the company's Shared."),
+  ...placeInput,
 });
 
 const editInput = z.object({
@@ -58,28 +55,6 @@ const editInput = z.object({
 
 const outputSchema = z.object({ doc: itemSchema });
 
-type Writer = { files: ReturnType<typeof forMember>["storage"]; orgId: string; memberId: string };
-
-const deps = async (context: ToolContext) => ({
-  env: context.env,
-  db: context.db,
-  config: context.config,
-  log: context.log,
-  waitUntil: context.waitUntil,
-  agent: await oauthClientName(context.db, context.caller.clientId),
-});
-
-async function writerIn(context: ToolContext, drive: StorageContext, orgId: string) {
-  const member = (await drive.workspaces()).find((w) => w.id === orgId);
-  if (!member) return null;
-  const writer: Writer = {
-    files: forMember(context.db, member.memberId).storage,
-    orgId,
-    memberId: member.memberId,
-  };
-  return writer;
-}
-
 const REFUSED: Record<string, string> = {
   forbidden: "The person may not change files there.",
   locked: "That doc is locked. Someone unlocks it in Omni first.",
@@ -96,60 +71,13 @@ const REFUSED: Record<string, string> = {
 const refusal = (reason: string) =>
   toolError(REFUSED[reason] ?? "Omni could not write the doc this time. Try again in a moment.");
 
-async function placeFor(
-  drive: StorageContext,
-  input: z.infer<typeof createInput>,
-  workspace: string | undefined,
-) {
-  if (input.folder_id) {
-    const [folder] = await drive.read([input.folder_id]);
-    if (!folder || folder.node.kind !== "folder" || folder.via !== "member") {
-      return { error: "No folder with that id in your workspaces' drives. Use `drive_list`." };
-    }
-    const place: StoragePlace = { parentId: folder.node.id };
-    return { place, orgId: folder.workspace.id };
-  }
-  const workspaces = await drive.workspaces();
-  const chosen = workspace
-    ? workspaces.find((w) => w.id === workspace)
-    : workspaces.length === 1
-      ? workspaces[0]
-      : undefined;
-  if (!chosen) {
-    return {
-      error: `Name a \`workspace\`: ${workspaces.map((w) => `${w.name} (${w.id})`).join(", ")}.`,
-    };
-  }
-  if (input.space === "shared" && chosen.personal) {
-    return { error: "A personal workspace has no Shared drive. Use `my_files`." };
-  }
-  const place: StoragePlace = { space: input.space === "shared" ? "shared" : "personal" };
-  return { place, orgId: chosen.id };
-}
-
-async function audit(context: ToolContext, writer: Writer, subject: string, kind: string) {
-  await context.db.insert(schema.auditEvents).values({
-    orgId: writer.orgId,
-    actorMemberId: writer.memberId,
-    action: "mcp.drive_doc",
-    subject,
-    data: { via: "mcp", clientId: context.caller.clientId, kind },
-  });
-}
+const audit = (context: ToolContext, writer: Writer, subject: string, kind: string) =>
+  auditWrite(context, writer, "mcp.drive_doc", subject, kind);
 
 async function answer(context: ToolContext, drive: StorageContext, nodeId: string) {
   const [found] = await drive.read([nodeId]);
   if (!found) return toolError("The doc was written, but it could not be opened again.");
   return result({ doc: item(context.webAppURL, found) });
-}
-
-async function ready(context: ToolContext, orgId: string) {
-  const wait = await context.rateLimit("actions");
-  if (wait) return `Too many changes. Try again in ${wait} seconds.`;
-  if (!(await inGoodStanding(context.db, context.config, orgId))) {
-    return "This workspace is read-only until its plan is paid.";
-  }
-  return null;
 }
 
 async function create(context: ToolContext, input: z.infer<typeof createInput>) {

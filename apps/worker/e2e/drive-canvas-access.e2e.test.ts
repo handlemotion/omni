@@ -127,3 +127,54 @@ test("a view-only link opens a canvas and its images as a page, and still refuse
   await download.body?.cancel();
   expect(download.status).toBe(403);
 });
+
+test("a tile of a file the reader cannot open names nothing, and no one can put such a file on a canvas", async () => {
+  const org = await stack.company(`canvas-tiles-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const bea = await stack.member(org.id);
+  const scope = { scope: "openid mail:read drive:read drive:write" };
+  const anas = await connectAgent(stack.worker.url, ana.jar, scope);
+  const beas = await connectAgent(stack.worker.url, bea.jar, scope);
+  const secret = await stack.upload(
+    ana.jar,
+    { space: "personal" },
+    "Secret salaries.pdf",
+    bytes("%PDF-1.4"),
+    "application/pdf",
+  );
+  const made = await anas.callTool({
+    name: "drive_create_canvas",
+    arguments: {
+      name: "Budget",
+      space: "shared",
+      ops: [{ op: "add", kind: "file", file_id: secret.id, page: 2, ref: "tile" }],
+    },
+  });
+  const { canvas: board, created } = made.structuredContent as {
+    canvas: { id: string };
+    created: { tile: string };
+  };
+
+  const read = async (agent: typeof anas) => {
+    const fetched = await agent.callTool({ name: "drive_fetch", arguments: { id: board.id } });
+    return (fetched.structuredContent as { text: string }).text;
+  };
+  expect(await read(anas)).toContain(
+    `- file ${created.tile} [0,0 400×500] → "Secret salaries.pdf"`,
+  );
+  const seen = await read(beas);
+  expect(seen).toContain(`- file ${created.tile} [0,0 400×500] → no access page 2`);
+  expect(seen).not.toContain("Secret");
+  expect((await textOf(board.id))?.text).not.toContain("Secret");
+
+  const placed = await beas.callTool({
+    name: "drive_edit_canvas",
+    arguments: { id: board.id, ops: [{ op: "add", kind: "file", file_id: secret.id }] },
+  });
+  expect(placed.isError).toBe(true);
+  const moved = await beas.callTool({
+    name: "drive_edit_canvas",
+    arguments: { id: board.id, ops: [{ op: "move", ids: [created.tile], by: { dx: 100, dy: 0 } }] },
+  });
+  expect(moved.isError).toBeFalsy();
+});

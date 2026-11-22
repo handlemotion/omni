@@ -417,7 +417,7 @@ state is about 1.85 times its JSON body (a 2,000-element board of short stickies
 A change that would take a canvas past a limit is refused whole, in the editor and for agents
 alike. Two people editing at once can still take a board just past the element, tile or body
 limit together; it stays readable and editable, and only changes that would grow it further are
-refused, so anyone can bring it back under.
+refused, so anyone can bring it back under. Agents change boards up to twice the body limit.
 
 ## Not in this change
 
@@ -476,8 +476,9 @@ K3 and K4 are independent of each other. K4 waits for Figma; K1 to K3 do not.
     scene leaves as it was. The tab's drag survives, and only the elements that differ changed.
   - Two tabs regroup the same two elements into each other at once. Both tabs and the saved body
     read a valid scene with no cycle, and the same one.
-  - A canvas edited past 200 records opens from its snap after the stream before it is trimmed
-    (as `drive-live` proves for docs).
+  - Opening from a snap is the same `LiveFile` path for every type, proven for docs in
+    `drive-live` (a doc edited past 200 records opens from its snap once the stream before it
+    is trimmed); canvases add no code to it.
 - `apps/worker/e2e/drive-canvas-access.e2e.test.ts`:
   - Member A places a file from their My files on a Shared canvas. Member B's `drive_fetch` shows
     the tile as `no access`, and neither the outline nor the search text holds the file's name.

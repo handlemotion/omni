@@ -101,8 +101,16 @@ export class LiveFile {
    * their own, then catches up with what others appended meanwhile. Answers the records to pass
    * on and the last one the document now holds.
    */
-  async rewrite(markdown: string) {
-    const update = rewriteLive(this.doc, markdown);
+  rewrite(markdown: string) {
+    return this.append(rewriteLive(this.doc, markdown));
+  }
+
+  /**
+   * Appends `update`, a change already made to this document, for everyone editing to merge with
+   * their own, then catches up with what others appended meanwhile. Answers the record to pass on
+   * and the last one the document now holds.
+   */
+  async append(update: Uint8Array) {
     const record: StorageLiveRecord = { t: "update", e: this.epoch, u: toBase64(update) };
     const seqNum = await this.basin.append(docStream(this.nodeId), JSON.stringify(record));
     if (seqNum === null) throw new Error("storage: the live document refused a change");

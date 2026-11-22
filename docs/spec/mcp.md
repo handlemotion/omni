@@ -351,6 +351,30 @@ that opens in Omni as a page people edit together.
   `actions` rate limit; refused in a workspace whose plan is unpaid. Every write is audited as
   `mcp.drive_doc`.
 
+### Canvases: `drive_create_canvas`, `drive_edit_canvas`
+
+Scope `drive:write`, not read-only, not destructive (every change is a version of its own, named
+for the agent). A canvas is an Omni board (`docs/spec/canvas.md`), type `text/vnd.omni.canvas`.
+
+- **Create.** `drive_create_canvas { name, ops?, folder_id? | workspace?, space? }` makes a canvas
+  in the person's My files (default), a company's Shared, or a folder, its content built by `ops`.
+- **Edit.** `drive_edit_canvas { id, ops? | scene? }`. `ops` (`add`, `update`, `move`, `resize`,
+  `connect`, `arrange`, `group`, `ungroup`, `frame`, `order`, `delete`; `canvasOpSchema` in
+  `@omni/canvas`) apply in order, all or none, and touch only the fields they name. A new element
+  may carry a `ref` later operations use as its id. `scene` replaces the whole board with a JSON
+  body, written as the smallest change (`rewriteCanvas`). A miss answers with the canvas's outline.
+- **Answers** hold the canvas, the id each `ref` became, the outline lines of what changed, and
+  `overlaps`: pairs of boxes that overlap now and did not before.
+- **Live merge**, as for docs: when people have the canvas open, the change goes into its live
+  document and is saved from there (`apps/worker/src/storage/canvases.ts`).
+- **Tiles.** An `add` of a Drive file the person cannot open is refused; tiles others placed stay,
+  and the outline names a tile's file only for a reader who can open it.
+- **Read.** `drive_fetch` returns a canvas in the person's workspaces as its outline (live when
+  people are editing it, `unsaved_edits: true`); through a share, its words.
+- **Limits.** Canvases up to 400 KB and 2,000 elements (what one live-document record holds); up to 200 operations a call; the `actions`
+  rate limit; refused in a workspace whose plan is unpaid. Every write is audited as
+  `mcp.drive_canvas`.
+
 ## Authorization
 
 OAuth 2.1, per the MCP 2026-07-28 authorization spec, with Omni's own Better Auth as the
@@ -390,7 +414,7 @@ additive.
   `https://chatgpt.com/connector_platform_oauth_redirect`.
 
 **Scopes.** `mail:read`, `mail:triage`, `mail:draft`, `crm:read` and `crm:write` (the CRM
-tools, `docs/spec/crm.md` "Agents"), `drive:read` and `drive:write` (Drive and docs), plus `openid`, `email`, `profile` and
+tools, `docs/spec/crm.md` "Agents"), `drive:read` and `drive:write` (Drive, docs and canvases), plus `openid`, `email`, `profile` and
 `offline_access` (offered, never challenged). Consent lists the scopes the client asked for;
 Claude and ChatGPT ask for every advertised scope. A tool that needs a scope the token lacks answers HTTP 403 `error=
 "insufficient_scope"` naming every scope it needs, so the client can step up.

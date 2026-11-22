@@ -15,7 +15,13 @@ async function readText(bucket: R2Bucket, r2Key: string) {
   return object ? await object.text() : "";
 }
 
-function passOn(deps: WriteDeps, orgId: string, nodeId: string, entries: StorageLiveEntry[]) {
+/** Passes `entries` on to everyone editing the file, through the workspace's realtime object. */
+export function passOn(
+  deps: WriteDeps,
+  orgId: string,
+  nodeId: string,
+  entries: StorageLiveEntry[],
+) {
   const stub = deps.env.REALTIME.get(deps.env.REALTIME.idFromName(orgId));
   deps.waitUntil(
     stub
@@ -97,15 +103,22 @@ export async function editDoc(
     { nodeId, orgId: node.orgId, base: node.contentVersion, mimeType: node.mimeType },
     live,
     through,
+    () => live.markdown,
   );
 }
 
-async function saveLive(
+/**
+ * Saves the live document through record `through` as the file's next version (`body` is its
+ * text now) and records the save in the stream, trying again on a newer version only when that
+ * version did not already hold the change.
+ */
+export async function saveLive(
   deps: WriteDeps,
   files: MemberStorage,
   at: { nodeId: string; orgId: string; base: number; mimeType: string | null },
   live: LiveFile,
   through: number,
+  body: () => string,
 ) {
   let base = at.base;
   for (let tries = 0; ; tries++) {
@@ -114,7 +127,7 @@ async function saveLive(
       files,
       at.orgId,
       { nodeId: at.nodeId, ifContentVersion: base },
-      live.markdown,
+      body(),
       at.mimeType,
     );
     if (written.status === "ok") {
