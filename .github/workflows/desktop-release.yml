@@ -4,8 +4,9 @@ name: Desktop release
 # side by side: apps/desktop/scripts/release-macos.sh and release-windows.sh, the same scripts a
 # Mac or a PC runs. Each system has its own update feed, so one failing leaves the other's
 # release live. release.yml calls it when a release pull request raises the desktop version; run
-# it by hand (Actions, Desktop release, Run workflow) to retry a tag. About 25 minutes of macOS
-# and 20 of Windows, so only for a release.
+# it by hand (Actions, Desktop release, Run workflow) to retry a tag. Each job also attaches its
+# installer (the DMG, the Windows setup .exe) to the tag's GitHub release, when there is one. About
+# 25 minutes of macOS and 20 of Windows, so only for a release.
 #
 # Settings come from Doppler `prd_github`, which syncs to the GitHub environment `production`
 # (docs/operations/releases.md lists them). Secrets become files under $RUNNER_TEMP for the job only.
@@ -36,6 +37,8 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     environment: production
+    permissions:
+      contents: write # gh release upload
     steps:
       - name: Tag
         env:
@@ -110,6 +113,19 @@ jobs:
           OMNI_DESKTOP_SENTRY_DSN: ${{ secrets.OMNI_DESKTOP_SENTRY_DSN }}
         run: apps/desktop/scripts/release-macos.sh
 
+      # A copy of the installer on the tag's GitHub release, beside the download link.
+      - name: Attach the installer to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::warning::no GitHub release for $TAG; the installer is only on the download link"
+            exit 0
+          fi
+          gh release upload "$TAG" --clobber \
+            "apps/desktop/target/universal-apple-darwin/release/bundle/dmg/Omni_${TAG#desktop-v}_universal.dmg"
+
       - name: Clean up
         if: always()
         run: |
@@ -121,6 +137,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 60
     environment: production
+    permissions:
+      contents: write # gh release upload
     env:
       # Step conditions cannot read secrets: whether Windows signing is set up, for the one below.
       WINDOWS_SIGNING: ${{ secrets.OMNI_WINDOWS_SIGNING_ACCOUNT != '' }}
@@ -187,6 +205,18 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: apps/desktop/scripts/release-windows.sh
+
+      - name: Attach the installer to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::warning::no GitHub release for $TAG; the installer is only on the download link"
+            exit 0
+          fi
+          gh release upload "$TAG" --clobber \
+            "apps/desktop/target/release/bundle/nsis/Omni_${TAG#desktop-v}_x64-setup.exe"
 
       - name: Clean up
         if: always()

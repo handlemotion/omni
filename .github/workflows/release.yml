@@ -54,6 +54,9 @@ jobs:
     name: Desktop
     needs: release-please
     if: needs.release-please.outputs.desktop == 'true'
+    # Write, for the installers it attaches to the GitHub release.
+    permissions:
+      contents: write
     uses: ./.github/workflows/desktop-release.yml
     with:
       tag: ${{ needs.release-please.outputs.desktop-tag }}
