@@ -98,8 +98,8 @@ export const dealsFilter = (search: DealParams) =>
 export const PROJECT_KINDS: readonly CrmStageKind[] = ["open", "won"];
 export const isProject = (kind: CrmStageKind | undefined) => !!kind && PROJECT_KINDS.includes(kind);
 
-/** The Projects page's filter: deals of a project kind. */
-export const projectsFilter = (search: DealParams) =>
+/** The Projects table's filter: the board's deals, with a stage filter and any sort. */
+export const projectsTableFilter = (search: DealParams) =>
   ({
     ...listParams(search),
     sort: search.sort,
@@ -108,7 +108,6 @@ export const projectsFilter = (search: DealParams) =>
     closeBefore: search.closeBefore,
     minValue: search.minValue,
     maxValue: search.maxValue,
-    kind: PROJECT_KINDS,
   }) satisfies CrmDealFilter;
 
 const PAGE_SIZE = 50;

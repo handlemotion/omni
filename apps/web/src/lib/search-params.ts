@@ -91,11 +91,14 @@ const crmDealFields = {
   maxValue: amount,
 };
 
-/** The deals board: a close window and a value range. */
+/** The old deals board's address, which now opens Projects. */
 export const crmDealsSearch = z.object(crmDealFields);
 
-/** Projects: won deals. */
-export const crmProjectsSearch = z.object(crmDealFields);
+/** Projects: every deal, on the board by stage (the default) or in a table. */
+export const crmProjectsSearch = z.object({
+  ...crmDealFields,
+  view: optional(z.enum(["board", "table"])),
+});
 
 export type CrmCompaniesSearch = z.infer<typeof crmCompaniesSearch>;
 export type CrmPeopleSearch = z.infer<typeof crmPeopleSearch>;

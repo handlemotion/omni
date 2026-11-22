@@ -30,12 +30,13 @@ export const CRM_LISTS = {
 const ROWS: { list: keyof typeof CRM_LISTS; icon: ReactNode; creates: Creating }[] = [
   { list: "companies", icon: <IconBuildings className="size-icon" />, creates: "company" },
   { list: "people", icon: <IconUsers className="size-icon" />, creates: "person" },
-  { list: "deals", icon: <IconHandshake className="size-icon" />, creates: "deal" },
   { list: "projects", icon: <IconProjects className="size-icon" />, creates: "deal" },
   { list: "tasks", icon: <IconChecklist className="size-icon" />, creates: "task" },
 ];
 
 const PROJECTS = { kind: PROJECT_KINDS };
+
+const under = (place: string, path: string) => place === path || place.startsWith(`${path}/`);
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
@@ -72,7 +73,10 @@ function CrmLists({ mailbox }: { mailbox: string | undefined }) {
           >
             <SidebarItem
               href={href}
-              isCurrent={pathname === path || pathname.startsWith(`${path}/`)}
+              isCurrent={
+                under(pathname, path) ||
+                (list === "projects" && under(pathname, CRM_LISTS.deals.path))
+              }
               tooltip={label}
             >
               {icon}

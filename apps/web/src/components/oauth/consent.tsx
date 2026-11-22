@@ -34,8 +34,8 @@ const SCOPE_LINES: { scopes: string[]; icon: Icon; label: string }[] = [
   { scopes: ["mail:read"], icon: IconMail, label: "Read your mail" },
   { scopes: ["mail:triage"], icon: IconInbox, label: "Sort and file your mail" },
   { scopes: ["mail:draft"], icon: IconPencil, label: "Write drafts for you to send" },
-  { scopes: ["crm:read"], icon: IconUsers, label: "Read your CRM" },
-  { scopes: ["crm:write"], icon: IconUserAdd, label: "Add and change CRM records" },
+  { scopes: ["crm:read"], icon: IconUsers, label: "Read your clients" },
+  { scopes: ["crm:write"], icon: IconUserAdd, label: "Add and change client records" },
   { scopes: ["drive:read"], icon: IconFolder, label: "Read your files" },
   { scopes: ["drive:write"], icon: IconFolder, label: "Write and edit docs" },
   {

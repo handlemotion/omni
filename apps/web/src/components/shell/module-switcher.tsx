@@ -65,7 +65,7 @@ const DRIVE: Module = {
 };
 const CRM: Module = {
   id: "crm",
-  label: "CRM",
+  label: "Clients",
   icon: IconHandshakeFilled,
   home: "/$workspace/crm/companies",
   fill: "bg-module-crm",

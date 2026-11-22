@@ -106,6 +106,7 @@ export { IconTable } from "central-icons-outlined/IconTable";
 export { IconSlidesWide as IconSlides } from "central-icons-outlined/IconSlidesWide";
 export { IconAlignmentJustify as IconRows } from "central-icons-outlined/IconAlignmentJustify";
 export { IconGrid as IconCards } from "central-icons-outlined/IconGrid";
+export { IconColumns3 as IconColumns } from "central-icons-outlined/IconColumns3";
 export { IconEmail1 as IconMailFilled } from "central-icons-filled/IconEmail1";
 export { IconSettingsGear2 as IconSettingsFilled } from "central-icons-filled/IconSettingsGear2";
 export { IconFolder1 as IconFolderFilled } from "central-icons-filled/IconFolder1";

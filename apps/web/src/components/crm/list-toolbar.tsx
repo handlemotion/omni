@@ -1,5 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
+import { IconColumns, IconRows } from "@/components/icons/central";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CrmSort } from "@/lib/crm.ts";
 import { FilterMenu, type FilterKind, type FilterValues } from "./list-filters.tsx";
 import { SortControl, sortOf, sortParams, type SortState } from "./list-sort.tsx";
@@ -37,5 +40,45 @@ export function BoardSort(props: { search: ListSearch; sorts: CrmSort[] }) {
       value={props.sorts.includes(sort.sort) ? sort : { sort: "name", dir: "asc" }}
       onChange={(next: SortState) => set(sortParams(next))}
     />
+  );
+}
+
+type ProjectsLayout = "board" | "table";
+
+/** Board or Table, for Projects: the board unless the URL says table. */
+export function ProjectsView(props: { search: { view?: ProjectsLayout } }) {
+  const set = useSetListSearch();
+  return (
+    <ToggleGroup
+      bare
+      size="sq-xs"
+      aria-label="Layout"
+      selectionMode="single"
+      disallowEmptySelection
+      selectedKeys={[props.search.view ?? "board"]}
+      onSelectionChange={(keys) => {
+        const [next] = [...keys];
+        if (next === "board") set({ view: undefined });
+        if (next === "table") set({ view: "table" });
+      }}
+    >
+      <LayoutOption id="board" label="Board">
+        <IconColumns />
+      </LayoutOption>
+      <LayoutOption id="table" label="Table">
+        <IconRows />
+      </LayoutOption>
+    </ToggleGroup>
+  );
+}
+
+function LayoutOption(props: { id: ProjectsLayout; label: string; children: ReactNode }) {
+  return (
+    <TooltipTrigger delay={400}>
+      <ToggleGroupItem id={props.id} aria-label={props.label}>
+        {props.children}
+      </ToggleGroupItem>
+      <Tooltip>{props.label}</Tooltip>
+    </TooltipTrigger>
   );
 }

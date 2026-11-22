@@ -83,7 +83,12 @@ type Lane = { lane?: string; view?: string };
 
 const mailboxOf = (search: object) => (search as { mailbox?: string }).mailbox;
 
-const MODULE_LABELS = { mail: "Mail", files: "Drive", crm: "CRM", calendar: "Calendar" } as const;
+const MODULE_LABELS = {
+  mail: "Mail",
+  files: "Drive",
+  crm: "Clients",
+  calendar: "Calendar",
+} as const;
 
 export function AppSidebar() {
   const module = useCurrentModule();

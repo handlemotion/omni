@@ -13,7 +13,6 @@ import {
   useUpdatePerson,
 } from "@/hooks/use-crm.ts";
 import { formatMoney, lastContactedAt, valueCurrency } from "@/lib/crm.ts";
-import { isProject } from "@/lib/crm-lists.ts";
 import { Contracts } from "./contracts.tsx";
 import { AccessSection } from "./project-access.tsx";
 import { ProjectPlan } from "./project-plan.tsx";
@@ -153,7 +152,7 @@ export function DealPage({ id }: { id: string }) {
   const workspaceCurrency = useCrmDefaultCurrency();
   const freelancer = useFreelancer();
   const company = useCompanyName(query.data?.deal.companyId ?? null);
-  if (!query.data) return <RecordState list="deals" query={query} />;
+  if (!query.data) return <RecordState list="projects" query={query} />;
   const { deal, people } = query.data;
   const save = (change: Parameters<typeof update.mutate>[0], then?: () => void) =>
     update.mutate(change, { ...onFail("The deal was not changed"), onSuccess: then });
@@ -163,7 +162,7 @@ export function DealPage({ id }: { id: string }) {
   return (
     <>
       <RecordLayout
-        list={isProject(deal.stageKind) ? "projects" : "deals"}
+        list="projects"
         here={{ kind: "deals", id }}
         name={deal.name}
         mark={<DealMark deal={deal} client={company} size={company ? 40 : 28} />}

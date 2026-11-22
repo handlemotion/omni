@@ -131,7 +131,7 @@ test("sorting the board by value orders each stage's cards and persists in the U
   ] as const) {
     await team.api("POST", "/deals", { name, valueMinor: value * 100, currency: "USD" });
   }
-  const page = await team.page("/crm/deals?sort=value&dir=asc");
+  const page = await team.page("/crm/projects?sort=value&dir=asc");
   await card(page, "Small").waitFor();
   expect(await boardOrder(page)).toEqual(["Small", "Medium", "Large"]);
   await page.reload();
@@ -228,7 +228,7 @@ test("the deal board shows only the owner's deals when filtered by owner", async
   await team.api("POST", "/deals", { name: "Ana's deal" });
   await team.api("POST", "/deals", { name: "Bea's deal", ownerMemberId: bea.id });
 
-  const page = await team.page(`/crm/deals?owner=${bea.id}`);
+  const page = await team.page(`/crm/projects?owner=${bea.id}`);
   await card(page, "Bea's deal").waitFor();
   expect(await card(page, "Ana's deal").count()).toBe(0);
   await resetFilters(page);
@@ -239,7 +239,7 @@ test("a value range is cleared on its own by applying it empty, and the owner fi
   const team = await workspace("range");
   await team.api("POST", "/deals", { name: "Small deal", valueMinor: 10_000, currency: "USD" });
   await team.api("POST", "/deals", { name: "Big deal", valueMinor: 900_000, currency: "USD" });
-  const page = await team.page(`/crm/deals?minValue=1000&owner=${team.memberId}`);
+  const page = await team.page(`/crm/projects?minValue=1000&owner=${team.memberId}`);
   await card(page, "Big deal").waitFor();
   expect(await card(page, "Small deal").count()).toBe(0);
 
@@ -259,7 +259,7 @@ test("a deal moves to the next stage from the keyboard: Space, Right arrow, Spac
   const { stages } = await team.api("GET", "/stages");
   const [lead, next] = stages as { id: string; name: string }[];
   const { deal } = await team.api("POST", "/deals", { name: "Keyed deal", stageId: lead!.id });
-  const page = await team.page("/crm/deals");
+  const page = await team.page("/crm/projects");
   await card(page, "Keyed deal").getByRole("link").focus();
   const resting = await page.getByText("Keyed deal").count();
   await page.keyboard.press("Space");
@@ -273,19 +273,44 @@ test("a deal moves to the next stage from the keyboard: Space, Right arrow, Spac
   await expect
     .poll(() => dealRow(deal.id), { timeout: 10_000 })
     .toMatchObject({ stageId: next!.id });
-  expect(new URL(page.url()).pathname).toMatch(/\/crm\/deals$/);
+  expect(new URL(page.url()).pathname).toMatch(/\/crm\/projects$/);
 });
 
-test("the board falls back to name order for a sort it doesn't offer, and has no list view", async () => {
+test("the board falls back to name order for a sort it doesn't offer, and to the board for a view it doesn't know", async () => {
   const team = await workspace("board-sort");
   await team.api("POST", "/deals", { name: "Zulu deal" });
   await team.api("POST", "/deals", { name: "Alpha deal" });
-  const page = await team.page("/crm/deals?view=list&sort=created");
+  const page = await team.page("/crm/projects?view=list&sort=created");
   await card(page, "Alpha deal").waitFor();
   expect(await boardOrder(page)).toEqual(["Alpha deal", "Zulu deal"]);
   await page.getByRole("button", { name: "Name" }).waitFor();
-  expect(await page.getByLabel("Show deals as").count()).toBe(0);
   expect(await page.getByRole("grid").count()).toBe(0);
+});
+
+test("the old Deals address opens Projects on the board with its filters, and Table and Board switch in place", async () => {
+  const team = await workspace("projects-view");
+  const bea = await createMember(db, team.orgId, `bea-${Date.now()}@crm.test`);
+  await team.api("POST", "/deals", { name: "Ana's deal" });
+  await team.api("POST", "/deals", { name: "Bea's deal", ownerMemberId: bea.id });
+
+  const page = await team.page(`/crm/deals?owner=${bea.id}`);
+  await card(page, "Bea's deal").waitFor();
+  expect(new URL(page.url()).pathname).toMatch(/\/crm\/projects$/);
+  expect(new URL(page.url()).searchParams.get("owner")).toBe(bea.id);
+  expect(await card(page, "Ana's deal").count()).toBe(0);
+  expect(await page.getByRole("link", { name: "Deals", exact: true }).count()).toBe(0);
+
+  await page.getByRole("radio", { name: "Table" }).click();
+  await page.getByRole("row", { name: /Bea's deal/ }).waitFor();
+  expect(await names(page)).toEqual(["Bea's deal"]);
+  expect(new URL(page.url()).searchParams.get("view")).toBe("table");
+  await page.reload();
+  await page.getByRole("row", { name: /Bea's deal/ }).waitFor();
+
+  await page.getByRole("radio", { name: "Board" }).click();
+  await card(page, "Bea's deal").waitFor();
+  expect(new URL(page.url()).searchParams.get("view")).toBeNull();
+  expect(new URL(page.url()).searchParams.get("owner")).toBe(bea.id);
 });
 
 test("the Archived filter shows archived deals on the board", async () => {
@@ -293,7 +318,7 @@ test("the Archived filter shows archived deals on the board", async () => {
   const { deal } = await team.api("POST", "/deals", { name: "Shelved deal" });
   await team.api("POST", "/deals", { name: "Live deal" });
   await team.api("POST", "/deals/bulk", { ids: [deal.id], action: { action: "archive" } });
-  const page = await team.page("/crm/deals");
+  const page = await team.page("/crm/projects");
   await card(page, "Live deal").waitFor();
   expect(await card(page, "Shelved deal").count()).toBe(0);
   await page.goto(`${page.url()}?archived=only`);
@@ -305,7 +330,7 @@ test("a deal dragged onto another stage moves there, and a stage's Add deal star
   const { stages } = await team.api("GET", "/stages");
   const [lead, next] = stages as { id: string; name: string }[];
   const { deal } = await team.api("POST", "/deals", { name: "Moving deal", stageId: lead!.id });
-  const page = await team.page("/crm/deals?view=board");
+  const page = await team.page("/crm/projects?view=board");
   const from = card(page, "Moving deal");
   await from.waitFor();
 
@@ -338,7 +363,7 @@ test("a deal dragged onto another stage moves there, and a stage's Add deal star
   await expect
     .poll(() => dealRow(deal.id), { timeout: 10_000 })
     .toMatchObject({ stageId: next!.id });
-  expect(page.url()).toContain("/crm/deals?");
+  expect(page.url()).toContain("/crm/projects?");
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/deals-board.png` });
 
   await to.getByRole("button", { name: "Add deal" }).click();
@@ -352,7 +377,7 @@ test("a deal dragged onto another stage moves there, and a stage's Add deal star
   expect(added?.stageId).toBe(next!.id);
 });
 
-test("Projects lists the leads and won deals the sidebar does, and a lead's page sits under Projects", async () => {
+test("the Projects table lists every deal, closed ones too, and a lost deal's page sits under Projects", async () => {
   const team = await workspace("projects");
   const { stages } = await team.api("GET", "/stages");
   const stage = (kind: string) => stages.find((one: { kind: string }) => one.kind === kind).id;
@@ -362,16 +387,24 @@ test("Projects lists the leads and won deals the sidebar does, and a lead's page
     return made.id as string;
   };
   await deal("Launch site", "won");
-  const lead = await deal("Still talking", "open");
+  await deal("Still talking", "open");
   await deal("Old rebrand", "done");
-  await deal("Never signed", "lost");
+  const lost = await deal("Never signed", "lost");
 
-  const page = await team.page("/crm/projects");
+  const page = await team.page("/crm/projects?view=table");
   await page.getByRole("row", { name: /Still talking/ }).waitFor();
-  expect(await names(page)).toEqual(["Launch site", "Still talking"]);
-  await page.getByRole("row", { name: /Still talking/ }).click();
-  await page.getByRole("link", { name: "Projects" }).first().waitFor();
-  expect(new URL(page.url()).pathname).toContain(`/crm/deals/${lead}`);
+  expect(await names(page)).toEqual([
+    "Launch site",
+    "Never signed",
+    "Old rebrand",
+    "Still talking",
+  ]);
+  await page.getByRole("row", { name: /Never signed/ }).click();
+  await page
+    .getByRole("list", { name: "Record" })
+    .getByRole("link", { name: "Projects" })
+    .waitFor();
+  expect(new URL(page.url()).pathname).toContain(`/crm/deals/${lost}`);
 });
 
 test("the sidebar lists the projects and leads, not closed deals, each marked with its client", async () => {

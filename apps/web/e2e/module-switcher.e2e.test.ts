@@ -72,7 +72,7 @@ async function openInbox(slug: string, options: { reducedMotion?: "reduce" } = {
   return page;
 }
 
-const LABELS = { mail: "Mail", files: "Drive", crm: "CRM" } as const;
+const LABELS = { mail: "Mail", files: "Drive", crm: "Clients" } as const;
 const rail = (page: Page, name: string) =>
   page.getByRole("navigation", { name: "Modules" }).getByRole("link", { name, exact: true });
 const shows = (page: Page, id: keyof typeof LABELS) =>
@@ -126,7 +126,7 @@ test("the rail opens each module and the pages glide along", async () => {
   await expect.poll(() => pageAt(page)).toBe(1);
   expect((await frames).some((at) => at > 0.1 && at < 0.9)).toBe(true);
 
-  await rail(page, "CRM").click();
+  await rail(page, "Clients").click();
   await page.waitForURL((url) => place(url) === "/crm/companies");
   await shows(page, "crm");
   await expect.poll(() => pageAt(page)).toBe(2);
@@ -158,12 +158,20 @@ test("a sideways swipe leaves the module where it is; only the rail moves betwee
 test("each rail click stays on the module it opened", async () => {
   const page = await openInbox("restore", { reducedMotion: "reduce" });
   const wants = {
-    CRM: "/crm/companies",
+    Clients: "/crm/companies",
     Mail: "/mail/inbox",
     Calendar: "/calendar",
     Drive: "/files",
   } as const;
-  for (const name of ["CRM", "Mail", "Calendar", "Mail", "Drive", "Calendar", "CRM"] as const) {
+  for (const name of [
+    "Clients",
+    "Mail",
+    "Calendar",
+    "Mail",
+    "Drive",
+    "Calendar",
+    "Clients",
+  ] as const) {
     await rail(page, name).click();
     await page.waitForURL((url) => place(url) === wants[name]);
     await page.waitForTimeout(400);
@@ -212,7 +220,7 @@ test("switching module from the rail keeps a document's edits, and the pages gli
   await page.keyboard.press("End");
   await page.keyboard.type(" B");
 
-  await rail(page, "CRM").click();
+  await rail(page, "Clients").click();
   await page.waitForURL((url) => place(url) === "/crm/companies");
   await shows(page, "crm");
   await expect.poll(() => pageAt(page)).toBe(2);

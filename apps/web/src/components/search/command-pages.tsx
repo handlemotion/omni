@@ -3,7 +3,7 @@ import {
   IconBuildings,
   IconFolder,
   IconFolderShared,
-  IconHandshake,
+  IconProjects,
   IconUserRound,
   IconUsers,
 } from "@/components/icons/central";
@@ -77,5 +77,5 @@ export const drivePages: (company: boolean) => Page[] = (company) => {
 export const CRM_PAGES: Page[] = [
   { id: "companies", title: "Companies", icon: <IconBuildings />, href: "/crm/companies" },
   { id: "people", title: "People", icon: <IconUsers />, href: "/crm/people" },
-  { id: "deals", title: "Deals", icon: <IconHandshake />, href: "/crm/deals" },
+  { id: "projects", title: "Projects", icon: <IconProjects />, href: "/crm/projects" },
 ];

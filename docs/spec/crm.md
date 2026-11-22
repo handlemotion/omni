@@ -8,6 +8,10 @@ Every company workspace gets a CRM: the companies it works with, the people ther
 deals with them. It is small on purpose. What makes it worth using is where it sits: on the
 mail and the files the workspace already has in Omni.
 
+The web and desktop apps name the module **Clients** (founder's call, Nov 22, 2026): in the module
+rail, the sidebar, the command menu and the agent consent screen. Code, routes, the API and
+scopes keep `crm`.
+
 - Add someone from an email once, and every email with them is on their record from then on.
   Nobody files anything.
 - A deal's files are a folder in the shared drive. Its contract is a file there that cannot be
@@ -84,8 +88,10 @@ the ones this member can open: their own mailboxes and the shared inboxes they a
 teammates looking at the same client can see different emails, and neither learns about mail in
 a mailbox that is not theirs.
 
-**Work the pipeline.** Deals sit on a board by stage, their only view (founder's call, Nov 20,
-2026): search and filters narrow the board, and the Archived filter shows archived deals on it.
+**Work the pipeline.** Deals and projects are one page, Projects (founder's call, Nov 22, 2026):
+every deal on a board by stage, or in a table with Board and Table in its header, board first.
+Search and filters narrow both, and the Archived filter shows archived deals. The old Deals page's
+address opens Projects.
 Dragging a deal to a `won` stage records when it was won. That is the only ceremony: the deal
 carries on as the project.
 
@@ -333,9 +339,11 @@ board by stage; a won deal is the project.
 - **Currency.** The apps always send a currency with a value: the deal's own, else the
   workspace default, else the device's. The API still refuses a value with no currency at all.
 - **Projects** are deals in an `open` or `won` stage (`kind=open,won`): leads and running
-  projects, chosen by stage kind, never by stage name. The apps list them on their own.
-- **Navigation.** The sidebar (the iOS menu) lists the CRM's pages (Companies, People, Deals, …),
-  then **Projects**: the same deals as the Projects page, by name, led by its client's logo. There are no stage shortcuts: the board and filters do that.
+  projects, chosen by stage kind, never by stage name. The sidebar lists them on their own.
+- **Navigation.** The sidebar (the iOS menu) lists the CRM's pages (Companies, People, Projects,
+  Tasks), then **Projects**: the open and won deals, by name, led by its client's logo. The
+  Projects page holds every deal, on the board or in the table. There are no stage shortcuts: the
+  board and filters do that.
 - **Crumbs** follow the path taken: a record opened from another record's page carries
   `?via=deals:<id>,people:<id>` (up to four steps), and its header reads
   `Projects › the project › the person`. A record opened from a list or the sidebar starts afresh.

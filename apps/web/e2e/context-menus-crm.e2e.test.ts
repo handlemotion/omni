@@ -121,7 +121,7 @@ test("a deal card's right-click moves it to another stage", async () => {
   };
   const target = stages.find((stage) => stage.id !== deal.stageId);
   if (!target) throw new Error("one stage only");
-  const page = await team.page("/crm/deals");
+  const page = await team.page("/crm/projects");
 
   await rightClick(
     page,

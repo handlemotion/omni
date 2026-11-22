@@ -118,7 +118,7 @@ export function placeInWorkspace(pathname: string) {
 
 const LISTS = ["/mail/inbox", "/mail/later", "/mail/done", "/mail/archive", "/mail/all"];
 const FILE_PLACES = ["/files/my", "/files/shared", "/files/shared-with-me", "/files/trash"];
-const CRM_PLACES = ["/crm/companies", "/crm/people", "/crm/deals"];
+const CRM_PLACES = ["/crm/companies", "/crm/people", "/crm/projects", "/crm/deals"];
 
 const under = (place: string, path: string) => place === path || place.startsWith(`${path}/`);
 

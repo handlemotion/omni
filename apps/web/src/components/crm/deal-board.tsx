@@ -79,7 +79,7 @@ export function DealBoard(props: {
       onDragEnd={drag.end}
       onDragCancel={drag.cancel}
     >
-      <div className="flex min-h-0 flex-1 gap-3 overflow-auto px-5 py-4">
+      <div className="flex min-h-0 flex-1 gap-3 overflow-auto px-5 pb-4">
         {stages.data.map((stage) => (
           <Column
             key={stage.id}
@@ -204,7 +204,7 @@ function sumValues(deals: CrmDeal[]) {
 
 function BoardBones() {
   return (
-    <div className="flex gap-3 px-5 py-4">
+    <div className="flex gap-3 px-5 pb-4">
       {Array.from({ length: 5 }, (_, column) => (
         <div key={column} className={`${COLUMN} gap-2 p-1`}>
           <div className="mb-1 flex h-9 items-center">

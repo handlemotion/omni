@@ -84,7 +84,7 @@ const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All" },
   { id: "mail", label: "Mail" },
   { id: "files", label: "Drive" },
-  { id: "crm", label: "CRM" },
+  { id: "crm", label: "Clients" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -217,7 +217,7 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
         </CommandEmpty>
         {show.mail && <PageGroup heading="Mail" pages={MAIL_PAGES} onOpen={openPage} />}
         {show.files && <PageGroup heading="Drive" pages={drivePages(company)} onOpen={openPage} />}
-        {show.crm && company && <PageGroup heading="CRM" pages={CRM_PAGES} onOpen={openPage} />}
+        {show.crm && company && <PageGroup heading="Clients" pages={CRM_PAGES} onOpen={openPage} />}
         <RecordGroups
           show={show}
           query={query}
