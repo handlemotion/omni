@@ -546,3 +546,39 @@ test("a paste split into parts is journaled whole, at its head, once its last pa
   expect(liveMarkdown(replayed)).toBe(pasted);
   tab.socket.close();
 });
+
+test("a journal more epochs behind than one run drains stays owed, and the minute job finishes it", async () => {
+  const org = await stack.company(`many-epochs-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const first = "# Log\n\nA";
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "log.md", bytes(first));
+  await settled(doc.id, 1);
+  const tab = await editor(stack, ana.jar, doc.id);
+  const a = new Y.Doc();
+  const start = await tab.append({ t: "seed", cv: 1, u: base64(rewriteLive(a, first)) }, 0);
+  await tab.append({ t: "update", e: start, u: base64(rewriteLive(a, `${first}\n\nA1`)) });
+  await save(ana.jar, doc.id, `${first}\n\nA1`, 1);
+  await expect.poll(async () => (await liveChangesOf(doc.id)).length, { timeout: 10_000 }).toBe(1);
+
+  const left: number[][] = [];
+  let epoch = start;
+  for (let i = 0; i < 10; i++) {
+    const page = new Y.Doc();
+    const at = await tab.append({ t: "update", e: epoch, u: base64(rewriteLive(a, `${i}`)) });
+    left.push([epoch, at]);
+    epoch = await tab.append({ t: "seed", cv: 2, u: base64(rewriteLive(page, `# Log\n\n${i}`)) });
+  }
+  await save(ana.jar, doc.id, "# Log\n\nLast", 2);
+  await expect
+    .poll(async () => (await liveChangesOf(doc.id)).length, { timeout: 10_000 })
+    .toBeGreaterThan(8);
+  expect(await stack.cron("* * * * *")).toBe("ok");
+  const runs = (await liveChangesOf(doc.id)).map((run) => [run.epoch, run.firstSeq]);
+  expect(runs).toEqual(expect.arrayContaining(left));
+  const [journal] = await stack.db
+    .select({ epoch: schema.storageDocJournals.epoch })
+    .from(schema.storageDocJournals)
+    .where(eq(schema.storageDocJournals.nodeId, doc.id));
+  expect(journal?.epoch).toBe(epoch);
+  tab.socket.close();
+});

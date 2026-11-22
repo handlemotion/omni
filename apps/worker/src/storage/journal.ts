@@ -253,7 +253,7 @@ async function journalOnce(deps: Deps, doc: Doc) {
   if (cursor && cursor.epoch >= 0 && cursor.epoch !== epoch) {
     const drained = await drain(deps.db, basin, doc.id, cursor, epoch);
     if (drained) {
-      await mark(drained);
+      await mark({ ...drained, contentVersion: cursor.contentVersion });
       return false;
     }
   }
