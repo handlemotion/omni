@@ -12,6 +12,7 @@ import {
 } from "./meetings/crm.ts";
 import { findMeetings, type MeetingsFilter } from "./meetings/find.ts";
 import { claimDocLease, claimNotesDoc, docTarget, releaseDocLease } from "./meetings/doc.ts";
+import * as chunks from "./meetings/chunks.ts";
 import * as pipeline from "./meetings/pipeline.ts";
 import {
   getAction,
@@ -47,6 +48,7 @@ export type { MeetingRecord, MeetingRecordKind, MeetingsOnQuery } from "./meetin
 export type { MeetingsFilter } from "./meetings/find.ts";
 export type { MeetingChange, StartMeeting } from "./meetings/write.ts";
 export { recurrenceKey, type MeetingEventChoice, type StartRecording } from "./meetings/bind.ts";
+export { RECORDING_STALE_MS, type Chunk as MeetingChunk } from "./meetings/chunks.ts";
 export type {
   MeetingStatus,
   SavedNotes,
@@ -131,7 +133,6 @@ export function meetingsPipeline(db: Db) {
       db.transaction((tx) => pipeline.stopRecording(tx, meetingId, stop)),
     claimSubmission: (meetingId: string) => pipeline.claimSubmission(db, meetingId),
     releaseSubmission: (meetingId: string) => pipeline.releaseSubmission(db, meetingId),
-    setUpload: (meetingId: string, uploadId: string) => pipeline.setUpload(db, meetingId, uploadId),
     setEngineJob: (meetingId: string, provider: string, jobId: string) =>
       pipeline.setEngineJob(db, meetingId, provider, jobId),
     countPoll: (meetingId: string) => pipeline.countPoll(db, meetingId),
@@ -158,6 +159,17 @@ export function meetingsPipeline(db: Db) {
       db.transaction((tx) => pipeline.restartFailed(tx, meetingId)),
     setFiles: (meetingId: string, files: { notesNodeId?: string; groupKey?: string }) =>
       pipeline.setFiles(db, meetingId, files),
+    receiveChunk: (meetingId: string, orgId: string, chunk: chunks.Chunk) =>
+      db.transaction((tx) => chunks.receiveChunk(tx, meetingId, orgId, chunk)),
+    chunk: (meetingId: string, seq: number) => chunks.chunkAt(db, meetingId, seq),
+    chunks: (meetingId: string, below?: number | null) => chunks.chunksOf(db, meetingId, below),
+    missingChunks: (meetingId: string, count: number) => chunks.missingChunks(db, meetingId, count),
+    abandoned: (olderThanMs: number) => chunks.abandoned(db, olderThanMs),
+    claimUpload: (meetingId: string, uploadId: string) =>
+      chunks.claimUpload(db, meetingId, uploadId),
+    dropUpload: (meetingId: string, uploadId: string) => chunks.dropUpload(db, meetingId, uploadId),
+    setAudio: (meetingId: string, audioNodeId: string) =>
+      db.transaction((tx) => chunks.setAudio(tx, meetingId, audioNodeId)),
     saveGroupSummary: (
       ...a: Parameters<typeof saveGroupSummary> extends [unknown, ...infer R] ? R : never
     ) => saveGroupSummary(db, ...a),

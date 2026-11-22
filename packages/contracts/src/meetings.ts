@@ -33,20 +33,58 @@ export const startMeetingBodySchema = z.object({
   consent: z.literal(true),
 });
 
-/** `POST /api/meetings/:id/stop`: the uploaded recording and what the recorder knows about it. */
-export const stopMeetingBodySchema = z.object({
-  audioNodeId: z.string().min(1).max(64),
-  durationMs: z
+/** The most chunks one recording may have: a day of audio in 5-second chunks. */
+export const MEETINGS_MAX_CHUNKS = 20_000;
+/** The largest one chunk may be. */
+export const MEETINGS_MAX_CHUNK_BYTES = 8 * 1024 * 1024;
+
+/**
+ * `PUT /api/meetings/:id/chunks/:seq?endMs=`: one piece of a recording, its bytes as the body
+ * and their SHA-256 (hex) in `x-content-sha256`. Answered with the chunk it acknowledged.
+ */
+export const meetingChunkQuerySchema = z.object({
+  endMs: z.coerce
     .number()
     .int()
     .min(0)
-    .max(24 * 3_600_000),
-  micSpans: z.array(span).max(20_000).nullable(),
-  cuts: z
-    .array(z.object({ atMs: z.number().int().min(0), droppedMs: z.number().int().min(1) }))
-    .max(5_000)
-    .default([]),
+    .max(48 * 3_600_000),
 });
+
+export const meetingChunkSchema = z.object({
+  seq: z.number().int(),
+  size: z.number().int(),
+  sha256: z.string(),
+  endMs: z.number().int(),
+});
+
+/** `GET /api/meetings/:id/chunks`: what the server holds, so a recorder knows what to send again. */
+export const meetingChunksResponseSchema = z.object({
+  status: z.string(),
+  chunks: z.array(meetingChunkSchema),
+});
+
+/**
+ * `POST /api/meetings/:id/stop`: the recording and what the recorder knows about it. The
+ * recording is either one Drive file (`audioNodeId`) or the chunks `0..chunks-1` already sent.
+ */
+export const stopMeetingBodySchema = z
+  .object({
+    audioNodeId: z.string().min(1).max(64).optional(),
+    chunks: z.number().int().min(1).max(MEETINGS_MAX_CHUNKS).optional(),
+    durationMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(24 * 3_600_000),
+    micSpans: z.array(span).max(20_000).nullable(),
+    cuts: z
+      .array(z.object({ atMs: z.number().int().min(0), droppedMs: z.number().int().min(1) }))
+      .max(5_000)
+      .default([]),
+  })
+  .refine((body) => (body.audioNodeId === undefined) !== (body.chunks === undefined), {
+    message: "send either audioNodeId or chunks",
+  });
 
 export const changeMeetingBodySchema = z.object({
   title: z.string().max(300).nullable().optional(),
@@ -109,6 +147,8 @@ export const meetingsChangedEventSchema = z.object({
 
 export type StartMeetingBody = z.infer<typeof startMeetingBodySchema>;
 export type StopMeetingBody = z.infer<typeof stopMeetingBodySchema>;
+export type MeetingChunk = z.infer<typeof meetingChunkSchema>;
+export type MeetingChunksResponse = z.infer<typeof meetingChunksResponseSchema>;
 export type ChangeMeetingBody = z.infer<typeof changeMeetingBodySchema>;
 export type AskMeetingsBody = z.infer<typeof askMeetingsBodySchema>;
 export type MeetingsChangedEvent = z.infer<typeof meetingsChangedEventSchema>;

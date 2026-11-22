@@ -220,9 +220,34 @@ a recording by itself. The bridge's shapes are `@omni/contracts`' `desktop-recor
   forward.
 
 **The browser recorder** mixes nothing: it records the tab's sound and the mic as two channels
-with `MediaRecorder` (Opus in WebM), computes the same mic intervals with an `AnalyserNode`, and
-uploads through the same Drive upload and stop. It is the fallback, so it keeps no spool: closing the tab ends the
-recording where it was.
+with `MediaRecorder` (Opus in WebM), and computes the same mic intervals with an `AnalyserNode`.
+It is built so a recording is never lost:
+
+- **Chunks, kept on the computer first.** `MediaRecorder` hands over a chunk every 5 seconds.
+  Each is written to IndexedDB (with its number, the time it ends at and its SHA-256) before it
+  is sent, so closing the tab, a crash or a reload loses at most the last 5 seconds.
+- **Acknowledged one by one.** `PUT /api/meetings/:id/chunks/:seq` stores the chunk in R2 under
+  `meetings/<org>/<meeting>/chunks/<seq>-<sha256>` and records it in `meetings_chunks`; the answer
+  is the acknowledgement. The server checks the bytes against the hash, acknowledges a chunk sent
+  twice without storing it twice, and refuses other bytes under a number it already holds, so a
+  retry can never corrupt what arrived.
+- **Retries.** A chunk that fails is sent again after 1 second, doubling to 1 minute, for as long
+  as it takes; recording goes on meanwhile. When nothing has been acknowledged for 2 minutes the
+  pill shows it is offline, with how much audio waits on the computer.
+- **Resumed after a reload.** Opening Omni again finds the recordings still in IndexedDB, asks
+  the server which chunks it holds (`GET /:id/chunks`), sends the rest and stops the meeting
+  with them. The tab's sound cannot be picked up again after the tab closed: what was recorded is
+  finished as it is, and Record starts the event's next part.
+- **Stopped only when whole.** Stop names how many chunks there are; the server answers
+  `missing_chunks` with their numbers until it holds every one, so a stopped meeting always has
+  all its audio. Only then does the browser forget its copy.
+- **Abandoned recordings still finish.** A recording whose last chunk arrived 12 hours ago (the
+  tab closed for good) is stopped by the minute sweep with the chunks that arrived.
+- **A quiet recording does not block the event.** One recording per meeting holds while chunks
+  keep arriving; a browser recording whose last chunk is 3 minutes old no longer counts as
+  "recording" for Record, so a teammate can record the event as its next part. The first one
+  still finishes when its recorder comes back. Both rules apply only to recordings sent as
+  chunks: the desktop app sends nothing until it stops, and its spool finishes it.
 
 ## Transcription
 
@@ -453,7 +478,8 @@ All tables carry `org_id`, cascade with the workspace, and are named `meetings_*
 | `meetings_notes`     | meeting_id, org_id, summary, highlights, actions, topics, model, prompt_version, written_to_doc_at                                                                                                                                                                                                                                               | `jsonb` parts, written in one go.                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `meetings_actions`   | id, meeting_id, org_id, kind (`task` · `email`), payload, state (`open` · `done` · `dismissed`), task_id, decided_by_member_id                                                                                                                                                                                                                   | An accepted task keeps the calendar task's id.                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `meetings_groups`    | org_id, group_key, meetings_hash, title, summary, summarized_through, updated_at                                                                                                                                                                                                                                                                 | Key (org_id, group_key, meetings_hash): one per set of meetings read.                                                                                                                                                                                                                                                                                                                                                                          |
-| `meetings_jobs`      | meeting_id, org_id, provider, provider_job_id, mic_intervals, submitted_at, polls                                                                                                                                                                                                                                                                | One per meeting; what makes each job safe to run twice.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `meetings_jobs`      | meeting_id, org_id, provider, provider_job_id, mic_intervals, submitted_at, polls, attempts, upload_id, chunk_count                                                                                                                                                                                                                                                                | One per meeting; what makes each job safe to run twice.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `meetings_chunks` | meeting_id, seq, org_id, size, sha256, end_ms, received_at | Key (meeting_id, seq). One per chunk the recorder sent and the server acknowledged; its bytes are in R2 until the recording is filed into Drive. |
 
 `group_key` is `series:<UID>` for a recurring event, `domain:<domain>` for meetings with one
 outside company (the most common outside domain among the attendees, skipping webmail), else
@@ -513,20 +539,28 @@ Every step is a queue job keyed by the meeting, idempotent, and moves `status` f
 the status before it.
 
 1. **Start.** `POST /api/meetings` makes the meeting in `recording`, copies the event's attendees
-   and answers with the recorder's private `Recordings` folder, made on first use. The app
-   uploads the audio there through Drive's own resumable upload (`/api/storage/uploads`) once it
-   stops (`finishRecording`, above), so the upload, its limits and its checks are Drive's.
-2. **Stop.** `POST /api/meetings/:id/stop` names the uploaded file (it must be an audio file of the
-   recorder's own, in their My files), the mic intervals and the dropped silences, sets `uploaded` and enqueues
+   and answers with the recorder's private `Recordings` folder, made on first use. The desktop
+   app uploads the audio there through Drive's own resumable upload (`/api/storage/uploads`) once
+   it stops (`finishRecording`, above); the browser sends it as chunks (`PUT /:id/chunks/:seq`)
+   as it records.
+2. **Stop.** `POST /api/meetings/:id/stop` names the uploaded file (it must be an audio file of
+   the recorder's own, in their My files) or how many chunks there are (all of them must have
+   arrived), with the mic intervals and the dropped silences; it sets `uploaded` and enqueues
    `transcribe`.
-3. **Transcribe.** Streams the audio from R2 to the engine's upload (no buffering, no public
+3. **File.** For a recording sent as chunks, the first step joins them in order into one file in
+   the recorder's `Recordings` folder, through Drive's upload as the recorder (counted against the
+   workspace's storage, never refused for it: the minutes are already paid), then deletes the
+   chunks. The upload is claimed on the meeting (`meetings_jobs.upload_id`) and joining writes
+   the same bytes again, so a retry files one file. A meeting deleted meanwhile sends the file to
+   the Trash.
+4. **Transcribe.** Streams the audio from R2 to the engine's upload (no buffering, no public
    URL), submits the job and stores its id; a retry that finds the id skips to polling. Then
    `poll` every 20 seconds, up to an hour, with the engine's callback as a shortcut when the
    Worker's URL is reachable.
-4. **Save.** Fetches the result, keeps the raw file, normalizes it, works out the speakers (steps
+5. **Save.** Fetches the result, keeps the raw file, normalizes it, works out the speakers (steps
    1 and 2), and replaces the meeting's segments and speakers in one transaction. `naming`.
-5. **Name.** The names pass (step 3) when a speaker is still unnamed. `writing`.
-6. **Write.** The notes call; queues the `meeting-doc` job, then writes `meetings_notes` and the
+6. **Name.** The names pass (step 3) when a speaker is still unnamed. `writing`.
+7. **Write.** The notes call; queues the `meeting-doc` job, then writes `meetings_notes` and the
    actions. `ready`, and a push to the recorder. The doc job writes the doc once (above). The group's summaries are made again on their next read.
 
 **Retries.** A step that fails for a passing reason (the engine or the model is down, answers
@@ -574,7 +608,9 @@ meeting the caller cannot see answers `404`, and a removed grant closes it on th
 | `GET /groups/:key`                                                   | A group's summary, timeline, open actions and meetings                    |
 | `GET /?event=<uid>&recurrence=`                                      | The meeting for an event, so the calendar panel shows it                  |
 | `POST /` `{ event?, title?, consent: true }`                         | Starts one; returns its id and the upload. `event`: `{ id, recurrenceId }`, `"now"` (the default) or `null` |
-| `POST /:id/stop` `{ audioNodeId, durationMs, micSpans, cuts }`       | Stops and starts the pipeline                                             |
+| `PUT /:id/chunks/:seq?endMs=` (bytes, `x-content-sha256`)            | One chunk of the recording; the answer acknowledges it                    |
+| `GET /:id/chunks`                                                    | The chunks the server holds, for a recorder resuming                      |
+| `POST /:id/stop` `{ chunks \| audioNodeId, durationMs, micSpans, cuts }` | Stops (once every chunk arrived) and starts the pipeline              |
 | `GET /:id`                                                           | The meeting: status, attendees, notes, actions, speakers                  |
 | `GET /:id/transcript`                                                | Segments with speakers                                                    |
 | `GET /:id/audio`                                                     | The audio, through Storage's door                                         |

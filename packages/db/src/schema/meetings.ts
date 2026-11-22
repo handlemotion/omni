@@ -249,10 +249,36 @@ export const meetingsJobs = pgTable(
     micSpans: jsonb("mic_spans").$type<Array<{ startMs: number; endMs: number }> | null>(),
     cuts: jsonb("cuts").$type<Array<{ atMs: number; droppedMs: number }>>(),
     uploadId: text("upload_id"),
+    /** How many chunks the recorder sent, as it said when it stopped; null for a Drive upload. */
+    chunkCount: integer("chunk_count"),
     submittedAt: timestamptz("submitted_at"),
     polls: integer("polls").notNull().default(0),
     attempts: integer("attempts").notNull().default(0),
     updatedAt: updatedAt(),
   },
   (t) => [ofMeeting("meetings_jobs_meeting_org_fk")(t)],
+);
+
+/**
+ * One piece of a recording as the browser sent it, acknowledged once its bytes are in R2 under
+ * `meetings/<org>/<meeting>/chunks/<seq>`. The chunks in order are the recording until the
+ * pipeline files them into the recorder's Drive as one file.
+ */
+export const meetingsChunks = pgTable(
+  "meetings_chunks",
+  {
+    meetingId: text("meeting_id").notNull(),
+    seq: integer("seq").notNull(),
+    orgId: orgId(),
+    size: integer("size").notNull(),
+    sha256: text("sha256").notNull(),
+    /** Where the chunk ends on the recording's clock, as the recorder measured it. */
+    endMs: integer("end_ms").notNull(),
+    receivedAt: timestamptz("received_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.meetingId, t.seq] }),
+    ofMeeting("meetings_chunks_meeting_org_fk")(t),
+    check("meetings_chunks_seq_nonnegative", sql`${t.seq} >= 0`),
+  ],
 );

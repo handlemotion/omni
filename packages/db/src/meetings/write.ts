@@ -10,6 +10,7 @@ import {
   meetingsSpeakers,
 } from "../schema/meetings.ts";
 import { storageInsideCompany, storagePolicyOf } from "../storage.ts";
+import { recentlyHeard } from "./chunks.ts";
 import { FORBIDDEN, NOT_FOUND, withMeeting, type Ex, type MeetingsActor } from "./core.ts";
 
 export interface StartMeeting {
@@ -27,8 +28,9 @@ const POLICY = { status: "policy" } as const;
 
 /**
  * Starts a recording. A calendar meeting is recorded once per workspace: while someone records
- * it, a second start answers `recording_elsewhere`; after that recording stopped, it becomes the
- * meeting's next part. The recorder owns it; every attendee gets `viewer`.
+ * it, a second start answers `recording_elsewhere`; after that recording stopped, or went quiet
+ * for `RECORDING_STALE_MS`, it becomes the meeting's next part. The recorder owns it; every
+ * attendee gets `viewer`.
  */
 export async function startMeeting(ex: Db, actor: MeetingsActor, input: StartMeeting) {
   const member = actor.member;
@@ -38,7 +40,7 @@ export async function startMeeting(ex: Db, actor: MeetingsActor, input: StartMee
   let part = 1;
   if (input.event) {
     const latest = await latestPart(ex, member.orgId, input.event.uid, recurrence);
-    if (latest?.status === "recording") return recordingElsewhere(latest);
+    if (latest?.status === "recording" && latest.heard) return recordingElsewhere(latest);
     part = (latest?.part ?? 0) + 1;
   }
   const [meeting] = await ex
@@ -136,6 +138,7 @@ async function latestPart(ex: Ex, orgId: string, uid: string, recurrenceId: stri
       part: meetingsMeetings.part,
       status: meetingsMeetings.status,
       by: meetingsMeetings.recordedByMemberId,
+      heard: recentlyHeard(),
     })
     .from(meetingsMeetings)
     .where(

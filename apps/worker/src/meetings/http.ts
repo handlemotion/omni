@@ -23,6 +23,8 @@ const FAILURES = {
   not_stoppable: ["conflict", "the meeting is not recording"],
   not_retryable: ["conflict", "the meeting has not failed"],
   policy: ["sharing_policy", "your workspace's sharing policy does not allow that"],
+  not_recording: ["conflict", "the meeting is no longer recording"],
+  chunk_conflict: ["conflict", "a different chunk with that number was already received"],
 } as const satisfies Record<string, readonly [ErrorCode, string]>;
 
 export type MeetingsFailure = keyof typeof FAILURES;

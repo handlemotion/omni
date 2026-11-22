@@ -568,6 +568,13 @@
       "when": 1795376546576,
       "tag": "0080_cultured_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1795377541541,
+      "tag": "0081_fuzzy_goliath",
+      "breakpoints": true
     }
   ]
 }

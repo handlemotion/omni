@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-explicit-any -- test reads of JSON answers and engine fixtures */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -503,4 +503,115 @@ test("a recorder who leaves loses the meetings they recorded; whoever is handed 
   expect((await api(ben, "GET", `/${recorded}`)).body.role).toBe("viewer");
   expect((await api(admin, "GET", `/${recorded}`)).body.role).toBe("owner");
   expect((await api(admin, "DELETE", `/${recorded}`)).status).toBe(204);
+});
+
+const hex = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+async function putChunk(
+  person: Person,
+  meetingId: string,
+  seq: number,
+  bytes: Uint8Array,
+  sha256 = hex(bytes),
+) {
+  const response = await fetch(
+    new URL(`/api/meetings/${meetingId}/chunks/${seq}?endMs=${(seq + 1) * 5000}`, stack.worker.url),
+    {
+      method: "PUT",
+      headers: { cookie: person.jar.header, "x-content-sha256": sha256 },
+      body: Buffer.from(bytes),
+    },
+  );
+  const text = await response.text();
+  return { status: response.status, body: (text ? JSON.parse(text) : null) as any };
+}
+
+const piece = (seq: number) => new Uint8Array(1000 + seq).map((_, i) => (i * 7 + seq) % 256);
+
+test("a recording sent in chunks, out of order and one twice, is filed whole and transcribed", async () => {
+  const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  const ben = await stack.member(org.id);
+  const { meetingId, folderId } = (
+    await api(dana, "POST", "/", {
+      attendees: [{ address: "marta@client.test", name: "Marta Gil" }],
+      consent: true,
+    })
+  ).body;
+  expect((await putChunk(ben, meetingId, 0, piece(0))).status).toBe(404);
+  for (const seq of [0, 2, 1, 1]) {
+    const sent = await putChunk(dana, meetingId, seq, piece(seq));
+    expect(sent).toMatchObject({ status: 200, body: { chunk: { seq, sha256: hex(piece(seq)) } } });
+  }
+  const early = await api(dana, "POST", `/${meetingId}/stop`, {
+    chunks: 4,
+    durationMs: 20_000,
+    micSpans: null,
+  });
+  expect(early.status).toBe(409);
+  expect(early.body.details).toMatchObject({ reason: "missing_chunks", missing: [3] });
+  expect((await putChunk(dana, meetingId, 3, piece(3))).status).toBe(200);
+  const held = await api(dana, "GET", `/${meetingId}/chunks`);
+  expect(held.body.chunks.map((c: any) => c.seq)).toEqual([0, 1, 2, 3]);
+
+  const uploadedBefore = fake.uploadedBytes;
+  const stop = { chunks: 4, durationMs: 20_000, micSpans: null };
+  expect((await api(dana, "POST", `/${meetingId}/stop`, stop)).status).toBe(204);
+  const ready = await settled(dana, meetingId);
+  expect(ready.body.meeting).toMatchObject({ status: "ready", failure: null });
+
+  const whole = Buffer.concat([0, 1, 2, 3].map((seq) => Buffer.from(piece(seq))));
+  expect(fake.uploadedBytes - uploadedBefore).toBe(whole.length);
+  const audio = await fetch(new URL(`/api/meetings/${meetingId}/audio`, stack.worker.url), {
+    headers: { cookie: dana.jar.header },
+  });
+  expect(Buffer.from(await audio.arrayBuffer()).equals(whole)).toBe(true);
+  const [file] = await stack.db
+    .select()
+    .from(schema.storageNodes)
+    .where(eq(schema.storageNodes.parentId, folderId));
+  expect(file).toMatchObject({ kind: "file", size: whole.length, mimeType: "audio/webm" });
+  const bucket = await stack.bucket();
+  const left = await bucket.list({ prefix: `meetings/${org.id}/${meetingId}/chunks/` });
+  expect(left.objects).toEqual([]);
+
+  expect((await putChunk(dana, meetingId, 1, piece(1))).status).toBe(200);
+  expect((await putChunk(dana, meetingId, 4, piece(4))).status).toBe(409);
+});
+
+test("a chunk is acknowledged only for the bytes it names, and never replaced by other bytes", async () => {
+  const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  const { meetingId } = (await api(dana, "POST", "/", { attendees: [], consent: true })).body;
+  const torn = await putChunk(dana, meetingId, 0, piece(0).subarray(0, 500), hex(piece(0)));
+  expect(torn.status).toBe(422);
+  expect((await api(dana, "GET", `/${meetingId}/chunks`)).body.chunks).toEqual([]);
+  expect((await putChunk(dana, meetingId, 0, piece(0))).status).toBe(200);
+  expect((await putChunk(dana, meetingId, 0, piece(9))).status).toBe(409);
+  const bucket = await stack.bucket();
+  const stored = await bucket.list({ prefix: `meetings/${org.id}/${meetingId}/chunks/` });
+  expect(stored.objects.map((o: any) => o.key)).toEqual([
+    `meetings/${org.id}/${meetingId}/chunks/000000-${hex(piece(0))}`,
+  ]);
+});
+
+test("a recording whose recorder never came back is stopped by the sweep and transcribed", async () => {
+  const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  const { meetingId } = (await api(dana, "POST", "/", { attendees: [], consent: true })).body;
+  for (const seq of [0, 1, 2]) await putChunk(dana, meetingId, seq, piece(seq));
+  const longAgo = new Date(Date.now() - 13 * 3_600_000);
+  await stack.db
+    .update(schema.meetingsChunks)
+    .set({ receivedAt: longAgo })
+    .where(eq(schema.meetingsChunks.meetingId, meetingId));
+
+  expect(await stack.cron("* * * * *")).toBe("ok");
+  const ready = await settled(dana, meetingId);
+  expect(ready.body.meeting).toMatchObject({ status: "ready", durationMs: 95_400 });
+  const [job] = await stack.db
+    .select({ chunkCount: schema.meetingsJobs.chunkCount })
+    .from(schema.meetingsJobs)
+    .where(eq(schema.meetingsJobs.meetingId, meetingId));
+  expect(job?.chunkCount).toBe(3);
 });

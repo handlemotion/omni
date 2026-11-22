@@ -15,6 +15,7 @@ import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
 import { groupSummary, memberAsk } from "./ask.ts";
 import { meetingFile } from "./audio.ts";
+import { meetingChunks } from "./chunks.ts";
 import { memberFiles, memberMeetings, recordingsFolder, refused, wire } from "./http.ts";
 import { deleteMeetingObjects, meetingEngine } from "./jobs.ts";
 import { enqueueMeeting } from "./queue.ts";
@@ -30,6 +31,7 @@ export const meetings = new Hono<AppEnv>()
     if (!meetingEngine(c.var.config, c.env)) return apiError(c, "not_found", "not found");
     return next();
   })
+  .route("/", meetingChunks)
   .get("/groups", zValidator("query", meetingsListQuerySchema), async (c) => {
     const { before, limit } = c.req.valid("query");
     const listed = await memberMeetings(c).groups({
@@ -126,19 +128,13 @@ export const meetings = new Hono<AppEnv>()
     if (meeting.status !== "ok") return refused(c, meeting);
     if (meeting.meeting.recordedByMemberId !== c.var.member.id)
       return refused(c, { status: "forbidden" });
-    const file = await memberFiles(c).file(body.audioNodeId);
-    if (
-      file.status !== "ok" ||
-      file.file.space !== "personal" ||
-      file.file.ownerMemberId !== c.var.member.id ||
-      !file.file.mimeType?.startsWith("audio/")
-    ) {
-      return refused(c, { status: "not_a_recording" });
-    }
+    const refusal = await stopRefusal(c, id, body);
+    if (refusal) return refusal;
     const stopped = await meetingsPipeline(c.var.db).stopRecording(id, {
       endedAt: new Date(),
       durationMs: body.durationMs,
-      audioNodeId: body.audioNodeId,
+      audioNodeId: body.audioNodeId ?? null,
+      chunkCount: body.chunks ?? null,
       micSpans: body.micSpans,
       cuts: body.cuts,
     });
@@ -147,7 +143,7 @@ export const meetings = new Hono<AppEnv>()
     await gateMeter(c.var.db, c.var.config, {
       orgId: c.var.member.orgId,
       meter: "meetingMinutes",
-      key: body.audioNodeId,
+      key: body.audioNodeId ?? `meeting:${id}`,
       amount: Math.max(1, Math.ceil(body.durationMs / 60_000)),
       always: true,
     });
@@ -256,4 +252,28 @@ async function taskFor(c: Context<AppEnv>, actionId: string) {
     body: notes.join("\n"),
   });
   return made.status === "ok" ? made.task.id : null;
+}
+
+async function stopRefusal(
+  c: Context<AppEnv>,
+  meetingId: string,
+  body: { audioNodeId?: string; chunks?: number },
+) {
+  if (body.chunks !== undefined) {
+    const missing = await meetingsPipeline(c.var.db).missingChunks(meetingId, body.chunks);
+    if (!missing.length) return null;
+    return apiError(c, "conflict", "some chunks have not arrived; send them, then stop again", {
+      details: { reason: "missing_chunks", missing },
+    });
+  }
+  const file = await memberFiles(c).file(body.audioNodeId ?? "");
+  if (
+    file.status !== "ok" ||
+    file.file.space !== "personal" ||
+    file.file.ownerMemberId !== c.var.member.id ||
+    !file.file.mimeType?.startsWith("audio/")
+  ) {
+    return refused(c, { status: "not_a_recording" });
+  }
+  return null;
 }

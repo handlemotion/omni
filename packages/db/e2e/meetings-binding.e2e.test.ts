@@ -12,6 +12,7 @@ import {
   calendarEvents,
   mailboxes,
   meetingsAttendees,
+  meetingsChunks,
   meetingsMeetings,
 } from "../src/schema/index.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
@@ -86,7 +87,8 @@ const stop = (meetingId: string) =>
   meetingsPipeline(db).stopRecording(meetingId, {
     endedAt: new Date(),
     durationMs: 1000,
-    audioNodeId: null as unknown as string,
+    audioNodeId: null,
+    chunkCount: null,
     micSpans: null,
     cuts: [],
   });
@@ -199,6 +201,47 @@ describe("a recording is bound to its calendar meeting on the server", () => {
     await stop((won as { meetingId: string }).meetingId);
     const second = ok(await start(s.ben.id, { id: bens.id, recurrenceId: null }));
     expect(second.part).toBe(2);
+  });
+
+  test("a browser recording whose last chunk is three minutes old lets the event be recorded again; a desktop one never does as its next part", async () => {
+    const s = await studio();
+    const danas = await rowOf(s.calendar.id, KICKOFF_UID);
+    const first = ok(await start(s.dana.id, { id: danas.id, recurrenceId: null }));
+    const pipeline = meetingsPipeline(db);
+    const quiet = new Date(Date.now() - 4 * 60_000);
+    await db
+      .update(meetingsMeetings)
+      .set({ createdAt: quiet })
+      .where(eq(meetingsMeetings.id, first.meetingId));
+    expect(await start(s.dana.id, { id: danas.id, recurrenceId: null })).toMatchObject({
+      status: "recording_elsewhere",
+      meetingId: first.meetingId,
+    });
+    await pipeline.receiveChunk(first.meetingId, s.org.id, {
+      seq: 0,
+      size: 10,
+      sha256: "a".repeat(64),
+      endMs: 5000,
+    });
+    expect(await start(s.dana.id, { id: danas.id, recurrenceId: null })).toMatchObject({
+      status: "recording_elsewhere",
+      meetingId: first.meetingId,
+    });
+
+    await db
+      .update(meetingsChunks)
+      .set({ receivedAt: quiet })
+      .where(eq(meetingsChunks.meetingId, first.meetingId));
+    const second = ok(await start(s.dana.id, { id: danas.id, recurrenceId: null }));
+    expect(second.part).toBe(2);
+    expect(
+      await pipeline.receiveChunk(first.meetingId, s.org.id, {
+        seq: 1,
+        size: 10,
+        sha256: "b".repeat(64),
+        endMs: 10_000,
+      }),
+    ).toBe("ok");
   });
 
   test("Record now binds to the meeting the recorder is in, and to nothing when they are in none", async () => {

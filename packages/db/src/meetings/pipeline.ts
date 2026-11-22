@@ -19,7 +19,9 @@ export type MeetingStatus = (typeof meetingsStatus.enumValues)[number];
 export interface StoppedRecording {
   endedAt: Date;
   durationMs: number;
-  audioNodeId: string;
+  /** The recording as one Drive file, or null when it came as chunks (`chunkCount`). */
+  audioNodeId: string | null;
+  chunkCount: number | null;
   micSpans: Array<{ startMs: number; endMs: number }> | null;
   cuts: Array<{ atMs: number; droppedMs: number }>;
 }
@@ -49,13 +51,9 @@ export async function stopRecording(ex: Ex, meetingId: string, stop: StoppedReco
   if (!rows.length) return false;
   await ex
     .update(meetingsJobs)
-    .set({ micSpans: stop.micSpans, cuts: stop.cuts })
+    .set({ micSpans: stop.micSpans, cuts: stop.cuts, chunkCount: stop.chunkCount })
     .where(eq(meetingsJobs.meetingId, meetingId));
   return true;
-}
-
-export async function setUpload(ex: Ex, meetingId: string, uploadId: string) {
-  await ex.update(meetingsJobs).set({ uploadId }).where(eq(meetingsJobs.meetingId, meetingId));
 }
 
 /**

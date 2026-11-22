@@ -16,6 +16,7 @@ import type { Config } from "../env.ts";
 import type { Logger } from "../log.ts";
 import { enqueueNotesDoc } from "./doc.ts";
 import { engineFor, EngineError, type Engine, type EngineConfig } from "./engines.ts";
+import { fileRecording } from "./file.ts";
 
 export const MEETING_STEPS = ["transcribe", "poll", "name", "write"] as const;
 export type MeetingStep = (typeof MEETING_STEPS)[number];
@@ -160,8 +161,9 @@ async function transcribe(run: MeetingRun, engine: Engine, found: Found) {
 async function submit(run: MeetingRun, engine: Engine, found: Found) {
   const { meeting } = found;
   const pipeline = meetingsPipeline(run.db);
-  if (!meeting.audioNodeId) throw new MeetingStepFailed("the recording is missing");
-  const file = await storageWorkspaceFile(run.db, meeting.orgId, meeting.audioNodeId);
+  const audioNodeId = meeting.audioNodeId ?? (await fileRecording(run, found));
+  if (!audioNodeId) return outcome(null, null);
+  const file = await storageWorkspaceFile(run.db, meeting.orgId, audioNodeId);
   const object = file ? await run.env.STORAGE_BUCKET.get(file.r2Key) : null;
   if (!file || !object) throw new MeetingStepFailed("the recording is missing");
   const names = [found.recorder?.name, ...found.attendees.map((a) => a.name)].filter(
