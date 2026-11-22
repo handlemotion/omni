@@ -52,8 +52,8 @@ Each test must catch a bug we would plausibly ship; name it before writing the t
 
 - Behavior that crosses a process, the database, IMAP/SMTP, auth or HTTP is proven in
   `*.e2e.test.ts` against the real local stack, with no mocks (enforced).
-- Unit tests only for pure logic in `packages/mail-core`, `packages/ai`, `packages/crypto` and
-  `scripts/` (enforced). No `.only`, `.skip`, `.todo` (enforced). Never weaken an assertion.
+- Unit tests only for pure logic in `packages/mail-core`, `packages/ai`, `packages/crypto`,
+  `packages/sheets` and `scripts/` (enforced). No `.only`, `.skip`, `.todo` (enforced). Never weaken an assertion.
 - Real emails for tests go in `fixtures/eml/`, anonymized. AI calls in tests use recorded
   fixtures, never a live model from `pnpm test` or CI.
 - Before calling work done, run it on the real local stack and report what you ran and saw.

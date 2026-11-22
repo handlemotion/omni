@@ -105,7 +105,8 @@ Y.Doc
 - **Formulas use ids inside.** A formula in the live document references cells by id
   (`=[rc41|c9Pm]*1.16`, `[|c9Pm]` for a whole column, `$` kept per side), so inserts, deletes and
   sorts by anyone never point it at the wrong cell. The file holds A1, translated on seed and on
-  save. A reference to a deleted row or column is `#REF!`.
+  save. A reference to a deleted row or column is `#REF!`. A reference past the last row or
+  column is held by position (`#N`) and binds to that row or column's id once it exists.
 - **Values are computed, not stored live.** Every editor evaluates formulas itself; computed
   values are not in the Yjs document, so a change to one input does not append a change to every
   cell that depends on it. The tab that saves writes `v` into the file.
@@ -142,7 +143,9 @@ lines of JSON, so a row inserted above does not show every cell below as changed
 In scope: people expect `=SUM`, and a sheet without formulas is a table.
 
 - **Engine.** Our own parser and dependency graph in `@omni/sheets` (pure, no I/O, no DOM),
-  over cell ids, with the function bodies from `@formulajs/formulajs` (MIT). The browser and the
+  over cell ids, and our own function bodies, about sixty of them (`formula/functions.ts`,
+  `text.ts`, `lookup.ts`). `@formulajs/formulajs` was planned for the bodies, but it is 2.4 MB
+  unpacked, and its errors and coercions would need wrapping to match ours. The browser and the
   Worker run the same code, so an agent's edit saves the same values the page shows. HyperFormula
   was the alternative: complete and tested, but it owns its own address grid, which would be a
   second model of the sheet to keep in step with the Yjs one, and its size counts against the
@@ -152,13 +155,15 @@ In scope: people expect `=SUM`, and a sheet without formulas is a table.
 - **Functions** in v1: arithmetic and comparison; `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`,
   `COUNTA`, `ROUND` and the math family; `IF`, `IFS`, `AND`, `OR`, `NOT`, `IFERROR`; `SUMIF(S)`,
   `COUNTIF(S)`, `AVERAGEIF(S)`; `VLOOKUP`, `XLOOKUP`, `INDEX`, `MATCH`; text (`CONCAT`, `LEFT`,
-  `RIGHT`, `MID`, `LEN`, `TRIM`, `UPPER`, `LOWER`, `TEXT`, `SPLIT` as one cell); dates (`DATE`,
+  `RIGHT`, `MID`, `LEN`, `TRIM`, `UPPER`, `LOWER`, `TEXT`, `SUBSTITUTE`, `FIND`); dates (`DATE`,
   `TODAY`, `NOW`, `YEAR`, `MONTH`, `DAY`, `EDATE`, `DATEDIF`, `NETWORKDAYS`). The list lives in
   code; a function not in it is `#NAME?`.
 - **Semantics.** Dates are serial numbers in formulas (Excel's 1900 system), so `.xlsx` formulas
   give the same results. `TODAY` and `NOW` are evaluated when shown and saved with the value at
-  save. Errors are Excel's (`#REF!`, `#NAME?`, `#VALUE!`, `#DIV/0!`, `#N/A`); a cycle is `#REF!`.
-  Formulas read every row, whatever view is open.
+  save. Errors are Excel's (`#REF!`, `#NAME?`, `#VALUE!`, `#DIV/0!`, `#N/A`, `#NUM!` for
+  overflow and invalid arithmetic); a cycle is `#REF!`, and a formula nested more than 256 deep
+  is `#NAME?`. Formulas read every row, whatever view is open; a range like `A1:A10` keeps its
+  size past the stored rows, which read as blank.
 - **Out:** array formulas that spill, `QUERY`, `IMPORTRANGE` and references to other files,
   iterative calculation, named ranges.
 
