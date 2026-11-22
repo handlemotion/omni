@@ -534,6 +534,7 @@ export type GoogleConnectResult = z.infer<typeof googleConnectResultSchema>;
 export type GoogleDisconnectBody = z.infer<typeof googleDisconnectBodySchema>;
 export * from "./talk.ts";
 export * from "./meetings.ts";
+export * from "./desktop-recorder.ts";
 
 /** What a module tells a workspace's open apps when its records change. */
 export type ModuleChangedEvent =

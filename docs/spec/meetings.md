@@ -152,22 +152,33 @@ Where the audio comes from decides most of the quality, so it is the first thing
 | A bot joins the call (Recall.ai) | A participant records per-speaker audio                                   | **Later, optional.** About $0.50 to $1 an hour more, a vendor holds the audio, a stranger in every call |
 | iPhone                           | The app records the room                                                  | **Later**, with the iOS calendar                                                                        |
 
-**The desktop recorder** (Rust, in `apps/desktop/src-tauri/src/recording/`):
+**The desktop recorder** (Rust, in `apps/desktop/recorder/`, the `omni-recorder` crate, with no
+Tauri in it so `omni-record` drives the same code from a terminal):
 
 - **The computer's sound.** macOS 14.4 and later: a Core Audio process tap on the system output,
   which asks only for audio-capture permission. macOS 13 to 14.3: ScreenCaptureKit with audio
-  only, which asks for screen recording. Windows: WASAPI loopback on the default output.
+  only, which asks for screen recording. Both are Objective-C APIs, so on macOS a Swift helper,
+  `omni-capture` in `Contents/MacOS`, captures and pipes mono 48 kHz samples to the Rust side
+  (Rust stays free of `unsafe`). Windows: WASAPI loopback on the default output, in Rust.
 - **The microphone** with the system's voice processing on (echo cancellation), so the call's
-  sound coming out of speakers does not land on the mic channel.
+  sound coming out of speakers does not land on the mic channel: AVAudioEngine's voice processing
+  on macOS, with other apps' audio not ducked; on Windows the communications capture category
+  with acoustic echo cancellation referenced to the default output, where the device offers it.
 - **Two channels, one file.** Left is the mic, right is the computer's sound, encoded as Opus in
-  Ogg at 32 kbit/s, about 14 MB an hour.
+  Ogg at 32 kbit/s, about 14 MB an hour. The mic sets the pace: loopback sends nothing while
+  nothing plays, so missing system sound is silence, and system sound running more than 200 ms
+  ahead is dropped so the channels never drift apart.
 - **Who is speaking on this computer.** The recorder notes when the mic carries speech and the
   output does not (a simple energy detector on both channels), and sends those intervals with the
   audio. That is how the recorder is named for certain (see "Speakers"), and it costs nothing.
-- **Nothing is lost.** Audio is written to a spool on disk as it is encoded. Parts go up to
-  Drive's multipart upload every 5 MiB (about 20 minutes, the store's smallest part); the last
-  part goes up on stop. A crash, a sleep or a quit leaves the spool, and the app finishes the
-  upload when it opens again. The spool is deleted once the upload completes.
+- **Pause** leaves the paused time out of the file and notes it as a cut (`{ atMs, droppedMs }`),
+  which the pipeline puts back on the meeting's clock.
+- **Nothing is lost.** Audio is written to a spool on disk as it is encoded, one Ogg page per
+  200 ms, each handed to the system as soon as it is full (and forced to the disk every 5
+  seconds), so a killed app loses at most the last 200 ms. An interval of the person speaking is
+  noted when it opens, so one cut off by a crash still counts. A crash, a sleep or a quit leaves
+  the spool; when the app opens again it cuts the file at its last whole page, marks the stream's
+  end, and the upload finishes from there. The spool is deleted once the meeting has its file.
 - **In a room**, with no call, the right channel is silent: the transcript relies on the engine's
   speaker labels and the names step alone.
 

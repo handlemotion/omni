@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { InputData, JSONSchemaInput, JSONSchemaStore, quicktype } from "quicktype-core";
 import type { JSONSchema } from "quicktype-core";
 import { z } from "zod";
+import { DESKTOP_RECORDER_NATIVE_TYPES } from "../src/desktop-recorder.ts";
 import { STORAGE_SYNC_NATIVE_TYPES } from "../src/storage.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -12,8 +13,21 @@ const outDir = join(root, "apps/desktop/generated");
 const HEADER = "Generated from @omni/contracts by packages/contracts/scripts/native-types.ts.";
 const REGENERATE = "Do not edit: run `pnpm --filter @omni/contracts native-types`.";
 
+type Types = Record<string, z.ZodType>;
+
+const RUST_OPTIONS = {
+  density: "normal",
+  visibility: "public",
+  "derive-debug": "true",
+  "derive-clone": "true",
+  "derive-partial-eq": "true",
+  "skip-serializing-none": "true",
+  "leading-comments": "false",
+} as const;
+
 const TARGETS = [
   {
+    types: STORAGE_SYNC_NATIVE_TYPES as Types,
     lang: "swift",
     file: "swift/StorageSync.swift",
     comment: "//",
@@ -26,24 +40,24 @@ const TARGETS = [
     },
   },
   {
+    types: STORAGE_SYNC_NATIVE_TYPES as Types,
     lang: "rust",
     file: "rust/storage_sync.rs",
     comment: "//",
-    rendererOptions: {
-      density: "normal",
-      visibility: "public",
-      "derive-debug": "true",
-      "derive-clone": "true",
-      "derive-partial-eq": "true",
-      "skip-serializing-none": "true",
-      "leading-comments": "false",
-    },
+    rendererOptions: RUST_OPTIONS,
+  },
+  {
+    types: DESKTOP_RECORDER_NATIVE_TYPES as Types,
+    lang: "rust",
+    file: "rust/desktop_recorder.rs",
+    comment: "//",
+    rendererOptions: RUST_OPTIONS,
   },
 ] as const;
 
-function jsonSchemas() {
+function jsonSchemas(types: Types) {
   const registry = z.registry<{ id: string }>();
-  for (const [name, schema] of Object.entries(STORAGE_SYNC_NATIVE_TYPES)) {
+  for (const [name, schema] of Object.entries(types)) {
     registry.add(schema, { id: name });
   }
   const { schemas } = z.toJSONSchema(registry, {
@@ -66,7 +80,12 @@ function dropDateTimeFormat(key: string, value: unknown) {
 }
 
 class NamedSchemaStore extends JSONSchemaStore {
-  readonly #schemas = jsonSchemas();
+  readonly #schemas: Record<string, unknown>;
+
+  constructor(types: Types) {
+    super();
+    this.#schemas = jsonSchemas(types);
+  }
 
   async fetch(address: string) {
     return this.#schemas[address.replace(/#.*$/, "")] as JSONSchema | undefined satisfies
@@ -76,8 +95,8 @@ class NamedSchemaStore extends JSONSchemaStore {
 }
 
 async function render(target: (typeof TARGETS)[number]) {
-  const input = new JSONSchemaInput(new NamedSchemaStore());
-  for (const name of Object.keys(STORAGE_SYNC_NATIVE_TYPES)) {
+  const input = new JSONSchemaInput(new NamedSchemaStore(target.types));
+  for (const name of Object.keys(target.types)) {
     await input.addSource({ name, uris: [name] });
   }
   const inputData = new InputData();

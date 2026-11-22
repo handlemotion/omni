@@ -11,6 +11,7 @@ Extends the root `AGENTS.md`. The design is `docs/spec/desktop.md`: read it firs
   | `src/`, `src-tauri/` but `sync/` | Shell (layer 2)                                      |
   | `src-tauri/src/sync/`, `macos/`  | macOS File Provider (layer 6)                        |
   | `windows/`                       | Windows Cloud Files (layer 7)                        |
+  | `recorder/`                      | Meetings recorder (`docs/spec/meetings.md`, M4)      |
   | `generated/`                     | Nobody: `pnpm --filter @omni/contracts native-types` |
 
   `src-tauri/src/lib.rs` (plugin and command registration) and `Cargo.toml` are shared: keep each
