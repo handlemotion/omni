@@ -20,6 +20,7 @@ import { attempt, runJob, scopedDb } from "./job-effects.ts";
 import { createLogger } from "./log.ts";
 import { modules } from "./modules.ts";
 import { consumeQueue, type AiJob } from "./queue.ts";
+import { consumeMeetingDocMessage } from "./meetings/doc.ts";
 import { consumeMeetingMessage } from "./meetings/queue.ts";
 import { billStorage } from "./storage/billing.ts";
 
@@ -46,7 +47,11 @@ export default Sentry.withSentry(
   {
     fetch: (request, env, ctx) =>
       isBuildAsset(request) ? serveBuildAsset(request, env.ASSETS) : app.fetch(request, env, ctx),
-    queue: (batch, env) => consumeQueue(batch, env, { meeting: consumeMeetingMessage }),
+    queue: (batch, env) =>
+      consumeQueue(batch, env, {
+        meeting: consumeMeetingMessage,
+        "meeting-doc": consumeMeetingDocMessage,
+      }),
     scheduled: (controller, env, ctx) =>
       ctx.waitUntil(
         controller.cron === MINUTE_CRON

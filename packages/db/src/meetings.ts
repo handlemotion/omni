@@ -11,6 +11,7 @@ import {
   type MeetingsOnQuery,
 } from "./meetings/crm.ts";
 import { findMeetings, type MeetingsFilter } from "./meetings/find.ts";
+import { claimDocLease, claimNotesDoc, docTarget, releaseDocLease } from "./meetings/doc.ts";
 import * as pipeline from "./meetings/pipeline.ts";
 import {
   getAction,
@@ -146,6 +147,10 @@ export function meetingsPipeline(db: Db) {
     saveNotes: (meetingId: string, orgId: string, notes: pipeline.SavedNotes) =>
       db.transaction((tx) => pipeline.saveNotes(tx, meetingId, orgId, notes)),
     claimDocWrite: (meetingId: string) => pipeline.claimDocWrite(db, meetingId),
+    docTarget: (meetingId: string) => docTarget(db, meetingId),
+    claimNotesDoc: (meetingId: string, nodeId: string) => claimNotesDoc(db, meetingId, nodeId),
+    claimDocLease: (meetingId: string, leaseMs: number) => claimDocLease(db, meetingId, leaseMs),
+    releaseDocLease: (meetingId: string) => releaseDocLease(db, meetingId),
     audience: (meetingId: string) => pipeline.memberAudience(db, meetingId),
     stalled: (olderThanMs: number) => pipeline.stalled(db, olderThanMs),
     nudged: (meetingId: string) => pipeline.nudged(db, meetingId),

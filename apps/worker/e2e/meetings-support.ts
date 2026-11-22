@@ -90,6 +90,7 @@ export async function startMeetingsStack() {
   async function record(
     recorder: Person,
     input: { title: string; attendees: Array<{ address: string; name?: string }> },
+    beforeStop?: (meetingId: string) => Promise<void>,
   ) {
     const started = await api(recorder, "POST", "", { ...input, consent: true });
     expect(started.status).toBe(201);
@@ -101,6 +102,7 @@ export async function startMeetingsStack() {
       new Uint8Array(64),
       "audio/ogg",
     );
+    await beforeStop?.(meetingId);
     const stopped = await api(recorder, "POST", `/${meetingId}/stop`, {
       audioNodeId: node.id,
       durationMs: 95_400,

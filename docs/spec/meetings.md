@@ -328,6 +328,22 @@ the doc, a teamspace's members included); otherwise the doc gets a link to the m
 so the doc never shows a summary to someone the meeting's sharing leaves out. The
 structured parts are also kept on the meeting for its page, its group and the CRM.
 
+How "once" holds (`apps/worker/src/meetings/doc.ts`): the write step queues a `meeting-doc` job
+just before it saves the notes, and that job does the writing with retries of its own.
+
+- **The doc.** A meeting with no doc yet (the calendar's notes doc is not made from the event
+  yet) gets one in the recorder's private `Recordings`, named `<title> notes, <date>`, made as
+  the recorder. Two runs at once each make one; only one becomes the meeting's, and the other is
+  trashed.
+- **The block.** It opens with a line of Omni's that links to the meeting's page. A doc that
+  already has that line is left as it is, so a job that dies after writing, or runs twice, never
+  adds a second block.
+- **Done.** `written_to_doc_at` records that the doc was handled, written or not. A doc that is
+  gone, locked or over Storage's limits is skipped with a log line, never retried forever.
+- **The link instead.** The doc gets only the link when it is outside the recorder's My files,
+  when a link opens it or its folder, or when any person on it or on a folder above it has no
+  grant on the meeting.
+
 **Groups** keep summaries of their own, one per set of meetings a reader can open: a summary is
 made only from the meetings its reader can open, and kept under the group and the ids of those
 meetings, so readers who see the same meetings share it and nobody gets one built from a meeting
@@ -506,8 +522,8 @@ the status before it.
 4. **Save.** Fetches the result, keeps the raw file, normalizes it, works out the speakers (steps
    1 and 2), and replaces the meeting's segments and speakers in one transaction. `naming`.
 5. **Name.** The names pass (step 3) when a speaker is still unnamed. `writing`.
-6. **Write.** The notes call; writes `meetings_notes`, the actions, and the doc once. `ready`,
-   and a push to the recorder. The group's summaries are made again on their next read.
+6. **Write.** The notes call; queues the `meeting-doc` job, then writes `meetings_notes` and the
+   actions. `ready`, and a push to the recorder. The doc job writes the doc once (above). The group's summaries are made again on their next read.
 
 **Retries.** A step that fails for a passing reason (the engine or the model is down, answers
 `408`, `429` or `5xx`, or does not answer in time) is tried again after 30 seconds, then twice as

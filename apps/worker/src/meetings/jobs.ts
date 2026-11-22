@@ -14,6 +14,7 @@ import {
 import { meetingsPipeline, storageWorkspaceFile, type Db, type MeetingStatus } from "@omni/db";
 import type { Config } from "../env.ts";
 import type { Logger } from "../log.ts";
+import { enqueueNotesDoc } from "./doc.ts";
 import { engineFor, EngineError, type Engine, type EngineConfig } from "./engines.ts";
 
 export const MEETING_STEPS = ["transcribe", "poll", "name", "write"] as const;
@@ -307,6 +308,7 @@ async function write(run: MeetingRun, found: Found) {
   });
   if (!result.ok) throw new MeetingStepFailed(`the notes could not be written (${result.reason})`);
   const { notes } = result;
+  await enqueueNotesDoc(run.env, meeting);
   const saved = await pipeline.saveNotes(meeting.id, meeting.orgId, {
     title: notes.title,
     summary: notes.summary,
