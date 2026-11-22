@@ -28,7 +28,7 @@ import { AttachmentChips } from "./attachments.tsx";
 import { useComposerState } from "../compose/composer-state.tsx";
 import { REPLY_SOURCE } from "../compose/selection-reply.tsx";
 import { FullMessage } from "./full-message.tsx";
-import { MessageMenu } from "./message-menu.tsx";
+import { MessageMenu, useMessageContextMenu } from "./message-menu.tsx";
 import { Unsubscribe } from "./unsubscribe.tsx";
 import { useYourMailbox } from "@/hooks/use-mailbox-identity.ts";
 
@@ -107,6 +107,20 @@ export function MessageItem(props: {
       island={!props.flat}
     />
   );
+  const htmlLabel = full ? "Show text" : "Show full message";
+  const contextMenu = useMessageContextMenu({
+    label: "Message actions",
+    from: sender,
+    text: message.cleanText,
+    messageId: message.id,
+    extra: [
+      message.hasHtml && {
+        icon: full ? IconNote : IconMail,
+        label: htmlLabel,
+        onAction: () => setFull((open) => !open),
+      },
+    ],
+  });
   const unsubscribe = <Unsubscribe threadId={threadId} message={message} />;
   const attachments = <AttachmentChips threadId={threadId} attachments={message.attachments} />;
   const label = `${message.fromMe ? "You" : sender}, ${messageTime(message.sentAt)}`;
@@ -120,6 +134,7 @@ export function MessageItem(props: {
         id={messageAnchor(message.id)}
         aria-label={label}
         className="group/item relative flex flex-col gap-4"
+        {...contextMenu}
       >
         <EmailHeader
           message={message}
@@ -145,6 +160,7 @@ export function MessageItem(props: {
       id={messageAnchor(message.id)}
       aria-label={label}
       className="group/item relative flex flex-col border-b"
+      {...contextMenu}
     >
       <div className="flex w-full flex-col">
         <CardHeader

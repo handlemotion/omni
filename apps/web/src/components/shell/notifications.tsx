@@ -6,6 +6,8 @@ import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { IconInbox } from "@/components/icons/sidebar";
 import {
+  IconArrowUpRight,
+  IconCheck,
   IconCircleAlert,
   IconClock3,
   IconMail,
@@ -16,6 +18,7 @@ import {
 import { rowTime } from "@/components/inbox/conversation-meta";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { contextMenuProps } from "@/components/ui/context-menu";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -267,8 +270,26 @@ function NotificationList({ unread }: { unread: boolean }) {
       />
     );
   }
+  const menu = contextMenuProps((target) => {
+    const key = target.closest("[data-key]")?.getAttribute("data-key");
+    const n = notifications.find((x) => x.id === key);
+    if (!n) return null;
+    return [
+      { icon: IconArrowUpRight, label: "Open", onAction: () => openOne(n) },
+      !n.readAt && {
+        icon: IconMailOpen,
+        label: "Mark read",
+        onAction: () => markRead.mutate({ ids: [n.id] }),
+      },
+      { icon: IconCheck, label: "Mark all read", onAction: () => markRead.mutate({}) },
+    ];
+  }, "Notification actions");
   return (
-    <div className="@container relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
+    <div
+      className="@container relative flex min-h-0 flex-1 flex-col"
+      {...hover.containerProps}
+      {...menu}
+    >
       <FluidHoverHighlight {...hover.highlightProps} />
       <GridList
         aria-label={unread ? "Unread notifications" : "Notifications"}

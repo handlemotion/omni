@@ -4,6 +4,7 @@ import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import {
   IconArrowRotateClockwise,
+  IconArrowUpRight,
   IconCheck,
   IconCircleX,
   IconDownload,
@@ -22,6 +23,7 @@ import {
   type SettingsRowMenuItem,
 } from "@/components/settings/kit/settings-row-menu";
 import { Badge } from "@/components/ui/badge";
+import { contextMenuProps } from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -234,7 +236,17 @@ function ContractRow(props: {
   const badge = contractBadge(contract);
   const Icon = locked ? IconFileLock : IconFileText;
   return (
-    <li className="flex min-h-14 items-center gap-3 px-4 py-2.5">
+    <li
+      className="flex min-h-14 items-center gap-3 px-4 py-2.5"
+      {...contextMenuProps(
+        () => [
+          { icon: IconArrowUpRight, label: "Open", onAction: props.onOpen },
+          "separator",
+          ...shown,
+        ],
+        contract.title,
+      )}
+    >
       <Icon
         aria-label={locked ? "File locked" : undefined}
         className="size-icon shrink-0 text-muted-foreground"

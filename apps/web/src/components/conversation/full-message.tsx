@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { routeFrameContextMenu } from "@/components/ui/context-menu";
 import { messageHtmlUrl } from "@/lib/urls.ts";
 
 const MAX_REFITS = 12;
@@ -44,6 +45,7 @@ export function FullMessage(props: {
     const frame = ref.current;
     if (!frame) return;
     let observer: ResizeObserver | undefined;
+    let unroute = () => {};
     let refits = 0;
     const fit = () => {
       const doc = frame.contentDocument;
@@ -54,6 +56,8 @@ export function FullMessage(props: {
     const onLoad = () => {
       loadRemoteImages(frame);
       applyFrameDefaults(frame);
+      unroute();
+      unroute = routeFrameContextMenu(frame);
       refits = 0;
       fit();
       observer?.disconnect();
@@ -67,6 +71,7 @@ export function FullMessage(props: {
     return () => {
       frame.removeEventListener("load", onLoad);
       observer?.disconnect();
+      unroute();
     };
   }, []);
 

@@ -1,4 +1,7 @@
-import { CreateMenu } from "./create-menu.tsx";
+import { CreateMenu, useCreating, type Creating } from "./create-menu.tsx";
+import { ContextMenuArea } from "@/components/ui/context-menu";
+import type { CrmRecordKind } from "@/lib/crm.ts";
+import { useRecordMenu, type MenuRecord } from "./record-menu.tsx";
 import type { ReactNode } from "react";
 import type { Selection } from "react-aria-components";
 import { TableLoadMoreItem } from "react-aria-components/Table";
@@ -105,6 +108,8 @@ export { useListSearch } from "@/hooks/use-list-search.ts";
 
 interface RecordListProps<T> {
   title: string;
+  /** The records' kind: their rows' right-click menu acts on them. */
+  kind: CrmRecordKind;
   /** "company": names the New button and the empty state. */
   noun: string;
   search: { text: string; setText: (text: string) => void; q: string };
@@ -127,8 +132,32 @@ interface RecordListProps<T> {
   replaceBody?: ReactNode;
 }
 
-export function RecordList<T extends { id: string; name: string }>(props: RecordListProps<T>) {
+const CREATES: Record<CrmRecordKind, Creating[]> = {
+  companies: ["company", "person", "deal", "task"],
+  people: ["person", "company", "deal", "task"],
+  deals: ["deal", "company", "person", "task"],
+};
+
+type Row = { id: string; name: string } & MenuRecord;
+
+export function RecordList<T extends Row>(props: RecordListProps<T>) {
   const picking = !!props.selection && props.selection.keys.size > 0;
+  const menu = useRecordMenu(props.kind);
+  const creating = useCreating();
+  const { selection } = props;
+  const rowMenu = (target: Element) => {
+    const key = target.closest("[role=row][data-key]")?.getAttribute("data-key");
+    const row = key ? props.source.rows.find((each) => each.id === key) : undefined;
+    if (row) {
+      return menu.entries(
+        row,
+        selection && { keys: selection.keys, clear: () => selection.onChange(new Set()) },
+      );
+    }
+    return target.closest("[role=row], [role=columnheader]")
+      ? null
+      : creating.entries(CREATES[props.kind]);
+  };
   return (
     <StorageFrame
       title={<Heading className="truncate text-md">{props.title}</Heading>}
@@ -143,11 +172,15 @@ export function RecordList<T extends { id: string; name: string }>(props: Record
         )
       }
     >
-      {props.replaceBody ?? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <Body {...props} />
-        </div>
-      )}
+      <ContextMenuArea menu={rowMenu} label={props.title}>
+        {props.replaceBody ?? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <Body {...props} />
+          </div>
+        )}
+      </ContextMenuArea>
+      {menu.dialogs}
+      {creating.dialogs}
     </StorageFrame>
   );
 }
@@ -170,7 +203,7 @@ function HeaderActions<T>(props: RecordListProps<T>) {
   );
 }
 
-function Body<T extends { id: string; name: string }>(props: RecordListProps<T>) {
+function Body<T extends Row>(props: RecordListProps<T>) {
   const { source, onNew } = props;
   if (source.isPending) {
     return (
@@ -206,7 +239,7 @@ function Body<T extends { id: string; name: string }>(props: RecordListProps<T>)
   return <RecordTable {...props} />;
 }
 
-function RecordTable<T extends { id: string; name: string }>(props: RecordListProps<T>) {
+function RecordTable<T extends Row>(props: RecordListProps<T>) {
   const { source, sorting, selection } = props;
   const onSelectionChange = (keys: Selection) =>
     selection?.onChange(

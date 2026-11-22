@@ -2,12 +2,17 @@ import { useState, type ComponentType, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import {
   IconCircle,
+  IconCopy,
   IconFileText,
   IconMail,
   IconNote,
   IconTrash,
 } from "@/components/icons/central";
-import { SettingsRowMenu } from "@/components/settings/kit/settings-row-menu";
+import {
+  SettingsRowMenu,
+  type SettingsRowMenuItem,
+} from "@/components/settings/kit/settings-row-menu";
+import { contextMenuProps } from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { SenderAvatar } from "@/components/avatar/sender-avatar";
@@ -368,30 +373,44 @@ function Card({ children }: { children: ReactNode }) {
 function NoteCard(props: { noteId: string; body: string; author: string | null }) {
   const { member } = useMember();
   const remove = useDeleteNote();
+  const mine = props.author === member.id && !props.noteId.startsWith("pending-");
+  const items: SettingsRowMenuItem[] = [
+    {
+      icon: IconTrash,
+      label: "Delete note",
+      danger: true,
+      onAction: () =>
+        remove.mutate(props.noteId, {
+          onError: (error) => crmErrorToast(error, "The note was not deleted"),
+        }),
+    },
+  ];
   return (
-    <Card>
-      <div className="flex items-start gap-2">
-        <p className="min-w-0 flex-1 text-sm/5 break-words whitespace-pre-wrap">{props.body}</p>
-        {props.author === member.id && !props.noteId.startsWith("pending-") && (
-          <span className="-my-[3px] shrink-0">
-            <SettingsRowMenu
-              label="Actions for this note"
-              items={[
-                {
-                  icon: IconTrash,
-                  label: "Delete note",
-                  danger: true,
-                  onAction: () =>
-                    remove.mutate(props.noteId, {
-                      onError: (error) => crmErrorToast(error, "The note was not deleted"),
-                    }),
-                },
-              ]}
-            />
-          </span>
-        )}
-      </div>
-    </Card>
+    <div
+      {...contextMenuProps(
+        () => [
+          {
+            icon: IconCopy,
+            label: "Copy note",
+            onAction: () => void navigator.clipboard?.writeText(props.body).catch(() => {}),
+          },
+          mine && "separator",
+          ...(mine ? items : []),
+        ],
+        "Note",
+      )}
+    >
+      <Card>
+        <div className="flex items-start gap-2">
+          <p className="min-w-0 flex-1 text-sm/5 break-words whitespace-pre-wrap">{props.body}</p>
+          {mine && (
+            <span className="-my-[3px] shrink-0">
+              <SettingsRowMenu label="Actions for this note" items={items} />
+            </span>
+          )}
+        </div>
+      </Card>
+    </div>
   );
 }
 

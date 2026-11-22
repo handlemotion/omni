@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { Link } from "@/components/ui/link";
 
 /** Where a row sits on the rail: the first row's line starts at its mark, the last row's ends there. */
@@ -21,12 +21,15 @@ export function RailRow(props: {
   href?: string;
   label?: string;
   current?: boolean;
+  /** The row's right-click menu (`contextMenuProps`). */
+  menu?: { onContextMenu: (event: MouseEvent) => void };
   children: ReactNode;
 }) {
   const { first, last } = props.place;
   const lead = props.opens && !first ? "pt-4" : "";
   return (
     <li
+      {...props.menu}
       data-current={props.current || undefined}
       className="relative grid min-w-0 grid-cols-[4rem_1.25rem_minmax(0,1fr)] gap-x-3 transition-opacity duration-150 ease-out group-has-[>li:hover]/rail:opacity-50 group-has-[>li[data-current]]/rail:opacity-50 hover:opacity-100! data-current:opacity-100! max-sm:grid-cols-[3.25rem_1.25rem_minmax(0,1fr)] max-sm:gap-x-2"
     >

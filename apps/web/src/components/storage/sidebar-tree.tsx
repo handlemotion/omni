@@ -1,5 +1,13 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { useDrop } from "react-aria-components/useDrop";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
@@ -19,6 +27,7 @@ import {
   type DropData,
   type DropPlace,
 } from "./node-drag.tsx";
+import { useDriveRowMenu, useFolderRowMenu } from "./sidebar-menus.tsx";
 import { drivePath } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
@@ -39,9 +48,11 @@ export function SidebarGroup(props: {
   const path = drivePath(drive);
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- the drive is its key
   const to = useMemo<DropPlace>(() => ({ place: drive, canWrite: true }), [key]);
+  const menu = useDriveRowMenu(drive, path, open);
   return (
     <SidebarSection className="pb-1">
-      <DragRow to={to} expand={open}>
+      {menu.dialogs}
+      <DragRow to={to} expand={open} menu={menu.props}>
         <SidebarTreeRow
           href={href(path + props.search)}
           isCurrent={pathname === path}
@@ -137,18 +148,22 @@ function FolderRow(props: {
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- the drive is its key
     [cluster, key],
   );
+  const menu = useFolderRowMenu(node, href, props.expand);
   return (
-    <DragRow to={to} beside={beside} node={node} expand={props.expand}>
-      <SidebarTreeRow
-        href={inWorkspace(href + props.search)}
-        isCurrent={pathname === href}
-        depth={props.depth}
-        icon={<FolderIcon icon={props.icon} className="size-icon" />}
-        label={node.name}
-        {...(props.expand ? { expand: props.expand } : {})}
-        onPress={() => props.expand && !props.expand.value && props.expand.toggle()}
-      />
-    </DragRow>
+    <>
+      {menu.dialogs}
+      <DragRow to={to} beside={beside} node={node} expand={props.expand} menu={menu.props}>
+        <SidebarTreeRow
+          href={inWorkspace(href + props.search)}
+          isCurrent={pathname === href}
+          depth={props.depth}
+          icon={<FolderIcon icon={props.icon} className="size-icon" />}
+          label={node.name}
+          {...(props.expand ? { expand: props.expand } : {})}
+          onPress={() => props.expand && !props.expand.value && props.expand.toggle()}
+        />
+      </DragRow>
+    </>
   );
 }
 
@@ -165,6 +180,7 @@ function DragRow(props: {
   beside?: DropPlace | undefined;
   node?: StorageNode;
   expand?: { value: boolean; toggle: () => void } | undefined;
+  menu: { onContextMenu: (event: MouseEvent) => void };
   children: ReactNode;
 }) {
   const { to, beside, node, expand } = props;
@@ -202,6 +218,7 @@ function DragRow(props: {
       {...rowDropProps}
       {...liftProps}
       onPointerDownCapture={onPointerDown}
+      onContextMenu={props.menu.onContextMenu}
       data-drop-target={isDropTarget || undefined}
       className={`${DROP_TARGET} ${LIFTED}`}
     >

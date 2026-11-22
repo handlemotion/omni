@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useState, type ReactNode, type RefObject, type SyntheticEvent } from "react";
+import type { ReactNode, RefObject } from "react";
 import { requestCompose } from "@/components/compose/composer-state";
 import {
   IconCheck,
@@ -11,7 +11,7 @@ import {
   IconReply,
   IconTrash,
 } from "@/components/icons/central";
-import { ContextMenuTrigger, Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
+import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
 import {
   useMarkDone,
   useMarkRead,
@@ -24,8 +24,9 @@ import type { ListRow } from "./thread-list.tsx";
 
 /**
  * The list's rows with their context menu: a right-click (or a long press, or Shift+F10 on the
- * focused row) opens the row's actions at the pointer. One menu for the whole list, since only
- * the rows on screen exist. Off a row, the browser's own menu shows.
+ * focused row) opens the row's actions at the pointer, on the whole selection when the row is in
+ * it. One menu for the whole list, since only the rows on screen exist. Off a row, the areas
+ * around the list (and the app's fallback) answer.
  */
 export function RowMenu(props: {
   rows: ListRow[];
@@ -36,83 +37,40 @@ export function RowMenu(props: {
   inTrash?: boolean;
   children: ReactNode;
 }) {
-  const [target, setTarget] = useState<string>();
-  const row = props.rows.find((r) => r.id === target);
   const run = useRowActions(props.href, props.actions);
-
-  const pick = (event: SyntheticEvent, from: Element | null) => {
-    const key = from?.closest("[data-key]")?.getAttribute("data-key");
-    if (key && props.rows.some((r) => r.id === key)) setTarget(key);
-    else event.stopPropagation();
-  };
+  const entries = (row: ListRow) =>
+    [
+      { icon: IconReply, label: "Reply", onAction: () => run.compose(row.id, "reply") },
+      { icon: IconForward, label: "Forward", onAction: () => run.compose(row.id, "forward") },
+      "separator",
+      row.triage && {
+        icon: row.triage.done ? IconInbox : IconCheck,
+        label: row.triage.done ? "Not done" : "Done",
+        onAction: () => run.done(row),
+      },
+      row.triage && {
+        icon: row.triage.later ? IconInbox : IconClock3,
+        label: row.triage.later ? "Back to inbox" : "Later",
+        onAction: () => run.later(row),
+      },
+      {
+        icon: row.unread ? IconMailOpen : IconMail,
+        label: row.unread ? "Mark read" : "Mark unread",
+        onAction: () => run.read(row),
+      },
+      !props.inTrash && "separator",
+      !props.inTrash && { icon: IconTrash, label: "Move to trash", onAction: () => run.trash(row) },
+    ] satisfies ContextMenuEntry[];
+  const menu = contextMenuProps((target) => {
+    const key = target.closest("[data-key]")?.getAttribute("data-key");
+    const row = key ? props.rows.find((r) => r.id === key) : undefined;
+    return row ? entries(row) : null;
+  }, "Thread actions");
 
   return (
-    <ContextMenuTrigger>
-      <div
-        className="flex min-h-0 flex-1 flex-col"
-        onContextMenuCapture={(event) => pick(event, event.target as Element)}
-        onKeyDownCapture={(event) => {
-          if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
-            pick(event, document.activeElement);
-          }
-        }}
-      >
-        {props.children}
-      </div>
-      <Menu aria-label="Thread actions" popover={{ offset: 2 }}>
-        {row && (
-          <>
-            <MenuItem textValue="Reply" onAction={() => run.compose(row.id, "reply")}>
-              <IconReply data-slot="icon" />
-              <MenuLabel>Reply</MenuLabel>
-            </MenuItem>
-            <MenuItem textValue="Forward" onAction={() => run.compose(row.id, "forward")}>
-              <IconForward data-slot="icon" />
-              <MenuLabel>Forward</MenuLabel>
-            </MenuItem>
-            <MenuSeparator />
-            {row.triage && (
-              <MenuItem
-                textValue={row.triage.done ? "Not done" : "Done"}
-                onAction={() => run.done(row)}
-              >
-                {row.triage.done ? <IconInbox data-slot="icon" /> : <IconCheck data-slot="icon" />}
-                <MenuLabel>{row.triage.done ? "Not done" : "Done"}</MenuLabel>
-              </MenuItem>
-            )}
-            {row.triage && (
-              <MenuItem
-                textValue={row.triage.later ? "Back to inbox" : "Later"}
-                onAction={() => run.later(row)}
-              >
-                {row.triage.later ? (
-                  <IconInbox data-slot="icon" />
-                ) : (
-                  <IconClock3 data-slot="icon" />
-                )}
-                <MenuLabel>{row.triage.later ? "Back to inbox" : "Later"}</MenuLabel>
-              </MenuItem>
-            )}
-            <MenuItem
-              textValue={row.unread ? "Mark read" : "Mark unread"}
-              onAction={() => run.read(row)}
-            >
-              {row.unread ? <IconMailOpen data-slot="icon" /> : <IconMail data-slot="icon" />}
-              <MenuLabel>{row.unread ? "Mark read" : "Mark unread"}</MenuLabel>
-            </MenuItem>
-            {!props.inTrash && (
-              <>
-                <MenuSeparator />
-                <MenuItem textValue="Move to trash" onAction={() => run.trash(row)}>
-                  <IconTrash data-slot="icon" />
-                  <MenuLabel>Move to trash</MenuLabel>
-                </MenuItem>
-              </>
-            )}
-          </>
-        )}
-      </Menu>
-    </ContextMenuTrigger>
+    <div className="flex min-h-0 flex-1 flex-col" {...menu}>
+      {props.children}
+    </div>
   );
 }
 

@@ -6,7 +6,12 @@ import {
   IconProjects,
   IconUsers,
 } from "@/components/icons/central";
+import { useNavigate } from "@tanstack/react-router";
+import { IconArrowUpRight } from "@/components/icons/central";
+import { ContextMenuArea } from "@/components/ui/context-menu";
+import { useCreating, type Creating } from "./create-menu.tsx";
 import { RecordMark } from "./record-list.tsx";
+import { useRecordMenu } from "./record-menu.tsx";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarItem, SidebarLabel, SidebarSection } from "@/components/ui/sidebar";
 import { useCrmCompanyIndex, useCrmDeals } from "@/hooks/use-crm.ts";
@@ -22,12 +27,12 @@ export const CRM_LISTS = {
   tasks: { label: "Tasks", path: "/crm/tasks" },
 } as const;
 
-const ROWS: { list: keyof typeof CRM_LISTS; icon: ReactNode }[] = [
-  { list: "companies", icon: <IconBuildings className="size-icon" /> },
-  { list: "people", icon: <IconUsers className="size-icon" /> },
-  { list: "deals", icon: <IconHandshake className="size-icon" /> },
-  { list: "projects", icon: <IconProjects className="size-icon" /> },
-  { list: "tasks", icon: <IconChecklist className="size-icon" /> },
+const ROWS: { list: keyof typeof CRM_LISTS; icon: ReactNode; creates: Creating }[] = [
+  { list: "companies", icon: <IconBuildings className="size-icon" />, creates: "company" },
+  { list: "people", icon: <IconUsers className="size-icon" />, creates: "person" },
+  { list: "deals", icon: <IconHandshake className="size-icon" />, creates: "deal" },
+  { list: "projects", icon: <IconProjects className="size-icon" />, creates: "deal" },
+  { list: "tasks", icon: <IconChecklist className="size-icon" />, creates: "task" },
 ];
 
 const PROJECTS = { kind: PROJECT_KINDS };
@@ -47,26 +52,44 @@ export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
 
 function CrmLists({ mailbox }: { mailbox: string | undefined }) {
   const { place: pathname, href: inWorkspace } = useWorkspacePaths();
+  const navigate = useNavigate();
+  const creating = useCreating();
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
-  return ROWS.map(({ list, icon }) => {
-    const { label, path } = CRM_LISTS[list];
-    return (
-      <SidebarItem
-        key={path}
-        href={inWorkspace(path + search)}
-        isCurrent={pathname === path || pathname.startsWith(`${path}/`)}
-        tooltip={label}
-      >
-        {icon}
-        <SidebarLabel>{label}</SidebarLabel>
-      </SidebarItem>
-    );
-  });
+  return (
+    <>
+      {ROWS.map(({ list, icon, creates }) => {
+        const { label, path } = CRM_LISTS[list];
+        const href = inWorkspace(path + search);
+        return (
+          <ContextMenuArea
+            key={path}
+            label={label}
+            menu={() => [
+              { icon: IconArrowUpRight, label: "Open", onAction: () => void navigate({ href }) },
+              "separator",
+              ...creating.entries([creates]),
+            ]}
+          >
+            <SidebarItem
+              href={href}
+              isCurrent={pathname === path || pathname.startsWith(`${path}/`)}
+              tooltip={label}
+            >
+              {icon}
+              <SidebarLabel>{label}</SidebarLabel>
+            </SidebarItem>
+          </ContextMenuArea>
+        );
+      })}
+      {creating.dialogs}
+    </>
+  );
 }
 
 function ActiveProjects({ search }: { search: string }) {
   const { deals, isPending } = useCrmDeals(PROJECTS, { all: true });
   const companies = useCrmCompanyIndex();
+  const menu = useRecordMenu("deals");
   const projects = useMemo(
     () =>
       deals.toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
@@ -79,14 +102,16 @@ function ActiveProjects({ search }: { search: string }) {
         <SidebarTreeBones depth={0} />
       ) : (
         projects.map((deal) => (
-          <ProjectRow
-            key={deal.id}
-            deal={deal}
-            client={deal.companyId ? companies.get(deal.companyId) : undefined}
-            search={search}
-          />
+          <ContextMenuArea key={deal.id} label={deal.name} menu={() => menu.entries(deal)}>
+            <ProjectRow
+              deal={deal}
+              client={deal.companyId ? companies.get(deal.companyId) : undefined}
+              search={search}
+            />
+          </ContextMenuArea>
         ))
       )}
+      {menu.dialogs}
     </SidebarSection>
   );
 }

@@ -16,6 +16,7 @@ import { CrmNav } from "@/components/crm/crm-nav";
 import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
+import { MailNavMenu } from "./mail-nav-menu";
 import { ModulePager } from "./module-pager";
 import { RailSidebar } from "./module-rail";
 import { ModuleSwitcher, useCurrentModule, WorkspaceSwitcher } from "./module-switcher";
@@ -118,13 +119,13 @@ export function AppSidebar() {
 
 function MailNav({ mailbox }: { mailbox: string | undefined }) {
   return (
-    <>
+    <MailNavMenu>
       <SidebarSection>
         <MailboxSwitcher />
         <MailItems mailbox={mailbox} />
       </SidebarSection>
       <Group label="Folders" items={folders} mailbox={mailbox} />
-    </>
+    </MailNavMenu>
   );
 }
 

@@ -11,7 +11,7 @@ import { pictureUrl } from "@/lib/urls.ts";
 import { ChatEdit, ChatFace, ChatMessage, ChatText } from "../chat/chat-message.tsx";
 import { REPLY_SOURCE } from "../compose/selection-reply.tsx";
 import { messageTime } from "./message.tsx";
-import { MessageMenu } from "./message-menu.tsx";
+import { MessageMenu, useMessageContextMenu } from "./message-menu.tsx";
 
 const PRIORITY: Record<Priority, string> = {
   urgent: "Urgent",
@@ -164,63 +164,85 @@ export function NoteItem(props: { threadId: string; mailboxId: string; note: Not
   const { reply, body } = parseReply(note.body);
   const from = people.written(note.authorMemberId) ?? name;
   const edit = useEditNote();
+  const remove = useDeleteNote();
+  const editable = mine && !pending && !editing;
+  const contextMenu = useMessageContextMenu({
+    label: "Note actions",
+    from,
+    text: body,
+    extra: [
+      editable && { icon: IconPencil, label: "Edit", onAction: () => setEditing(true) },
+      editable && {
+        icon: IconTrash,
+        label: "Delete",
+        danger: true,
+        onAction: () =>
+          remove.mutate(
+            { threadId: props.threadId, noteId: note.id },
+            { onError: (error) => appToast.error(error.message) },
+          ),
+      },
+    ],
+  });
 
   return (
-    <ChatMessage
-      label={`Note from ${name}, ${messageTime(note.createdAt)}`}
-      align="end"
-      dashed
-      name={name}
-      face={!mine && <ChatFace name={name} src={pictureUrl(author?.image ?? null)} />}
-      tag={
-        <span className="flex items-center gap-1 text-xs text-subtle-foreground">
-          <IconLock className="size-3" />
-          Hidden
-        </span>
-      }
-      createdAt={note.createdAt}
-      edited={edited}
-      pending={pending}
-      editing={editing}
-      bubbleProps={{ [REPLY_SOURCE]: from }}
-      menu={
-        !pending &&
-        !editing && (
-          <MessageMenu
-            start
-            label="Note actions"
-            from={from}
+    <div className="contents" {...(pending || editing ? {} : contextMenu)}>
+      <ChatMessage
+        label={`Note from ${name}, ${messageTime(note.createdAt)}`}
+        align="end"
+        dashed
+        name={name}
+        face={!mine && <ChatFace name={name} src={pictureUrl(author?.image ?? null)} />}
+        tag={
+          <span className="flex items-center gap-1 text-xs text-subtle-foreground">
+            <IconLock className="size-3" />
+            Hidden
+          </span>
+        }
+        createdAt={note.createdAt}
+        edited={edited}
+        pending={pending}
+        editing={editing}
+        bubbleProps={{ [REPLY_SOURCE]: from }}
+        menu={
+          !pending &&
+          !editing && (
+            <MessageMenu
+              start
+              label="Note actions"
+              from={from}
+              text={body}
+              extra={
+                mine && (
+                  <NoteActions
+                    threadId={props.threadId}
+                    noteId={note.id}
+                    onEdit={() => setEditing(true)}
+                  />
+                )
+              }
+            />
+          )
+        }
+        reply={reply}
+      >
+        {editing ? (
+          <ChatEdit
+            label="Edit note"
             text={body}
-            extra={
-              mine && (
-                <NoteActions
-                  threadId={props.threadId}
-                  noteId={note.id}
-                  onEdit={() => setEditing(true)}
-                />
+            onDone={() => setEditing(false)}
+            onSave={(next) =>
+              edit.mutate(
+                { threadId: props.threadId, noteId: note.id, body: withReply(reply, next) },
+                { onError: (error) => appToast.error(error.message) },
               )
             }
           />
-        )
-      }
-      reply={reply}
-    >
-      {editing ? (
-        <ChatEdit
-          label="Edit note"
-          text={body}
-          onDone={() => setEditing(false)}
-          onSave={(next) =>
-            edit.mutate(
-              { threadId: props.threadId, noteId: note.id, body: withReply(reply, next) },
-              { onError: (error) => appToast.error(error.message) },
-            )
-          }
-        />
-      ) : (
-        <NoteBody body={body} names={note.mentions.flatMap((id) => people.written(id) ?? [])} />
-      )}
-    </ChatMessage>
+        ) : (
+          <NoteBody body={body} names={note.mentions.flatMap((id) => people.written(id) ?? [])} />
+        )}
+      </ChatMessage>
+    </div>
   );
 }
 

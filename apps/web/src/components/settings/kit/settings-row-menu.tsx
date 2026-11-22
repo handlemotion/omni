@@ -1,7 +1,8 @@
 import { IconEllipsis } from "@/components/icons/central";
-import { useState, type ComponentType } from "react";
+import { useContext, useEffect, useState, type ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
+import { SettingsRowMenuSlot } from "./settings-row";
 
 export interface SettingsRowMenuItem {
   danger?: boolean;
@@ -12,7 +13,10 @@ export interface SettingsRowMenuItem {
   onAction: () => void;
 }
 
-/** The "⋯" control for a listed item's secondary actions (a member, a passkey, an account). */
+/**
+ * The "⋯" control for a listed item's secondary actions (a member, a passkey, an account). In a
+ * `SettingsRow`, a right-click on the row opens the same items.
+ */
 export function SettingsRowMenu({
   disabled,
   items,
@@ -31,6 +35,14 @@ export function SettingsRowMenu({
   lazy?: boolean;
 }) {
   const [armed, setArmed] = useState(!lazy);
+  const slot = useContext(SettingsRowMenuSlot);
+  useEffect(() => {
+    if (!slot || disabled) return;
+    slot.current = { label, items };
+    return () => {
+      slot.current = null;
+    };
+  }, [slot, disabled, label, items]);
   const arm = armed ? undefined : () => setArmed(true);
   return (
     <MenuTrigger>

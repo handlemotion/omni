@@ -28,6 +28,7 @@ import { FolderIconDialog } from "./folder-icons.tsx";
 import { canEditFile, isDoc } from "./editor/document-editor.tsx";
 import { ViewToggle } from "./file-sections.tsx";
 import { FolderBody, folderIsEmpty, HeaderActions } from "./folder-body.tsx";
+import { useFolderContextMenus, useNewFolderRequest } from "./folder-context.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
 import { useWarmNeighbors } from "./preview/warm-preview.ts";
 import { SelectionBar, useBulkTrash } from "./selection-bar.tsx";
@@ -150,6 +151,15 @@ export function FolderView(props: {
     PREVIEW_MIN,
     PREVIEW_MAX,
   );
+  useNewFolderRequest(source.place, folders.start);
+  const context = useFolderContextMenus({
+    source,
+    selection,
+    onNewFolder: folders.start,
+    onNewDoc: docs.make,
+    onFiles: send,
+    onMove: () => setMovingSelection(true),
+  });
   const rowRef = useRef<HTMLDivElement>(null);
   const folderRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
@@ -184,6 +194,8 @@ export function FolderView(props: {
             <FolderBody
               source={source}
               selection={selection}
+              selectionMenu={context.selection}
+              background={context.background}
               onKeyDown={selectionKeys}
               menu={menu}
               open={open}

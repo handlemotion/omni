@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { useSharedWithMe } from "@/hooks/use-storage.ts";
 import { COLUMN, DAY, FileTableBones, Muted, NameCell } from "./file-table.tsx";
+import { LinkRowsMenu } from "./node-menu.tsx";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
 
@@ -40,45 +41,53 @@ export function SharedWithMe() {
             />
           </div>
         ) : (
-          <Table variant="page" rowSize="lg" aria-label="Shared with me">
-            <TableHeader>
-              <TableColumn isRowHeader>Name</TableColumn>
-              <TableColumn className="w-48 max-md:hidden">Workspace</TableColumn>
-              <TableColumn className={COLUMN.date}>Shared</TableColumn>
-              <TableColumn className={COLUMN.size}>Role</TableColumn>
-            </TableHeader>
-            <TableBody>
-              {shared.items.map((item) => (
-                <TableRow
-                  key={item.node.id}
-                  id={item.node.id}
-                  textValue={item.node.name}
-                  {...(item.shareId ? { href: `/s/${encodeURIComponent(item.shareId)}` } : {})}
-                >
-                  <TableCell>
-                    <NameCell
-                      kind={item.node.kind}
-                      name={item.node.name}
-                      mimeType={item.node.mimeType}
-                    />
-                  </TableCell>
-                  <TableCell className="max-md:hidden">
-                    <span className="block truncate text-muted-foreground">{item.orgName}</span>
-                  </TableCell>
-                  <TableCell className={COLUMN.date}>
-                    <Muted>{DAY.format(new Date(item.sharedAt))}</Muted>
-                  </TableCell>
-                  <TableCell>
-                    <Muted>{ROLE[item.role]}</Muted>
-                  </TableCell>
-                </TableRow>
-              ))}
-              <TableLoadMoreItem
-                onLoadMore={shared.hasNextPage ? () => void shared.fetchNextPage() : undefined}
-                isLoading={shared.isFetchingNextPage}
-              />
-            </TableBody>
-          </Table>
+          <LinkRowsMenu
+            rows={shared.items.flatMap((item) =>
+              item.shareId
+                ? [{ id: item.node.id, href: `/s/${encodeURIComponent(item.shareId)}` }]
+                : [],
+            )}
+          >
+            <Table variant="page" rowSize="lg" aria-label="Shared with me">
+              <TableHeader>
+                <TableColumn isRowHeader>Name</TableColumn>
+                <TableColumn className="w-48 max-md:hidden">Workspace</TableColumn>
+                <TableColumn className={COLUMN.date}>Shared</TableColumn>
+                <TableColumn className={COLUMN.size}>Role</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {shared.items.map((item) => (
+                  <TableRow
+                    key={item.node.id}
+                    id={item.node.id}
+                    textValue={item.node.name}
+                    {...(item.shareId ? { href: `/s/${encodeURIComponent(item.shareId)}` } : {})}
+                  >
+                    <TableCell>
+                      <NameCell
+                        kind={item.node.kind}
+                        name={item.node.name}
+                        mimeType={item.node.mimeType}
+                      />
+                    </TableCell>
+                    <TableCell className="max-md:hidden">
+                      <span className="block truncate text-muted-foreground">{item.orgName}</span>
+                    </TableCell>
+                    <TableCell className={COLUMN.date}>
+                      <Muted>{DAY.format(new Date(item.sharedAt))}</Muted>
+                    </TableCell>
+                    <TableCell>
+                      <Muted>{ROLE[item.role]}</Muted>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableLoadMoreItem
+                  onLoadMore={shared.hasNextPage ? () => void shared.fetchNextPage() : undefined}
+                  isLoading={shared.isFetchingNextPage}
+                />
+              </TableBody>
+            </Table>
+          </LinkRowsMenu>
         )}
       </div>
       <UploadsPanel />

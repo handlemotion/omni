@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { IconEllipsis, IconForward, IconReply } from "@/components/icons/central";
+import { IconCopy, IconEllipsis, IconForward, IconReply } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
+import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { quoteText } from "@/lib/reply.ts";
 import { menuButtonClass } from "../chat/chat-message.tsx";
@@ -78,4 +79,51 @@ export function MessageMenu(props: {
       </Menu>
     </MenuTrigger>
   );
+}
+
+/**
+ * A message's or note's context menu, spread on its element: Copy over selected text, then the
+ * replies its ⋯ offers (Reply and Forward too, which a message's header shows as buttons, since
+ * a right-click is away from them), then `extra`.
+ */
+export function useMessageContextMenu(props: {
+  label: string;
+  from: string;
+  text: string;
+  /** Set for mail: it can be replied to by email and forwarded. */
+  messageId?: string;
+  extra?: ContextMenuEntry[];
+}) {
+  const composer = useComposerState();
+  const { messageId } = props;
+  const canReply = composer.chat && props.text.trim().length > 0;
+  const canMail = !composer.chat || !!messageId;
+  return contextMenuProps(() => {
+    const selected = window.getSelection()?.toString() ?? "";
+    return [
+      selected.trim() && {
+        icon: IconCopy,
+        label: "Copy",
+        onAction: () => void navigator.clipboard?.writeText(selected).catch(() => undefined),
+      },
+      "separator",
+      canReply && {
+        icon: IconReply,
+        label: "Hidden reply",
+        onAction: () => composer.replyInChat({ from: props.from, text: quoteText(props.text) }),
+      },
+      canMail && {
+        icon: IconReply,
+        label: "Reply",
+        onAction: () => composer.openReply(composer.chat ? "replyAll" : "reply", messageId),
+      },
+      messageId && {
+        icon: IconForward,
+        label: "Forward",
+        onAction: () => composer.forward(messageId),
+      },
+      "separator",
+      ...(props.extra ?? []),
+    ];
+  }, props.label);
 }

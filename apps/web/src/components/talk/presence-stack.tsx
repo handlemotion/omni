@@ -1,7 +1,9 @@
 import { cn } from "cn";
 import { useEffect, type CSSProperties } from "react";
 import { Avatar } from "@/components/ui/avatar";
+import { IconComment, IconUsers, IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
+import { contextMenuProps } from "@/components/ui/context-menu";
 import { usePrefetchThread, useTalkPeople } from "@/hooks/use-talk.ts";
 import { stackOf, type TalkPerson } from "@/lib/talk.ts";
 import { EVERYONE, talkWindow, useTalkWindow } from "@/lib/talk-window.ts";
@@ -140,8 +142,23 @@ export function PresenceStack() {
   if (!people?.length) return null;
   const { shown, more } = stackOf(people);
   if (shown.length === 0) return null;
+  const menu = contextMenuProps((target) => {
+    const id = target.closest("[data-talk-everyone]")
+      ? EVERYONE
+      : target.closest("[data-talk-face]")?.getAttribute("data-talk-face");
+    const person = people.find((p) => p.memberId === id);
+    if (!id || (id !== EVERYONE && !person)) return null;
+    return [
+      {
+        icon: id === EVERYONE ? IconUsers : IconComment,
+        label: id === EVERYONE ? "Message everyone" : `Message ${person?.name ?? ""}`,
+        onAction: () => talkWindow.open(id),
+      },
+      id === openId && { icon: IconX, label: "Close", onAction: () => talkWindow.close() },
+    ];
+  }, "Teammate actions");
   return (
-    <div role="group" aria-label="Teammates" className="me-1.5 flex items-center">
+    <div role="group" aria-label="Teammates" className="me-1.5 flex items-center" {...menu}>
       {shown.map((person) => (
         <StackFace key={person.memberId} person={person} open={person.memberId === openId} />
       ))}

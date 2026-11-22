@@ -20,6 +20,7 @@ import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
 import { FileTrigger } from "@/components/ui/file-trigger";
+import type { ContextMenuEntry } from "@/components/ui/context-menu";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
@@ -55,6 +56,10 @@ export function FolderBody(
     drafts: Drafts;
     rename: InlineRename;
     selection: NodeSelection;
+    /** A right-click on an item of a selection of several: the selection's actions. */
+    selectionMenu?: { ids: ReadonlySet<string>; menu: () => ContextMenuEntry[] } | undefined;
+    /** A right-click between the items: the folder's own actions. */
+    background?: (() => ContextMenuEntry[]) | undefined;
     onKeyDown: (event: KeyboardEvent) => void;
   },
 ) {
@@ -169,16 +174,21 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
   }
   if (!list.nodes.length && !props.drafts.list.length) {
     return (
-      <Centered>
+      <NodeMenu nodes={list.nodes} menu={props.menu} background={props.background}>
         <EmptyState figure="drawer" {...source.empty}>
           {props.extra}
           <HeaderActions {...props} canWrite={source.canWrite} />
         </EmptyState>
-      </Centered>
+      </NodeMenu>
     );
   }
   return (
-    <NodeMenu nodes={list.nodes} menu={props.menu}>
+    <NodeMenu
+      nodes={list.nodes}
+      menu={props.menu}
+      selection={props.selectionMenu}
+      background={props.background}
+    >
       <FileSections
         label={source.label}
         nodes={list.nodes}

@@ -4,7 +4,8 @@ import { cn } from "cn";
 import type { CSSProperties } from "react";
 import { MailboxAvatar } from "@/components/avatar/mailbox-avatar";
 import { Avatar } from "@/components/ui/avatar";
-import { IconChevronsUpDown } from "@/components/icons/central";
+import { IconChevronsUpDown, IconInbox, IconMailbox } from "@/components/icons/central";
+import { ContextMenuArea, type ContextMenuEntry } from "@/components/ui/context-menu";
 import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { SidebarItemTrigger } from "@/components/ui/sidebar";
@@ -142,15 +143,15 @@ export function MailboxSwitcher() {
 
   const triggerName = shown ? mailboxName(shown, you) : "All mailboxes";
 
+  const openAll = () => active && openWorkspace.mutate(active, { onError: failed });
+  const openOne = (mailboxId: string) =>
+    active && openMailbox.mutate({ workspace: active, mailboxId }, { onError: failed });
   const mailboxRows = mailboxes.map((mailbox) => (
     <MenuItem
       key={mailbox.id}
       className={ROW}
       textValue={mailbox.address}
-      onAction={() =>
-        active &&
-        openMailbox.mutate({ workspace: active, mailboxId: mailbox.id }, { onError: failed })
-      }
+      onAction={() => openOne(mailbox.id)}
     >
       <RowBody
         lead={<FaceAvatar face={face(mailbox)} size={32} />}
@@ -161,60 +162,70 @@ export function MailboxSwitcher() {
     </MenuItem>
   ));
 
-  return (
-    <MenuTrigger>
-      <SidebarItemTrigger aria-label={`Switch mailbox, currently ${triggerName}`}>
-        <span className="grid size-icon shrink-0 place-items-center">
-          {pending ? (
-            <Loader className="size-icon text-muted-foreground" />
-          ) : single ? (
-            <span className="-m-[1.5px]">
-              <FaceAvatar face={single} size={18} />
-            </span>
-          ) : (
-            <span className="-m-[2.5px]">
-              <Cluster
-                faces={clusterFaces}
-                size={20}
-                ring="bg-sidebar group-hover/sidebar-item:bg-sidebar-accent group-aria-expanded/sidebar-item:bg-sidebar-accent"
-              />
-            </span>
-          )}
-        </span>
-        <span className="min-w-0 truncate">{triggerName}</span>
-        <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
-      </SidebarItemTrigger>
+  const switchMenu = () =>
+    [
+      { icon: IconInbox, label: "All mailboxes", disabled: !shown, onAction: openAll },
+      "separator",
+      ...mailboxes.map((mailbox) => ({
+        icon: IconMailbox,
+        label: mailboxName(mailbox, you),
+        disabled: mailbox.id === current,
+        onAction: () => openOne(mailbox.id),
+      })),
+    ] satisfies ContextMenuEntry[];
 
-      <Menu
-        placement="bottom start"
-        popover={{
-          offset: 4,
-          collisionPadding: 8,
-          className:
-            "min-w-72 max-w-[min(24rem,calc(100vw-16px))] [--popover-radius:var(--radius-xl)]",
-        }}
-        className="p-2"
-      >
-        <MenuItem
-          className={ROW}
-          textValue="All mailboxes"
-          onAction={() => active && openWorkspace.mutate(active, { onError: failed })}
+  return (
+    <ContextMenuArea menu={switchMenu} label="Switch mailbox">
+      <MenuTrigger>
+        <SidebarItemTrigger aria-label={`Switch mailbox, currently ${triggerName}`}>
+          <span className="grid size-icon shrink-0 place-items-center">
+            {pending ? (
+              <Loader className="size-icon text-muted-foreground" />
+            ) : single ? (
+              <span className="-m-[1.5px]">
+                <FaceAvatar face={single} size={18} />
+              </span>
+            ) : (
+              <span className="-m-[2.5px]">
+                <Cluster
+                  faces={clusterFaces}
+                  size={20}
+                  ring="bg-sidebar group-hover/sidebar-item:bg-sidebar-accent group-aria-expanded/sidebar-item:bg-sidebar-accent"
+                />
+              </span>
+            )}
+          </span>
+          <span className="min-w-0 truncate">{triggerName}</span>
+          <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
+        </SidebarItemTrigger>
+
+        <Menu
+          placement="bottom start"
+          popover={{
+            offset: 4,
+            collisionPadding: 8,
+            className:
+              "min-w-72 max-w-[min(24rem,calc(100vw-16px))] [--popover-radius:var(--radius-xl)]",
+          }}
+          className="p-2"
         >
-          <RowBody
-            lead={
-              <Cluster
-                faces={clusterFaces}
-                size={32}
-                ring="bg-overlay in-data-fluid-hover-active:bg-accent"
-              />
-            }
-            name="All mailboxes"
-            detail={`${faces.length} ${faces.length === 1 ? "mailbox" : "mailboxes"}`}
-            chosen={!shown}
-          />
-        </MenuItem>
-        {mailboxRows}
-      </Menu>
-    </MenuTrigger>
+          <MenuItem className={ROW} textValue="All mailboxes" onAction={openAll}>
+            <RowBody
+              lead={
+                <Cluster
+                  faces={clusterFaces}
+                  size={32}
+                  ring="bg-overlay in-data-fluid-hover-active:bg-accent"
+                />
+              }
+              name="All mailboxes"
+              detail={`${faces.length} ${faces.length === 1 ? "mailbox" : "mailboxes"}`}
+              chosen={!shown}
+            />
+          </MenuItem>
+          {mailboxRows}
+        </Menu>
+      </MenuTrigger>
+    </ContextMenuArea>
   );
 }

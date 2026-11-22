@@ -20,6 +20,7 @@ import {
 } from "@/lib/calendar-grid.ts";
 import { EventDialog } from "./event-dialog.tsx";
 import { CalendarCrumbs } from "./calendar-crumbs.tsx";
+import { useCalendarMenu } from "./calendar-menu.tsx";
 import { EventPanel } from "./event-panel.tsx";
 import { MonthGrid } from "./month-grid.tsx";
 import { useMyTodos, useToggleTodo } from "./todo-list.tsx";
@@ -109,6 +110,15 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
     view: (next) => go({ view: next }),
     paused: editing !== null,
   });
+  const menu = useCalendarMenu({
+    events,
+    todos,
+    onOpen: (event) => setPanel(eventKey(event)),
+    onEdit: (event) => setEditing({ event }),
+    onCreate: (slot) => setEditing({ slot }),
+    onDay: view === "day" ? undefined : (day) => go({ date: day, view: "day" }),
+    onTodo: toggleTodo,
+  });
 
   return (
     <div className="flex h-svh min-h-0 min-w-0">
@@ -149,7 +159,7 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
             </>
           }
         >
-          <div className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1" {...menu}>
             {view === "month" ? (
               <MonthGrid
                 days={days}

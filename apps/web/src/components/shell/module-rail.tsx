@@ -1,7 +1,12 @@
 import { useLocation, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import { useEffect, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
-import { IconSettings, IconSettingsFilled } from "@/components/icons/central";
+import {
+  IconConnections,
+  IconSettings,
+  IconSettingsFilled,
+  IconUserRound,
+} from "@/components/icons/central";
 import {
   IconCalendarMark,
   IconCrmMark,
@@ -15,10 +20,11 @@ import {
   SidebarItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { isSettingsPath, useOpenSettings } from "@/hooks/use-settings.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
-import { useCurrentModule, useModules, type ModuleId } from "./module-switcher";
+import { useCurrentModule, useModules, useOpenModule, type ModuleId } from "./module-switcher";
 import { UpdateRow, UpdateTile } from "./update-row";
 
 const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
@@ -141,9 +147,34 @@ function ModuleRail() {
   const openSettings = useOpenSettings();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   const keep = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
+  const openModule = useOpenModule();
+  const menu = contextMenuProps((target) => {
+    const tile = target.closest("[data-rail]")?.getAttribute("data-rail");
+    if (tile === "settings") {
+      return [
+        { icon: IconUserRound, label: "Account settings", onAction: () => openSettings("profile") },
+        {
+          icon: IconSettings,
+          label: "Workspace settings",
+          onAction: () => openSettings("general"),
+        },
+        { icon: IconConnections, label: "Connections", onAction: () => openSettings("accounts") },
+      ] satisfies ContextMenuEntry[];
+    }
+    const picked = modules.find((m) => m.id === tile);
+    if (!picked) return null;
+    return [
+      {
+        icon: MARKS[picked.id],
+        label: `Open ${picked.label}`,
+        onAction: () => void openModule(picked.id),
+      },
+    ] satisfies ContextMenuEntry[];
+  }, "Module actions");
 
   return (
     <nav
+      {...menu}
       aria-label="Modules"
       className="flex w-14.5 shrink-0 flex-col items-center gap-1.75 pt-[57px] pb-3.25"
     >
@@ -153,6 +184,7 @@ function ModuleRail() {
         return (
           <RailTip key={module.id} label={module.label}>
             <SidebarItem
+              data-rail={module.id}
               href={`/${encodeURIComponent(workspace)}/${PATHS[module.id]}${keep}`}
               isCurrent={isCurrent}
               aria-label={module.label}
@@ -167,6 +199,7 @@ function ModuleRail() {
         {!open && <UpdateTile className={TILE_SHAPE} />}
         <RailTip label="Settings">
           <SidebarItem
+            data-rail="settings"
             aria-label="Settings"
             isCurrent={inSettings}
             onPress={() => openSettings("general")}

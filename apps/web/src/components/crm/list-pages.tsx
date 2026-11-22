@@ -70,6 +70,7 @@ export function CompaniesPage({ search }: { search: CrmCompaniesSearch }) {
     <>
       <RecordList
         title="Companies"
+        kind="companies"
         noun="company"
         search={{ ...text, q }}
         source={sourceOf(list, list.companies)}
@@ -104,6 +105,7 @@ export function PeoplePage({ search }: { search: CrmPeopleSearch }) {
     <>
       <RecordList
         title="People"
+        kind="people"
         noun="person"
         search={{ ...text, q }}
         source={sourceOf(list, list.people)}
@@ -138,6 +140,7 @@ export function DealsPage({ search }: { search: CrmDealsSearch }) {
     <>
       <RecordList
         title="Deals"
+        kind="deals"
         noun="deal"
         search={{ ...text, q }}
         source={sourceOf(list, list.deals)}
@@ -167,6 +170,7 @@ export function ProjectsPage({ search }: { search: CrmProjectsSearch }) {
   return (
     <RecordList
       title="Projects"
+      kind="deals"
       noun="project"
       search={{ ...text, q }}
       source={sourceOf(list, list.deals)}

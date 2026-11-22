@@ -1,5 +1,15 @@
 import { cn } from "cn";
-import type { ComponentType, ReactNode } from "react";
+import { createContext, useRef, type ComponentType, type ReactNode, type RefObject } from "react";
+import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
+
+/**
+ * Where a row's "⋯" (`SettingsRowMenu`) leaves its items, so a right-click anywhere on the row
+ * opens the same menu at the pointer.
+ */
+export const SettingsRowMenuSlot = createContext<RefObject<{
+  label: string;
+  items: readonly ContextMenuEntry[];
+} | null> | null>(null);
 
 export type SettingsRowIcon = ComponentType<{ className?: string }>;
 
@@ -96,13 +106,19 @@ export function SettingsRow({
   control,
   ...text
 }: Parameters<typeof SettingsRowText>[0] & { className?: string; control?: ReactNode }) {
+  const menu = useRef<{ label: string; items: readonly ContextMenuEntry[] } | null>(null);
   return (
     <div
       data-slot="settings-row"
       className={cn(settingsRowClassName, text.avatar && settingsRowAvatarClassName, className)}
+      {...contextMenuProps(() => (menu.current ? [...menu.current.items] : null))}
     >
       <SettingsRowText {...text} />
-      {control && <div className="flex shrink-0 items-center justify-end gap-2">{control}</div>}
+      {control && (
+        <SettingsRowMenuSlot.Provider value={menu}>
+          <div className="flex shrink-0 items-center justify-end gap-2">{control}</div>
+        </SettingsRowMenuSlot.Provider>
+      )}
     </div>
   );
 }

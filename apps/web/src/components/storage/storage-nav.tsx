@@ -16,6 +16,7 @@ import { useHasSharedFiles, useStorageList, useTeamspaces } from "@/hooks/use-st
 import type { DriveRoot, StorageSpace } from "@/lib/storage.ts";
 import { StorageFrame } from "./storage-frame.tsx";
 import { BrowseTeamspacesDialog, NewTeamspaceDialog } from "./teamspace-dialogs.tsx";
+import { SpacesArea } from "./sidebar-menus.tsx";
 import { SidebarGroup } from "./sidebar-tree.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
@@ -52,30 +53,21 @@ function HeldGroup(props: { space: StorageSpace; search: string }) {
   );
 }
 
-function BrowseTeamspacesRow() {
-  const [open, setOpen] = useState(false);
+function BrowseTeamspacesRow(props: { onPress: () => void }) {
   return (
-    <>
-      <SidebarItem onPress={() => setOpen(true)} tooltip="Browse spaces">
-        <IconUsers className="size-icon" />
-        <SidebarLabel>Browse spaces</SidebarLabel>
-      </SidebarItem>
-      {open && <BrowseTeamspacesDialog onClose={() => setOpen(false)} />}
-    </>
+    <SidebarItem onPress={props.onPress} tooltip="Browse spaces">
+      <IconUsers className="size-icon" />
+      <SidebarLabel>Browse spaces</SidebarLabel>
+    </SidebarItem>
   );
 }
 
-function NewTeamspaceRow() {
-  const [open, setOpen] = useState(false);
-  const self = useMember().member.id;
+function NewTeamspaceRow(props: { onPress: () => void }) {
   return (
-    <>
-      <SidebarItem onPress={() => setOpen(true)} tooltip="New space">
-        <IconPlus className="size-icon" />
-        <SidebarLabel>New space</SidebarLabel>
-      </SidebarItem>
-      {open && <NewTeamspaceDialog selfId={self} onClose={() => setOpen(false)} />}
-    </>
+    <SidebarItem onPress={props.onPress} tooltip="New space">
+      <IconPlus className="size-icon" />
+      <SidebarLabel>New space</SidebarLabel>
+    </SidebarItem>
   );
 }
 
@@ -132,8 +124,17 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
   const hasShared = useHasSharedFiles();
   const { teamspaces } = useTeamspaces();
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
+  const self = useMember().member.id;
+  const [dialog, setDialog] = useState<"new" | "browse" | null>(null);
+  const newSpace = () => setDialog("new");
+  const browse = teamspaces.some((teamspace) => teamspace.role === null)
+    ? () => setDialog("browse")
+    : undefined;
+  const close = () => setDialog(null);
   return (
-    <>
+    <SpacesArea onNewSpace={newSpace} onBrowse={browse}>
+      {dialog === "new" && <NewTeamspaceDialog selfId={self} onClose={close} />}
+      {dialog === "browse" && <BrowseTeamspacesDialog onClose={close} />}
       <SidebarSection>
         <Rows rows={PLACES} mailbox={mailbox} />
       </SidebarSection>
@@ -151,10 +152,10 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
           ))}
         {hasShared && <HeldGroup space="shared" search={search} />}
         <HeldGroup space="personal" search={search} />
-        <NewTeamspaceRow />
-        {teamspaces.some((teamspace) => teamspace.role === null) && <BrowseTeamspacesRow />}
+        <NewTeamspaceRow onPress={newSpace} />
+        {browse && <BrowseTeamspacesRow onPress={browse} />}
       </SidebarSection>
-    </>
+    </SpacesArea>
   );
 }
 

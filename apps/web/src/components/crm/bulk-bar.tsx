@@ -25,7 +25,7 @@ import type { BulkAction } from "@/lib/crm-mutations.ts";
 import { crmErrorText } from "./crm-errors.ts";
 import { countOf, DeleteForeverDialog } from "./record-actions.tsx";
 
-const PAST: Record<BulkAction["action"], string> = {
+export const PAST: Record<BulkAction["action"], string> = {
   archive: "archived",
   restore: "restored",
   delete: "deleted",
@@ -33,7 +33,7 @@ const PAST: Record<BulkAction["action"], string> = {
   stage: "moved",
 };
 
-function reportRefusals(
+export function reportRefusals(
   kind: CrmRecordKind,
   action: BulkAction,
   total: number,

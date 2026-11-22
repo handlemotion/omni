@@ -1,7 +1,9 @@
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { ListFailed } from "@/components/inbox/thread-list";
-import { IconPlus } from "@/components/icons/central";
+import { IconChecklist, IconPlus } from "@/components/icons/central";
+import { contextMenuProps } from "@/components/ui/context-menu";
+import { useTaskMenu } from "./task-menu.ts";
 import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
@@ -57,7 +59,13 @@ export function TaskRail({ filter, onNew }: { filter: TaskFilter; onNew: () => v
     );
   return (
     <>
-      <div className="flex flex-col gap-1">
+      <div
+        className="flex flex-col gap-1"
+        {...contextMenuProps(
+          () => [{ icon: IconChecklist, label: "New task", onAction: onNew }],
+          "Tasks",
+        )}
+      >
         <ol aria-label="Tasks" className="group/rail -mt-2 flex flex-col">
           {items.map((item, i) => {
             const place = railPlace(i, items.length);
@@ -95,8 +103,10 @@ function TaskRailRow(props: { task: CrmTask; place: RailPlace }) {
       { id: task.id, done: next },
       { onError: (error) => crmErrorToast(error, "The task was not changed") },
     );
+  const menu = useTaskMenu();
   return (
     <RailRow
+      menu={contextMenuProps(() => menu(task, opened.href(task.id)), task.title)}
       place={props.place}
       href={opened.href(task.id)}
       current={opened.id === task.id}

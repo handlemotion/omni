@@ -17,7 +17,8 @@ import {
 } from "@dnd-kit/core";
 import { useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
-import { IconPlus } from "@/components/icons/central";
+import { IconHandshake, IconPlus } from "@/components/icons/central";
+import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
 import { ListFailed } from "@/components/inbox/thread-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { formatMoney, type CrmDeal, type CrmStage } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { DealCard, LiftedDealCard } from "./deal-card.tsx";
 import { NewDealDialog } from "./new-records.tsx";
+import { useRecordMenu } from "./record-menu.tsx";
 
 const COLUMN = "flex w-72 shrink-0 flex-col";
 const COLUMN_STEP = 288 + 12;
@@ -49,6 +51,7 @@ export function DealBoard(props: {
   const stages = useCrmStages();
   const [adding, setAdding] = useState<string | null>(null);
   const drag = useBoardDrag(props.deals, stages.data ?? []);
+  const menu = useRecordMenu("deals");
   if (props.list.isPending || stages.isPending) {
     return (
       <Skeleton loading label="Loading deals" skeleton={<BoardBones />}>
@@ -84,6 +87,7 @@ export function DealBoard(props: {
             deals={props.deals.filter((deal) => deal.stageId === stage.id)}
             lifted={drag.lifted}
             onAdd={() => setAdding(stage.id)}
+            menu={(deal) => menu.entries(deal)}
           />
         ))}
       </div>
@@ -91,6 +95,7 @@ export function DealBoard(props: {
         {drag.lifted && <LiftedDealCard deal={drag.lifted} />}
       </DragOverlay>
       {adding && <NewDealDialog stageId={adding} onClose={() => setAdding(null)} />}
+      {menu.dialogs}
     </DndContext>
   );
 }
@@ -122,6 +127,7 @@ function Column(props: {
   deals: CrmDeal[];
   lifted: CrmDeal | null;
   onAdd: () => void;
+  menu: (deal: CrmDeal) => ContextMenuEntry[];
 }) {
   const { stage, deals } = props;
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -134,6 +140,10 @@ function Column(props: {
       aria-label={stage.name}
       data-taking={taking || undefined}
       className={`${COLUMN} rounded-xl p-1 transition-colors duration-150 ease-out data-taking:bg-hover`}
+      {...contextMenuProps(
+        () => [{ icon: IconHandshake, label: `Add deal to ${stage.name}`, onAction: props.onAdd }],
+        stage.name,
+      )}
     >
       <header className="mb-1 flex h-9 shrink-0 items-center gap-2 text-sm">
         <span className="truncate">{stage.name}</span>
@@ -150,7 +160,7 @@ function Column(props: {
       </header>
       <ul aria-label={`Deals in ${stage.name}`} className="flex flex-col gap-2">
         {deals.map((deal) => (
-          <DraggableDeal key={deal.id} deal={deal} />
+          <DraggableDeal key={deal.id} deal={deal} menu={props.menu} />
         ))}
       </ul>
       <Button
@@ -165,11 +175,13 @@ function Column(props: {
   );
 }
 
-function DraggableDeal({ deal }: { deal: CrmDeal }) {
+function DraggableDeal(props: { deal: CrmDeal; menu: (deal: CrmDeal) => ContextMenuEntry[] }) {
+  const { deal } = props;
   const { setNodeRef, listeners, isDragging } = useDraggable({ id: deal.id });
   return (
     <li
       ref={setNodeRef}
+      {...contextMenuProps(() => props.menu(deal), deal.name)}
       onPointerDownCapture={listeners?.onPointerDown as React.PointerEventHandler | undefined}
       onKeyDownCapture={listeners?.onKeyDown as React.KeyboardEventHandler | undefined}
       className={`flex flex-col ${isDragging ? "opacity-0" : ""}`}

@@ -457,6 +457,7 @@ export function TodoChip({ task, onTodo }: { task: CrmTask; onTodo?: WeekGridPro
   const done = !!task.completedAt;
   return (
     <CheckboxField
+      data-todo={task.id}
       aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
       isSelected={done}
       onChange={(next: boolean) => onTodo?.(task, next)}

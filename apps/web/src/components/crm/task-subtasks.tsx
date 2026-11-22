@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from "react";
-import { IconPlus } from "@/components/icons/central";
+import { IconCircle, IconCircleCheck, IconPlus, IconTrash } from "@/components/icons/central";
+import { contextMenuProps } from "@/components/ui/context-menu";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
@@ -75,7 +76,21 @@ function SubtaskRow(props: { step: Step; onChange: (step: Step) => void; onRemov
     if (title !== step.title) props.onChange({ ...step, title });
   };
   return (
-    <div className="flex items-center">
+    <div
+      className="flex items-center"
+      {...contextMenuProps(
+        () => [
+          {
+            icon: step.done ? IconCircle : IconCircleCheck,
+            label: step.done ? "Reopen subtask" : "Complete subtask",
+            onAction: () => props.onChange({ ...step, done: !step.done }),
+          },
+          "separator",
+          { icon: IconTrash, label: "Delete subtask", danger: true, onAction: props.onRemove },
+        ],
+        step.title,
+      )}
+    >
       <div className={CHECK_CELL}>
         <CheckboxField
           aria-label={`Complete ${step.title}`}

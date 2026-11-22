@@ -118,3 +118,101 @@ test("a newsletter's remote images load on open, through the image proxy", async
   );
   await context.close();
 });
+
+test("a right-click on a link in an email's HTML offers the app's Open link and Copy link", async () => {
+  const email = "ana@links.test";
+  const system = await createOrg(db, "links-system");
+  await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
+  const org = await createOrgWithOwner(db, { name: "Acme", slug: "links", ownerEmail: email });
+  const box = await createMailbox(db, org.orgId, email, "personal");
+  await grant(db, org.orgId, box.id, org.memberId);
+  const { threadId, messageId } = await seedMessage(db, box, {
+    subject: "Your invoice",
+    fromAddress: "billing@vendor.test",
+    uid: 1,
+    text: "Your invoice is ready.",
+  });
+  const sanitized = sanitizeHtml(
+    `<p>Your invoice is ready: <a href="https://vendor.test/invoice/42">View invoice</a></p>`,
+    { proxyUrl: (src) => src, cidUrl: () => null },
+  );
+  const htmlKey = `${org.orgId}/${box.id}/html/${messageId}.html`;
+  const env = await worker.server
+    .getWorker<{ MAIL_BUCKET: { put(key: string, body: string): Promise<unknown> } }>()
+    .getEnv();
+  await env.MAIL_BUCKET.put(htmlKey, sanitized.html);
+  await db
+    .update(schema.messages)
+    .set({ htmlR2Key: htmlKey })
+    .where(eq(schema.messages.id, messageId));
+
+  const origin = String(worker.url);
+  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const context = await browser.newContext();
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await context.newPage();
+  await page.goto(new URL(`/inbox/${threadId}`, origin).toString());
+  await page
+    .getByText("Your invoice is ready.")
+    .filter({ visible: true })
+    .last()
+    .click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Show full message" }).click();
+
+  const link = page
+    .frameLocator('iframe[title="Full message"]')
+    .getByRole("link", { name: "View invoice" });
+  await link.waitFor();
+  await link.click({ button: "right" });
+  const menu = page.getByRole("menu");
+  await menu.waitFor();
+  expect(await menu.getByRole("menuitem").allInnerTexts()).toEqual(["Open link", "Copy link"]);
+  await context.close();
+});
+
+test("a right-click on a link in a plain-text email offers Open link and Copy link before the message's actions", async () => {
+  const email = "ana@textlinks.test";
+  const system = await createOrg(db, "textlinks-system");
+  await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
+  const org = await createOrgWithOwner(db, {
+    name: "Acme",
+    slug: "textlinks",
+    ownerEmail: email,
+  });
+  const box = await createMailbox(db, org.orgId, email, "personal");
+  await grant(db, org.orgId, box.id, org.memberId);
+  const { threadId } = await seedMessage(db, box, {
+    subject: "Tracking",
+    fromAddress: "ship@carrier.test",
+    uid: 1,
+    text: "Track it at https://carrier.test/track/7 today.",
+  });
+
+  const origin = String(worker.url);
+  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const context = await browser.newContext();
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await context.newPage();
+  await page.goto(new URL(`/inbox/${threadId}`, origin).toString());
+
+  const link = page
+    .getByRole("link", { name: /carrier\.test\/track\/7/ })
+    .filter({ visible: true });
+  await link.waitFor();
+  await link.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Reply" }).waitFor();
+  const items = await page.getByRole("menu").getByRole("menuitem").allInnerTexts();
+  expect(items.slice(0, 2)).toEqual(["Open link", "Copy link"]);
+  expect(items).toContain("Reply");
+  await context.close();
+});

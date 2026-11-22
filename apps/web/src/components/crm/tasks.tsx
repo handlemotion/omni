@@ -22,6 +22,9 @@ import { Heading } from "@/components/ui/heading";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { Link } from "@/components/ui/link";
+import { contextMenuProps } from "@/components/ui/context-menu";
+import { IconChecklist } from "@/components/icons/central";
+import { useTaskMenu } from "./task-menu.ts";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import type { CrmRecordKind } from "@/lib/crm.ts";
@@ -97,7 +100,13 @@ export function TasksPage(props: {
         </>
       }
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-6">
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-6"
+        {...contextMenuProps(
+          () => [{ icon: IconChecklist, label: "New task", onAction: () => setAdding(true) }],
+          "Tasks",
+        )}
+      >
         <TaskList
           filter={filter}
           grouped={props.status !== "done"}
@@ -386,8 +395,11 @@ export function TaskRow(props: {
       { id: task.id, done: next },
       { onError: (error) => crmErrorToast(error, "The task was not changed") },
     );
+  const menu = useTaskMenu();
+  const href = opened ? opened.href(task.id) : inWorkspace(taskPath(task.id));
   return (
     <li
+      {...contextMenuProps(() => menu(task, href), task.title)}
       ref={props.lift?.ref}
       onPointerDownCapture={props.lift?.onPointerDownCapture}
       className={`group flex h-12 min-w-0 items-center gap-3 rounded-lg px-2 transition-colors duration-150 ease-out ${opened?.id === task.id ? "bg-accent" : "hover:bg-hover"} ${props.lift?.hidden ? "opacity-0" : ""}`}
@@ -400,7 +412,7 @@ export function TaskRow(props: {
         <Checkbox />
       </CheckboxField>
       <Link
-        href={opened ? opened.href(task.id) : inWorkspace(taskPath(task.id))}
+        href={href}
         className={`min-w-0 flex-1 truncate text-sm ${done ? "text-muted-foreground" : "text-foreground"}`}
       >
         {task.title}

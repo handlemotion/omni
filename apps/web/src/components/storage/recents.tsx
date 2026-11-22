@@ -17,12 +17,17 @@ import { driveKey, driveOf, type StorageNode } from "@/lib/storage.ts";
 import { storageRecentQuery } from "@/lib/storage-find.ts";
 import { COLUMN, DAY, FileTableBones, Muted, NameCell } from "./file-table.tsx";
 import { useStorageHref } from "./file-list.tsx";
+import { LinkRowsMenu } from "./node-menu.tsx";
 import { StorageFrame } from "./storage-frame.tsx";
+import { isOmniDoc } from "@omni/docs/file";
+import { downloadFile } from "@/lib/download.ts";
+import { storageFileUrl } from "@/lib/urls.ts";
 
 interface Row {
   node: Pick<StorageNode, "id" | "kind" | "name" | "mimeType" | "updatedAt">;
   where: string;
   href: string;
+  folderHref?: string;
 }
 
 const SHARED_LABEL = "Shared with you";
@@ -47,6 +52,7 @@ function useRows() {
     return {
       node,
       where: label(node),
+      folderHref: folder,
       href: `${folder}${folder.includes("?") ? "&" : "?"}file=${encodeURIComponent(node.id)}`,
     };
   });
@@ -89,37 +95,48 @@ export function Recents() {
             <EmptyState figure="drawer" title="No files yet" />
           </div>
         ) : (
-          <Table variant="page" rowSize="lg" aria-label="Recents">
-            <TableHeader>
-              <TableColumn isRowHeader>Name</TableColumn>
-              <TableColumn className="w-48 max-md:hidden">Where</TableColumn>
-              <TableColumn className={COLUMN.date}>Modified</TableColumn>
-            </TableHeader>
-            <TableBody>
-              {recents.rows.map((row) => (
-                <TableRow
-                  key={row.node.id}
-                  id={row.node.id}
-                  textValue={row.node.name}
-                  href={row.href}
-                >
-                  <TableCell>
-                    <NameCell
-                      kind={row.node.kind}
-                      name={row.node.name}
-                      mimeType={row.node.mimeType}
-                    />
-                  </TableCell>
-                  <TableCell className="max-md:hidden">
-                    <span className="block truncate text-muted-foreground">{row.where}</span>
-                  </TableCell>
-                  <TableCell className={COLUMN.date}>
-                    <Muted>{DAY.format(new Date(row.node.updatedAt))}</Muted>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <LinkRowsMenu
+            rows={recents.rows.map((row) => ({
+              id: row.node.id,
+              href: row.href,
+              ...(row.folderHref ? { folderHref: row.folderHref } : {}),
+              ...(row.folderHref && row.node.kind === "file" && !isOmniDoc(row.node.mimeType)
+                ? { download: () => downloadFile(storageFileUrl(row.node.id)) }
+                : {}),
+            }))}
+          >
+            <Table variant="page" rowSize="lg" aria-label="Recents">
+              <TableHeader>
+                <TableColumn isRowHeader>Name</TableColumn>
+                <TableColumn className="w-48 max-md:hidden">Where</TableColumn>
+                <TableColumn className={COLUMN.date}>Modified</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {recents.rows.map((row) => (
+                  <TableRow
+                    key={row.node.id}
+                    id={row.node.id}
+                    textValue={row.node.name}
+                    href={row.href}
+                  >
+                    <TableCell>
+                      <NameCell
+                        kind={row.node.kind}
+                        name={row.node.name}
+                        mimeType={row.node.mimeType}
+                      />
+                    </TableCell>
+                    <TableCell className="max-md:hidden">
+                      <span className="block truncate text-muted-foreground">{row.where}</span>
+                    </TableCell>
+                    <TableCell className={COLUMN.date}>
+                      <Muted>{DAY.format(new Date(row.node.updatedAt))}</Muted>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </LinkRowsMenu>
         )}
       </div>
     </StorageFrame>

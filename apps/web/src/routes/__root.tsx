@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { RouterProvider } from "react-aria-components";
 import { ErrorScreen, FullWindow, NotFoundState } from "../components/errors/error-screen.tsx";
+import { ContextMenuHost } from "../components/ui/context-menu.tsx";
 import { Toaster } from "../components/ui/toast.tsx";
 import { SharedTooltip } from "../components/ui/tooltip.tsx";
 import type { RouterContext } from "../router.ts";
@@ -40,6 +41,7 @@ function Root() {
       <Outlet />
       <Toaster setup={setup} />
       <SharedTooltip />
+      <ContextMenuHost />
     </RouterProvider>
   );
 }
