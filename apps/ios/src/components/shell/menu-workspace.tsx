@@ -148,7 +148,6 @@ function WorkspaceChoice(props: {
     <ChoiceRow
       lead={<Avatar name={props.name} size={SHEET_LEAD} photo={logo} inverse />}
       name={props.name}
-      detail={props.workspace.kind === "personal" ? "Personal" : "Company"}
       chosen={props.chosen}
       onPress={props.onPress}
       style={styles.choice}

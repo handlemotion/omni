@@ -79,6 +79,5 @@ export function workspaceLabel(workspace: Pick<Workspace, "kind" | "name">, user
   return first ? `${first}'s Workspace` : "Personal Workspace";
 }
 
-/** A Personal space has no CRM (`no_crm`). */
-export const hasCrm = (workspace: Pick<Workspace, "kind"> | undefined) =>
-  !!workspace && workspace.kind !== "personal";
+/** Every workspace has a CRM and a Shared drive, once it is known. */
+export const hasCrm = (workspace: Pick<Workspace, "kind"> | undefined) => !!workspace;
