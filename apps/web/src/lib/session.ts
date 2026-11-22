@@ -1,4 +1,5 @@
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import { forgetPdfTiles } from "./pdf-tile-cache.ts";
 import { dropStartupResponses } from "./startup-fetch.ts";
 import { api, ApiError, auth, call } from "./api.ts";
 import { setCurrentWorkspaceId } from "./current-workspace.ts";
@@ -77,7 +78,10 @@ export async function resetSession(client: QueryClient, router: Reloadable) {
   client.clear();
   await router.invalidate();
   const after = client.getQueryData<Session | null>(keys.session())?.user.id;
-  if (!after || after !== before) forgetOutstanding();
+  if (!after || after !== before) {
+    forgetOutstanding();
+    void forgetPdfTiles();
+  }
 }
 
 /** Only same-origin paths: `?redirect=https://evil.example` must not become an open redirect. */

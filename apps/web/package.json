@@ -12,6 +12,7 @@
     "bench": "node scripts/bench.ts",
     "bench:drive": "node scripts/bench-drive.ts",
     "bench:preview": "node scripts/bench-preview.ts",
+    "bench:cards": "node scripts/bench-cards.ts",
     "bench:crm": "node scripts/bench-crm.ts"
   },
   "dependencies": {

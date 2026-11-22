@@ -3,6 +3,7 @@ import { fileType, TEXT_PREVIEW_BYTES } from "./file-kind.ts";
 import type { StorageNode } from "./storage.ts";
 import { keys } from "./query-keys.ts";
 import { workspaceHeaders } from "./current-workspace.ts";
+import { readFirst, readMore, writeFirst, writeMore } from "./pdf-tile-cache.ts";
 
 /** A file as a preview reads it: where its bytes are and which version. */
 export interface PreviewSource {
@@ -132,36 +133,68 @@ export const previewSheetsQuery = (source: PreviewSource) =>
 
 const THUMBNAIL_WIDTH = 640;
 const THUMBNAIL_CONCURRENCY = 4;
+const SHEETS_BEHIND = 2;
 
 let running = 0;
-const waiting: (() => void)[] = [];
-async function slot<T>(work: () => Promise<T>) {
-  if (running >= THUMBNAIL_CONCURRENCY) await new Promise<void>((go) => waiting.push(go));
+const firsts: (() => void)[] = [];
+const behind: (() => void)[] = [];
+async function slot<T>(urgent: boolean, signal: AbortSignal, work: () => Promise<T>) {
+  if (running >= THUMBNAIL_CONCURRENCY) {
+    await new Promise<void>((go) => (urgent ? firsts : behind).push(go));
+  }
   running += 1;
   try {
+    signal.throwIfAborted();
     return await work();
   } finally {
     running -= 1;
-    waiting.shift()?.();
+    (firsts.shift() ?? behind.shift())?.();
   }
 }
 
 /**
- * A PDF's tile: its first page as `url` (what a folder's stack shows), the next two as `more`,
- * and the first page's shape. pdf.js reads only those pages' bytes, so no size cap.
+ * A PDF's tile: its first page as `url` (what a folder's stack shows), with the page's shape and
+ * how many pages there are. pdf.js reads only that page's bytes, so no size cap. A drawn page is
+ * kept in the browser (`pdf-tile-cache.ts`), so a reload shows it without reading the file.
  */
 export const pdfThumbnailQuery = (source: PreviewSource) =>
   queryOptions({
     queryKey: keys.storagePreview("pdf-thumbnail", source.url, source.version),
-    queryFn: ({ signal }) =>
-      slot(async () => {
-        signal.throwIfAborted();
-        const { firstPages } = await import("./pdf-thumbnail.ts");
-        const pdf = await firstPages(source.url, THUMBNAIL_WIDTH, workspaceHeaders(), signal);
-        const [url = "", ...more] = pdf.pages.map((page) => URL.createObjectURL(page));
-        return { url, more, ratio: pdf.ratio, count: pdf.count };
-      }),
+    queryFn: async ({ signal }) => {
+      const first =
+        (await readFirst(source.url, source.version)) ??
+        (await slot(true, signal, async () => {
+          const { firstPage } = await import("./pdf-thumbnail.ts");
+          const drawn = await firstPage(source, THUMBNAIL_WIDTH, workspaceHeaders(), signal);
+          void writeFirst(source.url, source.version, drawn);
+          return drawn;
+        }));
+      return { url: URL.createObjectURL(first.page), ratio: first.ratio, count: first.count };
+    },
     enabled: source.size > 0,
+    staleTime: Infinity,
+    gcTime: 30 * 60_000,
+    retry: false,
+  });
+
+/** The sheets behind a PDF's tile: its next pages at half the first's width, as `more`. */
+export const pdfSheetsQuery = (source: PreviewSource, count: number) =>
+  queryOptions({
+    queryKey: keys.storagePreview("pdf-sheets", source.url, source.version),
+    queryFn: async ({ signal }) => {
+      const want = Math.min(SHEETS_BEHIND, count - 1);
+      const pages =
+        (await readMore(source.url, source.version, want)) ??
+        (await slot(false, signal, async () => {
+          const { nextPages } = await import("./pdf-thumbnail.ts");
+          const width = THUMBNAIL_WIDTH / 2;
+          const drawn = await nextPages(source, width, want + 1, workspaceHeaders(), signal);
+          void writeMore(source.url, source.version, drawn);
+          return drawn;
+        }));
+      return { more: pages.map((page) => URL.createObjectURL(page)) };
+    },
+    enabled: count > 1,
     staleTime: Infinity,
     gcTime: 30 * 60_000,
     retry: false,

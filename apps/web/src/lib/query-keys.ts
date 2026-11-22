@@ -198,7 +198,7 @@ export const keys = {
    * through and the file's `updatedAt`, so a new version is a new key.
    */
   storagePreview: (
-    kind: "image" | "thumbnail" | "pdf-thumbnail" | "text" | "card-text" | "sheets",
+    kind: "image" | "thumbnail" | "pdf-thumbnail" | "pdf-sheets" | "text" | "card-text" | "sheets",
     url: string,
     version: string,
   ) => [...preview, kind, url, version] as const,

@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { StorageNode } from "../lib/storage.ts";
 import {
   cardTextQuery,
   previewImageQuery,
   previewSheetsQuery,
+  pdfSheetsQuery,
   pdfThumbnailQuery,
   previewTextQuery,
   readAhead,
@@ -29,11 +30,21 @@ export function useFileImage(source: PreviewSource, raster: string) {
   return useQuery(previewImageQuery(source, raster));
 }
 
-/** A PDF's tile: its first pages and its shape, once `enabled` (the tile is on screen). */
+/**
+ * A PDF's tile, once `enabled` (the tile is on screen): its first page and shape as soon as
+ * that is drawn, then the pages behind it as `more`.
+ */
 export function usePdfPages(source: PreviewSource, enabled: boolean) {
   revokePreviewUrls(useQueryClient());
   const options = pdfThumbnailQuery(source);
-  return useQuery({ ...options, enabled: enabled && options.enabled !== false });
+  const first = useQuery({ ...options, enabled: enabled && options.enabled !== false });
+  const count = first.data?.count ?? 0;
+  const sheets = useQuery({ ...pdfSheetsQuery(source, count), enabled: enabled && count > 1 });
+  const data = useMemo(
+    () => first.data && { ...first.data, more: sheets.data?.more ?? [] },
+    [first.data, sheets.data],
+  );
+  return { data, isError: first.isError };
 }
 
 /** A card's page: the file's first 8 KB as text, once `enabled` (the card is on screen). */
