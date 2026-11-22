@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
 import { meetingsPipeline } from "../src/meetings.ts";
-import { members, users } from "../src/schema/index.ts";
+import { members, storagePolicies, users } from "../src/schema/index.ts";
 import { setRole } from "./storage-support.ts";
 import { createOrg, createTestDatabase } from "./support.ts";
 
@@ -141,6 +141,27 @@ test("removing a grant, an attendee's too, closes the meeting at once; the owner
   ok(await forMember(db, s.cy.id).meetings.revoke(meetingId, s.dana.address));
   expect((await dana.grant(meetingId, s.dana.address, "viewer")).status).toBe("forbidden");
   expect(ok(await dana.get(meetingId)).role).toBe("owner");
+});
+
+test("with outside sharing and public links closed, a meeting is shared inside the company only and its link opens to no one", async () => {
+  const s = await studio();
+  await db
+    .insert(storagePolicies)
+    .values({ orgId: s.org.id, publicLinks: false, outsideSharing: false });
+  const { meetingId } = ok(await record(s.dana.id, { attendees: [s.dana.address] }));
+  const dana = forMember(db, s.dana.id).meetings;
+
+  expect((await dana.grant(meetingId, s.client.address, "viewer")).status).toBe("policy");
+  expect((await forUser(db, s.client.id).meetings.get(meetingId)).status).toBe("not_found");
+  ok(await dana.grant(meetingId, s.ben.address, "editor"));
+  ok(await dana.grant(meetingId, s.fran.address, "viewer"));
+  expect(
+    (await forMember(db, s.ben.id).meetings.grant(meetingId, "someone@else.test", "editor")).status,
+  ).toBe("policy");
+
+  expect((await dana.change(meetingId, { linkAccess: "anyone" })).status).toBe("policy");
+  ok(await dana.change(meetingId, { linkAccess: "signed_in" }));
+  expect(ok(await dana.get(meetingId)).sharing?.linkAccess).toBe("signed_in");
 });
 
 test("a member of another workspace reaches nothing through the member door, even with a grant", async () => {

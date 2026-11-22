@@ -17,6 +17,7 @@ import { iconOperations } from "./storage/icons.ts";
 import { lockOperations } from "./storage/lock.ts";
 import { storageUsageOf } from "./storage/maintenance.ts";
 import {
+  insideCompany,
   listSharedWith,
   policyOperations,
   sharingOperations,
@@ -60,6 +61,8 @@ export {
   type StoragePolicy,
   type StorageRole,
 } from "./storage/access.ts";
+/** Whether an address is inside the company, for a module that follows Drive's sharing policy. */
+export const storageInsideCompany = insideCompany;
 export type {
   CreateFolderResult,
   FileResult,

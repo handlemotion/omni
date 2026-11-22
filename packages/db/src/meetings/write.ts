@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { and, desc, eq, ne } from "drizzle-orm";
+import type { Db } from "../client.ts";
 import {
   meetingsActions,
   meetingsAttendees,
@@ -8,6 +9,7 @@ import {
   meetingsMeetings,
   meetingsSpeakers,
 } from "../schema/meetings.ts";
+import { storageInsideCompany, storagePolicyOf } from "../storage.ts";
 import { FORBIDDEN, NOT_FOUND, withMeeting, type Ex, type MeetingsActor } from "./core.ts";
 
 export interface StartMeeting {
@@ -20,6 +22,8 @@ export interface StartMeeting {
 }
 
 const lower = (a: string) => a.trim().toLowerCase();
+
+const POLICY = { status: "policy" } as const;
 
 /**
  * Starts a recording. A calendar meeting is recorded once per workspace: while someone records
@@ -147,9 +151,12 @@ export interface MeetingChange {
   record?: { kind: string; id: string } | null;
 }
 
-/** Title, general access, the link and the CRM record. Editors and the owner. */
+/**
+ * Title, general access, the link and the CRM record. Editors and the owner. A link open to
+ * anyone is refused while the workspace's Drive policy closes public links.
+ */
 export function changeMeeting(
-  ex: Ex,
+  ex: Db,
   actor: MeetingsActor | null,
   meetingId: string,
   change: MeetingChange,
@@ -158,6 +165,9 @@ export function changeMeeting(
     const set: Partial<typeof meetingsMeetings.$inferInsert> = {};
     if (change.title !== undefined) set.title = change.title?.trim() || null;
     if (change.access) set.access = change.access;
+    if (change.linkAccess === "anyone" && !(await storagePolicyOf(ex, meeting.orgId)).publicLinks) {
+      return POLICY;
+    }
     if (change.linkAccess) {
       set.linkAccess = change.linkAccess;
       if (change.linkAccess !== "off" && !meeting.linkToken) {
@@ -174,9 +184,12 @@ export function changeMeeting(
   });
 }
 
-/** Shares with an address as viewer or editor. The owner's grant is not changed here. */
+/**
+ * Shares with an address as viewer or editor. The owner's grant is not changed here. An address
+ * outside the company is refused while the workspace's Drive policy closes outside sharing.
+ */
 export function grantMeeting(
-  ex: Ex,
+  ex: Db,
   actor: MeetingsActor | null,
   meetingId: string,
   address: string,
@@ -190,6 +203,12 @@ export function grantMeeting(
       .from(meetingsGrants)
       .where(and(eq(meetingsGrants.meetingId, meetingId), eq(meetingsGrants.address, to)));
     if (current?.role === "owner") return FORBIDDEN;
+    if (
+      !(await storagePolicyOf(ex, meeting.orgId)).outsideSharing &&
+      !(await storageInsideCompany(ex, meeting.orgId, to))
+    ) {
+      return POLICY;
+    }
     await ex
       .insert(meetingsGrants)
       .values({

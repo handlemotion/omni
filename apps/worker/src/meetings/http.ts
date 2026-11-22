@@ -21,6 +21,7 @@ const FAILURES = {
   not_a_recording: ["bad_request", "the recording must be an audio file in your My files"],
   not_stoppable: ["conflict", "the meeting is not recording"],
   not_retryable: ["conflict", "the meeting has not failed"],
+  policy: ["sharing_policy", "your workspace's sharing policy does not allow that"],
 } as const satisfies Record<string, readonly [ErrorCode, string]>;
 
 export type MeetingsFailure = keyof typeof FAILURES;

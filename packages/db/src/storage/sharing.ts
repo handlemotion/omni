@@ -107,7 +107,8 @@ export async function linkOf(ex: Db, shareId: string) {
   return row ?? null;
 }
 
-async function insideCompany(ex: Db, orgId: string, address: string) {
+/** Whether an address is the company's: on its claimed domain, or a member's. */
+export async function insideCompany(ex: Db, orgId: string, address: string) {
   if ((await companyForAddress(ex, address)) === orgId) return true;
   const owner = await findEmailOwner(ex, address);
   if (!owner) return false;

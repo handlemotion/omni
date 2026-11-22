@@ -624,4 +624,6 @@ every meeting; voiceprints with per-person consent; templates per kind of meetin
 - [x] Audio: kept as long as the meeting (founder, Nov 22, 2026).
 - [ ] Do outside attendees get their grant at once, or when the recorder first opens the notes,
       so they never get a summary nobody has read? v1: at once, as decided.
+- [ ] With Drive's outside sharing closed, do outside attendees still get their `viewer` grant at
+      the start? v1: they do; Share refuses them, as Drive does.
 - [ ] Figma frames for the Meetings module, the pill, the sharing panel and the deal's tab.
