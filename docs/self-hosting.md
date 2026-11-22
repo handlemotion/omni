@@ -245,6 +245,13 @@ the mail service. Only the mail service exchanges codes and holds the tokens: th
 encrypted with `MAIL_CREDENTIALS_KEY` like an app password. A person who revokes Omni's access in
 their Google account sees the mailbox in `error` until they connect it again.
 
+The same connection shows the account's Google Calendar on its inbox's calendar, read only. For
+it, enable the Google Calendar API in the client's Google Cloud project and add the scope
+`https://www.googleapis.com/auth/calendar.events.readonly` to the consent screen (a sensitive
+scope: an unverified app shows Google's warning, and a verified one needs it added to its
+verification). The Worker asks for it unless `GOOGLE_CALENDAR=off`; an account connected without
+it, or before it, keeps working for mail and shows its calendar once it is connected again.
+
 From the command line, with the service running and `MAIL_SERVICE_URL` set, add
 `http://localhost:8790/callback` as an authorized redirect URI and run:
 
@@ -338,6 +345,7 @@ to `.dev.vars`.
 | `WEB_APP_URL`                  | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                                                         |
 | `GOOGLE_CLIENT_ID`             | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                                                    |
 | `GOOGLE_CLIENT_SECRET`         | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                                                    |
+| `GOOGLE_CALENDAR`              | var    | no       | `off` connects Gmail without asking for its Google Calendar. On by default; see [Connecting a Gmail account](#connecting-a-gmail-account).                                                                    |
 | `MAIL_SERVICE_URL`             | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                                                            |
 | `MAIL_SERVICE_HMAC_SECRET`     | secret | yes      | Same value as the mail service's.                                                                                                                                                                             |
 | `SYSTEM_MAIL_FROM`             | var    | no       | Address magic links, invitations and notices come from (Email Sending). Empty disables them; people added to a Storage item are then added without a mail and find it under Shared with me.                   |

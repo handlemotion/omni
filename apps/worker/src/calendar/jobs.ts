@@ -8,8 +8,10 @@ import {
   type Db,
 } from "@omni/db";
 import { Effect } from "effect";
-import { retried, runJob, scopedDb } from "../job-effects.ts";
+import { loadConfig } from "../env.ts";
+import { attempt, retried, runJob, scopedDb } from "../job-effects.ts";
 import { createLogger, type Logger } from "../log.ts";
+import { syncGoogleCalendars } from "./google.ts";
 import { announceCalendars } from "./http.ts";
 
 const SWEEP_MAX_PAGES = 10;
@@ -66,13 +68,22 @@ export function sweepInvitations(env: Env, db: Db, log: Logger) {
   });
 }
 
-/** The calendar's every-minute work: the sweep. */
+/** The Gmail inboxes' Google calendars that are due, then who sees them hears they changed. */
+export function syncGoogle(env: Env, db: Db, log: Logger) {
+  return attempt("calendar_google", async () => {
+    const changed = await syncGoogleCalendars(db, loadConfig(env), log);
+    await announceCalendars(env, db, log, changed);
+  });
+}
+
+/** The calendar's every-minute work: the sweep, then the Google sync. */
 export function calendarMinute(env: Env) {
   const log = createLogger({ component: "calendar", requestId: crypto.randomUUID() });
   return runJob(
     Effect.gen(function* () {
       const db = yield* scopedDb(env);
       yield* sweepInvitations(env, db, log);
+      yield* syncGoogle(env, db, log);
     }),
   );
 }

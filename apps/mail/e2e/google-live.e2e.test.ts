@@ -1,7 +1,11 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { MAIL_PING_PATH } from "@omni/contracts";
+import {
+  GOOGLE_CALENDAR_EVENTS_PATH,
+  googleCalendarEventsResultSchema,
+  MAIL_PING_PATH,
+} from "@omni/contracts";
 import { getFolderPosition, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { parseKeyring, signRequest } from "@omni/crypto";
@@ -234,5 +238,38 @@ describe.runIf(requested)("Gmail itself", () => {
     await start();
     await waitFor(async () => (await mailboxStatus(db, seeded.box.id)) === "error", 30_000);
     expect(service?.supervisor.connection(seeded.box.id)?.connected).toBe(false);
+  });
+  it("reads the account's Google Calendar a page at a time, then only what changed", async () => {
+    const seeded = await seedGoogle(refreshToken);
+    await db
+      .update(schema.mailboxes)
+      .set({ provider: "gmail" })
+      .where(eq(schema.mailboxes.id, seeded.box.id));
+    await start();
+    const events = async (tokens: { syncToken?: string; pageToken?: string }) => {
+      const body = JSON.stringify({ orgId: seeded.orgId, mailboxId: seeded.box.id, ...tokens });
+      const headers = await signRequest({
+        secret,
+        method: "POST",
+        path: GOOGLE_CALENDAR_EVENTS_PATH,
+        body,
+        nonce: randomUUID(),
+      });
+      const response = await fetch(`${serviceUrl}${GOOGLE_CALENDAR_EVENTS_PATH}`, {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body,
+      });
+      expect(response.status).toBe(200);
+      return googleCalendarEventsResultSchema.parse(await response.json());
+    };
+    let page = await events({});
+    expect(page.status).toBe("ok");
+    while (page.status === "ok" && page.nextPageToken) {
+      page = await events({ pageToken: page.nextPageToken });
+    }
+    if (page.status !== "ok" || !page.nextSyncToken) throw new Error("no sync token");
+    const since = await events({ syncToken: page.nextSyncToken });
+    expect(since).toMatchObject({ status: "ok", nextSyncToken: expect.any(String) });
   });
 });

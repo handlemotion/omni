@@ -25,6 +25,10 @@ WEB_APP_URL=http://localhost:5173
 GOOGLE_CLIENT_ID=
 # Secret.
 GOOGLE_CLIENT_SECRET=
+# Optional. "off" connects Gmail without asking for its Google Calendar
+# (calendar.events.readonly), so a connected account's calendar does not show. On by default; it
+# needs the Google Calendar API enabled in the client's Google Cloud project.
+GOOGLE_CALENDAR=
 # Optional. Who may sign up: "open" (default: anyone with a verified email signs up and
 # creates their own workspace in onboarding) or "invitation" (a private install: sign-up needs a
 # pending invitation, and only owners create workspaces; the first comes from

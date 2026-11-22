@@ -127,19 +127,22 @@ async function applyEvents(
 
 const eventColumns = {
   id: calendarEvents.id,
+  source: calendarEvents.source,
   sequence: calendarEvents.sequence,
   dtstamp: calendarEvents.dtstamp,
   organizerAddress: calendarEvents.organizerAddress,
 };
 
-type Stored = {
+export type Stored = {
   id: string;
+  source: (typeof calendarEvents.$inferSelect)["source"];
   sequence: number;
   dtstamp: Date | null;
   organizerAddress: string | null;
 };
 
-async function stored(tx: Ex, calendarId: string, uid: string, recurrenceId: Date | null) {
+/** The event (`uid`, `recurrenceId`) on a calendar, locked for this transaction. */
+export async function stored(tx: Ex, calendarId: string, uid: string, recurrenceId: Date | null) {
   const [row] = await tx
     .select(eventColumns)
     .from(calendarEvents)
@@ -156,7 +159,8 @@ async function stored(tx: Ex, calendarId: string, uid: string, recurrenceId: Dat
   return (row ?? null) satisfies Stored | null;
 }
 
-function older(event: CalendarEvent, current: Stored) {
+/** Whether `event` is an older version than what is stored: lower `(SEQUENCE, DTSTAMP)`. */
+export function older(event: CalendarEvent, current: Stored) {
   if (event.sequence !== current.sequence) return event.sequence < current.sequence;
   if (!event.dtstamp || !current.dtstamp) return false;
   return event.dtstamp < current.dtstamp;
@@ -256,7 +260,16 @@ async function insertEvent(
   return made.id;
 }
 
-async function syncAttendees(tx: Ex, context: Context, eventId: string, event: CalendarEvent) {
+/**
+ * Replaces an event's attendees with `event`'s, each keeping their own later answer
+ * (`calendar_answers`) over the version's.
+ */
+export async function syncAttendees(
+  tx: Ex,
+  context: Pick<Context, "orgId" | "calendarId">,
+  eventId: string,
+  event: CalendarEvent,
+) {
   const answers = await answersOf(tx, context.calendarId, event.uid, event.recurrenceId);
   await tx.delete(calendarAttendees).where(eq(calendarAttendees.eventId, eventId));
   if (event.attendees.length === 0) return;

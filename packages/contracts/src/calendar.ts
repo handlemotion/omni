@@ -48,7 +48,7 @@ export const calendarEventSchema = z.object({
   recurrenceId: isoDate.nullable(),
   recurring: z.boolean(),
   /** `invite` came by mail; `omni` was made in Omni and may be changed by its organizer. */
-  source: z.enum(["invite", "omni"]),
+  source: z.enum(["invite", "omni", "google"]),
   status: z.enum(["confirmed", "tentative", "cancelled"]),
   busy: z.boolean(),
   title: z.string(),

@@ -132,7 +132,9 @@ describe("connecting a Google account", () => {
     const params = consent.searchParams;
     expect(params.get("client_id")).toBe(CLIENT_ID);
     expect(params.get("redirect_uri")).toBe(REDIRECT_URI);
-    expect(params.get("scope")).toBe("https://mail.google.com/ openid email profile");
+    expect(params.get("scope")).toBe(
+      "https://mail.google.com/ openid email profile https://www.googleapis.com/auth/calendar.events.readonly",
+    );
     expect(params.get("access_type")).toBe("offline");
     expect(params.get("code_challenge_method")).toBe("S256");
     const state = params.get("state")!;

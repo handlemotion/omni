@@ -805,6 +805,17 @@ export async function mailboxOwnerIds(db: Db, mailboxId: string) {
   return rows.map((row) => row.memberId) satisfies string[];
 }
 
+/**
+ * Gmail inboxes the mail service keeps connected, for the calendar's Google sync. No credentials:
+ * only the mail service opens those.
+ */
+export function liveGmailMailboxes(db: Db) {
+  return db
+    .select({ id: mailboxes.id, orgId: mailboxes.orgId })
+    .from(mailboxes)
+    .where(and(eq(mailboxes.provider, "gmail"), ne(mailboxes.status, "disabled"), syncableMailbox));
+}
+
 /** Gmail mailboxes at `address` in any workspace: one Google account syncs into one place. */
 export function findGmailMailboxes(db: Db, address: string) {
   return db

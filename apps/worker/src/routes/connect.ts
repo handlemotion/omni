@@ -16,6 +16,7 @@ import { notFound } from "./mail.ts";
 
 const GOOGLE_AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth";
 const SCOPES = ["https://mail.google.com/", "openid", "email", "profile"];
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly";
 const COOKIE = "omni_google_connect";
 const COOKIE_PATH = "/api/connect/google";
 
@@ -108,7 +109,9 @@ export const connect = new Hono<AppEnv>()
       client_id: google.clientId,
       redirect_uri: redirectUri(c),
       response_type: "code",
-      scope: SCOPES.join(" "),
+      scope: [...SCOPES, ...(c.var.config.GOOGLE_CALENDAR === "on" ? [CALENDAR_SCOPE] : [])].join(
+        " ",
+      ),
       access_type: "offline",
       prompt: "consent",
       include_granted_scopes: "false",

@@ -38,10 +38,19 @@ const MAIL_SCOPE = "https://mail.google.com/";
  * Scopes to ask Google for. `https://mail.google.com/` is the only scope Gmail's IMAP and SMTP
  * accept (a restricted scope: unverified apps are capped at 100 users). The authorization URL must
  * also carry `access_type=offline` and `prompt=consent`, or Google returns no refresh token.
- * `profile` brings the account's photo and name (the id token's `picture`, `name`) for its inbox. The
- * Worker's consent redirect asks for the same four.
+ * `profile` brings the account's photo and name (the id token's `picture`, `name`) for its inbox.
+ * `calendar.events.readonly` lets the calendar show the account's own Google Calendar; it is
+ * optional, and mail works without it. The Worker's consent redirect asks for the same five
+ * (the calendar one unless `GOOGLE_CALENDAR=off`).
  */
-export const GOOGLE_MAIL_SCOPES = [MAIL_SCOPE, "openid", "email", "profile"] as const;
+export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly";
+export const GOOGLE_MAIL_SCOPES = [
+  MAIL_SCOPE,
+  "openid",
+  "email",
+  "profile",
+  GOOGLE_CALENDAR_SCOPE,
+] as const;
 const REFRESH_MARGIN_MS = 5 * 60_000;
 
 /** Google refused the refresh token: the person revoked access, or it expired. Only reconnecting fixes it. */

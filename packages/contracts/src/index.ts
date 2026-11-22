@@ -466,6 +466,44 @@ export const googleDisconnectBodySchema = z.object({
 
 export const googleDisconnectResultSchema = z.object({ mailboxId: z.string().min(1) });
 
+/**
+ * One page of a Gmail inbox's Google Calendar (`events.list` on its primary calendar), fetched by
+ * the mail service, the only holder of the account's tokens, for the Worker's calendar sync
+ * (`docs/spec/calendar.md`, "Google calendars"). No token: a full pass from the start.
+ */
+export const GOOGLE_CALENDAR_EVENTS_PATH = "/google/calendar/events";
+
+export const googleCalendarEventsBodySchema = z.object({
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+  /** Changes since the pass that returned it. */
+  syncToken: z.string().min(1).max(4096).optional(),
+  /** The next page of a pass, sent with the pass's `syncToken` when it has one, as Google asks. */
+  pageToken: z.string().min(1).max(4096).optional(),
+});
+
+export const GOOGLE_CALENDAR_PAGE_MAX = 250;
+
+export const googleCalendarEventsResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("ok"),
+    /** The calendar's own zone, for events that name none. */
+    timeZone: z.string().max(100).nullable(),
+    /** Google's event resources as Google sent them: untrusted, read by `readGoogleEvent`. */
+    items: z.array(z.unknown()).max(GOOGLE_CALENDAR_PAGE_MAX),
+    nextPageToken: z.string().max(4096).nullable(),
+    nextSyncToken: z.string().max(4096).nullable(),
+  }),
+  z.object({ status: z.literal("reset") }),
+  z.object({
+    status: z.literal("no_access"),
+    reason: z.enum(["no_scope", "api_disabled", "revoked", "not_gmail"]),
+  }),
+]);
+
+export type GoogleCalendarEventsBody = z.infer<typeof googleCalendarEventsBodySchema>;
+export type GoogleCalendarEventsResult = z.infer<typeof googleCalendarEventsResultSchema>;
+
 export const HOSTED_DISCONNECT_PATH = "/hosting/mailbox/disconnect";
 
 /** Idempotent: a mailbox already gone answers with its id. */

@@ -21,6 +21,7 @@ import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
 import { PgForwarding } from "./forward-copy.ts";
 import { connectGoogle, createGoogleOAuth, disconnectGoogle } from "./providers/gmail.ts";
+import { createGoogleCalendar } from "./providers/google-calendar.ts";
 import { createCreditWatch } from "./hosting/credit-watch.ts";
 import { disconnectHostedMailbox, disconnectMailbox } from "./hosting/disconnect.ts";
 import { createPurelymailHost } from "./hosting/purelymail-host.ts";
@@ -327,6 +328,12 @@ export async function startService(config: ServiceConfig, log: Logger) {
               },
               input,
             ),
+          googleCalendarEvents: createGoogleCalendar({
+            db,
+            keyring: config.MAIL_CREDENTIALS_KEY,
+            oauth: google,
+            logger: log,
+          }),
         }
       : {}),
     disconnectGoogle: (input) =>

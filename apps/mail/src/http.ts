@@ -1,8 +1,12 @@
 import {
   DNS_LOOKUP_PATH,
   dnsLookupBodySchema,
+  GOOGLE_CALENDAR_EVENTS_PATH,
   GOOGLE_CONNECT_PATH,
   GOOGLE_DISCONNECT_PATH,
+  type GoogleCalendarEventsBody,
+  type GoogleCalendarEventsResult,
+  googleCalendarEventsBodySchema,
   type GoogleConnectBody,
   type GoogleConnectResult,
   googleConnectBodySchema,
@@ -91,6 +95,8 @@ export interface HttpDeps {
   connectGoogle?(input: GoogleConnectBody): Promise<GoogleConnectResult>;
   /** Disconnects a Google account. Absent: that route answers 404. */
   disconnectGoogle?(input: GoogleDisconnectBody): Promise<{ mailboxId: string }>;
+  /** One page of a Gmail inbox's Google Calendar, for the Worker's sync. Absent: 404. */
+  googleCalendarEvents?(input: GoogleCalendarEventsBody): Promise<GoogleCalendarEventsResult>;
   /** Disconnects an Omni-hosted mailbox, keeping its mail at the host. Absent: 404. */
   disconnectHosted?(input: HostedDisconnectBody): Promise<{ mailboxId: string }>;
   disconnectMailbox?(input: HostedDisconnectBody): Promise<{ mailboxId: string }>;
@@ -171,6 +177,16 @@ export function createApp(deps: HttpDeps) {
     );
     if (body instanceof Response) return body;
     return answer(c, () => deps.disconnectGoogle!(body));
+  });
+
+  app.post(GOOGLE_CALENDAR_EVENTS_PATH, async (c) => {
+    const body = await signedBody(
+      c,
+      googleCalendarEventsBodySchema,
+      deps.googleCalendarEvents !== undefined,
+    );
+    if (body instanceof Response) return body;
+    return answer(c, () => deps.googleCalendarEvents!(body));
   });
 
   app.post(HOSTED_DISCONNECT_PATH, async (c) => {

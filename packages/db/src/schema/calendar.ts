@@ -20,9 +20,10 @@ import { mailboxes } from "./mail/mailboxes.ts";
 /**
  * The calendar's tables (`docs/spec/calendar.md`, "Data model"). Events from invitations are an
  * index of mail and converge on a re-sync; events made in Omni are the truth, like CRM rows.
+ * An event comes from an invitation in mail, from Omni, or from a connected Google account's own
+ * calendar ("Google calendars").
  */
-
-export const calendarEventSource = pgEnum("calendar_event_source", ["invite", "omni"]);
+export const calendarEventSource = pgEnum("calendar_event_source", ["invite", "omni", "google"]);
 export const calendarEventStatus = pgEnum("calendar_event_status", [
   "confirmed",
   "tentative",
@@ -116,10 +117,18 @@ export const calendarEvents = pgTable(
     createdByMemberId: text("created_by_member_id").references(() => members.id, {
       onDelete: "set null",
     }),
+    /**
+     * The event's id in a connected Google calendar, when Google has it: a deleted event comes
+     * back from Google with nothing else to find it by.
+     */
+    googleId: text("google_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    index("calendar_events_google_id_idx")
+      .on(t.calendarId, t.googleId)
+      .where(sql`${t.googleId} is not null`),
     unique("calendar_events_identity_unique")
       .on(t.calendarId, t.uid, t.recurrenceId)
       .nullsNotDistinct(),
@@ -294,3 +303,32 @@ export const calendarTasks = pgTable(
     index("calendar_tasks_created_by_member_id_idx").on(t.createdByMemberId),
   ],
 );
+
+/**
+ * Where a Gmail inbox's calendar stands with Google's (`events.list`): the sync token of the
+ * last finished pass, or the page a pass stopped at. A full pass started at `full_sync_started_at`;
+ * when it finishes, Google events it did not see are gone from Google and leave the calendar.
+ * Losing this row only costs one full pass.
+ */
+export const calendarGoogleSync = pgTable("calendar_google_sync", {
+  calendarId: text("calendar_id")
+    .primaryKey()
+    .references(() => calendarCalendars.id, { onDelete: "cascade" }),
+  orgId: orgId(),
+  syncToken: text("sync_token"),
+  pageToken: text("page_token"),
+  fullSyncStartedAt: timestamptz("full_sync_started_at"),
+  /**
+   * Cancelled instances whose series the pass has not reached yet (Google lists events in no set
+   * order), applied once it has; what is still waiting when the pass ends had no series.
+   */
+  waiting: jsonb("waiting")
+    .$type<{ googleId: string; seriesGoogleId: string; recurrenceId: string }[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  /** `ok`, or why Google would not answer: `no_access` (no calendar scope, API off, revoked). */
+  state: text("state").notNull().default("ok"),
+  nextSyncAt: timestamptz("next_sync_at").notNull().defaultNow(),
+  syncedAt: timestamptz("synced_at"),
+  updatedAt: updatedAt(),
+});

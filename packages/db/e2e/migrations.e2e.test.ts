@@ -143,6 +143,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "calendar_attendees",
       "calendar_calendars",
       "calendar_events",
+      "calendar_google_sync",
       "calendar_member_prefs",
       "calendar_parts",
       "calendar_sweep",

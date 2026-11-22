@@ -10,7 +10,9 @@ export const CALENDAR_DESCRIPTION_MAX = 20_000;
 export const CALENDAR_ATTENDEES_MAX = 200;
 /** A series plus its changed instances: more VEVENTs in one part are dropped. */
 export const CALENDAR_EVENTS_PER_PART_MAX = 100;
-const TEXT_MAX = 500;
+/** Titles, locations and names are cut to this. */
+export const CALENDAR_TEXT_MAX = 500;
+const TEXT_MAX = CALENDAR_TEXT_MAX;
 
 export type CalendarMethod = "REQUEST" | "REPLY" | "CANCEL" | "PUBLISH";
 export type EventStatus = "confirmed" | "tentative" | "cancelled";
@@ -181,15 +183,18 @@ const locationOf = (zone: ICAL.Component | undefined) =>
   zone ? String(zone.getFirstPropertyValue("x-lic-location") ?? "") : null;
 
 function readEvent(vevent: ICAL.Component, zones: Zones, method: CalendarMethod) {
-  const uid = clean(vevent.getFirstPropertyValue("uid"), 1000);
+  const uid = calendarText(vevent.getFirstPropertyValue("uid"), 1000);
   const start = readTime(vevent.getFirstProperty("dtstart"), zones);
   if (!uid || !start) return null;
   const end = endOf(vevent, start, zones);
   const recurrence = readTime(vevent.getFirstProperty("recurrence-id"), zones);
   const rrule = vevent.getFirstPropertyValue("rrule") as ICAL.Recur | null;
   const status = statusOf(vevent, method);
-  const description = clean(vevent.getFirstPropertyValue("description"), CALENDAR_DESCRIPTION_MAX);
-  const location = clean(vevent.getFirstPropertyValue("location"), TEXT_MAX);
+  const description = calendarText(
+    vevent.getFirstPropertyValue("description"),
+    CALENDAR_DESCRIPTION_MAX,
+  );
+  const location = calendarText(vevent.getFirstPropertyValue("location"), TEXT_MAX);
   return {
     uid,
     recurrenceId: recurrence?.instant ?? null,
@@ -198,7 +203,7 @@ function readEvent(vevent: ICAL.Component, zones: Zones, method: CalendarMethod)
     status,
     busy:
       String(vevent.getFirstPropertyValue("transp") ?? "OPAQUE").toUpperCase() !== "TRANSPARENT",
-    title: clean(vevent.getFirstPropertyValue("summary"), TEXT_MAX) ?? "",
+    title: calendarText(vevent.getFirstPropertyValue("summary"), TEXT_MAX) ?? "",
     description,
     location,
     conferenceUrl: conferenceOf(vevent, [location, description]),
@@ -286,7 +291,10 @@ function personOf(property: ICAL.Property | null) {
   if (!property) return null satisfies CalendarPerson | null;
   const address = addressOf(property.getFirstValue());
   if (!address) return null;
-  const person: CalendarPerson = { address, name: clean(property.getParameter("cn"), TEXT_MAX) };
+  const person: CalendarPerson = {
+    address,
+    name: calendarText(property.getParameter("cn"), TEXT_MAX),
+  };
   return person;
 }
 
@@ -335,6 +343,11 @@ function conferenceOf(vevent: ICAL.Component, texts: (string | null)[]) {
       if (link) return link;
     }
   }
+  return meetingLinkIn(texts);
+}
+
+/** The first call link (Meet, Zoom, Teams, Webex, Whereby, Jitsi, Gather) in these texts. */
+export function meetingLinkIn(texts: (string | null)[]) {
   for (const text of texts) {
     const found = text?.match(MEETING_LINK)?.[0];
     if (found) return httpsLink(found);
@@ -342,7 +355,8 @@ function conferenceOf(vevent: ICAL.Component, texts: (string | null)[]) {
   return null;
 }
 
-function httpsLink(value: unknown) {
+/** `value` as an `https:` URL of at most 2,000 characters, or null. */
+export function httpsLink(value: unknown) {
   try {
     const url = new URL(String(value ?? "").trim());
     return url.protocol === "https:" ? url.toString().slice(0, 2000) : null;
@@ -351,7 +365,8 @@ function httpsLink(value: unknown) {
   }
 }
 
-function clean(value: unknown, max: number) {
+/** Plain text without NULs, trimmed and cut to `max`; null when empty. */
+export function calendarText(value: unknown, max: number) {
   if (value === null || value === undefined) return null;
   const text = String(value).replaceAll("\0", "").trim();
   return text ? text.slice(0, max) : null;
