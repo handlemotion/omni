@@ -1,0 +1,3 @@
+CREATE INDEX "meetings_actions_task_idx" ON "meetings_actions" USING btree ("org_id","task_id") WHERE "meetings_actions"."task_id" is not null;--> statement-breakpoint
+CREATE INDEX "meetings_attendees_address_idx" ON "meetings_attendees" USING btree ("org_id","address");--> statement-breakpoint
+CREATE INDEX "meetings_attendees_domain_idx" ON "meetings_attendees" USING btree ("org_id",split_part("address", '@', 2));

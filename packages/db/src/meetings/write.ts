@@ -165,8 +165,8 @@ export function changeMeeting(
       }
     }
     if (change.record !== undefined) {
-      set.recordKind = change.record?.kind ?? null;
-      set.recordId = change.record?.id ?? null;
+      set.recordKind = change.record?.kind ?? "none";
+      set.recordId = change.record?.id ?? "";
     }
     if (!Object.keys(set).length) return { status: "ok" } as const;
     await ex.update(meetingsMeetings).set(set).where(eq(meetingsMeetings.id, meetingId));

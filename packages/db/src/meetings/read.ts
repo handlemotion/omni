@@ -14,7 +14,8 @@ import { NOT_FOUND, atLeast, reachable, withMeeting, type Ex, type MeetingsActor
 
 export const MEETINGS_PAGE_MAX = 100;
 
-const view = (m: typeof meetingsMeetings.$inferSelect) => ({
+/** A meeting row as every reader sees it. */
+export const meetingView = (m: typeof meetingsMeetings.$inferSelect) => ({
   id: m.id,
   title: m.title,
   startedAt: m.startedAt,
@@ -23,7 +24,11 @@ const view = (m: typeof meetingsMeetings.$inferSelect) => ({
   event: m.eventUid ? { uid: m.eventUid, recurrenceId: m.eventRecurrenceId || null } : null,
   part: m.part,
   groupKey: m.groupKey,
-  record: m.recordKind && m.recordId ? { kind: m.recordKind, id: m.recordId } : null,
+  record:
+    m.recordKind && m.recordId && m.recordKind !== "none"
+      ? { kind: m.recordKind, id: m.recordId }
+      : null,
+  recordOff: m.recordKind === "none",
   status: m.status,
   language: m.language,
   recordedByMemberId: m.recordedByMemberId,
@@ -32,7 +37,7 @@ const view = (m: typeof meetingsMeetings.$inferSelect) => ({
   notesNodeId: m.notesNodeId,
 });
 
-export type MeetingView = ReturnType<typeof view>;
+export type MeetingView = ReturnType<typeof meetingView>;
 
 /** One meeting with its people, speakers, notes and actions; sharing only for its editors. */
 export function getMeeting(ex: Ex, actor: MeetingsActor | null, meetingId: string) {
@@ -60,7 +65,7 @@ export function getMeeting(ex: Ex, actor: MeetingsActor | null, meetingId: strin
     return {
       status: "ok",
       role,
-      meeting: view(meeting),
+      meeting: meetingView(meeting),
       sharing: editor
         ? {
             access: meeting.access,
@@ -136,7 +141,7 @@ export async function listMeetings(
     )
     .orderBy(desc(m.startedAt))
     .limit(Math.min(Math.max(page.limit ?? 50, 1), MEETINGS_PAGE_MAX));
-  return { status: "ok", meetings: rows.map(view) } as const;
+  return { status: "ok", meetings: rows.map(meetingView) } as const;
 }
 
 /** The sidebar: each group the actor has a meeting in, newest first, counting only theirs. */

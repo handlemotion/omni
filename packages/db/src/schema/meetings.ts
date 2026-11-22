@@ -57,6 +57,7 @@ export const meetingsMeetings = pgTable(
     eventRecurrenceId: text("event_recurrence_id").notNull().default(""),
     part: integer("part").notNull().default(1),
     groupKey: text("group_key").notNull(),
+    /** `company`, `person` or `deal`; `none` when a person took it off every record. */
     recordKind: text("record_kind"),
     recordId: text("record_id"),
     access: meetingsAccess("access").notNull().default("restricted"),
@@ -112,6 +113,8 @@ export const meetingsAttendees = pgTable(
   (t) => [
     primaryKey({ columns: [t.meetingId, t.address] }),
     ofMeeting("meetings_attendees_meeting_org_fk")(t),
+    index("meetings_attendees_address_idx").on(t.orgId, t.address),
+    index("meetings_attendees_domain_idx").on(t.orgId, sql`split_part(${t.address}, '@', 2)`),
   ],
 );
 
@@ -212,6 +215,9 @@ export const meetingsActions = pgTable(
   (t) => [
     ofMeeting("meetings_actions_meeting_org_fk")(t),
     unique("meetings_actions_meeting_seq_unique").on(t.meetingId, t.seq),
+    index("meetings_actions_task_idx")
+      .on(t.orgId, t.taskId)
+      .where(sql`${t.taskId} is not null`),
   ],
 );
 
