@@ -1546,7 +1546,7 @@ test("Open on a to-do's right-click menu in the grid opens it beside the calenda
   expect(new URL(page.url()).pathname).toBe(`/${org.slug}/calendar`);
 });
 
-test("a Personal space keeps its to-dos beside the calendar, with no CRM to add them to", async () => {
+test("a Personal space keeps its to-dos beside the calendar, and can add them to its CRM", async () => {
   const { org, member, page, origin } = await invited();
   await db.insert(schema.personalSpaces).values({ orgId: org.id, userId: member.userId });
   const [task] = await db
@@ -1567,7 +1567,8 @@ test("a Personal space keeps its to-dos beside the calendar, with no CRM to add 
     .waitFor();
   const panel = page.getByRole("region", { name: "Task" });
   await panel.getByText("Due").waitFor();
-  expect(await panel.getByText("Add to CRM").count()).toBe(0);
+  await panel.getByText("Add to CRM").waitFor();
+  expect(await panel.getByText("Add to CRM").count()).toBe(1);
 });
 
 test("a linked to-do checked off in the calendar leaves a teammate's open CRM list without a reload", async () => {

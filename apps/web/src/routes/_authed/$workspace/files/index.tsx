@@ -24,8 +24,7 @@ export const Route = createFileRoute("/_authed/$workspace/files/")({
         search,
       });
     }
-    const spaces = context.workspace.kind === "personal" ? ["personal"] : ["shared", "personal"];
-    for (const space of spaces as ("personal" | "shared")[]) {
+    for (const space of ["shared", "personal"] as const) {
       const page = await queryClient
         .ensureInfiniteQueryData(storageListQuery({ space }))
         .catch((error: unknown) => {

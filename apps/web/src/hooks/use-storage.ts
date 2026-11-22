@@ -88,10 +88,9 @@ export function useStorageTrash() {
   return { ...query, nodes };
 }
 
-/** True in a company workspace: only those have Shared (a Personal space has My files alone). */
+/** True once the workspace is known: every workspace has Shared. */
 export function useHasSharedFiles() {
-  const active = useCurrentWorkspace();
-  return !!active && active.kind !== "personal";
+  return !!useCurrentWorkspace();
 }
 
 /** `mutate({ name, place })`. */

@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Heading } from "@/components/ui/heading";
 import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import type { SettingsPageId } from "@/hooks/use-settings.ts";
-import { usePersonalWorkspace } from "@/hooks/use-workspaces.ts";
 import { ProfilePage, SecurityPage, ShortcutsPage } from "./account-pages";
 import { AiPage } from "./ai-page";
 import { BillingPage } from "./billing-page";
@@ -15,12 +14,7 @@ import { NotificationsPage } from "./notification-pages";
 import { DriveSyncPage } from "./sync-pages";
 import { PipelinePage } from "./pipeline-page";
 import { GeneralPage, PeoplePage } from "./workspace-pages";
-import {
-  COMPANY_PAGES,
-  type PageDefinition,
-  useAccountPages,
-  WORKSPACE_PAGES,
-} from "./settings-pages";
+import { type PageDefinition, useAccountPages, WORKSPACE_PAGES } from "./settings-pages";
 
 const BODIES: Record<SettingsPageId, () => ReactNode> = {
   profile: () => <ProfilePage />,
@@ -44,9 +38,7 @@ const [GENERAL] = WORKSPACE_PAGES as [PageDefinition, ...PageDefinition[]];
 
 export function SettingsPage({ page }: { page: SettingsPageId }) {
   const account = useAccountPages();
-  const personal = usePersonalWorkspace();
-  const allowed = WORKSPACE_PAGES.filter((p) => !(personal && COMPANY_PAGES.has(p.id)));
-  const current = [...account, ...allowed].find((p) => p.id === page) ?? GENERAL;
+  const current = [...account, ...WORKSPACE_PAGES].find((p) => p.id === page) ?? GENERAL;
   const title = current.id === "profile" ? "Profile" : current.title;
   const pageNav = usePageNavShown();
 

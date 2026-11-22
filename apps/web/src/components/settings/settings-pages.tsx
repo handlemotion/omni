@@ -18,7 +18,6 @@ import { type ComponentType, type CSSProperties, type ReactNode, useMemo } from 
 import { Avatar } from "@/components/ui/avatar";
 import { useMember } from "@/hooks/use-session.ts";
 import type { SettingsPageId } from "@/hooks/use-settings.ts";
-import { usePersonalWorkspace } from "@/hooks/use-workspaces.ts";
 import { useBilling } from "@/hooks/use-billing.ts";
 import { canSyncDrive } from "@/hooks/use-desktop-sync.ts";
 import { SHORTCUT_IDS, SHORTCUTS } from "@/lib/shortcuts.ts";
@@ -180,27 +179,18 @@ export const WORKSPACE_PAGES: PageDefinition[] = [
   },
 ];
 
-/** Pages only a company has: a Personal space has no team, shared inboxes or plan. */
-export const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "pipeline", "ai", "billing"]);
 const MANAGER_PAGES = new Set(["ai", "pipeline"]);
 
-/**
- * The workspace's pages; Billing only where the install bills (it is optional), and
- * none of the company pages in a Personal space.
- */
+/** The workspace's pages; Billing only where the install bills (it is optional). */
 export function useWorkspacePages() {
   const billed = useBilling().data?.enabled !== false;
-  const personal = usePersonalWorkspace();
   const manager = isManager(useMember().member.role);
   return useMemo(
     () =>
       WORKSPACE_PAGES.filter(
-        (p) =>
-          (billed || p.id !== "billing") &&
-          !(personal && COMPANY_PAGES.has(p.id)) &&
-          (manager || !MANAGER_PAGES.has(p.id)),
+        (p) => (billed || p.id !== "billing") && (manager || !MANAGER_PAGES.has(p.id)),
       ),
-    [billed, personal, manager],
+    [billed, manager],
   );
 }
 

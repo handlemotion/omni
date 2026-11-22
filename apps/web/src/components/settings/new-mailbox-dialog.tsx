@@ -35,13 +35,13 @@ function useCreateInbox(person: InboxOwner | undefined) {
   const { member } = useMember();
   const issue = useIssueInbox();
   const createShared = useCreateSharedInbox();
-  const personal = usePersonalWorkspace();
+  const own = usePersonalWorkspace() && person?.isYou === true;
   const createOwn = useCreateMailboxes();
   const run = (
     placement: Placement,
     done: { onSuccess: (made: { address: string }) => void; onError: (error: Error) => void },
   ) => {
-    if (personal) {
+    if (own) {
       const { domainId, localPart, password, servers } = placement;
       return createOwn.mutate(
         { domainId, mailboxes: [{ localPart, password }], servers },
@@ -51,7 +51,7 @@ function useCreateInbox(person: InboxOwner | undefined) {
     if (person) return issue.mutate({ ...placement, memberId: person.id }, done);
     createShared.mutate({ ...placement, memberIds: [member.id] }, done);
   };
-  const pending = (personal ? createOwn : person ? issue : createShared).isPending;
+  const pending = (own ? createOwn : person ? issue : createShared).isPending;
   return { run, isPending: pending };
 }
 

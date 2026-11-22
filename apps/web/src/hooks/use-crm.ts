@@ -47,10 +47,9 @@ import { useMembers } from "./use-organization.ts";
 import { useMember } from "./use-session.ts";
 import { useCurrentWorkspace } from "./use-workspaces.ts";
 
-/** True in a company workspace: a Personal space has no CRM (`no_crm`). */
+/** True once the workspace is known: every workspace has a CRM. */
 export function useHasCrm() {
-  const active = useCurrentWorkspace();
-  return !!active && active.kind !== "personal";
+  return !!useCurrentWorkspace();
 }
 
 /** Companies by name (or `filter`); `companies` is every loaded page. */

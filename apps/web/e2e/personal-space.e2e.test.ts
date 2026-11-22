@@ -118,9 +118,15 @@ test("an empty Personal space offers to connect Google or set up a company", asy
   await page.waitForURL((url) => url.pathname === "/onboarding");
 });
 
-test("a Personal space's settings leave out the company pages; a company's keep them", async () => {
+test("a Personal space's settings have every page a company's has", async () => {
   const personal = await signedIn(`me-${Date.now()}@gmail.test`, "/settings");
-  expect(await settingsPages(personal)).toEqual(["General", "Inboxes"]);
+  expect(await settingsPages(personal)).toEqual([
+    "General",
+    "People",
+    "Inboxes",
+    "Shared",
+    "Helpdesk",
+  ]);
   await context?.close();
 
   const email = `owner-${Date.now()}@company.test`;
@@ -135,7 +141,7 @@ test("a Personal space's settings leave out the company pages; a company's keep 
   ]);
 });
 
-test("switching settings from a company's People page to the Personal space falls back", async () => {
+test("switching settings from a company's People page to the Personal space keeps People", async () => {
   const email = `switch-${Date.now()}@company.test`;
   await createOrgWithOwner(db, {
     name: "Switch Co",
@@ -151,8 +157,8 @@ test("switching settings from a company's People page to the Personal space fall
   await settingsNav
     .getByRole("button", { name: /^Switch workspace, currently .*Workspace$/ })
     .waitFor();
-  await page.getByRole("heading", { name: "General" }).first().waitFor();
-  expect(await page.getByRole("heading", { name: "People" }).count()).toBe(0);
+  await page.getByRole("heading", { name: "People" }).first().waitFor();
+  expect(new URL(page.url()).pathname).toMatch(/\/settings\/people$/);
 });
 
 test("compose defaults to the active workspace's address, and still offers the others", async () => {
@@ -248,3 +254,38 @@ async function freePort() {
   await new Promise((resolve) => server.close(resolve));
   return port;
 }
+
+test("in a Personal space, Add a shared mailbox asks for a shared inbox, not the owner's own", async () => {
+  const email = `shares-${Date.now()}@gmail.test`;
+  const page = await signedIn(email, "/settings/shared");
+  const [user] = await db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(eq(schema.users.email, email));
+  const [space] = await db
+    .select({ orgId: schema.personalSpaces.orgId })
+    .from(schema.personalSpaces)
+    .where(eq(schema.personalSpaces.userId, user!.id));
+  const now = new Date();
+  await db.insert(schema.mailDomains).values({
+    orgId: space!.orgId,
+    domain: `shares-${Date.now()}.test`,
+    provider: "purelymail",
+    verifiedAt: now,
+    addedAt: now,
+  });
+  await page.reload();
+
+  await page.getByRole("button", { name: "Add a shared mailbox" }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: "Address" }).fill("hello");
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      /\/api\/(workspace\/shared-inboxes|onboarding\/mailboxes)$/.test(
+        new URL(request.url()).pathname,
+      ),
+  );
+  await dialog.getByRole("button", { name: "Add" }).click();
+  expect(new URL((await sent).url()).pathname).toBe("/api/workspace/shared-inboxes");
+});

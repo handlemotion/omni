@@ -313,7 +313,7 @@ export function WorkspaceSwitcher({
   const navigate = useNavigate();
   const canCreate = useOnboarding().data?.canCreateOrganization === true;
   const active = workspaces.find((w) => w.id === member.orgId);
-  const team = !!active && active.kind !== "personal" && isManager(member.role);
+  const team = !!active && isManager(member.role);
   const row = useRef<HTMLDivElement>(null);
   const rowBox = useMemo(
     () => ({ getBoundingClientRect: () => row.current?.getBoundingClientRect() ?? new DOMRect() }),
