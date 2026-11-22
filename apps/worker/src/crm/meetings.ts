@@ -118,15 +118,10 @@ export const meetings = new Hono<AppEnv>()
     const kind = c.req.param("records") as RecordKind;
     const subject = await meetingsSubject(c, kind, c.req.param("id"));
     if (subject.status !== "ok") return refused(c, subject);
-    const door = forMember(c.var.db, c.var.member.id).meetings;
-    const meetingId = c.req.param("meetingId");
-    const found = await door.get(meetingId);
-    if (found.status !== "ok") return meetingRefused(c, found.status);
-    const placed = found.meeting.record;
-    if (placed && (placed.kind !== subject.record.kind || placed.id !== subject.record.id)) {
-      return c.body(null, 204);
-    }
-    const taken = await door.setRecord(meetingId, null);
+    const taken = await forMember(c.var.db, c.var.member.id).meetings.takeOff(
+      c.req.param("meetingId"),
+      subject.record,
+    );
     if (taken.status !== "ok") return meetingRefused(c, taken.status);
     return c.body(null, 204);
   });

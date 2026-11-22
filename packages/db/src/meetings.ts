@@ -5,6 +5,7 @@ import {
   meetingOfTask,
   meetingsOn,
   setRecord,
+  takeOff,
   type MeetingRecord,
   type MeetingsOnQuery,
 } from "./meetings/crm.ts";
@@ -78,6 +79,8 @@ export function memberMeetings(db: Db, memberId: string) {
     setRecord: async (meetingId: string, record: MeetingRecord | null) =>
       setRecord(db, await actor(), meetingId, record),
     taskMeeting: async (taskId: string) => meetingOfTask(db, await actor(), taskId),
+    takeOff: async (meetingId: string, from: MeetingRecord) =>
+      takeOff(db, await actor(), meetingId, from),
     start: async (input: StartRecording) => {
       const resolved = await resolveStart(db, memberId, input);
       if (resolved.status !== "ok") return resolved;

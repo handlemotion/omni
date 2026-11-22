@@ -162,3 +162,22 @@ test("a calendar task finds the meeting it was accepted from, only for who can o
     status: "not_found",
   });
 });
+
+test("taking a meeting off a project leaves it where someone moved it meanwhile, and takes an unplaced one off every record", async () => {
+  const s = await studio();
+  const a = { kind: "deal" as const, id: randomUUID() };
+  const b = { kind: "deal" as const, id: randomUUID() };
+  const dana = forMember(db, s.dana.id).meetings;
+  const moved = await recorded(s.dana.id, "Moved", [s.dana.address], day(1));
+  ok(await dana.setRecord(moved, a));
+  ok(await dana.setRecord(moved, b));
+  expect(ok(await dana.takeOff(moved, a)).taken).toBe(false);
+  expect(ok(await dana.get(moved)).meeting).toMatchObject({ record: b, recordOff: false });
+
+  const unplaced = await recorded(s.dana.id, "Unplaced", [s.dana.address], day(2));
+  expect(ok(await dana.takeOff(unplaced, a)).taken).toBe(true);
+  expect(ok(await dana.get(unplaced)).meeting).toMatchObject({ record: null, recordOff: true });
+  expect(await forMember(db, s.ben.id).meetings.takeOff(unplaced, a)).toEqual({
+    status: "not_found",
+  });
+});

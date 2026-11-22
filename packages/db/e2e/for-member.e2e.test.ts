@@ -15,6 +15,9 @@ import { applyAgentReply, applyConversationChange } from "../src/mail/conversati
 import { forMember, forUser } from "../src/for-member.ts";
 import {
   attachments as attachmentsTable,
+  calendarAttendees,
+  calendarCalendars,
+  calendarEvents,
   drafts as schemaDrafts,
   mailboxes as schemaMailboxes,
   mailboxFolders,
@@ -1212,4 +1215,57 @@ test("meetings find: only meetings the member can open, in their own workspace, 
     .where(eq(meetingsMeetings.id, mine));
   expect(await ids(ben.id, { people: ["mary_jane"] })).toEqual([mine]);
   expect(await ids(fran.id, {})).toEqual([]);
+});
+
+test("calendar occurrences: an event by row or UID, and the one on now, only from calendars the member opens in their own workspace", async () => {
+  const t = crypto.randomUUID().slice(0, 8);
+  const home = await createOrg(db, `occ-home-${t}`);
+  const away = await createOrg(db, `occ-away-${t}`);
+  const ana = await createMember(db, home.id, `ana-${t}`);
+  const ben = await createMember(db, home.id, `ben-${t}`);
+  const eve = await createMember(db, away.id, `eve-${t}`);
+  const box = await createMailbox(db, home.id, `hello-${t}@studio.test`);
+  await grant(db, home.id, box.id, ana.id);
+  await grant(db, home.id, box.id, eve.id);
+  const [calendar] = await db
+    .insert(calendarCalendars)
+    .values({ orgId: home.id, mailboxId: box.id })
+    .returning();
+  const now = Date.now();
+  const uid = `call-${t}@example.test`;
+  const [event] = await db
+    .insert(calendarEvents)
+    .values({
+      orgId: home.id,
+      calendarId: calendar!.id,
+      uid,
+      source: "omni",
+      title: "Client call",
+      conferenceUrl: "https://meet.example.test/abc",
+      startsAt: new Date(now - 60_000),
+      endsAt: new Date(now + 30 * 60_000),
+    })
+    .returning();
+  await db.insert(calendarAttendees).values({
+    eventId: event!.id,
+    orgId: home.id,
+    address: `marta-${t}@client.test`,
+    role: "required",
+    response: "accepted",
+  });
+
+  const anaCalendar = forMember(db, ana.id).calendar;
+  expect(await anaCalendar.occurrence({ id: event!.id }, null)).toMatchObject({
+    status: "ok",
+    event: { uid, title: "Client call" },
+  });
+  expect(await anaCalendar.occurrence({ uid }, null)).toMatchObject({ status: "ok" });
+  expect((await anaCalendar.occurrenceAt(new Date(now)))?.uid).toBe(uid);
+
+  for (const outsider of [ben.id, eve.id]) {
+    const door = forMember(db, outsider).calendar;
+    expect(await door.occurrence({ id: event!.id }, null)).toEqual({ status: "not_found" });
+    expect(await door.occurrence({ uid }, null)).toEqual({ status: "not_found" });
+    expect(await door.occurrenceAt(new Date(now))).toBeNull();
+  }
 });

@@ -113,6 +113,33 @@ export function setRecord(
 }
 
 /**
+ * Takes a meeting off `from`: off every record, so the CRM no longer places it by its people. In
+ * one conditional write, so it changes nothing once the meeting is on another record, even one it
+ * was moved to a moment before. Its editors.
+ */
+export function takeOff(
+  ex: Ex,
+  actor: MeetingsActor | null,
+  meetingId: string,
+  from: MeetingRecord,
+) {
+  const m = meetingsMeetings;
+  return withMeeting(ex, actor, meetingId, "editor", async () => {
+    const taken = await ex
+      .update(m)
+      .set({ recordKind: NO_RECORD, recordId: "" })
+      .where(
+        and(
+          eq(m.id, meetingId),
+          or(isNull(m.recordKind), and(eq(m.recordKind, from.kind), eq(m.recordId, from.id))),
+        ),
+      )
+      .returning({ id: m.id });
+    return { status: "ok", taken: taken.length > 0 } as const;
+  });
+}
+
+/**
  * The meeting a calendar task was accepted from, when the actor can open it; `not_found`
  * otherwise, so a task never tells who cannot open the meeting that it came from one.
  */
