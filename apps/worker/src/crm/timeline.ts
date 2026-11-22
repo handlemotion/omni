@@ -7,6 +7,7 @@ import type { AppEnv } from "../context.ts";
 import { threadUrl } from "../mcp/format.ts";
 import { zValidator } from "../validator.ts";
 import { activityOf, subjectOf, threadsOf, type MailSubject } from "./mail.ts";
+import { meetingsOf, meetingsSubject, type MeetingsSubject } from "./meetings.ts";
 import {
   decodeCursor,
   encodeCursor,
@@ -88,11 +89,14 @@ async function timeline(c: Context<AppEnv>, kind: RecordKind, id: string, page: 
   const cursor = decoded ? { at: new Date(decoded.at), id: decoded.id } : null;
   const crm = memberCrm(c);
   const crmPage = { cursor: cursor && { createdAt: cursor.at, id: cursor.id }, limit };
-  const [events, notes, threads, activity] = await Promise.all([
+  const [events, notes, threads, activity, meetings] = await Promise.all([
     crm.events(subject.ref, crmPage),
     crm.notes(subject.ref, crmPage),
     threadsOf(c, subject, cursor, limit + 1),
     activityOf(c, subject, cursor, limit + 1),
+    meetingsFor(c, kind, id, subject).then((on) =>
+      on ? meetingsOf(c, on, cursor, limit + 1) : [],
+    ),
   ]);
   if (events.status !== "ok") return refused(c, events);
   if (notes.status !== "ok") return refused(c, notes);
@@ -121,6 +125,12 @@ async function timeline(c: Context<AppEnv>, kind: RecordKind, id: string, page: 
         url: threadUrl(webAppURL, thread.id),
       },
     })),
+    ...meetings.map((meeting) => ({
+      kind: "meeting" as const,
+      id: meeting.id,
+      at: meeting.startedAt,
+      meeting,
+    })),
     ...activity.map((item) => ({
       kind: "activity" as const,
       id: item.key,
@@ -135,6 +145,15 @@ async function timeline(c: Context<AppEnv>, kind: RecordKind, id: string, page: 
     items,
     nextCursor: more && last ? encodeCursor({ at: last.at, id: last.id }) : null,
   } satisfies CrmTimelineResponse);
+}
+
+async function meetingsFor(c: Context<AppEnv>, kind: RecordKind, id: string, subject: MailSubject) {
+  if (kind !== "deals") {
+    const record = { kind: kind === "people" ? "person" : "company", id } as const;
+    return { ...subject, record } satisfies MeetingsSubject;
+  }
+  const found = await meetingsSubject(c, kind, id);
+  return found.status === "ok" ? found : null;
 }
 
 type Query = z.output<typeof crmTimelineQuerySchema>;

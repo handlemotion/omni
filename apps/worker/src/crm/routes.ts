@@ -6,6 +6,7 @@ import { companies } from "./companies.ts";
 import { contracts } from "./contracts.ts";
 import { deals } from "./deals.ts";
 import { files } from "./files.ts";
+import { meetings } from "./meetings.ts";
 import { find } from "./find.ts";
 import { notes } from "./notes.ts";
 import { people } from "./people.ts";
@@ -26,5 +27,6 @@ export const crm = new Hono<AppEnv>()
   .route("/", notes)
   .route("/", plan)
   .route("/", tasks)
+  .route("/", meetings)
   .route("/", timelines)
   .route("/", find);

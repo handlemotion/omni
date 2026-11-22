@@ -59,6 +59,11 @@ export const meetings = new Hono<AppEnv>()
       })),
     });
   })
+  .get("/tasks/:taskId", async (c) => {
+    const found = await memberMeetings(c).taskMeeting(c.req.param("taskId"));
+    if (found.status !== "ok") return refused(c, found);
+    return c.json({ actionId: found.actionId, meeting: wire(found.meeting) });
+  })
   .get("/search", zValidator("query", meetingsSearchQuerySchema), async (c) => {
     const { q, limit } = c.req.valid("query");
     const found = await memberMeetings(c).search(q, limit);

@@ -220,6 +220,8 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `GET /stages` · `PUT /stages`                                              | The ordered list. Replace it (owners and admins): rename, add, reorder. A stage holding deals stays.                           |
 | `POST /notes` · `PATCH /notes/:id` · `DELETE /notes/:id`                   | Write a note on one record. Its author edits or deletes it.                                                                    |
 | `GET /companies/:id/timeline` · same for people and deals                  | The merged timeline, newest first.                                                                                             |
+| `GET /deals/:id/meetings`                                                  | The project's Meetings tab: its recorded meetings the member can open, newest first (see "The timeline").                      |
+| `PUT /deals/:id/meetings/:meetingId` · `DELETE` (and companies, people)    | Put a meeting the member edits on this record; take it off (it then shows on no deal by its people). Placing grants nobody anything. |
 | `POST /companies/:id/folder` · `POST /deals/:id/folder`                    | Finds or makes the record's folder and returns its node id. The apps then use `/api/storage` on it.                            |
 | `GET /companies/:id/links` · `POST` · `DELETE …/links/:nodeId` (and deals) | Drive files linked where they live. `POST` takes `nodeIds` the member can open now; linking twice is a no-op.                  |
 | `GET /contracts` · `POST /contracts` · `PATCH /contracts/:id` · `DELETE`   | List by `?company=` or `?deal=`. Create. Change status, dates or file. Delete (never a signed one).                            |
@@ -265,6 +267,7 @@ One list, newest first, of four kinds of item:
 | `note`     | `crm_notes`                              | The text and its author                                  |
 | `contract` | `crm_events` of a contract               | Created, sent, signed, ended                             |
 | `thread`   | Mail, through `forUser(...).threadsWith` | Subject, snippet, mailbox, last message time, its `url`  |
+| `meeting`  | Meetings, through `forMember(...).meetings.on` | Title, when, summary, open actions; only meetings the reader opens |
 
 - The addresses asked of Mail are a person's own; for a deal, its people's; for a company, its
   people's plus its domains.
@@ -272,6 +275,12 @@ One list, newest first, of four kinds of item:
   Personal space included when they have one. It is their own mail, shown only to them.
 - Each source is asked for one page older than the cursor; the pages are merged and cut to the
   limit. The cursor is the last item's time and id.
+- A recorded meeting is on a record when someone put it there, or when one of its attendees is at
+  the record's addresses or domains: a person's own; a company's people's and its domains; a
+  deal's people's and its company's domains. A deal (and its Meetings tab) leaves out a meeting
+  someone put on another record or took off; a person's or a company's timeline keeps it, since
+  they were in it. The CRM checks the record first, then reads Meetings' door, which shows only
+  the meetings the member can open (`docs/spec/meetings.md`, "Sharing").
 
 ### Tasks
 

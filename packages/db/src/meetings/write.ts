@@ -277,7 +277,11 @@ export async function decideAction(
     if (won.length === 0) return { status: "decided", state: "done" } as const;
     return {
       status: "ok",
-      action: { ...action, state: decision.accept ? "done" : "dismissed" },
+      action: {
+        ...action,
+        state: decision.accept ? "done" : "dismissed",
+        taskId: decision.taskId ?? null,
+      },
     } as const;
   });
 }

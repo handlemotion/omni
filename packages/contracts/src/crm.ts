@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { crmTimelineMeetingItemSchema } from "./crm-meetings.ts";
 import { storageSendForSignatureBodySchema, storageSignatureStatusSchema } from "./storage.ts";
 
 const isoDate = z.iso.datetime();
@@ -563,6 +564,7 @@ export const crmTimelineItemSchema = z.discriminatedUnion("kind", [
   crmTimelineContractItemSchema,
   crmTimelineThreadItemSchema,
   crmTimelineActivityItemSchema,
+  crmTimelineMeetingItemSchema,
 ]);
 export const crmTimelineResponseSchema = z.object({
   items: z.array(crmTimelineItemSchema),

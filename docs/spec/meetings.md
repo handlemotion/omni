@@ -134,6 +134,13 @@ deal's people (`meetingsWith`, the calendar's rule), and anyone who can open the
 it to another deal or take it off. A company's and a person's timeline shows a recorded meeting
 with its summary.
 
+How the CRM finds them: a meeting is on a deal when someone put it there, or when an attendee is
+one of the deal's people or at its company's domains, unless someone put it on another record or
+took it off; a person's and a company's timelines show every meeting they were in, by their
+addresses and domains, plus the ones put on them (`docs/spec/crm.md`, "The timeline"). Putting
+it on a record and taking it off go through the CRM's routes, which check the record first; the
+meeting's `PATCH` only takes it off (`record: null`).
+
 ## Capture
 
 Where the audio comes from decides most of the quality, so it is the first thing to get right.
@@ -466,7 +473,8 @@ meetings shared with them. A meeting the caller cannot see answers `404`.
 | `GET /:id`                                                           | The meeting: status, attendees, notes, actions, speakers                  |
 | `GET /:id/transcript`                                                | Segments with speakers                                                    |
 | `GET /:id/audio`                                                     | The audio, through Storage's door                                         |
-| `PATCH /:id` `{ title?, access?, link?, record? }`                   | Change, general access and the link, or move to a deal                    |
+| `PATCH /:id` `{ title?, access?, link?, record? }`                   | Change, general access and the link; `record: null` takes it off every record (put it on one with `PUT /api/crm/deals/:id/meetings/:meetingId`) |
+| `GET /tasks/:taskId`                                                 | The meeting a calendar task was accepted from, so the task links back to it |
 | `GET /:id/grants` · `PUT /:id/grants/:address` `{ role }` · `DELETE` | Who it is shared with; invite, change, remove                             |
 | `PUT /:id/speakers/:label` `{ name, address? }`                      | Rename a speaker                                                          |
 | `POST /actions/:id/accept` · `/dismiss`                              | A task is made through the calendar's surface; an email returns its draft |

@@ -52,10 +52,8 @@ export const changeMeetingBodySchema = z.object({
   title: z.string().max(300).nullable().optional(),
   access: z.enum(["restricted", "workspace"]).optional(),
   linkAccess: z.enum(["off", "signed_in", "anyone"]).optional(),
-  record: z
-    .object({ kind: z.string().min(1).max(40), id: z.string().min(1).max(64) })
-    .nullable()
-    .optional(),
+  /** `null` takes it off every record; it is put on one through the CRM's routes. */
+  record: z.null().optional(),
 });
 
 export const grantMeetingBodySchema = z.object({ role: z.enum(["viewer", "editor"]) });
