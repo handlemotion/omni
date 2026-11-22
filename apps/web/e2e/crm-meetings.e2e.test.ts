@@ -98,6 +98,7 @@ async function recorded(memberId: string, orgId: string, title: string, attendee
   });
   if (started.status !== "ok") throw new Error(started.status);
   await meetingsPipeline(db).advance(started.meetingId, ["recording"], "writing");
+  await meetingsPipeline(db).advance(started.meetingId, ["recording"], "writing");
   await meetingsPipeline(db).saveNotes(started.meetingId, orgId, {
     title: null,
     summary: `${title}: agreed the next steps.`,

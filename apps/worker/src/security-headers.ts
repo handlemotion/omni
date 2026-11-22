@@ -1,16 +1,19 @@
 import { createMiddleware } from "hono/factory";
 
-/** Powerful features the app never uses are off; passkeys stay on for our own origin. */
+/**
+ * Powerful features the app never uses are off. Our own origin keeps passkeys, and the
+ * microphone and a shared tab's sound for the browser recorder (`docs/spec/meetings.md`).
+ */
 export const PERMISSIONS_POLICY = [
   "accelerometer=()",
   "browsing-topics=()",
   "camera=()",
-  "display-capture=()",
+  "display-capture=(self)",
   "geolocation=()",
   "gyroscope=()",
   "hid=()",
   "magnetometer=()",
-  "microphone=()",
+  "microphone=(self)",
   "midi=()",
   "payment=()",
   "serial=()",

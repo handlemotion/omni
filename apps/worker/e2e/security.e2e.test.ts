@@ -81,6 +81,8 @@ function expectBaseline(response: Response) {
   expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   const permissions = response.headers.get("permissions-policy") ?? "";
   expect(permissions).toContain("camera=()");
+  expect(permissions).toContain("display-capture=(self)");
+  expect(permissions).toContain("microphone=(self)");
   expect(permissions).toContain("publickey-credentials-get=(self)");
   expect(permissions).toContain("publickey-credentials-create=(self)");
 }

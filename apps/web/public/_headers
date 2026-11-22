@@ -16,5 +16,5 @@
   Strict-Transport-Security: max-age=63072000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: same-origin
-  Permissions-Policy: accelerometer=(), browsing-topics=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), hid=(), magnetometer=(), microphone=(), midi=(), payment=(), serial=(), usb=(), publickey-credentials-create=(self), publickey-credentials-get=(self)
+  Permissions-Policy: accelerometer=(), browsing-topics=(), camera=(), display-capture=(self), geolocation=(), gyroscope=(), hid=(), magnetometer=(), microphone=(self), midi=(), payment=(), serial=(), usb=(), publickey-credentials-create=(self), publickey-credentials-get=(self)
   Cross-Origin-Opener-Policy: same-origin

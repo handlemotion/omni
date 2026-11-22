@@ -118,6 +118,7 @@ export { IconPeople } from "central-icons-outlined/IconPeople";
 export { IconCalendar1 as IconCalendarFilled } from "central-icons-filled/IconCalendar1";
 export { IconMicrophone as IconMicrophoneFilled } from "central-icons-filled/IconMicrophone";
 export { IconMicrophone } from "central-icons-outlined/IconMicrophone";
+export { IconStop } from "central-icons-outlined/IconStop";
 export { IconArrowsRepeat as IconRepeat } from "central-icons-outlined/IconArrowsRepeat";
 export { IconArrowUpCircle as IconUpgrade } from "central-icons-outlined/IconArrowUpCircle";
 export { IconConnectors1 as IconConnections } from "central-icons-outlined/IconConnectors1";

@@ -67,6 +67,7 @@ async function recordedCall(memberId: string, orgId: string, address: string) {
   });
   if (started.status !== "ok") throw new Error(started.status);
   const pipeline = meetingsPipeline(db);
+  await pipeline.advance(started.meetingId, ["recording"], "transcribing");
   await pipeline.saveTranscript(started.meetingId, orgId, {
     language: "es",
     durationMs: 50_100,
@@ -91,6 +92,7 @@ async function recordedCall(memberId: string, orgId: string, address: string) {
       { label: "B", name: null, address: null, source: null, confidence: 0 },
     ],
   });
+  await pipeline.advance(started.meetingId, ["naming"], "writing");
   await pipeline.saveNotes(started.meetingId, orgId, {
     title: null,
     summary: "Dana y Marta acordaron el acceso al servidor hoy y el diseño final el viernes.",

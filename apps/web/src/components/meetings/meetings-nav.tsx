@@ -4,6 +4,8 @@ import { RecordMark } from "@/components/crm/record-list";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
 import { useMeetingGroups } from "@/hooks/use-meetings.ts";
+import { RecordButton } from "@/components/meetings/recorder";
+import { useRecorder } from "@/hooks/use-recorder.ts";
 import { Button } from "@/components/ui/button";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { groupByDate } from "@/lib/date-groups.ts";
@@ -31,6 +33,7 @@ export function MeetingsNav() {
   }
   return (
     <>
+      <RecordSection />
       {sections.map((section) => (
         <SidebarSection key={section.id} label={section.label}>
           {section.rows.map((group) => (
@@ -76,5 +79,15 @@ function GroupRow({ group }: { group: MeetingGroup }) {
       label={title}
       detail={group.meetings > 1 ? group.meetings : undefined}
     />
+  );
+}
+
+function RecordSection() {
+  const recorder = useRecorder();
+  if (!recorder) return null;
+  return (
+    <SidebarSection>
+      <RecordButton />
+    </SidebarSection>
   );
 }

@@ -226,6 +226,13 @@ a recording by itself. The bridge's shapes are `@omni/contracts`' `desktop-recor
 
 **The browser recorder** mixes nothing: it records the tab's sound and the mic as two channels
 with `MediaRecorder` (Opus in WebM), and computes the same mic intervals with an `AnalyserNode`.
+**Record** sits at the top of the Meetings sidebar in a browser that can share a tab's sound
+(not in the desktop app, which has its own recorder). It asks the consent question once, then
+the person picks the call's tab with its sound; the pill (a red dot, the time, Stop) floats at
+the bottom of every page while it records, and Stop opens the meeting. The app's
+`Permissions-Policy` allows `display-capture` and `microphone` for its own origin only. Record in
+the calendar's event panel is the calendar's, and comes with it.
+
 It is built so a recording is never lost:
 
 - **Chunks, kept on the computer first.** `MediaRecorder` hands over a chunk every 5 seconds.

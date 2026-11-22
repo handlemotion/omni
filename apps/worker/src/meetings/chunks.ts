@@ -86,8 +86,14 @@ export const meetingChunks = new Hono<AppEnv>()
     }
     if (!held) await c.env.STORAGE_BUCKET.delete(key);
     if (received === "gone") return refused(c, { status: "not_found" });
-    if (received === "conflict") return refused(c, { status: "chunk_conflict" });
-    return refused(c, { status: "not_recording" });
+    if (received === "conflict") {
+      return apiError(c, "conflict", "a different chunk with that number was already received", {
+        details: { reason: "chunk_conflict" },
+      });
+    }
+    return apiError(c, "conflict", "the meeting is no longer recording", {
+      details: { reason: "not_recording" },
+    });
   })
   .get("/:id/chunks", async (c) => {
     const meetingId = c.req.param("id");

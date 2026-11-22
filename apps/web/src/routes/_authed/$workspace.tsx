@@ -21,6 +21,7 @@ import { CommandMenu } from "../../components/search/command-menu.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { NotificationsPanel } from "../../components/shell/notifications.tsx";
 import { OfflineNotice } from "../../components/shell/offline-notice.tsx";
+import { RecorderProvider } from "../../components/meetings/recorder.tsx";
 import {
   ResizableSidebarProvider,
   SidebarResizeGrip,
@@ -110,27 +111,29 @@ function Shell() {
   const settings = useSettingsLocation();
   useShortcut("settings", useToggleSettings());
   return (
-    <ResizableSidebarProvider className="h-svh overflow-hidden bg-shell">
-      <ListSweepProvider>
-        <DriveDragProvider>
-          {settings ? <SettingsNav /> : <AppSidebar />}
-          <NotificationsPanel />
-          <CommandMenu />
-          <SidebarInset className="md:mt-12 md:border-t md:border-sidebar-border md:peer-data-[state=collapsed]:rounded-tl-xl md:peer-data-[state=collapsed]:border-s">
-            <SidebarResizeGrip />
-            <ModuleBoundary>
-              <Outlet />
-            </ModuleBoundary>
-          </SidebarInset>
-        </DriveDragProvider>
-      </ListSweepProvider>
-      <TitleBar />
-      <TalkWindow />
-      <TalkArrival meId={member.id} />
-      <KeyboardShortcuts />
-      <OfflineNotice />
-      <ComposeDialog />
-    </ResizableSidebarProvider>
+    <RecorderProvider>
+      <ResizableSidebarProvider className="h-svh overflow-hidden bg-shell">
+        <ListSweepProvider>
+          <DriveDragProvider>
+            {settings ? <SettingsNav /> : <AppSidebar />}
+            <NotificationsPanel />
+            <CommandMenu />
+            <SidebarInset className="md:mt-12 md:border-t md:border-sidebar-border md:peer-data-[state=collapsed]:rounded-tl-xl md:peer-data-[state=collapsed]:border-s">
+              <SidebarResizeGrip />
+              <ModuleBoundary>
+                <Outlet />
+              </ModuleBoundary>
+            </SidebarInset>
+          </DriveDragProvider>
+        </ListSweepProvider>
+        <TitleBar />
+        <TalkWindow />
+        <TalkArrival meId={member.id} />
+        <KeyboardShortcuts />
+        <OfflineNotice />
+        <ComposeDialog />
+      </ResizableSidebarProvider>
+    </RecorderProvider>
   );
 }
 

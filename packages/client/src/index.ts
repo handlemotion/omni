@@ -5,3 +5,4 @@ export * from "@omni/contracts/errors";
 export * from "@omni/contracts/headers";
 export type { DesktopSyncStatus, DesktopWorkspaceSync } from "@omni/contracts";
 export * from "./recordings.ts";
+export * from "./chunked-recording.ts";
