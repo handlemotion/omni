@@ -12,6 +12,7 @@ import { Hono, type Context } from "hono";
 import { gateMeter, hasAllowance, READ_ONLY_MESSAGE } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
+import { storageLimit } from "../storage/core.ts";
 import { zValidator } from "../validator.ts";
 import { groupSummary, memberAsk } from "./ask.ts";
 import { meetingFile } from "./audio.ts";
@@ -99,6 +100,9 @@ export const meetings = new Hono<AppEnv>()
       });
     }
     if (!room.ok) return apiError(c, "billing_inactive", READ_ONLY_MESSAGE);
+    if (await storageIsFull(c)) {
+      return apiError(c, "storage_full", "this workspace's storage is full");
+    }
     const folderId = await recordingsFolder(memberFiles(c));
     if (!folderId) return apiError(c, "not_found", "your My files could not be reached");
     const started = await memberMeetings(c).start({
@@ -284,4 +288,14 @@ async function stopRefusal(
     return refused(c, { status: "not_a_recording" });
   }
   return null;
+}
+
+async function storageIsFull(c: Context<AppEnv>) {
+  const { db, config, member } = c.var;
+  const [{ limitBytes }, usage] = await Promise.all([
+    storageLimit(db, config, member.orgId),
+    memberFiles(c).usage(),
+  ]);
+  if (limitBytes === null) return false;
+  return (usage?.bytes ?? 0) + (usage?.reservedBytes ?? 0) >= limitBytes;
 }

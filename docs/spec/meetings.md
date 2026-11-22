@@ -571,7 +571,9 @@ the status before it.
    `transcribe`.
 3. **File.** For a recording sent as chunks, the first step joins them in order into one file in
    the recorder's `Recordings` folder, through Drive's upload as the recorder (counted against the
-   workspace's storage, never refused for it: the minutes are already paid), then deletes the
+   workspace's storage, never refused for it: refusing then would lose audio already recorded;
+   instead `POST /api/meetings` refuses to start a recording, `storage_full`, while the
+   workspace's storage is already full), then deletes the
    chunks. The upload is claimed on the meeting (`meetings_jobs.upload_id`) and joining writes
    the same bytes again, so a retry files one file. A meeting deleted meanwhile sends the file to
    the Trash.

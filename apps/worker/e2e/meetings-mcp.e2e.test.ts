@@ -223,6 +223,10 @@ test("accepting a meeting's actions makes one task and one unsent draft however 
     }),
   ).rejects.toThrow(/meetings:write/);
 
+  await stack.db
+    .update(schema.meetingsActions)
+    .set({ payload: { title: task.title, description: "So Marta can review it before Friday." } })
+    .where(eq(schema.meetingsActions.id, task.id));
   const accepted = await call(agent, "meetings_decide", { action_id: task.id, decision: "accept" });
   expect(accepted).toMatchObject({ kind: "task", state: "done", already_decided: false });
   const again = await call(agent, "meetings_decide", { action_id: task.id, decision: "accept" });
@@ -232,6 +236,7 @@ test("accepting a meeting's actions makes one task and one unsent draft however 
     .from(schema.calendarTasks)
     .where(eq(schema.calendarTasks.title, task.title));
   expect(tasks.map((t) => [t.id, t.ownerMemberId])).toEqual([[accepted.task_id, dana.id]]);
+  expect(tasks[0]?.body).toContain("So Marta can review it before Friday.");
 
   const dismissed = await call(agent, "meetings_decide", {
     action_id: otherTask.id,

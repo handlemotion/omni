@@ -156,6 +156,7 @@ async function acceptTask(
   const calendar = forMember(context.db, workspace.memberId).calendar;
   const fields = taskFields(found.action.payload);
   const body = [
+    fields.description || null,
     `From the meeting ${found.meetingTitle ?? "without a title"}`,
     fields.owner ? `Owner: ${fields.owner}` : null,
     fields.due ? `Due: ${fields.due}` : null,

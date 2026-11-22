@@ -92,3 +92,31 @@ test("meetings need a plan or a trial; a stopped recording's minutes count once;
     body: { code: "ALLOWANCE_REACHED", details: { meter: "meetingMinutes" } },
   });
 });
+
+test("a workspace whose storage is full cannot start a recording until it has room", async () => {
+  const org = await stack.company(`meet-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id, "owner");
+  const periodStart = new Date(Date.now() - 86_400_000);
+  await stack.db.insert(schema.subscriptions).values({
+    id: randomUUID(),
+    plan: "team",
+    orgId: org.id,
+    status: "active",
+    billingInterval: "month",
+    periodStart,
+    periodEnd: new Date(periodStart.getTime() + 30 * 86_400_000),
+  });
+  const filled = 1024 ** 5;
+  await stack.db
+    .insert(schema.storageUsage)
+    .values({ orgId: org.id, bytes: filled })
+    .onConflictDoUpdate({ target: schema.storageUsage.orgId, set: { bytes: filled } });
+
+  expect(await start(dana)).toMatchObject({ status: 402, body: { code: "STORAGE_FULL" } });
+
+  await stack.db
+    .update(schema.storageUsage)
+    .set({ bytes: 0 })
+    .where(eq(schema.storageUsage.orgId, org.id));
+  expect((await start(dana)).status).toBe(201);
+});

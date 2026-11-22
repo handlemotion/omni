@@ -136,6 +136,7 @@ const textOf = (payload: Record<string, unknown>, key: string) => {
 /** What a suggested task says. */
 export const taskFields = (payload: Record<string, unknown>) => ({
   title: textOf(payload, "title"),
+  description: textOf(payload, "description"),
   owner: textOf(payload, "owner"),
   due: textOf(payload, "due"),
 });
