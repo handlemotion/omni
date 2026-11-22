@@ -1,0 +1,168 @@
+# Talk: who is here, and a quick line to them
+
+Nov 22, 2026 · Draft · Extends `docs/spec/modules.md` ("What is shared") and `docs/spec/v1.md`
+(Drive)
+
+## Summary
+
+The title bar shows the teammates who have Omni open right now, as a small stack of their
+pictures. Clicking one opens a compact conversation with them that floats over whatever module
+you are in: quick notes, and above all files dropped straight to that person. It is light
+communication between teammates, not a chat product: no channels, no groups, no calls.
+
+Talk is not a module a person picks on the rail. In the code it is one, with the module layout
+and rules (`docs/spec/modules.md`), because it owns tables and reads Storage through its door.
+
+## What a person sees
+
+- **The stack.** In the title bar, left of the notifications bell, in every module: the
+  teammates online in this workspace now, at most 3 pictures overlapping, then a fourth circle
+  reading `+n` for the rest. Yourself never. A teammate with unread notes for you shows first.
+  The picture is the presence indicator: it is there because they are connected. When nobody
+  else is online, there is no stack.
+- **Everyone.** `+n` opens the full list: online teammates first, then the others, each with
+  their unread count. Any of them opens a conversation; an offline teammate reads it next time.
+- **The window.** A floating card above the page, anchored under the title bar at the right:
+  - a header with their picture, name, a green dot and `Active now` while they are online, an
+    expand control and close;
+  - the conversation: a centred time line wherever an hour passes between notes, your notes on
+    the right and theirs on the left, a file as a card (an image as a large rounded picture,
+    anything else as its file tile and name), and reactions as small chips under a note;
+  - a composer at the bottom, `Note to <first name>…`, with attach (+) and a `Drop ↵` send
+    button. Dropping files anywhere on the window sends them.
+  - Expand makes the same window taller and wider, still floating, so you never leave the page
+    you were on. One window is open at a time; opening another teammate replaces it.
+- **Unread and notifying.** A teammate's picture carries a dot while you have unread notes from
+  them. A note that arrives while its window is not open (or Omni is in the background) shows a
+  system notification, when desktop notifications are on for this device, and opens the window
+  when clicked. Opening the window reads the conversation.
+
+## Who may use it
+
+- **Teammates only.** Members of a company workspace who are not freelancers. A freelancer is
+  in a workspace to work on their projects: they neither see who is online nor get threads.
+  A Personal space has nobody to talk to.
+- **One thread per pair.** A thread belongs to exactly two members of one workspace. Only those
+  two read it, write to it or react in it; nobody else, an owner or admin included, can open it,
+  learn it exists or see its unread count. No admin view.
+- **Leaving.** A member removed from the workspace takes their threads with them (the rows
+  cascade). The files they sent are in their My files, and are handed over with the rest of it
+  (`handOverMemberStorage`).
+
+## Model
+
+All tables carry `org_id`, cascade with the workspace, and are named `talk_*`.
+
+- `talk_threads`: `id`, `org_id`, `member_a_id`, `member_b_id` (the two members' ids in sorted
+  order, `a < b`, so a pair has exactly one row: unique on `(org_id, member_a_id, member_b_id)`),
+  `created_at`, `last_message_at`. Both members cascade.
+- `talk_messages`: `id` (uuidv7, so ids sort by time), `org_id`, `thread_id`, `author_member_id`,
+  `body` (text, at most 4,000 characters) and/or a file: `file_node_id` (Storage node, set null
+  when the node is deleted for good), `file_name`, `file_size`, `file_mime`. At least one of body
+  and file. `created_at`.
+- `talk_reactions`: (`message_id`, `member_id`, `emoji`), `org_id`, `created_at`. An emoji is
+  one grapheme of at most 16 bytes; a person has at most 8 different ones on a note.
+- `talk_reads`: (`thread_id`, `member_id`), `org_id`, `read_at`. Unread is the other person's
+  notes after `read_at`.
+
+Reads and writes go through `forMember(db, memberId).talk`, which loads the member, refuses a
+freelancer or a Personal space, and reaches only threads the member is one of the two in. The
+door takes the other person as a member id and checks they are a teammate in the same workspace.
+
+## Files go into Drive
+
+A dropped file is uploaded by the Worker into the **sender's My files, in a folder named
+`Talk`** (made on first use), and the Worker adds a **viewer grant for the recipient's address**
+on that file. The message keeps the node's id and, as what the sender sent, its name, size and
+type.
+
+Why Drive and not attachments of its own:
+
+- **One store.** Bytes, quotas, billing, the per-file limit, previews and thumbnails, versions,
+  Trash and the sweep already exist for Storage. A second store would need all of them again.
+- **The grant is the access.** The recipient opens the file through Storage's grant door, the
+  same way as any file shared with them; Drive's sharing panel shows it is shared and with whom,
+  and the sender can revoke it there. Talk never decides who reads bytes.
+- **It is a real file.** The sender finds what they sent in My files / Talk; the recipient can
+  save it to their own drive or share it on. Nothing is copied to "keep" it.
+- **Why My files, not a teamspace.** A file sent to one person is that person's to see. A
+  teamspace per pair would put every pair in the sidebar; My files is private already and the
+  grant reaches the one person it is for.
+
+The name, size and type are kept on the message because Talk reads no Storage table: the
+message says what was sent. When the file is gone (trashed, deleted, grant removed), the card
+still says what it was and opening it answers not found, as any revoked share does.
+
+Upload is one request: `POST /api/talk/threads/:id/files?name=…` with the bytes as the body and
+its `content-length`, up to `STORAGE_MAX_FILE_BYTES` and the workspace's storage limit, like
+saving a mail attachment to Drive. A failed grant or message aborts the upload, so no orphan
+file is left.
+
+## API
+
+Under `/api/talk`, member sessions only, behind the plan's read-only gate like every write.
+
+| Route                                   | What                                                                    |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| `GET /people`                           | Teammates with picture, online now, their thread id and unread count    |
+| `POST /threads` `{ memberId }`          | The thread with that teammate, made on first use (idempotent)           |
+| `GET /threads/:id/messages?before=`     | Newest notes first, 50 a page, with reactions; `before` is a message id |
+| `POST /threads/:id/messages` `{ body }` | A note                                                                  |
+| `POST /threads/:id/files?name=`         | A file, as above                                                        |
+| `PUT /threads/:id/read`                 | Reads it up to now                                                      |
+| `PUT /messages/:id/reactions/:emoji`    | Adds a reaction (idempotent); `DELETE` removes it                       |
+
+A thread the member is not one of the two in answers `404`, never `403`, so its existence does
+not leak.
+
+## Realtime
+
+Online is the existing per-workspace realtime Durable Object, not a new service. The Worker tags
+a teammate's app socket `team` when it accepts it (never a sync or watch socket, never a
+freelancer). Then:
+
+- `talk.online` `{ memberId, online }`: sent to the workspace's `team` sockets when a member's
+  first app socket opens and when their last one closes. `GET /people` reads the same set from
+  the object, so a fresh app starts right and events keep it right. A dropped socket goes
+  offline when the object sees it close.
+- `talk.message` `{ threadId, messageId, fromMemberId, preview }`: to both members' app
+  sockets (the sender's other devices too). `preview` is the first 120 characters of the note,
+  or the file's name. A recipient with no app socket open gets an Expo push when push is on.
+- `talk.changed` `{ threadId }`: a reaction changed, to both members; a read, to the reader's own
+  devices only.
+
+Clients refetch what an event names; the event is never the source of truth. Every write is a
+row with its own id, so a retried request at most adds a note again; reactions and reads are
+upserts.
+
+## Deferred
+
+- **Calls and video.** The composer leaves room; nothing is built. Calls need a media service,
+  which a self-hosted install does not have.
+- **Voice notes and screen recording.** A recording is a file, so they will arrive as files.
+- **Groups.** Threads are pairs. A group would be a thread with a member table; nothing here
+  prevents it.
+- **Typing, seen and editing or deleting a note.** Not in v1.
+- **iOS and the desktop's watch sockets.** The phone gets a push and nothing else; the desktop app
+  hears Talk only through its open window, not through the sockets it keeps for other
+  workspaces.
+- **Agents.** No MCP tools for Talk.
+
+## Defaults chosen here
+
+- The stack shows online teammates only, at most 3, then `+n`; unread ones first, then by name.
+- An hour between notes starts a new time line in the window.
+- Notes are plain text, 4,000 characters at most; links are not previewed.
+- Files land in `My files / Talk`; the recipient's grant is `viewer`.
+
+## Plan
+
+One stack, on top of Drive's (#755), since Talk adds a migration and changes the realtime object
+that stack also changes.
+
+| #   | Layer                                                              |
+| --- | ------------------------------------------------------------------ |
+| T0  | This document                                                      |
+| T1  | `@omni/db`: schema, migration, the member door; leak tests         |
+| T2  | Worker: `/api/talk`, files through Drive, online and delivery; e2e |
+| T3  | Web: the stack in the title bar and the floating window            |
