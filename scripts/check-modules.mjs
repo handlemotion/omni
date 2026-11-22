@@ -13,6 +13,7 @@ export const MODULES = {
   crm: { uses: ["mail", "storage"], prefixed: true },
   calendar: { uses: ["mail"], prefixed: true },
   talk: { uses: ["storage"], prefixed: true },
+  meetings: { uses: ["calendar", "storage"], prefixed: true },
 };
 
 const REGISTRARS = [

@@ -12,3 +12,4 @@ export * from "./storage.ts";
 export * from "./crm.ts";
 export * from "./calendar.ts";
 export * from "./talk.ts";
+export * from "./meetings.ts";
