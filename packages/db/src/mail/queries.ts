@@ -535,7 +535,20 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       const inLater = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
       const later = sql`(${inLater} and not ${done})`;
       const active = sql`not (${inLater} or ${done})`;
-      const inbox = sql`(${active} and ${heardFrom})`;
+      const heard = db
+        .select({ threadId: messages.threadId })
+        .from(messages)
+        .innerJoin(mailboxes, eq(mailboxes.id, messages.mailboxId))
+        .where(
+          and(
+            eq(messages.threadId, threads.id),
+            sql`lower(${messages.fromAddress}) <> lower(${mailboxes.address})`,
+            active,
+          ),
+        )
+        .limit(1)
+        .as("heard");
+      const inbox = sql`${heard.threadId} is not null`;
       const unread = sql`coalesce(${threadState.read}, false) = false`;
       const count = (filter: SQL) => sql<number>`(count(*) filter (where ${filter}))::int`;
       const rows = await db
@@ -554,6 +567,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         .innerJoin(...threadGrant)
         .innerJoin(...threadOrg)
         .leftJoin(threadState, myState)
+        .leftJoinLateral(heard, sql`true`)
         .where(eq(threads.archived, false))
         .groupBy(threads.orgId, threads.mailboxId);
       return rows;

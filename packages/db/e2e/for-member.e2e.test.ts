@@ -631,6 +631,46 @@ test("Later hides the thread from the member's inbox, only theirs, until they mo
   expect(await ids(dana, "later")).toEqual([]);
 });
 
+test("the inbox count counts a thread once however many people wrote, and skips one only we wrote", async () => {
+  const org = await createOrg(db, "count-once-org");
+  const dana = (await createMember(db, org.id, "dana")).id;
+  const box = await createMailbox(db, org.id, "desk@count-once.test");
+  await grant(db, org.id, box.id, dana);
+  const busy = await seedThread(org.id, box.id, "busy");
+  for (const [i, from] of ["ann@example.test", "bob@example.test", "cy@example.test"].entries()) {
+    await upsertMessage(db, {
+      orgId: org.id,
+      mailboxId: box.id,
+      threadId: busy.threadId,
+      messageIdHeader: `<${busy.threadId}-${i}@example.test>`,
+      subject: "Re: About busy",
+      fromAddress: from,
+      sentAt: new Date(`2026-10-0${i + 2}T00:00:00Z`),
+      cleanText: "Me too.",
+    });
+  }
+  const ours = await createThread(db, {
+    orgId: org.id,
+    mailboxId: box.id,
+    subjectKey: "ours",
+    lastMessageAt: new Date("2026-10-01T00:00:00Z"),
+  });
+  await upsertMessage(db, {
+    orgId: org.id,
+    mailboxId: box.id,
+    threadId: ours,
+    messageIdHeader: `<${ours}@count-once.test>`,
+    subject: "Our announcement",
+    fromAddress: "Desk@Count-Once.test",
+    sentAt: new Date("2026-10-01T00:00:00Z"),
+    cleanText: "News from us.",
+  });
+
+  expect(await forMember(db, dana).counts()).toMatchObject([{ inbox: 1, unread: 1, later: 0 }]);
+  await forMember(db, dana).setThreadState(busy.threadId, { read: true });
+  expect(await forMember(db, dana).counts()).toMatchObject([{ inbox: 1, unread: 0, later: 0 }]);
+});
+
 test("a shared conversation stays in each teammate's Inbox until they mark it done", async () => {
   const org = await createOrg(db, "shared-done-org");
   const dana = (await createMember(db, org.id, "dana")).id;
