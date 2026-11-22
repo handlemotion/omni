@@ -88,7 +88,9 @@ a mailbox that is not theirs.
 Dragging a deal to a `won` stage records when it was won. That is the only ceremony: the deal
 carries on as the project.
 
-**Keep the files.** A deal's Files are a folder in Shared, under `Clients`. Dropping a file on
+**Keep the files.** A deal's Files are a folder at the top of the deal's own teamspace, made with
+the deal (`docs/spec/teamspaces.md`); a deal made before teamspaces keeps its folder in Shared,
+under `Clients`. Dropping a file on
 the deal uploads it there, and the same folder is in Storage, where it can be shared like any
 other. A file that already lives elsewhere in Drive is linked, not moved or copied (founder's
 call, Nov 20, 2026): "Add from Drive" adds a reference, like a symlink, in `crm_file_links`, and

@@ -40,8 +40,11 @@ with them by address beside them, so Shared with me and the sidebar's Upload row
 - **Inside it,** a member does what they do in Shared now: everyone writes, and the uploader, the
   teamspace's owners and the workspace's owners and admins move something out of it (to Trash or
   to another teamspace). Grants, links, comments, versions, locks and signatures work as before.
-- **CRM.** Creating a deal creates a private teamspace named after it, owned by its creator, with
-  the deal's project people as members. The deal's files live in it.
+- **CRM.** Creating a deal creates an open teamspace named after it: the team reaches every
+  project, as before. Its creator owns it and the deal's owner is in it; the deal's folder sits at
+  its top. Freelancers and clients on the project are not in it: they keep reaching the project's
+  folder through its grant, so the team-only Admin folder stays out of their reach. A deal made
+  before teamspaces keeps its folder under `Shared / Clients`.
 
 ## Model
 
@@ -57,8 +60,8 @@ with them by address beside them, so Shared with me and the sidebar's Upload row
 My files and Shared keep working as they are, for every client, while teamspaces arrive:
 
 1. **This stack.** Teamspaces, their members and their access, through the member door; the web
-   sidebar lists them, and My files and Shared only while they hold something; CRM deals make
-   their teamspace. Search, Trash, the agent's Drive tools and moves between drives include
+   sidebar lists them, and My files and Shared only while they hold something; a new CRM deal
+   makes its teamspace. Search, Trash, the agent's Drive tools and moves between drives include
    teamspaces.
 2. **Next.** Desktop sync and iOS list teamspaces. My files and Shared move into teamspaces once
    (a private teamspace per member who has files, an open "Shared" teamspace), in an idempotent

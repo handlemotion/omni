@@ -19,7 +19,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import { members, organizations } from "./auth.ts";
-import { storageNodes, storageSignatureRequests } from "./storage.ts";
+import { storageNodes, storageSignatureRequests, storageTeamspaces } from "./storage.ts";
 
 const id = () =>
   text("id")
@@ -192,6 +192,10 @@ export const crmDeals = pgTable(
     /** The uploaded picture standing for it (its SHA-256 in the bucket); null for its client's logo. */
     iconId: text("icon_id"),
     folderNodeId: folderRef("folder_node_id"),
+    /** The deal's own teamspace, which holds its folder; null for a deal made before them. */
+    teamspaceId: text("teamspace_id").references(() => storageTeamspaces.id, {
+      onDelete: "set null",
+    }),
     createdByMemberId: memberRef("created_by_member_id"),
     archivedAt: timestamptz("archived_at"),
     createdAt: createdAt(),
@@ -199,6 +203,7 @@ export const crmDeals = pgTable(
   },
   (t) => [
     unique("crm_deals_id_org_id_unique").on(t.id, t.orgId),
+    index("crm_deals_teamspace_id_idx").on(t.teamspaceId),
     foreignKey({
       name: "crm_deals_stage_org_fk",
       columns: [t.stageId, t.orgId],

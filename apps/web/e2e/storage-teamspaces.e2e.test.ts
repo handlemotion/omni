@@ -147,6 +147,19 @@ test("a folder shared out of a private space shows in the recipient's Recents", 
   expect(await page.getByRole("row", { name: /Board pack/ }).count()).toBe(1);
 });
 
+test("a deal made elsewhere shows its space in the open Drive sidebar", async () => {
+  const org = await createOrg(db, "deal-spaces");
+  await createMailbox(db, org.id, `hello-${Date.now()}@deal-spaces.test`);
+  const ana = await createMember(db, org.id, `ana-${Date.now()}@deal-spaces.test`);
+  const { page, api } = await signedIn(ana.id, org.id, org.slug);
+
+  await page.getByText("No spaces yet", { exact: true }).waitFor({ timeout: 30_000 });
+  await api("POST", "/api/crm/deals", { name: "Website rebuild" });
+  await expect
+    .poll(() => page.getByRole("link", { name: "Website rebuild" }).count(), { timeout: 15_000 })
+    .toBeGreaterThan(0);
+});
+
 async function signedIn(memberId: string, orgId: string, slug: string) {
   const origin = String(worker.url);
   const [user] = await db

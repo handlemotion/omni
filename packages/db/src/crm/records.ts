@@ -65,6 +65,8 @@ export interface CrmDeal {
   /** An uploaded picture's SHA-256; null when it shows its client's logo. */
   iconId: string | null;
   folderNodeId: string | null;
+  /** Its own teamspace, which holds its folder; null for a deal made before them. */
+  teamspaceId: string | null;
   createdByMemberId: string | null;
   archivedAt: Date | null;
   createdAt: Date;
@@ -112,6 +114,7 @@ export const dealColumns = {
   expectedCloseOn: crmDeals.expectedCloseOn,
   iconId: crmDeals.iconId,
   folderNodeId: crmDeals.folderNodeId,
+  teamspaceId: crmDeals.teamspaceId,
   createdByMemberId: crmDeals.createdByMemberId,
   archivedAt: crmDeals.archivedAt,
   createdAt: crmDeals.createdAt,

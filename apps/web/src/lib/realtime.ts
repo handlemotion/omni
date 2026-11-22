@@ -51,6 +51,16 @@ function onFileEvent(orgId: string, event: FileEvent) {
   for (const listener of docListeners) listener(event);
 }
 
+type CrmEvent = Extract<RealtimeEvent, { type: "crm.changed" }>;
+
+function crmChanged(client: QueryClient, kind: CrmEvent["kind"]) {
+  if (kind === "contract") void client.invalidateQueries({ queryKey: keys.storage() });
+  if (kind === "deal") {
+    void client.invalidateQueries({ queryKey: keys.storageTeamspaces() }, { cancelRefetch: false });
+  }
+  crmChangedElsewhere(client);
+}
+
 function setStatus(next: RealtimeStatus) {
   status = next;
   for (const listener of listeners) listener();
@@ -170,8 +180,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
         return void client.invalidateQueries({ queryKey: keys.onboarding() });
       case "crm.changed":
         if (orgId !== activeOrgId) return;
-        if (event.kind === "contract") void client.invalidateQueries({ queryKey: keys.storage() });
-        return crmChangedElsewhere(client);
+        return crmChanged(client, event.kind);
     }
   };
 

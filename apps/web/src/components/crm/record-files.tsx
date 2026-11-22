@@ -207,7 +207,11 @@ function RecordFolder(
         download,
         menu,
         canTrash: (node) => !isLink(node) && canTrash(node),
-        move: { kind: "member", drive: { space: "shared" }, path },
+        move: {
+          kind: "member",
+          drive: list.folder ? driveOf(list.folder.node) : { space: "shared" },
+          path,
+        },
         empty: { title: "No files yet" },
       }}
     />

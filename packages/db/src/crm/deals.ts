@@ -1,4 +1,7 @@
 import { and, asc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import type { Db } from "../client.ts";
+import { members } from "../schema/auth.ts";
+import { memberStorage } from "../storage.ts";
 import {
   crmDealPeople,
   crmDeals,
@@ -19,6 +22,8 @@ import { listOrder, NAME_ASC, sortedPage, type CrmSortKey, type SortColumn } fro
 import {
   appendEvent,
   FORBIDDEN,
+  FREELANCER_ROLE,
+  hasRole,
   isCurrency,
   NOT_FOUND,
   pageSize,
@@ -27,6 +32,7 @@ import {
   type Ex,
   type NotFound,
 } from "./core.ts";
+import { folderName } from "./folders.ts";
 import {
   cleanName,
   dealColumns,
@@ -250,6 +256,31 @@ async function checkReferences(ex: Ex, member: CrmMember, input: Partial<DealInp
   return (await existingPeople(ex, member.orgId, personIds)).length === personIds.length;
 }
 
+async function teammate(tx: Ex, orgId: string, memberId: string) {
+  const [row] = await tx
+    .select({ role: members.role })
+    .from(members)
+    .where(and(eq(members.id, memberId), eq(members.organizationId, orgId)));
+  return row && !hasRole(row.role, FREELANCER_ROLE) ? memberId : null;
+}
+
+async function makeTeamspace(
+  tx: Ex,
+  member: CrmMember,
+  dealId: string,
+  name: string,
+  ownerMemberId: string | null | undefined,
+) {
+  const owner = ownerMemberId ? await teammate(tx, member.orgId, ownerMemberId) : null;
+  const made = await memberStorage(tx as Db, member.id).createTeamspace({
+    name: folderName(name),
+    memberIds: owner ? [owner] : [],
+  });
+  if (made.status !== "ok")
+    throw new Error(`crm: the deal's teamspace was not made: ${made.status}`);
+  await tx.update(crmDeals).set({ teamspaceId: made.teamspace.id }).where(eq(crmDeals.id, dealId));
+}
+
 export const createDeal: (
   tx: Ex,
   member: CrmMember,
@@ -294,6 +325,7 @@ export const createDeal: (
       .insert(crmDealPeople)
       .values(personIds.map((personId) => ({ orgId: member.orgId, dealId: deal!.id, personId })));
   }
+  await makeTeamspace(tx, member, deal!.id, name, input.ownerMemberId);
   await rememberCurrency(tx, member.orgId, value.currency);
   await appendEvent(tx, member, { dealId: deal!.id }, "created", { stageId: stage.id });
   return { status: "ok", deal: (await loadDeal(tx, member.orgId, deal!.id))! };

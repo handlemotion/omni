@@ -51,7 +51,10 @@ export const createDealMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: (json: NewDeal) => call(api.crm.deals.$post({ json })),
-    ...settle(client),
+    ...settleCrm(
+      client,
+      () => void client.invalidateQueries({ queryKey: keys.storageTeamspaces() }),
+    ),
   });
 
 export const updateCompanyMutation = (client: QueryClient) =>

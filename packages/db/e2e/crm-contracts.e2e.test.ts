@@ -38,17 +38,21 @@ test("two first folder calls to one deal at once make one folder, and a trashed 
   const [first, second] = await Promise.all([crm.dealFolder(deal.id), crm.dealFolder(deal.id)]);
   expect(ok(second).nodeId).toBe(ok(first).nodeId);
   const view = await storage.node(ok(first).nodeId);
-  expect(view?.path.map((entry) => entry.name)).toEqual(["Clients", "Northwind - EU", "Website"]);
-  const companyFolder = view!.path[1]!.id;
-  expect(await names(storage, view!.path[0]!.id)).toEqual(["Northwind - EU"]);
-  expect(await names(storage, companyFolder)).toEqual(["Website"]);
-  expect(ok(await crm.companyFolder(client.id)).nodeId).toBe(companyFolder);
+  expect(view?.path.map((entry) => entry.name)).toEqual(["Website"]);
+  expect(view?.node.teamspaceId).toBe(deal.teamspaceId);
+  expect(
+    ok(await storage.list({ teamspaceId: deal.teamspaceId! })).nodes.map((n) => n.name),
+  ).toEqual(["Website"]);
+  const companyView = await storage.node(ok(await crm.companyFolder(client.id)).nodeId);
+  expect(companyView?.path.map((entry) => entry.name)).toEqual(["Clients", "Northwind - EU"]);
 
   ok(await storage.trash(ok(first).nodeId));
   const again = ok(await crm.dealFolder(deal.id));
   expect(again.nodeId).not.toBe(ok(first).nodeId);
   expect(ok(await crm.deal(deal.id)).deal.folderNodeId).toBe(again.nodeId);
-  expect(await names(storage, companyFolder)).toEqual(["Website"]);
+  expect(
+    ok(await storage.list({ teamspaceId: deal.teamspaceId! })).nodes.map((n) => n.name),
+  ).toEqual(["Website"]);
 });
 
 test("a deal's contract references a team file where it lives, signed copy too, and never one in My files", async () => {

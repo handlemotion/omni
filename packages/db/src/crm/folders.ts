@@ -18,7 +18,7 @@ export type DealFolderResult =
   | { status: "ok"; nodeId: string; created: boolean; companyId: string | null }
   | Exclude<FolderResult, { status: "ok" }>;
 
-function folderName(name: string) {
+export function folderName(name: string) {
   const clean = name
     .replaceAll(/[/\\]/g, "-")
     // oxlint-disable-next-line no-control-regex
@@ -30,7 +30,8 @@ function folderName(name: string) {
 async function isLiveFolder(storage: MemberStorage, nodeId: string | null) {
   if (!nodeId) return false;
   const listed = await storage.list({ parentId: nodeId }, { limit: 1 });
-  return listed.status === "ok" && listed.folder?.node.space === "shared";
+  const space = listed.status === "ok" ? listed.folder?.node.space : undefined;
+  return space === "shared" || space === "teamspace";
 }
 
 const rootFolder: (
@@ -76,14 +77,27 @@ const companyFolderIn: (
   return { status: "ok", nodeId: made.node.id, created: true };
 };
 
+async function legacyParent(
+  tx: Ex,
+  member: CrmMember,
+  storage: MemberStorage,
+  companyId: string | null,
+) {
+  const parent = companyId
+    ? await companyFolderIn(tx, member, storage, companyId)
+    : await rootFolder(tx, member, storage);
+  return parent.status === "ok" ? { parentId: parent.nodeId } : parent;
+}
+
 /** The company's folder, `Shared / Clients / <company>`, found or made. */
 export function companyFolder(tx: Ex, member: CrmMember, id: string) {
   return companyFolderIn(tx, member, memberStorage(tx as Db, member.id), id);
 }
 
 /**
- * The deal's folder, found or made: inside its company's folder (found or made too), or under
- * `Clients` when it has no company.
+ * The deal's folder, found or made: at the top of its own teamspace, or, for a deal made before
+ * teamspaces, inside its company's folder (found or made too), or under `Clients` when it has no
+ * company.
  */
 export const dealFolder: (
   tx: Ex,
@@ -100,11 +114,11 @@ export const dealFolder: (
   if (deal.folderNodeId && (await isLiveFolder(storage, deal.folderNodeId))) {
     return { status: "ok", nodeId: deal.folderNodeId, created: false, companyId };
   }
-  const parent = companyId
-    ? await companyFolderIn(tx, member, storage, companyId)
-    : await rootFolder(tx, member, storage);
-  if (parent.status !== "ok") return parent;
-  const made = await storage.createFolder({ parentId: parent.nodeId }, folderName(deal.name));
+  const place = deal.teamspaceId
+    ? { teamspaceId: deal.teamspaceId }
+    : await legacyParent(tx, member, storage, companyId);
+  if ("status" in place) return place;
+  const made = await storage.createFolder(place, folderName(deal.name));
   if (made.status !== "ok") return made;
   await tx.update(crmDeals).set({ folderNodeId: made.node.id }).where(eq(crmDeals.id, id));
   return { status: "ok", nodeId: made.node.id, created: true, companyId };

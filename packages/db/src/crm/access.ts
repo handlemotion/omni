@@ -141,7 +141,9 @@ async function grantFolder(
     scope === "freelancer" ? folder.nodeId : await portalFolder(tx, member, dealId, folder.nodeId);
   const put = await storage.putGrant(target, email, scope === "freelancer" ? "editor" : "viewer");
   if (put.status !== "ok") sharingRefused(put.status);
-  if (scope === "freelancer") await fileContractsOf(tx, member, dealId);
+  if (scope === "freelancer") {
+    await fileContractsOf(tx, member, dealId);
+  }
 }
 
 const contractsOf = (tx: Ex, member: CrmMember, dealId: string) =>
