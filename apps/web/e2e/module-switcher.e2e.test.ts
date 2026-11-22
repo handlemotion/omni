@@ -193,6 +193,11 @@ test("a scroll the pages did not make snaps back and opens nothing", async () =>
 test("Tab never lands in a module's page that isn't shown", async () => {
   const page = await openInbox("inert");
   const drive = page.locator('[data-module-page="files"] a').first();
+  expect(await drive.count()).toBe(0);
+  await rail(page, "Drive").click();
+  await shows(page, "files");
+  await rail(page, "Mail").click();
+  await shows(page, "mail");
   await drive.evaluate((link) => (link as HTMLElement).focus());
   expect(await drive.evaluate((link) => document.activeElement === link)).toBe(false);
   await rail(page, "Drive").click();

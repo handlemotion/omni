@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useCurrentModule, useModules, type ModuleId } from "./module-switcher";
 
 /**
@@ -8,6 +8,9 @@ import { useCurrentModule, useModules, type ModuleId } from "./module-switcher";
  * and the page shown always follows the URL, never the other way round.
  * `--module-at` on the sidebar is the shown page's index, which the phone switcher's pill follows.
  * Pages other than the shown one are inert and hidden from assistive tech.
+ * A page mounts the first time its module is shown and stays mounted, so the way back slides to
+ * a drawn page. Mounting all of them up front loaded every module's sidebar data on each start
+ * (Drive asks once per space and folder) before any of it could be seen.
  */
 export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
   const modules = useModules();
@@ -17,6 +20,8 @@ export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
     modules.findIndex((module) => module.id === current),
   );
   const pager = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState<ReadonlySet<ModuleId>>(() => new Set([current]));
+  if (!shown.has(current)) setShown(new Set([...shown, current]));
   useLayoutEffect(() => {
     pager.current
       ?.closest<HTMLElement>('[data-slot="sidebar"]')
@@ -38,7 +43,7 @@ export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
             aria-hidden={at !== index || undefined}
             className="flex w-full flex-none flex-col gap-3 overflow-y-auto px-3 *:shrink-0"
           >
-            {pages[module.id]}
+            {shown.has(module.id) && pages[module.id]}
           </div>
         ))}
       </div>
