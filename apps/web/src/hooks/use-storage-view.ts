@@ -1,43 +1,36 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 export type StorageView = "rows" | "cards";
-export type StorageSection = "folders" | "files";
 
-const DEFAULT: Record<StorageSection, StorageView> = { folders: "cards", files: "rows" };
-const KEY = (section: StorageSection) => `omni:storage-view:${section}`;
+const DEFAULT: StorageView = "cards";
+const KEY = "omni:storage-view";
 const listeners = new Set<() => void>();
 
-const read: (section: StorageSection) => StorageView = (section) => {
+const read: () => StorageView = () => {
   try {
-    const stored = localStorage.getItem(KEY(section));
-    return stored === "rows" || stored === "cards" ? stored : DEFAULT[section];
+    const stored = localStorage.getItem(KEY);
+    return stored === "rows" || stored === "cards" ? stored : DEFAULT;
   } catch {
-    return DEFAULT[section];
+    return DEFAULT;
   }
 };
 
-const current: Record<StorageSection, StorageView> = {
-  folders: read("folders"),
-  files: read("files"),
-};
+let current = read();
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-/** `[view, setView]` for one section. */
-export function useStorageView(section: StorageSection) {
-  const view = useSyncExternalStore(subscribe, () => current[section]);
-  const setView = useCallback(
-    (next: StorageView) => {
-      current[section] = next;
-      try {
-        localStorage.setItem(KEY(section), next);
-      } catch {}
-      for (const listener of listeners) listener();
-    },
-    [section],
-  );
+/** `[view, setView]` for Drive's folders. */
+export function useStorageView() {
+  const view = useSyncExternalStore(subscribe, () => current);
+  const setView = useCallback((next: StorageView) => {
+    current = next;
+    try {
+      localStorage.setItem(KEY, next);
+    } catch {}
+    for (const listener of listeners) listener();
+  }, []);
   return [view, setView] as const;
 }

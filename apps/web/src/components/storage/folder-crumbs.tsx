@@ -9,6 +9,8 @@ export function FolderCrumbs(props: {
   /** The folders below the top, down to this one. */
   path: { id: string; name: string }[];
   href: (folderId: string) => string;
+  /** A doc open in the last folder: its name ends the trail, and every folder above is a link. */
+  leaf?: string | undefined;
 }) {
   const navigate = useNavigate();
   const folded = props.path.length > 2 ? props.path.slice(0, -2) : [];
@@ -45,6 +47,7 @@ export function FolderCrumbs(props: {
           {entry.name}
         </BreadcrumbsItem>
       ))}
+      {props.leaf !== undefined && <BreadcrumbsItem>{props.leaf}</BreadcrumbsItem>}
     </Breadcrumbs>
   );
 }

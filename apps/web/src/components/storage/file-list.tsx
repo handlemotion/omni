@@ -72,13 +72,14 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
   const folderHref = useMemo(() => (node: StorageNode) => href(node.space, node.id), [href]);
   return (
     <FolderView
-      title={
+      title={(leaf) => (
         <FolderCrumbs
           top={{ name: SPACE_LABEL[space], href: href(space) }}
           path={path}
           href={(id) => href(space, id)}
+          leaf={leaf}
         />
-      }
+      )}
       source={{
         label: path.at(-1)?.name ?? SPACE_LABEL[space],
         place,

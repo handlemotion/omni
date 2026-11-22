@@ -450,7 +450,7 @@ test("a Markdown file is edited as a page, saves itself as Markdown, and a newer
     expect(await leaving.count()).toBe(0);
   }
   await editor.getByText("mine again").waitFor();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("list", { name: "Folder" }).locator("a[href]").last().click();
   await expect.poll(content, { timeout: 15_000 }).toContain("- Second **point** mine again");
   expect(await leaving.count()).toBe(0);
   await expect.poll(() => editor.count()).toBe(0);

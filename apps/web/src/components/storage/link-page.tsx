@@ -283,13 +283,14 @@ function SharedFolder(props: {
       />
       <FolderView
         sidebar={false}
-        title={
+        title={(leaf) => (
           <FolderCrumbs
             top={{ name: top.name, href: linkHref(shareId) }}
             path={below}
             href={(id) => linkHref(shareId, id)}
+            leaf={leaf}
           />
-        }
+        )}
         source={{
           label: item.node.name,
           place: { parentId: item.node.id },

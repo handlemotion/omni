@@ -16,7 +16,7 @@ import { usePrefetchFolder } from "@/hooks/use-storage.ts";
 import type { FolderDraft } from "@/hooks/use-folder-drafts.ts";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
-import { useStorageView, type StorageSection, type StorageView } from "@/hooks/use-storage-view.ts";
+import { useStorageView, type StorageView } from "@/hooks/use-storage-view.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { CARDS_LAYOUT, CardsLayout } from "./cards-layout.ts";
@@ -57,122 +57,89 @@ export interface Drafts {
   handlers: DraftHandlers;
 }
 
-/** Memoized: the folder page re-renders as the preview opens and the panel resizes. */
+/**
+ * A folder's items as one surface, folders first, then files, with no section titles: squares
+ * unless the person chose rows. Only a file is picked, to preview it; a folder's press
+ * follows its link. Memoized: the folder page re-renders as the preview opens and
+ * the panel resizes.
+ */
 export const FileSections = memo(function FileSections(props: FileSectionsProps) {
+  const [view] = useStorageView();
   const folders = props.nodes.filter((n) => n.kind === "folder");
   const files = props.nodes.filter((n) => n.kind === "file");
+  const nodes = [...folders, ...files];
   const here = props.drag?.here?.place;
   const folderGap = useGapAt(here, folders, "folder");
   const fileGap = useGapAt(here, files, "file");
-  const folderCount = folders.length + (props.drafts?.list.length ?? 0);
+  const gap = folderGap ?? (fileGap === null ? null : folders.length + fileGap);
   const { open, selection } = props;
   const picking = !!selection?.active;
-  const pickIn = (section: StorageNode[]) =>
-    selection && {
-      selectionMode: "multiple" as const,
-      selectionBehavior: "toggle" as const,
-      selectedKeys: section.filter((n) => selection.ids.has(n.id)).map((n) => n.id),
-      onSelectionChange: (keys: Selection) => selection.changeIn(section, keys),
-    };
+  const drafts = props.drafts?.list.map((draft) => draft.key) ?? [];
+  const chosen: SelectionProps =
+    picking && selection
+      ? {
+          selectionMode: "multiple",
+          selectionBehavior: "toggle",
+          selectedKeys: nodes.filter((n) => selection.ids.has(n.id)).map((n) => n.id),
+          onSelectionChange: (keys: Selection) => selection.changeIn(nodes, keys),
+          disabledKeys: [GAP_KEY, ...drafts],
+        }
+      : {
+          selectionMode: "single",
+          selectionBehavior: "replace",
+          selectedKeys: open.id ? [open.id] : [],
+          onSelectionChange: (keys: Selection) => {
+            const [id] = keys === "all" ? [] : [...keys];
+            open.onChange(id === undefined ? null : String(id));
+          },
+          disabledKeys: [GAP_KEY, ...drafts, ...folders.map((n) => n.id)],
+          disabledBehavior: "selection",
+        };
   return (
-    <div className="flex w-full flex-col pb-6" {...selection?.start}>
-      {(folderCount > 0 || folderGap !== null) && (
-        <Section section="folders" label="Folders" count={folderCount} first>
-          {(view) => (
-            <Items
-              view={view}
-              label={`${props.label} folders`}
-              nodes={folders}
-              drafts={props.drafts}
-              rename={props.rename}
-              href={props.href}
-              fileUrl={props.fileUrl}
-              menu={props.menu}
-              peek={props.peek}
-              drag={props.drag}
-              gap={folderGap}
-              picking={picking}
-              selection={picking ? pickIn(folders) : undefined}
-            />
-          )}
-        </Section>
-      )}
-      {(files.length > 0 || fileGap !== null) && (
-        <Section section="files" label="Files" count={files.length} first={folderCount === 0}>
-          {(view) => (
-            <Items
-              view={view}
-              label={`${props.label} files`}
-              nodes={files}
-              rename={props.rename}
-              href={props.href}
-              fileUrl={props.fileUrl}
-              menu={props.menu}
-              drag={props.drag}
-              gap={fileGap}
-              picking={picking}
-              selection={
-                picking
-                  ? pickIn(files)
-                  : {
-                      selectionMode: "single",
-                      selectionBehavior: "replace",
-                      selectedKeys: open.id ? [open.id] : [],
-                      onSelectionChange: (keys: Selection) => {
-                        const [id] = keys === "all" ? [] : [...keys];
-                        open.onChange(id === undefined ? null : String(id));
-                      },
-                    }
-              }
-            />
-          )}
-        </Section>
-      )}
+    <div className="flex w-full flex-col pt-2 pb-6" {...selection?.start}>
+      <Items
+        view={view}
+        label={props.label}
+        nodes={nodes}
+        drafts={props.drafts}
+        rename={props.rename}
+        href={props.href}
+        fileUrl={props.fileUrl}
+        menu={props.menu}
+        peek={props.peek}
+        drag={props.drag}
+        gap={gap}
+        picking={picking}
+        selection={chosen}
+      />
       {props.loadMore && <LoadMore onLoadMore={props.loadMore} />}
     </div>
   );
 });
 
-function Section(props: {
-  section: StorageSection;
-  label: string;
-  count: number;
-  first: boolean;
-  children: (view: StorageView) => ReactNode;
-}) {
-  const [view, setView] = useStorageView(props.section);
+/** Squares or rows, for every folder: in the page's header. */
+export function ViewToggle() {
+  const [view, setView] = useStorageView();
   return (
-    <section aria-label={props.label} className="group/section flex flex-col">
-      <div
-        className={`flex items-end gap-1.5 ps-5 pe-2.5 pb-2 text-sm text-muted-foreground ${props.first ? "h-9" : "h-12"}`}
-      >
-        {props.label}
-        <span className="text-subtle-foreground tabular-nums">{props.count}</span>
-        <span className="flex-1" />
-        <div className="-mb-1 opacity-0 transition-opacity duration-150 group-focus-within/section:opacity-100 group-hover/section:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none">
-          <ToggleGroup
-            bare
-            size="sq-xs"
-            aria-label={`${props.label} layout`}
-            selectionMode="single"
-            disallowEmptySelection
-            selectedKeys={[view]}
-            onSelectionChange={(keys) => {
-              const [next] = [...keys];
-              if (next === "rows" || next === "cards") setView(next);
-            }}
-          >
-            <LayoutOption id="rows" label="Rows">
-              <IconRows />
-            </LayoutOption>
-            <LayoutOption id="cards" label="Cards">
-              <IconCards />
-            </LayoutOption>
-          </ToggleGroup>
-        </div>
-      </div>
-      {props.children(view)}
-    </section>
+    <ToggleGroup
+      bare
+      size="sq-xs"
+      aria-label="Layout"
+      selectionMode="single"
+      disallowEmptySelection
+      selectedKeys={[view]}
+      onSelectionChange={(keys) => {
+        const [next] = [...keys];
+        if (next === "rows" || next === "cards") setView(next);
+      }}
+    >
+      <LayoutOption id="cards" label="Cards">
+        <IconCards />
+      </LayoutOption>
+      <LayoutOption id="rows" label="Rows">
+        <IconRows />
+      </LayoutOption>
+    </ToggleGroup>
   );
 }
 
@@ -189,7 +156,12 @@ function LayoutOption(props: { id: StorageView; label: string; children: ReactNo
 
 type SelectionProps = Pick<
   React.ComponentProps<typeof GridList>,
-  "selectionMode" | "selectionBehavior" | "selectedKeys" | "onSelectionChange"
+  | "selectionMode"
+  | "selectionBehavior"
+  | "selectedKeys"
+  | "onSelectionChange"
+  | "disabledKeys"
+  | "disabledBehavior"
 >;
 
 interface DraftItem {
@@ -440,30 +412,29 @@ function LoadMore(props: { onLoadMore: () => void }) {
   return <div ref={ref} aria-hidden className="h-px" />;
 }
 
-/** The page while it loads: a few folder cards, then rows, on their own grids. */
+/** The page while it loads, in the folder's view. */
 export function FileSectionsBones() {
+  const [view] = useStorageView();
+  if (view === "cards") {
+    return (
+      <div className="pt-2">
+        <FileCardBones count={12} />
+      </div>
+    );
+  }
   return (
-    <div className="flex flex-col">
-      <div className="flex h-9 items-end px-5 pb-2">
-        <SkeletonBox width={56} height={10} />
-      </div>
-      <FileCardBones count={6} />
-      <div className="flex h-12 items-end px-5 pb-2">
-        <SkeletonBox width={40} height={10} />
-      </div>
-      <div className="px-2.5">
-        {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className="flex h-12 items-center gap-3 ps-2 pe-10">
-            <SkeletonBox width={32} height={32} radius="var(--radius-lg)" />
-            <span className="min-w-0 flex-1">
-              <SkeletonBox width={`${25 + ((i * 17) % 30)}%`} height={10} />
-            </span>
-            <span className="w-20">
-              <SkeletonBox width={44} height={10} />
-            </span>
-          </div>
-        ))}
-      </div>
+    <div className="px-2.5 pt-2">
+      {Array.from({ length: 10 }, (_, i) => (
+        <div key={i} className="flex h-12 items-center gap-3 ps-2 pe-10">
+          <SkeletonBox width={32} height={32} radius="var(--radius-lg)" />
+          <span className="min-w-0 flex-1">
+            <SkeletonBox width={`${25 + ((i * 17) % 30)}%`} height={10} />
+          </span>
+          <span className="w-20">
+            <SkeletonBox width={44} height={10} />
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

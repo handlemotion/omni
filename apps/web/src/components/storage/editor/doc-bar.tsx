@@ -41,19 +41,55 @@ export function DocBar(props: {
     <div
       className={`flex h-11 shrink-0 items-center gap-1 border-b bg-background px-2.5 ${props.border ? "border-s" : ""}`}
     >
-      <DocOutline
-        page={() => document.querySelector(`[data-doc="${props.node.id}"] .document-page`)}
-      />
+      <Outline node={props.node} />
       <div className="flex-1" />
+      <Modes {...props} text={text} />
+    </div>
+  );
+}
+
+/** The bar's controls in a doc page's own header: outline, mode and Share, in one line. */
+export function DocBarActions(props: {
+  node: StorageNode;
+  items: SettingsRowMenuItem[];
+  session: EditSession;
+  text: () => string | undefined;
+  canExport?: boolean | undefined;
+}) {
+  return (
+    <>
+      <Outline node={props.node} />
+      <Modes {...props} />
+    </>
+  );
+}
+
+function Outline(props: { node: StorageNode }) {
+  return (
+    <DocOutline
+      page={() => document.querySelector(`[data-doc="${props.node.id}"] .document-page`)}
+    />
+  );
+}
+
+function Modes(props: {
+  node: StorageNode;
+  items: SettingsRowMenuItem[];
+  session: EditSession;
+  text: () => string | undefined;
+  canExport?: boolean | undefined;
+}) {
+  return (
+    <>
       {props.session.writable && <ModeMenu session={props.session} />}
       <ShareMenu
         node={props.node}
         items={props.items}
-        text={text}
+        text={props.text}
         canExport={props.canExport ?? true}
         shareId={props.session.editor.shareId}
       />
-    </div>
+    </>
   );
 }
 

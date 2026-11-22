@@ -46,6 +46,11 @@ of their own, an editor of their own, exports to the formats other tools read.
 The page is the editor that exists (`apps/web/src/components/storage/editor`): Tiptap on the
 shared schema in `@omni/docs`, live through Yjs. This spec adds:
 
+- **A page of its own.** A doc never opens in the preview panel beside its folder: it takes the
+  whole pane, on the same white as the app, like a page in Notion. One header, no line under it:
+  the breadcrumbs down to the doc (the folders link back; the doc's name ends the trail), then
+  outline, mode, Share and ⋯. There is no Close or Full screen; a crumb or Back leaves.
+
 - **Toolbar.** Floating at the bottom of the page, always there while editing: text style
   (Text, Heading 1-3), bulleted list, numbered list, to-do list, table, image, dropdown, more
   (quote, code, divider) and comment on the selection. In a table, the table button becomes the

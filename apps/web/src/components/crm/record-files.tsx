@@ -180,7 +180,7 @@ function RecordFolder(
     <FolderView
       sidebar={false}
       actions={props.actions}
-      title={
+      title={(leaf) => (
         <Breadcrumbs aria-label="Folder" className="min-w-0">
           <BreadcrumbsItem onPress={() => nav.folder(undefined)}>Files</BreadcrumbsItem>
           {below.map((entry) => (
@@ -188,8 +188,9 @@ function RecordFolder(
               {entry.name}
             </BreadcrumbsItem>
           ))}
+          {leaf !== undefined && <BreadcrumbsItem>{leaf}</BreadcrumbsItem>}
         </Breadcrumbs>
-      }
+      )}
       source={{
         label: below.at(-1)?.name ?? props.name,
         place: { parentId: top ? props.folderId : sub },

@@ -24,6 +24,8 @@ import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderIconDialog } from "./folder-icons.tsx";
+import { canEditFile, isDoc } from "./editor/document-editor.tsx";
+import { ViewToggle } from "./file-sections.tsx";
 import { FolderBody, folderIsEmpty, HeaderActions } from "./folder-body.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
 import { useWarmNeighbors } from "./preview/warm-preview.ts";
@@ -88,7 +90,8 @@ const FOLDER_MIN = 320;
 const COMMENTS_WIDTH = 360;
 
 export function FolderView(props: {
-  title: ReactNode;
+  /** The header's leading part; given a doc's name, the trail down to that doc. */
+  title: (leaf?: string) => ReactNode;
   /** False outside the app shell. */
   sidebar?: boolean;
   source: FolderSource;
@@ -138,10 +141,8 @@ export function FolderView(props: {
   const menu = useMemo(() => menuAt("list"), [menuAt]);
 
   const docs = useDocs(source, open);
-  const phone = useIsMobile();
   const node = open.node;
-  const hideFolder = (!!node && (docs.wide || phone)) || (!!comments.node && phone);
-  const split = !!node && !hideFolder;
+  const { page, phone, hideFolder, split } = useLayout(node, docs.wide, !!comments.node);
   const preview = useStoredWidth(
     "omni:file-preview-width",
     PREVIEW_WIDTH,
@@ -157,44 +158,46 @@ export function FolderView(props: {
       ref={rowRef}
       className={`flex min-h-0 min-w-0 ${shell ? "h-svh" : "flex-1"} ${resizing ? "cursor-ew-resize select-none" : ""}`}
     >
-      <div
-        ref={folderRef}
-        className={`flex min-w-0 flex-1 flex-col ${split || comments.node ? "min-w-80" : ""} ${hideFolder ? "hidden" : ""}`}
-      >
-        <StorageFrame
-          title={props.title}
-          sidebar={props.sidebar}
-          actions={
-            <FolderActions
-              extra={props.actions}
-              empty={folderIsEmpty(source, drafts)}
-              selection={selection}
+      {!hideFolder && (
+        <div
+          ref={folderRef}
+          className={`flex min-w-0 flex-1 flex-col ${split || comments.node ? "min-w-80" : ""}`}
+        >
+          <StorageFrame
+            title={props.title()}
+            sidebar={props.sidebar}
+            actions={
+              <FolderActions
+                extra={props.actions}
+                empty={folderIsEmpty(source, drafts)}
+                selection={selection}
+                source={source}
+                onNewFolder={folders.start}
+                onNewDoc={docs.make}
+                newDocPending={docs.making}
+                onFiles={send}
+                onMove={() => setMovingSelection(true)}
+              />
+            }
+          >
+            <FolderBody
               source={source}
+              selection={selection}
+              onKeyDown={selectionKeys}
+              menu={menu}
+              open={open}
+              drafts={drafts}
+              rename={rename}
+              extra={props.actions}
               onNewFolder={folders.start}
               onNewDoc={docs.make}
               newDocPending={docs.making}
               onFiles={send}
-              onMove={() => setMovingSelection(true)}
             />
-          }
-        >
-          <FolderBody
-            source={source}
-            selection={selection}
-            onKeyDown={selectionKeys}
-            menu={menu}
-            open={open}
-            drafts={drafts}
-            rename={rename}
-            extra={props.actions}
-            onNewFolder={folders.start}
-            onNewDoc={docs.make}
-            newDocPending={docs.making}
-            onFiles={send}
-          />
-          <UploadsPanel />
-        </StorageFrame>
-      </div>
+            <UploadsPanel />
+          </StorageFrame>
+        </div>
+      )}
       {node && (
         <div
           style={split ? { width: preview.width } : undefined}
@@ -227,7 +230,8 @@ export function FolderView(props: {
             menu={menuAt("preview")(node)}
             rename={rename}
             fullScreen={hideFolder}
-            onFullScreen={docs.toggleWide}
+            onFullScreen={page ? undefined : docs.toggleWide}
+            trail={props.title}
             shell={shell}
             canWrite={source.canWrite}
             canComment={source.canComment}
@@ -258,6 +262,13 @@ export function FolderView(props: {
       />
     </div>
   );
+}
+
+function useLayout(node: StorageNode | undefined, wide: boolean, commenting: boolean) {
+  const phone = useIsMobile();
+  const page = !!node && isDoc(node) && canEditFile(node);
+  const hideFolder = (!!node && (page || wide || phone)) || (commenting && phone);
+  return { page, phone, hideFolder, split: !!node && !hideFolder };
 }
 
 function useDocs(source: FolderSource, open: OpenFile) {
@@ -425,6 +436,7 @@ function FolderActions(props: {
     if (props.empty) return null;
     return (
       <>
+        <ViewToggle />
         {props.extra}
         <HeaderActions
           canWrite={source.canWrite}

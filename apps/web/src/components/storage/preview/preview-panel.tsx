@@ -42,7 +42,7 @@ import {
   useEditSession,
   type EditSession,
 } from "../editor/document-editor.tsx";
-import { DocBar } from "../editor/doc-bar.tsx";
+import { DocBar, DocBarActions } from "../editor/doc-bar.tsx";
 import { HeaderMenu } from "./header-menu.tsx";
 import { PreviewBody } from "./preview-body.tsx";
 import { PreviewRail } from "./preview-rail.tsx";
@@ -70,6 +70,8 @@ export function PreviewPanel(props: {
   canComment?: boolean;
   /** False on a shared link that forbids downloads: a doc has no Export. */
   canExport?: boolean;
+  /** The folders above it, ending in its name: a doc's page header reads as where it lives. */
+  trail?: ((leaf: string) => ReactNode) | undefined;
 }) {
   const { node } = props;
   const tools = usePreviewTools(node, props.shareId, {
@@ -90,39 +92,33 @@ export function PreviewPanel(props: {
   );
   const [details, toggleDetails] = useShowDetails();
   const exports = doc && !shown ? session.text : undefined;
+  const page = !!exports && props.fullScreen;
   return (
     <section aria-label={node.name} className="flex min-w-0 flex-1 flex-col bg-background">
-      <div className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${inset}`}>
-        {props.fullScreen && props.shell && <PageNav />}
-        <Title node={node} rename={props.rename} />
-        <div className="flex shrink-0 items-center gap-1">
-          {props.shell && <FileEditors nodeId={node.id} />}
-          <EditActions session={session} canEdit={canEdit} doc={doc} />
-          <HeaderMenu
-            dirty={session.dirty}
-            node={node}
-            items={versionAware(props.menu, download)}
-            exports={exports}
-            details={details}
-            onDetails={toggleDetails}
-          />
-          <WindowActions
-            fullScreen={props.fullScreen}
-            onFullScreen={props.onFullScreen}
-            onClose={props.onClose}
-          />
-        </div>
-      </div>
-      <DocBar
-        node={node}
-        items={props.menu}
+      <PanelHeader
+        {...props}
+        page={page}
+        inset={inset}
         session={session}
-        text={exports}
-        border={!props.fullScreen}
-        canExport={props.canExport}
+        exports={exports}
+        canEdit={canEdit}
+        doc={doc}
+        items={versionAware(props.menu, download)}
+        details={details}
+        onDetails={toggleDetails}
       />
+      {!page && (
+        <DocBar
+          node={node}
+          items={props.menu}
+          session={session}
+          text={exports}
+          border={!props.fullScreen}
+          canExport={props.canExport}
+        />
+      )}
       <div
-        className={`flex min-h-0 flex-1 flex-col bg-surface ${props.fullScreen ? "" : "border-s"}`}
+        className={`flex min-h-0 flex-1 flex-col ${page ? "bg-background" : "bg-surface"} ${props.fullScreen ? "" : "border-s"}`}
       >
         {session.editing ? (
           <EditingBody
@@ -137,6 +133,63 @@ export function PreviewPanel(props: {
       </div>
       <Details node={shown?.node ?? node} border={!props.fullScreen} shown={details} />
     </section>
+  );
+}
+
+function PanelHeader(props: {
+  node: StorageNode;
+  page: boolean;
+  inset: string;
+  fullScreen: boolean;
+  shell: boolean;
+  rename?: InlineRename | undefined;
+  trail?: ((leaf: string) => ReactNode) | undefined;
+  menu: SettingsRowMenuItem[];
+  items: SettingsRowMenuItem[];
+  session: EditSession;
+  exports: (() => string | undefined) | undefined;
+  canExport?: boolean | undefined;
+  canEdit: boolean;
+  doc: boolean;
+  details: boolean;
+  onDetails: () => void;
+  onFullScreen?: (() => void) | undefined;
+  onClose?: (() => void) | undefined;
+}) {
+  const { node, page, session, exports } = props;
+  return (
+    <div
+      className={`flex h-12 shrink-0 items-center gap-3 pe-2.5 ${page ? "" : "border-b"} ${props.inset}`}
+    >
+      {props.fullScreen && props.shell && <PageNav />}
+      <Title node={node} rename={props.rename} trail={page ? props.trail : undefined} />
+      <div className="flex shrink-0 items-center gap-1">
+        {props.shell && <FileEditors nodeId={node.id} />}
+        {page && exports && (
+          <DocBarActions
+            node={node}
+            items={props.menu}
+            session={session}
+            text={exports}
+            canExport={props.canExport}
+          />
+        )}
+        <EditActions session={session} canEdit={props.canEdit} doc={props.doc} />
+        <HeaderMenu
+          dirty={session.dirty}
+          node={node}
+          items={props.items}
+          exports={exports}
+          details={props.details}
+          onDetails={props.onDetails}
+        />
+        <WindowActions
+          fullScreen={props.fullScreen}
+          onFullScreen={props.onFullScreen}
+          onClose={page && props.trail ? undefined : props.onClose}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -340,7 +393,11 @@ function Stage(props: {
   );
 }
 
-function Title(props: { node: StorageNode; rename?: InlineRename | undefined }) {
+function Title(props: {
+  node: StorageNode;
+  rename?: InlineRename | undefined;
+  trail?: ((leaf: string) => ReactNode) | undefined;
+}) {
   const { node, rename } = props;
   const renaming = rename?.renaming?.id === node.id && rename.renaming.at === "preview";
   if (renaming && rename.renaming?.step === "naming") {
@@ -355,6 +412,8 @@ function Title(props: { node: StorageNode; rename?: InlineRename | undefined }) 
     );
   }
   const name = renaming && rename.renaming ? rename.renaming.name : node.name;
+  if (props.trail)
+    return <div className="flex min-w-0 flex-1 items-center">{props.trail(name)}</div>;
   return (
     <Heading level={2} className="min-w-0 flex-1 text-md" title={name}>
       <MiddleTruncate text={name} />

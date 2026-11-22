@@ -110,7 +110,7 @@ test("two editors on one Markdown file see each other's typing, and the page is 
     )
     .toMatch(/^# Notes\n\nStart\n\nFrom Ana\n\nFrom Bo\n*$/);
 
-  await bo.getByRole("button", { name: "Close", exact: true }).click();
+  await bo.getByRole("list", { name: "Folder" }).locator("a[href]").last().click();
   await expect
     .poll(() => ana.locator(".collaboration-carets__caret").count(), { timeout: 15_000 })
     .toBe(0);
@@ -166,7 +166,7 @@ test("New doc opens an empty page, and blocks picked from / are saved as Markdow
 
   await page.keyboard.press("Tab");
   await page.keyboard.type("Last words");
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("list", { name: "Folder" }).locator("a[href]").last().click();
   await expect.poll(() => body.count()).toBe(0);
   expect(await page.getByRole("alertdialog").count()).toBe(0);
   await expect
