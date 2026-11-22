@@ -1,6 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-const PEEK_MS = 350;
+/** The key the window opens as the people chooser, from `+n`. */
+export const EVERYONE = "everyone";
+
+const PEEK_MS = 200;
 const LEAVE_MS = 300;
 
 let state: { memberId: string | null; pinned: boolean } = { memberId: null, pinned: false };

@@ -171,7 +171,8 @@ test("the stack shows who is online, and a note and a file reach the teammate's 
   const toCyra = ana.getByRole("region", { name: "Conversation with Cyra Holt" });
   await toCyra.getByRole("textbox", { name: "Note to Cyra Holt" }).fill("For when you're back");
   await toCyra.getByRole("textbox", { name: "Note to Cyra Holt" }).press("Enter");
-  await toCyra.getByText("For when you're back").waitFor();
+  await toCyra.locator("p", { hasText: "For when you're back" }).waitFor();
+  expect(await toCyra.getByRole("textbox").inputValue()).toBe("");
   await ana.keyboard.press("Escape");
   await toCyra.waitFor({ state: "detached" });
   await ana.mouse.move(4, 400);
@@ -205,23 +206,39 @@ test("the stack shows who is online, and a note and a file reach the teammate's 
   expect(await peek.getAttribute("data-same")).toBe("");
   await expect.poll(leftOf).toBeGreaterThan(before);
   await shoot(ana, "1a-peek");
+  const chooser = ana.getByRole("region", { name: "Everyone" });
+  await stack.getByRole("button", { name: "Everyone, 1 more" }).hover();
+  await chooser.getByRole("button", { name: "Kofi Mensah" }).waitFor();
+  expect(await chooser.getAttribute("data-same")).toBe("");
+  expect(await peek.count()).toBe(0);
   await ana.mouse.move(4, 400);
-  await expect.poll(() => peek.count()).toBe(0);
+  await expect.poll(() => chooser.count()).toBe(0);
   ana.off("request", onRequest);
   expect(made).toEqual([]);
 
   await stack.getByRole("button", { name: "Everyone, 1 more" }).click();
-  await ana.getByRole("menuitem", { name: "Kofi Mensah" }).waitFor();
+  await chooser.getByRole("button", { name: "Kofi Mensah" }).waitFor();
   await ana.waitForTimeout(300);
   await shoot(ana, "1b-everyone");
-  await ana.getByRole("menuitem", { name: "Kofi Mensah" }).click();
+  await chooser.getByRole("button", { name: "Kofi Mensah" }).click();
   const window = ana.getByRole("region", { name: "Conversation with Kofi Mensah" });
   await window.getByLabel("Active now").waitFor();
   const composer = window.getByRole("textbox", { name: "Note to Kofi Mensah" });
   expect(await composer.getAttribute("placeholder")).toBe("Note to Kofi…");
   await composer.fill("Dropping the brand board now");
   await composer.press("Enter");
-  await window.getByText("Dropping the brand board now").waitFor();
+  await window.locator("p", { hasText: "Dropping the brand board now" }).waitFor();
+  const arrival = kofi.getByRole("button", { name: "New note: Dropping the brand board now" });
+  await arrival.waitFor();
+  const anaFace = kofi
+    .getByRole("group", { name: "Teammates" })
+    .locator("[data-talk-face]")
+    .first();
+  const [bubbleBox, faceBox] = [await arrival.boundingBox(), await anaFace.boundingBox()];
+  expect(bubbleBox!.y).toBeGreaterThan(faceBox!.y + faceBox!.height);
+  const tailX = bubbleBox!.x + bubbleBox!.width - 20;
+  expect(Math.abs(tailX - (faceBox!.x + faceBox!.width / 2))).toBeLessThan(4);
+  await shoot(kofi, "2b-arrival");
   const bubble = (text: string) => window.locator("p", { hasText: text });
   const held = Promise.withResolvers<void>();
   await ana.route("**/api/talk/threads/*/messages", async (route) => {
@@ -268,6 +285,11 @@ test("the stack shows who is online, and a note and a file reach the teammate's 
   });
   const image = window.getByRole("img", { name: "board.png" });
   await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(480);
+  const ratio = await image.evaluate((img: HTMLImageElement) => [
+    img.naturalWidth / img.naturalHeight,
+    img.getBoundingClientRect().width / img.getBoundingClientRect().height,
+  ]);
+  expect(Math.abs(ratio[0]! - ratio[1]!)).toBeLessThan(0.05);
   await bubble("Dropping the brand board now").hover();
   await window.getByRole("button", { name: "React 🎉" }).first().click();
   await window.getByRole("button", { name: "🎉 1" }).waitFor();

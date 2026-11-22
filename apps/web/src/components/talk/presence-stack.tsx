@@ -2,11 +2,9 @@ import { cn } from "cn";
 import type { CSSProperties } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Menu, MenuItem, MenuTrigger } from "@/components/ui/menu";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTalkPeople } from "@/hooks/use-talk.ts";
-import { everyoneOf, stackOf, type TalkPerson } from "@/lib/talk.ts";
-import { talkWindow, useTalkWindow } from "@/lib/talk-window.ts";
+import { stackOf, type TalkPerson } from "@/lib/talk.ts";
+import { EVERYONE, talkWindow, useTalkWindow } from "@/lib/talk-window.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 
 const FACE = 24;
@@ -83,62 +81,32 @@ function StackFace(props: { person: TalkPerson; open: boolean }) {
   );
 }
 
-function Everyone(props: { people: TalkPerson[]; more: number; openId: string | null }) {
+function Everyone(props: { more: number; open: boolean }) {
   return (
-    <MenuTrigger>
-      <TooltipTrigger delay={400}>
-        <Button
-          intent="plain"
-          size="sq-sm"
-          isCircle
-          aria-label={`Everyone, ${props.more} more`}
-          data-talk-everyone
-          className={OVERLAP}
-        >
-          <span
-            className={cn(
-              "grid size-6 place-items-center rounded-full bg-background text-xs text-muted-foreground tabular-nums",
-              RING,
-            )}
-          >
-            +{props.more}
-          </span>
-        </Button>
-        <Tooltip>Everyone</Tooltip>
-      </TooltipTrigger>
-      <Menu
-        placement="bottom end"
-        popover={{ offset: 6, collisionPadding: 8, className: "min-w-64 max-w-80" }}
-        className="p-2"
+    <Button
+      intent="plain"
+      size="sq-sm"
+      isCircle
+      aria-label={`Everyone, ${props.more} more`}
+      aria-pressed={props.open}
+      data-talk-everyone
+      onPointerEnter={(event) => event.pointerType === "mouse" && talkWindow.hover(EVERYONE)}
+      onPointerLeave={(event) => event.pointerType === "mouse" && talkWindow.leave()}
+      onPress={() =>
+        props.open && talkWindow.state().pinned ? talkWindow.close() : talkWindow.open(EVERYONE)
+      }
+      className={cn(OVERLAP, props.open && "z-10 -translate-y-0.5")}
+    >
+      <span
+        className={cn(
+          "grid size-6 place-items-center rounded-full bg-background text-xs text-muted-foreground tabular-nums",
+          RING,
+          props.open && "ring-primary",
+        )}
       >
-        {everyoneOf(props.people).map((person) => (
-          <MenuItem
-            key={person.memberId}
-            textValue={person.name}
-            className="min-h-10 rounded-sm ps-2 pe-3 py-1.5"
-            onAction={() => talkWindow.open(person.memberId)}
-          >
-            <span className="col-span-full flex min-w-0 items-center gap-3">
-              <span className="relative grid size-7 shrink-0 place-items-center">
-                <TalkFace person={person} size={28} />
-                {person.online && <Dot tone="online" className="ring-overlay" />}
-              </span>
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-sm",
-                  person.memberId === props.openId && "font-medium",
-                )}
-              >
-                {person.name}
-              </span>
-              {person.unread > 0 && (
-                <span className="text-xs text-subtle-foreground tabular-nums">{person.unread}</span>
-              )}
-            </span>
-          </MenuItem>
-        ))}
-      </Menu>
-    </MenuTrigger>
+        +{props.more}
+      </span>
+    </Button>
   );
 }
 
@@ -157,7 +125,7 @@ export function PresenceStack() {
       {shown.map((person) => (
         <StackFace key={person.memberId} person={person} open={person.memberId === openId} />
       ))}
-      {more > 0 && <Everyone people={people} more={more} openId={openId} />}
+      {more > 0 && <Everyone more={more} open={openId === EVERYONE} />}
     </div>
   );
 }

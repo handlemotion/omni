@@ -14,6 +14,7 @@ import { SettingsNav } from "../../components/settings/settings-nav.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { DriveDragProvider } from "../../components/storage/drive-drag.tsx";
 import { TitleBar } from "../../components/shell/title-bar.tsx";
+import { TalkArrival } from "../../components/talk/talk-arrival.tsx";
 import { TalkWindow } from "../../components/talk/talk-window.tsx";
 import { useTalkNotifications } from "../../components/talk/use-talk-notifications.ts";
 import { CommandMenu } from "../../components/search/command-menu.tsx";
@@ -125,6 +126,7 @@ function Shell() {
       </ListSweepProvider>
       <TitleBar />
       <TalkWindow />
+      <TalkArrival meId={member.id} />
       <KeyboardShortcuts />
       <OfflineNotice />
       <ComposeDialog />

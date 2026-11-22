@@ -31,12 +31,12 @@ export function useTalkMessages(threadId: string | undefined) {
   return useInfiniteQuery({ ...talkMessagesQuery(threadId ?? ""), enabled: !!threadId });
 }
 
-export function useSendNote(threadId: string | undefined) {
-  return useMutation(sendNoteMutation(useQueryClient(), threadId));
+export function useSendNote(memberId: string, threadId: string | undefined) {
+  return useMutation(sendNoteMutation(useQueryClient(), memberId, threadId));
 }
 
-export function useSendFiles(threadId: string | undefined) {
-  return useMutation(sendFilesMutation(useQueryClient(), threadId));
+export function useSendFiles(memberId: string, threadId: string | undefined) {
+  return useMutation(sendFilesMutation(useQueryClient(), memberId, threadId));
 }
 
 export function useReact(threadId: string) {

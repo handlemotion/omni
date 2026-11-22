@@ -21,25 +21,31 @@ and rules (`docs/spec/modules.md`), because it owns tables and reads Storage thr
   then those online, then by name. An offline teammate's picture is dimmed and greyed; you can
   still open their thread and write, and they read it when they are back (or get a push). When
   the workspace has no other teammate, there is no stack.
-- **Everyone.** `+n` opens the full list: online teammates first, then the others, each with
-  their unread count. Any of them opens a conversation; an offline teammate reads it next time.
+- **Everyone.** `+n` turns the same window into the people chooser, like a face does its
+  thread: resting on it peeks, moving there from a face slides the window under it, a press pins
+  it. It lists online teammates first, then the others, each with their unread count. Any of them
+  opens their conversation in place; an offline teammate reads it next time.
 - **The window.** A small white island just under the face it belongs to (or `+n`), its top
   right corner under the face, kept on screen, 288px wide. It behaves like a tooltip: resting on
-  a face a beat peeks at that thread; moving to another face slides the same window to it and
+  a face a beat (200ms) peeks at that thread; moving to another face slides the same window to it and
   swaps the thread in place; leaving both closes it. A press on a face, or a touch inside the
   window, pins it open until it is closed. Only a pinned window takes the keyboard.
   - One fixed height, empty or full, so moving between faces never resizes it.
   - A one-line header: their name and a green dot while they are online; close shows on hover.
   - The notes as bubbles: yours on the right in primary, theirs on the left in secondary. A time
-    line wherever an hour passes. An image is a rounded picture; any other file a chip with its
+    line wherever an hour passes. An image is a rounded picture in its own proportions (at most 176 by 256px); any other file a chip with its
     glyph, name and `PNG • 5 KB`. Reactions are white chips overlapping the bubble's lower edge, wrapping when there are many, in
     the platform's emoji (Apple's first); four quick ones float above a bubble on hover.
   - The composer inside the island at its foot: `Note to <first name>…`, attach (+) and a round
-    send button with an up arrow. Dropping files on the island sends them.
+    send button with an up arrow. Dropping files on the island sends them. The first note to
+    someone makes the thread, so you can type and send at once.
   - No expanded mode: it stays small. One window is open at a time; opening another teammate
     replaces it.
 - **Unread and notifying.** A teammate's picture carries a dot while you have unread notes from
-  them. A note that arrives while its window is not open (or Omni is in the background) shows a
+  them. A note that arrives while no Talk window is open floats in as a bare blue bubble with its
+  text under the sender's face (or `+n`), its tail pointing at them, for 5 seconds (resting on it
+  keeps it); pressing it opens the thread. A note that arrives while its window is not open (or
+  Omni is in the background) also shows a
   system notification, when desktop notifications are on for this device, and opens the window
   when clicked. Opening the window reads the conversation.
 

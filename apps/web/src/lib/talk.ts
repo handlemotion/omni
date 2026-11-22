@@ -155,14 +155,22 @@ export function setOnline(client: QueryClient, memberId: string, online: boolean
 const peopleChanged = (client: QueryClient) =>
   client.invalidateQueries({ queryKey: keys.talkPeople() });
 
+const threadWith = async (client: QueryClient, memberId: string, threadId: string | undefined) =>
+  threadId ?? (await client.fetchQuery(talkThreadQuery(memberId))).id;
+
 /**
- * `mutate(noteToSend(body))`: notes to one thread go one after another, in the order they were
- * sent, each to the workspace it was written in.
+ * `mutate(noteToSend(body))`: notes to one teammate go one after another, in the order they were
+ * sent, each to the workspace it was written in; the first one makes the thread if need be.
  */
-export const sendNoteMutation = (client: QueryClient, threadId: string | undefined) =>
+export const sendNoteMutation = (
+  client: QueryClient,
+  memberId: string,
+  threadId: string | undefined,
+) =>
   mutationOptions({
-    mutationFn: (note: NoteToSend) => sendNote(threadId!, note),
-    scope: { id: `talk-notes:${threadId}` },
+    mutationFn: async (note: NoteToSend) =>
+      sendNote(await threadWith(client, memberId, threadId), note),
+    scope: { id: `talk-notes:${memberId}` },
     onSuccess: (message) => {
       addMessage(client, message);
       void peopleChanged(client);
@@ -170,11 +178,16 @@ export const sendNoteMutation = (client: QueryClient, threadId: string | undefin
   });
 
 /** `mutate(files)`: each file into your Drive, shared with the other one, then into the thread. */
-export const sendFilesMutation = (client: QueryClient, threadId: string | undefined) =>
+export const sendFilesMutation = (
+  client: QueryClient,
+  memberId: string,
+  threadId: string | undefined,
+) =>
   mutationOptions({
     mutationFn: async (files: File[]) => {
       const workspaceId = currentWorkspaceId();
-      for (const file of files) addMessage(client, await sendFile(threadId!, file, workspaceId));
+      const id = await threadWith(client, memberId, threadId);
+      for (const file of files) addMessage(client, await sendFile(id, file, workspaceId));
     },
     onSettled: () => peopleChanged(client),
   });
