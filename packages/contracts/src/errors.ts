@@ -77,6 +77,18 @@ export const ERROR_CODES = {
   billing_inactive: spec(402, "billing"),
   billing_required: spec(402, "billing"),
   storage_full: spec(402, "quota"),
+  /**
+   * The workspace's plan holds no more of this (`details.cap`, `details.max`, `details.plan`):
+   * remove some, or move to a bigger plan. Nothing it already holds is taken away.
+   */
+  plan_limit: spec(402, "quota"),
+  /**
+   * This month's allowance of `details.meter` is used up until `details.resetsAt`: wait, or move
+   * to a bigger plan.
+   */
+  allowance_reached: spec(402, "quota"),
+  /** Only a paid plan has this (`details.feature`, such as meetings). */
+  plan_required: spec(402, "billing"),
   file_too_large: spec(413, "payload_too_large"),
   invalid_name: spec(400, "validation"),
   invalid_email: spec(400, "validation"),

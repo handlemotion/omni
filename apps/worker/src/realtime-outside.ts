@@ -4,7 +4,6 @@ import { isDocFile } from "@omni/docs/file";
 import { guestName, presenceSlot, type PresenceUser } from "@omni/docs/presence";
 import { forUser, publicStorage, recordShareEvent, type StorageNodeView } from "@omni/db";
 import { z } from "zod";
-import { inGoodStanding } from "./billing.ts";
 import { openDb } from "./db.ts";
 import { loadConfig } from "./env.ts";
 import { attachmentOf, editingOf, type Editing } from "./realtime-files.ts";
@@ -192,7 +191,7 @@ export const checkOutside: (
     if (!node || !role || view.inTrash || !isDocFile(node.name, node.mimeType)) return null;
     return {
       role,
-      writable: await inGoodStanding(db, config, node.orgId),
+      writable: true,
       file: {
         nodeId,
         space: node.space,

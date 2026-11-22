@@ -1,4 +1,4 @@
-import { createStripeClient, type BillingConfig } from "@omni/auth";
+import { createStripeClient, planPriceIds, type BillingConfig } from "@omni/auth";
 import {
   recordStripeEvent,
   schema,
@@ -56,7 +56,7 @@ const expectedEffect: (
   const id = object.id;
   const customer = typeof object.customer === "string" ? object.customer : null;
   const items = (object.items as { data?: { price?: { id?: string } }[] } | undefined)?.data ?? [];
-  const prices = [billing.monthlyPriceId, billing.yearlyPriceId].filter(Boolean);
+  const prices = planPriceIds(billing.plans);
   const matchesPlan = items.some((item) => prices.includes(item.price?.id ?? ""));
   const [org] = customer
     ? await db

@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { usagePeriod } from "@omni/ai";
 import { schema, storageObjectKey } from "@omni/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { MIB, startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
 import {
@@ -16,9 +16,10 @@ import { CookieJar, signIn } from "./support.ts";
 
 const GIB = 1024 ** 3;
 const DAY_MS = 86_400_000;
-const ALLOWANCE = 2 * MIB;
-const CEILING = 5 * MIB;
-const PERSONAL = MIB;
+const TEAM = 100 * GIB;
+const FREE = 5 * GIB;
+const ROOM = 2 * MIB;
+const CEILING = TEAM + 3 * MIB;
 
 let stack: StorageStack;
 beforeAll(async () => {
@@ -26,12 +27,9 @@ beforeAll(async () => {
     vars: {
       STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
       STRIPE_PRICE_YEARLY: YEARLY_PRICE,
-      BILLING_TRIAGE_ALLOWANCE: "500",
-      BILLING_STORAGE_INCLUDED_GB: String(ALLOWANCE / GIB),
       STRIPE_PRICE_STORAGE: "price_e2e_storage",
       STRIPE_STORAGE_METER_EVENT: "omni_e2e_storage_gb",
       STORAGE_MAX_GB: String(CEILING / GIB),
-      STORAGE_PERSONAL_GB: String(PERSONAL / GIB),
     },
     secrets: BILLING_SECRETS,
   });
@@ -47,8 +45,29 @@ interface Plan {
   periodEnd?: Date;
 }
 
-async function company(plan: Plan | null) {
+async function fill(orgId: string, bytes: number) {
+  const id = randomUUID();
+  await stack.db.insert(schema.storageNodes).values({
+    id,
+    orgId,
+    space: "shared",
+    kind: "file",
+    name: `filler-${id.slice(0, 8)}.bin`,
+    size: bytes,
+    r2Key: storageObjectKey(orgId, id),
+  });
+  await stack.db
+    .insert(schema.storageUsage)
+    .values({ orgId, bytes })
+    .onConflictDoUpdate({
+      target: schema.storageUsage.orgId,
+      set: { bytes: sql`${schema.storageUsage.bytes} + ${bytes}` },
+    });
+}
+
+async function company(plan: Plan | null, filled?: number) {
   const org = await stack.company(`co-${randomUUID().slice(0, 8)}`);
+  if (filled) await fill(org.id, filled);
   if (plan) {
     await stack.db.insert(schema.subscriptions).values({
       id: randomUUID(),
@@ -80,7 +99,7 @@ const usage = async (person: Person) => (await stack.api(person.jar, "GET", "/us
 const peaks = (orgId: string) =>
   stack.db.select().from(schema.storagePeaks).where(eq(schema.storagePeaks.orgId, orgId));
 
-test("the daily job records each paying workspace's peak per usage month and leaves a read-only workspace's Trash alone", async () => {
+test("the daily job records each paying workspace's peak per usage month, and empties a lapsed one's Trash like any", async () => {
   const bucket = await stack.bucket();
   const old = new Date(Date.now() - 31 * DAY_MS);
   async function withOldTrash(plan: Plan) {
@@ -113,11 +132,9 @@ test("the daily job records each paying workspace's peak per usage month and lea
 
   expect(await bucket.head(storageObjectKey(paying.org.id, paying.file.id))).toBeNull();
   expect(await stack.usedBytes(paying.org.id)).toBe(0);
-  expect(await bucket.head(storageObjectKey(lapsed.org.id, lapsed.file.id))).not.toBeNull();
-  expect(await stack.usedBytes(lapsed.org.id)).toBe(300);
-  expect((await stack.api(lapsed.owner.jar, "GET", "/trash")).body.nodes).toEqual([
-    expect.objectContaining({ id: lapsed.file.id }),
-  ]);
+  expect(await bucket.head(storageObjectKey(lapsed.org.id, lapsed.file.id))).toBeNull();
+  expect(await stack.usedBytes(lapsed.org.id)).toBe(0);
+  expect((await stack.api(lapsed.owner.jar, "GET", "/trash")).body.nodes).toEqual([]);
   expect(await peaks(lapsed.org.id)).toEqual([]);
   expect(await peaks(measured.org.id)).toEqual([
     { orgId: measured.org.id, periodStart: start, peakBytes: 1000 },
@@ -149,7 +166,7 @@ test("the daily job records each paying workspace's peak per usage month and lea
   ]);
 });
 
-test("the allowance caps a trial, a yearly plan and a workspace with no card; a paying monthly workspace with a card passes it, up to the ceiling", async () => {
+test("the plan's storage caps a trial, a yearly plan and a workspace with no card; a paying monthly workspace with a card passes it, up to the ceiling", async () => {
   const capped: Plan[] = [
     { status: "trialing", stripeId: "sub_trial", cardOn: "sub_trial" },
     { status: "active", stripeId: "sub_nocard" },
@@ -157,8 +174,8 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
     { status: "active", stripeId: "sub_new", cardOn: "sub_replaced" },
   ];
   for (const plan of capped) {
-    const { org, owner } = await company(plan);
-    expect({ plan: plan.stripeId, status: (await open(owner, ALLOWANCE - 10)).status }).toEqual({
+    const { org, owner } = await company(plan, TEAM - ROOM);
+    expect({ plan: plan.stripeId, status: (await open(owner, ROOM - 10)).status }).toEqual({
       plan: plan.stripeId,
       status: 201,
     });
@@ -169,10 +186,10 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
       body: { code: "STORAGE_FULL" },
     });
     expect(await usage(owner)).toEqual({
-      usedBytes: 0,
-      reservedBytes: ALLOWANCE - 10,
-      limitBytes: ALLOWANCE,
-      allowanceBytes: ALLOWANCE,
+      usedBytes: TEAM - ROOM,
+      reservedBytes: ROOM - 10,
+      limitBytes: TEAM,
+      allowanceBytes: TEAM,
       overage: null,
       uploadsBlocked: null,
     });
@@ -180,27 +197,25 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
       .select({ size: schema.storageUploads.size })
       .from(schema.storageUploads)
       .where(eq(schema.storageUploads.orgId, org.id));
-    expect(uploads).toEqual([{ size: ALLOWANCE - 10 }]);
+    expect(uploads).toEqual([{ size: ROOM - 10 }]);
   }
 
   const start = new Date(Date.now() - 10 * DAY_MS);
-  const paying = await company({
-    status: "active",
-    stripeId: "sub_paying",
-    cardOn: "sub_paying",
-    periodStart: start,
-  });
-  await stack.upload(paying.owner.jar, { space: "shared" }, "big.bin", randomBytes(ALLOWANCE + 1));
+  const paying = await company(
+    { status: "active", stripeId: "sub_paying", cardOn: "sub_paying", periodStart: start },
+    TEAM - ROOM,
+  );
+  await stack.upload(paying.owner.jar, { space: "shared" }, "big.bin", randomBytes(ROOM + 1));
   expect(await usage(paying.owner)).toEqual({
-    usedBytes: ALLOWANCE + 1,
+    usedBytes: TEAM + 1,
     reservedBytes: 0,
     limitBytes: CEILING,
-    allowanceBytes: ALLOWANCE,
+    allowanceBytes: TEAM,
     overage: { extraGb: 0 },
     uploadsBlocked: null,
   });
-  expect((await open(paying.owner, CEILING - ALLOWANCE)).status).toBe(402);
-  expect((await open(paying.owner, CEILING - ALLOWANCE - 1)).status).toBe(201);
+  expect((await open(paying.owner, CEILING - TEAM)).status).toBe(402);
+  expect((await open(paying.owner, CEILING - TEAM - 1)).status).toBe(201);
 
   const peak = (peakBytes: number) =>
     stack.db
@@ -210,9 +225,9 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
         target: [schema.storagePeaks.orgId, schema.storagePeaks.periodStart],
         set: { peakBytes },
       });
-  await peak(ALLOWANCE + 3 * GIB - 1);
+  await peak(TEAM + 3 * GIB - 1);
   expect((await usage(paying.owner)).overage).toEqual({ extraGb: 2 });
-  await peak(ALLOWANCE + 3 * GIB);
+  await peak(TEAM + 3 * GIB);
   expect((await usage(paying.owner)).overage).toEqual({ extraGb: 3 });
 
   await stack.db
@@ -225,20 +240,25 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
   await signIn(stack.worker, stack.db, `solo-${randomUUID().slice(0, 8)}@personal.test`, jar);
   await stack.justMe(jar);
   expect((await stack.api(jar, "GET", "/usage")).body).toMatchObject({
-    limitBytes: PERSONAL,
-    allowanceBytes: null,
+    limitBytes: FREE,
+    allowanceBytes: FREE,
     overage: null,
+    uploadsBlocked: null,
   });
   const none = await company(null);
   expect(await usage(none.owner)).toMatchObject({
-    limitBytes: ALLOWANCE,
-    uploadsBlocked: "billing_inactive",
+    limitBytes: FREE,
+    allowanceBytes: FREE,
+    uploadsBlocked: null,
   });
 });
 
 test("an editor's upload into a shared folder is held to the limit of the folder's workspace", async () => {
-  const host = await company({ status: "trialing" });
-  const guestHome = await company({ status: "active", stripeId: "sub_guest", cardOn: "sub_guest" });
+  const host = await company({ status: "trialing" }, TEAM - ROOM);
+  const guestHome = await company(
+    { status: "active", stripeId: "sub_guest", cardOn: "sub_guest" },
+    TEAM - ROOM,
+  );
   const folder = (
     await stack.api(host.owner.jar, "POST", "/folders", { name: "Inbox", space: "shared" })
   ).body.node;
@@ -252,15 +272,15 @@ test("an editor's upload into a shared folder is held to the limit of the folder
   const door = `/shared/${shared.body.sharing.shareId}`;
   const into = { space: undefined, parentId: folder.id };
 
-  expect((await open(guestHome.owner, ALLOWANCE + 1, door, into)).body).toMatchObject({
+  expect((await open(guestHome.owner, ROOM + 1, door, into)).body).toMatchObject({
     code: "STORAGE_FULL",
   });
-  expect((await open(guestHome.owner, ALLOWANCE, door, into)).status).toBe(201);
-  expect((await open(guestHome.owner, ALLOWANCE + 1)).status).toBe(201);
+  expect((await open(guestHome.owner, ROOM, door, into)).status).toBe(201);
+  expect((await open(guestHome.owner, ROOM + 1)).status).toBe(201);
 });
 
 test("a subscription event that carries a payment method lets the workspace pass the allowance at once", async () => {
-  const { org, owner } = await company(null);
+  const { org, owner } = await company(null, TEAM - ROOM);
   const customer = `cus_e2e_${randomUUID().slice(0, 8)}`;
   await stack.db
     .update(schema.organizations)
@@ -292,15 +312,15 @@ test("a subscription event that carries a payment method lets the workspace pass
     );
 
   expect((await event("created", "trialing", 0, null)).body).toMatchObject({ applied: true });
-  expect((await open(owner, ALLOWANCE + 1)).status).toBe(402);
+  expect((await open(owner, ROOM + 1)).status).toBe(402);
   expect((await event("updated", "trialing", 10, "pm_e2e_card")).body).toMatchObject({
     applied: true,
   });
-  expect((await open(owner, ALLOWANCE + 1)).status).toBe(402);
+  expect((await open(owner, ROOM + 1)).status).toBe(402);
   expect((await event("updated", "active", 20, "pm_e2e_card")).body).toMatchObject({
     applied: true,
   });
-  expect((await open(owner, ALLOWANCE + 1)).status).toBe(201);
+  expect((await open(owner, ROOM + 1)).status).toBe(201);
   expect(await usage(owner)).toMatchObject({ limitBytes: CEILING, overage: { extraGb: 0 } });
 
   const sub = subscriptionObject({
@@ -333,6 +353,6 @@ test("a subscription event that carries a payment method lets the workspace pass
     .select()
     .from(schema.subscriptions)
     .where(eq(schema.subscriptions.orgId, org.id));
-  expect(row).toMatchObject({ plan: "omnipresent", status: "active", billingInterval: "month" });
+  expect(row).toMatchObject({ plan: "team", status: "active", billingInterval: "month" });
   expect((await usage(owner)).limitBytes).toBe(CEILING);
 });

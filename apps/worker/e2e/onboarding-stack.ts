@@ -46,7 +46,14 @@ export async function waitFor<T>(check: () => Promise<T | undefined | false>, ti
 
 export type OnboardingStack = Awaited<ReturnType<typeof startOnboardingStack>>;
 
-export async function startOnboardingStack(options: { outboxIntervalMs?: number } = {}) {
+export async function startOnboardingStack(
+  options: {
+    outboxIntervalMs?: number;
+    /** Extra Worker vars and secrets, such as billing's. */
+    workerVars?: Record<string, string>;
+    workerSecrets?: Record<string, string>;
+  } = {},
+) {
   const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
   const database = await createTestDatabase();
   const dns: DnsServer = await startDnsServer();
@@ -67,7 +74,12 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
   );
   await new Promise<void>((resolve) => mailHttp.listen(0, "127.0.0.1", resolve));
   const mailServiceUrl = `http://127.0.0.1:${(mailHttp.address() as AddressInfo).port}`;
-  const worker = await startWorker({ databaseUrl: database.url, mailServiceUrl });
+  const worker = await startWorker({
+    databaseUrl: database.url,
+    mailServiceUrl,
+    vars: options.workerVars,
+    secrets: options.workerSecrets,
+  });
   const service: MailService = await startService(
     {
       DATABASE_URL: database.url,

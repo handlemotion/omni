@@ -9,7 +9,6 @@ import { rewriteLive } from "@omni/docs";
 import { isDocFile } from "@omni/docs/file";
 import { Hono, type Context } from "hono";
 import * as Y from "yjs";
-import { inGoodStanding } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
@@ -110,7 +109,7 @@ async function openingFor(c: Context<AppEnv>, shared: SharedAccess, item: Storag
     ownerMemberId: node.ownerMemberId,
     locked: !!node.lockedAt,
     role: item.role === "commenter" ? "commenter" : "editor",
-    writable: await inGoodStanding(c.var.db, c.var.config, node.orgId),
+    writable: true,
     userId: grant ? user!.id : null,
     scopeOrgId: grant ? user!.scopeOrgId : null,
     guestId: guest?.id ?? null,

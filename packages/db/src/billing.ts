@@ -1,8 +1,9 @@
-import { and, count, desc, eq, gt, isNotNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNotNull, notExists, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { organizations, subscriptions } from "./schema/auth.ts";
-import { stripeEvents, trialClaims, triageUsage } from "./schema/billing.ts";
+import { planKeyOf, type Meter, type PlanKey } from "@omni/contracts";
+import { stripeEvents, triageUsage, usageClaims } from "./schema/billing.ts";
 
 /**
  * Stripe subscription statuses that keep a workspace fully usable. `past_due` is Stripe's grace
@@ -38,98 +39,27 @@ export async function workspaceSubscription(db: Db, orgId: string) {
   return rows.find((row) => isPaid(row.status)) ?? rows[0] ?? null;
 }
 
-/**
- * Why `userId` cannot start a free trial for `orgId`, or null when they can. A workspace gets one
- * trial, and so does an account: `workspace` when this workspace had one (a past subscription
- * with a trial, or a claim), `account` when this person started one for another workspace.
- */
-export const trialUnavailable: (
-  db: Db,
-  input: { orgId: string; userId: string },
-) => Promise<"workspace" | "account" | null> = async (db, input) => {
-  const [trialed] = await db
-    .select({ id: subscriptions.id })
-    .from(subscriptions)
-    .where(
-      and(
-        eq(subscriptions.orgId, input.orgId),
-        or(
-          isNotNull(subscriptions.trialStart),
-          isNotNull(subscriptions.trialEnd),
-          eq(subscriptions.status, "trialing"),
-        ),
-      ),
-    )
-    .limit(1);
-  if (trialed) return "workspace";
-  return otherClaim(db, input);
-};
-
-/**
- * Takes the trial of both the workspace and the account before Stripe is asked for it, so two
- * requests at once (two tabs, two workspaces) cannot both start one. Null when the claim is
- * theirs, new or left by an earlier attempt at the same start (so a retry goes on); otherwise why
- * not.
- */
-export async function claimTrial(db: Db, input: { orgId: string; userId: string }) {
-  await db.insert(trialClaims).values(input).onConflictDoNothing();
-  return otherClaim(db, input);
-}
-
-async function otherClaim(db: Db, input: { orgId: string; userId: string }) {
-  const claims = await db
-    .select({ orgId: trialClaims.orgId, userId: trialClaims.userId })
-    .from(trialClaims)
-    .where(or(eq(trialClaims.orgId, input.orgId), eq(trialClaims.userId, input.userId)));
-  const others = claims.filter((c) => c.orgId !== input.orgId || c.userId !== input.userId);
-  if (others.some((c) => c.orgId === input.orgId)) return "workspace" as const;
-  if (others.length > 0) return "account" as const;
-  return null;
-}
-
 export function isPaid(status: string) {
   return (PAID_STATUSES as readonly string[]).includes(status);
 }
 
-/** Emails AI-triaged in the workspace's usage month starting at `periodStart`. */
-export async function triageUsageCount(db: Db, orgId: string, periodStart: Date) {
-  const [row] = await db
-    .select({ used: count() })
-    .from(triageUsage)
-    .where(and(eq(triageUsage.orgId, orgId), eq(triageUsage.periodStart, periodStart)));
-  return row?.used ?? 0;
+/**
+ * The plan a workspace's current subscription gives: its paid plan while in good standing (a
+ * paid one Omni cannot name is Team, the first plan), else Free. The one place this is decided.
+ */
+export function planOf(
+  subscription: Pick<NonNullable<WorkspaceSubscription>, "status" | "plan"> | null,
+) {
+  const plan: PlanKey =
+    !subscription || !isPaid(subscription.status)
+      ? "free"
+      : (planKeyOf(subscription.plan) ?? "team");
+  return plan;
 }
 
-/**
- * Takes one unit of the month's allowance for `messageId` before the model is called.
- * `counted`: newly counted. `already`: this email was counted before (a retried or redelivered
- * job), so it may run again at no extra cost. `over`: the allowance is used up. Serialized per
- * workspace with a transaction-scoped advisory lock, so concurrent jobs cannot overshoot.
- */
-export async function claimTriage(
-  db: Db,
-  input: { orgId: string; periodStart: Date; messageId: string; allowance: number },
-) {
-  return db.transaction<"counted" | "already" | "over">(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.orgId}, 0))`);
-    const where = and(
-      eq(triageUsage.orgId, input.orgId),
-      eq(triageUsage.periodStart, input.periodStart),
-    );
-    const [seen] = await tx
-      .select({ messageId: triageUsage.messageId })
-      .from(triageUsage)
-      .where(and(where, eq(triageUsage.messageId, input.messageId)));
-    if (seen) return "already";
-    const [row] = await tx.select({ used: count() }).from(triageUsage).where(where);
-    if ((row?.used ?? 0) >= input.allowance) return "over";
-    await tx.insert(triageUsage).values({
-      orgId: input.orgId,
-      periodStart: input.periodStart,
-      messageId: input.messageId,
-    });
-    return "counted";
-  });
+/** `planOf` the workspace's current subscription. */
+export async function workspacePlan(db: Db, orgId: string) {
+  return planOf(await workspaceSubscription(db, orgId));
 }
 
 export interface StripeEventRef {
@@ -250,6 +180,18 @@ export type SubscriptionRow = Awaited<ReturnType<typeof subscriptionRows>>[numbe
 
 /** Every subscription row, with the fields Stripe owns. One row or two per billed workspace. */
 export async function subscriptionRows(db: Db) {
+  return subscriptionSelect(db).orderBy(subscriptions.id);
+}
+
+/** The row of one Stripe subscription, with the fields Stripe owns, or undefined. */
+export async function subscriptionRowFor(db: Db, stripeSubscriptionId: string) {
+  const [row] = await subscriptionSelect(db).where(
+    eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId),
+  );
+  return row;
+}
+
+function subscriptionSelect(db: Db) {
   return db
     .select({
       id: subscriptions.id,
@@ -271,7 +213,7 @@ export async function subscriptionRows(db: Db) {
       stripeScheduleId: subscriptions.stripeScheduleId,
     })
     .from(subscriptions)
-    .orderBy(subscriptions.id);
+    .$dynamic();
 }
 
 /** A subscription that ended in Stripe and can no longer change there. */
@@ -333,5 +275,122 @@ export async function createStripeSubscription(
     if (existing) return false;
     await tx.insert(subscriptions).values({ id: uuidv7(), orgId, ...fields });
     return true;
+  });
+}
+
+const METER_COLUMN = {
+  triage: "triage",
+  assist: "assist",
+  meetingMinutes: "meeting_minutes",
+} as const satisfies Record<Meter, (typeof usageClaims.meter.enumValues)[number]>;
+
+type Executor = Pick<Db, "select">;
+
+/**
+ * What the workspace used of `meter` in the usage month starting at `periodStart`. Triage also
+ * counts the month's `triage_usage` rows, written before `usage_claims`, once each.
+ */
+export async function usageOf(db: Executor, orgId: string, periodStart: Date, meter: Meter) {
+  const [row] = await db
+    .select({ used: sql<number>`coalesce(sum(${usageClaims.amount}), 0)`.mapWith(Number) })
+    .from(usageClaims)
+    .where(
+      and(
+        eq(usageClaims.orgId, orgId),
+        eq(usageClaims.periodStart, periodStart),
+        eq(usageClaims.meter, METER_COLUMN[meter]),
+      ),
+    );
+  if (meter !== "triage") return row?.used ?? 0;
+  const [legacy] = await db
+    .select({ used: count() })
+    .from(triageUsage)
+    .where(
+      and(
+        eq(triageUsage.orgId, orgId),
+        eq(triageUsage.periodStart, periodStart),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(usageClaims)
+            .where(
+              and(
+                eq(usageClaims.orgId, triageUsage.orgId),
+                eq(usageClaims.periodStart, triageUsage.periodStart),
+                eq(usageClaims.meter, "triage"),
+                eq(usageClaims.key, triageUsage.messageId),
+              ),
+            ),
+        ),
+      ),
+    );
+  return (row?.used ?? 0) + (legacy?.used ?? 0);
+}
+
+export interface UsageClaim {
+  orgId: string;
+  periodStart: Date;
+  meter: Meter;
+  /** What is being used up; the same key never counts twice in a month. */
+  key: string;
+  amount?: number;
+  /** The month's allowance. A claim that would pass it is refused, unless `always`. */
+  allowance: number;
+  /**
+   * Count it even past the allowance: for work already done that the workspace was allowed to
+   * start (a recording's minutes, known only once it ends).
+   */
+  always?: boolean;
+}
+
+/**
+ * Takes `amount` of the month's allowance of `meter` for `key` before the costly work runs.
+ * `counted`: newly counted. `already`: `key` was counted before (a retried or redelivered job),
+ * so the work may run again at no extra cost. `over`: it would pass the allowance; nothing was
+ * counted. Serialized per workspace and meter with a transaction-scoped advisory lock, so
+ * concurrent jobs cannot overshoot, and safe to run twice.
+ */
+export async function claimUsage(db: Db, claim: UsageClaim) {
+  const amount = claim.amount ?? 1;
+  return db.transaction<"counted" | "already" | "over">(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`usage:${claim.orgId}:${claim.meter}`}, 0))`,
+    );
+    const column = METER_COLUMN[claim.meter];
+    const [seen] = await tx
+      .select({ key: usageClaims.key })
+      .from(usageClaims)
+      .where(
+        and(
+          eq(usageClaims.orgId, claim.orgId),
+          eq(usageClaims.periodStart, claim.periodStart),
+          eq(usageClaims.meter, column),
+          eq(usageClaims.key, claim.key),
+        ),
+      );
+    if (seen) return "already";
+    if (claim.meter === "triage") {
+      const [legacy] = await tx
+        .select({ id: triageUsage.messageId })
+        .from(triageUsage)
+        .where(
+          and(
+            eq(triageUsage.orgId, claim.orgId),
+            eq(triageUsage.periodStart, claim.periodStart),
+            eq(triageUsage.messageId, claim.key),
+          ),
+        );
+      if (legacy) return "already";
+    }
+    const used = await usageOf(tx, claim.orgId, claim.periodStart, claim.meter);
+    if (!claim.always && used + amount > claim.allowance) return "over";
+    await tx.insert(usageClaims).values({
+      orgId: claim.orgId,
+      periodStart: claim.periodStart,
+      meter: column,
+      key: claim.key,
+      amount,
+    });
+    return "counted";
   });
 }

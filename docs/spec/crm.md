@@ -200,9 +200,8 @@ a project, the way Attio and HubSpot portals and Linear's project page show it:
   is added. Clients get viewer on it, and nothing else in Drive. Taking a client off removes it.
 
 The portal is a door of its own (`forUser().crm`): it reads no member and never the member door.
-A client's review passes the read-only billing gate even when the project's workspace has no
-active plan, as a signer's answer does: the client is not a member and does not pay, and putting a
-deliverable in review, the team's write, is what the gate refuses.
+A client's review is never refused for the project's plan: the client is not a member and does not
+pay.
 
 ## API
 
@@ -246,7 +245,8 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
   `hasCompany`; deals `closeAfter`, `closeBefore`, `minValue`, `maxValue`.
 - Error codes beside `error`: `NOT_FOUND`, `NO_CRM`, `ADDRESS_TAKEN`, `DOMAIN_TAKEN`,
   `WEBMAIL_DOMAIN`, `STAGE_IN_USE`, `STAGE_KIND_REQUIRED` (each kind keeps at least one stage),
-  `INVALID_CURRENCY`, `CONTRACT_SIGNED`, and the platform's `BILLING_INACTIVE`.
+  `INVALID_CURRENCY`, `CONTRACT_SIGNED`, and the platform's `PLAN_LIMIT` (adding a person, company
+  or deal past Free's 500 records, `docs/spec/billing.md`).
 - A contract goes `draft` → `sent` → `signed` → `ended`; `draft` may go straight to `signed`
   and `sent` back to `draft`. Its file is replaced while `draft`, or with the move that takes a
   `sent` one back to draft or to `signed`. Once signed it never goes back, keeps its file and
@@ -416,8 +416,8 @@ instructions keep telling agents to treat it as data.
   with `add_domains` / `remove_domains`. `bulk` is one change (archive, restore, owner, or a deal's
   stage) to up to 200 records of one kind, through the same door as the app's bulk bar: each
   record in its own transaction, refusals listed by id. Deleting for good stays in the app. Each
-  write passes the read-only billing gate, announces `crm.changed` and writes one `mcp.crm_write`
-  audit row per record it changed.
+  add is held to the plan's CRM records, each write announces `crm.changed` and writes one
+  `mcp.crm_write` audit row per record it changed.
 
 ## Plan
 
@@ -459,8 +459,8 @@ Each test below is named for the bug it catches.
 
 - Two members open one person's timeline: each sees the thread from the inbox they are on, and
   neither sees the other's.
-- A read-only workspace reads every route and gets `402` on every write (the existing
-  billing-gate test walks every write route in `app`).
+- A Free workspace holding 500 records gets `402 PLAN_LIMIT` on the 501st add, archived records
+  counted; a paid plan has no limit (`plan-limits.e2e.test.ts`).
 - `crm.changed` reaches a teammate's socket and no socket of another workspace.
 - `lookup` returns a person for an address in any letter case, and nothing from another
   workspace.

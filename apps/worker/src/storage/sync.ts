@@ -15,7 +15,6 @@ import { ensureFirstPartyOAuthClient, forUser, type StorageChangesResult } from 
 import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
-import { requireWritableWorkspace } from "../billing.ts";
 import { findMember, type AppEnv, type SyncCaller } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { verifyAccessToken } from "../mcp/auth.ts";
@@ -159,7 +158,6 @@ export const storageSync = new Hono<AppEnv>()
   })
 
   .use("/:orgId/*", requireSyncMember)
-  .use("/:orgId/*", requireWritableWorkspace)
 
   .get("/:orgId/changes", zValidator("query", storageSyncChangesQuerySchema), async (c) => {
     const { space, teamspace, teamspaces, cursor, limit } = c.req.valid("query");

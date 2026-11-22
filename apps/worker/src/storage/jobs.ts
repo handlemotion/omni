@@ -15,7 +15,6 @@ import {
   type Db,
 } from "@omni/db";
 import { Effect, Result } from "effect";
-import { loadConfig } from "../env.ts";
 import { type JobError, retried, runJob, scopedDb } from "../job-effects.ts";
 import { createLogger, type Logger } from "../log.ts";
 import { abortMultipart, deleteStorageObjects } from "./core.ts";
@@ -60,13 +59,13 @@ function eachIsolated<T>(items: readonly T[], job: (item: T) => Effect.Effect<un
   );
 }
 
-function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOnly: boolean) {
+function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date) {
   return Effect.gen(function* () {
     const before = new Date(now.getTime() - STORAGE_TRASH_DAYS * DAY_MS);
     let objects = 0;
     for (let batch = 0; batch < PURGE_BATCHES; batch++) {
       const { r2Keys, more } = yield* retried("purge_trash", () =>
-        purgeStorageTrash(db, { before, keepReadOnly }),
+        purgeStorageTrash(db, { before }),
       );
       yield* Effect.promise(() => deleteStorageObjects(bucket, r2Keys, log));
       objects += r2Keys.length;
@@ -91,14 +90,14 @@ function sweepTombstones(db: Db, now: Date) {
   });
 }
 
-function purgeVersions(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOnly: boolean) {
+function purgeVersions(db: Db, bucket: R2Bucket, log: Logger, now: Date) {
   return Effect.gen(function* () {
     const before = new Date(now.getTime() - STORAGE_VERSION_DAYS * DAY_MS);
     const supersededBefore = new Date(now.getTime() - STORAGE_SUPERSEDED_MS);
     let objects = 0;
     for (let batch = 0; batch < PURGE_BATCHES; batch++) {
       const { r2Keys, more } = yield* retried("purge_versions", () =>
-        purgeStorageVersions(db, { before, supersededBefore, keepReadOnly }),
+        purgeStorageVersions(db, { before, supersededBefore }),
       );
       yield* Effect.promise(() => deleteStorageObjects(bucket, r2Keys, log));
       objects += r2Keys.length;
@@ -230,15 +229,14 @@ export function sweepDeletedWorkspaces(db: Db, bucket: R2Bucket, log: Logger) {
 export function storageDaily(env: Env, now = new Date()) {
   const log = createLogger({ component: "storage", requestId: crypto.randomUUID() });
   const bucket = env.STORAGE_BUCKET;
-  const billed = loadConfig(env).auth.billing !== undefined;
   return runJob(
     Effect.gen(function* () {
       const db = yield* scopedDb(env);
       const history = new Date(now.getTime() - STORAGE_VERSION_DAYS * DAY_MS);
       const [purged, versions, recounted, swept, tombstones, changes] = yield* Effect.all(
         [
-          Effect.result(purgeTrash(db, bucket, log, now, billed)),
-          Effect.result(purgeVersions(db, bucket, log, now, billed)),
+          Effect.result(purgeTrash(db, bucket, log, now)),
+          Effect.result(purgeVersions(db, bucket, log, now)),
           Effect.result(retried("recompute_usage", () => recomputeStorageUsage(db))),
           Effect.result(sweepDeletedWorkspaces(db, bucket, log)),
           Effect.result(sweepTombstones(db, now)),

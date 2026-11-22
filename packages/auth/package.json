@@ -17,6 +17,7 @@
     "@better-auth/oauth-provider": "1.7.26",
     "@better-auth/passkey": "^1.7.26",
     "@better-auth/stripe": "1.7.26",
+    "@omni/contracts": "workspace:*",
     "@omni/db": "workspace:*",
     "@simplewebauthn/server": "13.3.3",
     "better-auth": "^1.7.26",

@@ -10,6 +10,7 @@ export * from "./crm-links.ts";
 export * from "./crm-plan.ts";
 export * from "./crm-portal.ts";
 export * from "./crm-tasks.ts";
+export * from "./plans.ts";
 export * from "./calendar.ts";
 export * from "./invitations.ts";
 export * from "./mail.ts";
@@ -434,6 +435,11 @@ export const googleConnectBodySchema = z.object({
   userId: z.string().min(1).optional(),
   /** A session scoped to one company may connect only into it. */
   scopeOrgId: z.string().min(1).optional(),
+  /**
+   * Billing is on: a new account is refused (`402`) when the workspace it lands in already
+   * holds its plan's inboxes. Reconnecting one it holds always works. Absent: no limit.
+   */
+  planCaps: z.boolean().optional(),
   /** Google's one-time authorization code. Never logged. */
   code: z.string().min(1),
   /** PKCE verifier for the code (RFC 7636). Never logged. */

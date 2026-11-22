@@ -1,5 +1,6 @@
 import { usagePeriod } from "@omni/ai";
 import type { BillingConfig } from "@omni/auth";
+import { PLAN_LIMITS, planKeyOf } from "@omni/contracts";
 import {
   noteSubscriptionPaymentMethod,
   raiseStoragePeak,
@@ -81,7 +82,8 @@ async function billWorkspace(
     card &&
     !subscription.schedule &&
     (subscription.status === "active" || subscription.status === "past_due");
-  const extra = extraGb(period.peakBytes, Math.floor(storage.includedGb * GB));
+  const included = PLAN_LIMITS[planKeyOf(workspace.plan) ?? "team"].storageGb;
+  const extra = extraGb(period.peakBytes, Math.floor(included * GB));
   let item = subscription.items.data.find((i) => i.price.id === storage.priceId);
   if (!item && billable && extra > 0) {
     const updated = await stripe.subscriptions.update(

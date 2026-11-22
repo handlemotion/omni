@@ -13,6 +13,7 @@ import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
+import { requireCap } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { logInboxAction, requireCompanyManager } from "../inbox-admin.ts";
 import { mailboxPlacement, provisionMailbox } from "../provision-mailbox.ts";
@@ -44,6 +45,7 @@ export const workspaceInvitations = new Hono<AppEnv>()
   .post("/workspace/invitations", limitInvites, zValidator("json", invitationBody), async (c) => {
     const { db, member } = c.var;
     const body = c.req.valid("json");
+    await requireCap(db, c.var.config, member.orgId, "members");
     const shared = (await listWorkspaceMailboxes(db, member.orgId)).filter(
       (m) => m.kind === "shared",
     );

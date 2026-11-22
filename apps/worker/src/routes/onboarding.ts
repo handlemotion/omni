@@ -17,6 +17,7 @@ import {
   transferDomain,
   withdrawClaim,
   workspaceKind,
+  holdsDomain,
 } from "@omni/db";
 import { parseDomain } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
@@ -24,9 +25,8 @@ import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { inGoodStanding } from "../billing.ts";
+import { requireCap } from "../billing.ts";
 import { requireMember, resolveSession, type AppEnv } from "../context.ts";
-import { apiError } from "../errors.ts";
 import {
   advanceDomainStep,
   audit,
@@ -145,7 +145,7 @@ export const onboarding = new Hono<AppEnv>()
         name: org?.name ?? "",
         role: member.role,
         setup: await orgSetupStep(db, member.orgId),
-        needsPlan: !(await inGoodStanding(db, config, member.orgId)),
+        needsPlan: false,
       },
       ...views,
     });
@@ -187,6 +187,9 @@ export const onboarding = new Hono<AppEnv>()
       const body = c.req.valid("json");
       const parsed = parseDomain(body.domain);
       if ("error" in parsed) throw new HTTPException(400, { message: parsed.error });
+      if (!(await holdsDomain(c.var.db, c.var.member.orgId, parsed.domain))) {
+        await requireCap(c.var.db, c.var.config, c.var.member.orgId, "domains");
+      }
       const { claim, challengeValue } = await claimDomain(
         deps(c),
         c.var.member,
@@ -317,6 +320,7 @@ export const onboarding = new Hono<AppEnv>()
       }
       const setup = await memberDomain(c);
       const domain = (setup.claim?.domain ?? setup.lock?.domain)!;
+      if (!(await holdsDomain(db, to, domain))) await requireCap(db, c.var.config, to, "domains");
       const result = await transferDomain(db, { fromOrgId: member.orgId, toOrgId: to, domain });
       if (!result.ok) throw handOverRefusal(result.reason, domain);
       const [fromName, toName] = await Promise.all([orgName(db, member.orgId), orgName(db, to)]);
@@ -354,13 +358,6 @@ export const onboarding = new Hono<AppEnv>()
     const step = await orgSetupStep(db, member.orgId);
     if (SETUP_STEPS.indexOf(step) < SETUP_STEPS.indexOf("mailboxes_created")) {
       throw new HTTPException(409, { message: "create a mailbox before finishing setup" });
-    }
-    if (!(await inGoodStanding(db, c.var.config, member.orgId))) {
-      return apiError(
-        c,
-        "billing_required",
-        "start the free trial or choose a plan before finishing setup",
-      );
     }
     return c.json({ setup: await advanceOrgSetup(db, member.orgId, "complete") });
   });

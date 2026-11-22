@@ -7,16 +7,14 @@ import { MIB, startStorageStack, type StorageStack } from "./storage-support.ts"
 import { BILLING_SECRETS, MONTHLY_PRICE } from "./stripe-events.ts";
 import { CookieJar, signIn } from "./support.ts";
 
-const PERSONAL_BYTES = 2 * MIB;
 const WORKSPACE_BYTES = 3 * MIB;
+const FREE_ALLOWANCE = 5 * 1024 ** 3;
 
 let stack: StorageStack;
 beforeAll(async () => {
   stack = await startStorageStack({
     vars: {
       STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
-      BILLING_TRIAGE_ALLOWANCE: "500",
-      STORAGE_PERSONAL_GB: String(PERSONAL_BYTES / 1024 ** 3),
       STORAGE_MAX_GB: String(WORKSPACE_BYTES / 1024 ** 3),
       STORAGE_MAX_FILE_BYTES: String(3 * MIB),
     },
@@ -43,13 +41,13 @@ test("an upload that would pass the cap answers 402 and stores nothing; deleting
     stack.api(jar, "POST", "/uploads", { name, size, space: "personal" });
 
   const first = await stack.upload(jar, { space: "personal" }, "first.bin", randomBytes(MIB));
-  const half = await open("half.bin", MIB - 10);
+  const half = await open("half.bin", 2 * MIB - 10);
   expect(half.status).toBe(201);
   expect((await stack.api(jar, "GET", "/usage")).body).toEqual({
     usedBytes: MIB,
-    reservedBytes: MIB - 10,
-    limitBytes: PERSONAL_BYTES,
-    allowanceBytes: null,
+    reservedBytes: 2 * MIB - 10,
+    limitBytes: WORKSPACE_BYTES,
+    allowanceBytes: FREE_ALLOWANCE,
     overage: null,
     uploadsBlocked: null,
   });
@@ -82,61 +80,48 @@ test("an upload that would pass the cap answers 402 and stores nothing; deleting
   expect((await stack.api(jar, "GET", "/nodes?space=shared")).status).toBe(404);
 });
 
-test("a read-only workspace still lists and downloads, and every change answers 402 BILLING_INACTIVE", async () => {
+test("a lapsed workspace is Free: it keeps its files and stays writable within Free's storage", async () => {
   const paid = await stack.company("paid-before");
   const ana = await stack.member(paid.id, "owner");
   const [subscription] = await stack.db
     .insert(schema.subscriptions)
     .values({
       id: crypto.randomUUID(),
-      plan: "omni",
+      plan: "team",
       orgId: paid.id,
-      status: "trialing",
+      status: "active",
       periodStart: new Date(),
       periodEnd: new Date(Date.now() + 86_400_000),
     })
     .returning();
   const bytes = randomBytes(1000);
   const file = await stack.upload(ana.jar, { space: "shared" }, "report.pdf", bytes);
-  const pending = await stack.api(ana.jar, "POST", "/uploads", {
-    name: "late.bin",
-    size: 4,
-    space: "shared",
+  expect((await stack.api(ana.jar, "GET", "/usage")).body).toMatchObject({
+    allowanceBytes: 100 * 1024 ** 3,
   });
   await stack.db
     .update(schema.subscriptions)
     .set({ status: "canceled" })
     .where(eq(schema.subscriptions.id, subscription!.id));
 
-  expect(names((await stack.api(ana.jar, "GET", "/nodes?space=shared")).body)).toEqual([
-    "report.pdf",
-  ]);
-  const download = await stack.download(ana.jar, file.id);
-  expect(download.status).toBe(200);
-  expect(Buffer.from(await download.arrayBuffer())).toEqual(bytes);
-  expect((await stack.api(ana.jar, "GET", "/trash")).status).toBe(200);
   expect((await stack.api(ana.jar, "GET", "/usage")).body).toMatchObject({
     usedBytes: 1000,
-    uploadsBlocked: "billing_inactive",
+    allowanceBytes: FREE_ALLOWANCE,
+    uploadsBlocked: null,
   });
-
-  const uploadId = pending.body.upload.id as string;
-  const changes = [
-    await stack.api(ana.jar, "POST", "/uploads", { name: "new.bin", size: 1, space: "shared" }),
-    await stack.api(ana.jar, "POST", `/uploads/${uploadId}/complete`),
-    await stack.api(ana.jar, "DELETE", `/uploads/${uploadId}`),
-    await stack.api(ana.jar, "POST", "/folders", { name: "New", space: "shared" }),
-    await stack.api(ana.jar, "PATCH", `/nodes/${file.id}`, { name: "renamed.pdf" }),
-    await stack.api(ana.jar, "DELETE", `/nodes/${file.id}`),
-    await stack.api(ana.jar, "POST", `/nodes/${file.id}/restore`),
-  ];
-  for (const change of changes) {
-    expect(change).toMatchObject({ status: 402, body: { code: "BILLING_INACTIVE" } });
-  }
-  const part = await stack.putPart(ana.jar, uploadId, 1, randomBytes(4));
-  expect(part.status).toBe(402);
-  expect(names((await stack.api(ana.jar, "GET", "/nodes?space=shared")).body)).toEqual([
-    "report.pdf",
+  const download = await stack.download(ana.jar, file.id);
+  expect(Buffer.from(await download.arrayBuffer())).toEqual(bytes);
+  expect(
+    (await stack.api(ana.jar, "POST", "/folders", { name: "New", space: "shared" })).status,
+  ).toBe(201);
+  expect(
+    (await stack.api(ana.jar, "PATCH", `/nodes/${file.id}`, { name: "renamed.pdf" })).status,
+  ).toBe(200);
+  await stack.upload(ana.jar, { space: "shared" }, "more.bin", randomBytes(10));
+  expect(names((await stack.api(ana.jar, "GET", "/nodes?space=shared")).body).toSorted()).toEqual([
+    "New",
+    "more.bin",
+    "renamed.pdf",
   ]);
 });
 
@@ -153,7 +138,7 @@ async function soloPerson() {
   return { jar, orgId: space!.orgId };
 }
 
-test("STORAGE_MAX_GB caps a company, which the Personal cap does not touch", async () => {
+test("STORAGE_MAX_GB caps every workspace, whatever its plan", async () => {
   const org = await stack.company("capped");
   const ana = await stack.member(org.id, "owner");
   await stack.db.insert(schema.subscriptions).values({
@@ -167,9 +152,9 @@ test("STORAGE_MAX_GB caps a company, which the Personal cap does not touch", asy
   const open = (name: string, size: number) =>
     stack.api(ana.jar, "POST", "/uploads", { name, size, space: "shared" });
 
-  await stack.upload(ana.jar, { space: "shared" }, "big.bin", randomBytes(PERSONAL_BYTES + 10));
+  await stack.upload(ana.jar, { space: "shared" }, "big.bin", randomBytes(2 * MIB + 10));
   expect((await stack.api(ana.jar, "GET", "/usage")).body).toMatchObject({
-    usedBytes: PERSONAL_BYTES + 10,
+    usedBytes: 2 * MIB + 10,
     limitBytes: WORKSPACE_BYTES,
     uploadsBlocked: null,
   });
@@ -201,7 +186,7 @@ test("a complete refused as full or into a trashed folder keeps the upload, whic
 
   const bytes = randomBytes(100);
   const full = await stitched({ space: "personal" }, bytes);
-  await setUsed(PERSONAL_BYTES);
+  await setUsed(WORKSPACE_BYTES);
   expect(await stack.api(jar, "POST", `/uploads/${full}/complete`)).toMatchObject({
     status: 402,
     body: { code: "STORAGE_FULL" },
@@ -232,7 +217,7 @@ test("a complete refused as full or into a trashed folder keeps the upload, whic
   expect(await stack.usedBytes(orgId)).toBe(150);
 
   const dropped = await stitched({ space: "personal" }, randomBytes(10));
-  await setUsed(PERSONAL_BYTES);
+  await setUsed(WORKSPACE_BYTES);
   expect((await stack.api(jar, "POST", `/uploads/${dropped}/complete`)).status).toBe(402);
   expect(await objects()).toContain(storageObjectKey(orgId, dropped));
   expect((await stack.api(jar, "DELETE", `/uploads/${dropped}`)).status).toBe(204);

@@ -7,6 +7,16 @@ export const BILLING_SECRETS = {
 };
 export const MONTHLY_PRICE = "price_e2e_monthly";
 export const YEARLY_PRICE = "price_e2e_yearly";
+export const BUSINESS_MONTHLY_PRICE = "price_e2e_business_monthly";
+export const BUSINESS_YEARLY_PRICE = "price_e2e_business_yearly";
+
+/** The Worker vars that sell Team and Business at the prices above. */
+export const PLAN_PRICES = {
+  STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
+  STRIPE_PRICE_YEARLY: YEARLY_PRICE,
+  STRIPE_PRICE_BUSINESS_MONTHLY: BUSINESS_MONTHLY_PRICE,
+  STRIPE_PRICE_BUSINESS_YEARLY: BUSINESS_YEARLY_PRICE,
+};
 
 const signer = new Stripe(BILLING_SECRETS.STRIPE_SECRET_KEY);
 const seconds = (date: Date) => Math.floor(date.getTime() / 1000);
@@ -23,7 +33,8 @@ export interface SubscriptionState {
 }
 
 export function subscriptionObject(state: SubscriptionState) {
-  const interval = state.priceId === YEARLY_PRICE ? "year" : "month";
+  const interval =
+    state.priceId === YEARLY_PRICE || state.priceId === BUSINESS_YEARLY_PRICE ? "year" : "month";
   return {
     id: state.id,
     object: "subscription",

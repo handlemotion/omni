@@ -8,7 +8,7 @@ import { parseKeyring } from "@omni/crypto";
 import { schema } from "@omni/db";
 import { createLogger, sealCredentials, startService, type MailService } from "@omni/mail";
 import { AwsClient } from "aws4fetch";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { createTransport } from "nodemailer";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
@@ -31,7 +31,8 @@ import {
   subscriptionObject,
 } from "./stripe-events.ts";
 
-const ALLOWANCE = 2;
+const ALLOWANCE = 20_000;
+const SEED = "e2e-seed";
 const second = (ms: number) => new Date(Math.floor(ms / 1000) * 1000);
 const fixtures = new URL("../../../fixtures/", import.meta.url);
 const greenmail = {
@@ -114,7 +115,6 @@ beforeAll(async () => {
     vars: {
       TYPESAFE_API_URL: jev.url,
       STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
-      BILLING_TRIAGE_ALLOWANCE: String(ALLOWANCE),
     },
     secrets: { TYPESAFE_API_KEY: "recorded", ...BILLING_SECRETS },
   });
@@ -247,11 +247,17 @@ async function threadRow(threadId: string) {
 async function usageRows(orgId: string) {
   return database.db
     .select({
-      periodStart: schema.triageUsage.periodStart,
-      messageId: schema.triageUsage.messageId,
+      periodStart: schema.usageClaims.periodStart,
+      messageId: schema.usageClaims.key,
     })
-    .from(schema.triageUsage)
-    .where(eq(schema.triageUsage.orgId, orgId));
+    .from(schema.usageClaims)
+    .where(
+      and(
+        eq(schema.usageClaims.orgId, orgId),
+        eq(schema.usageClaims.meter, "triage"),
+        ne(schema.usageClaims.key, SEED),
+      ),
+    );
 }
 
 async function billing(cookie: string) {
@@ -310,6 +316,13 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
     ),
   );
   expect(subscribed.body).toMatchObject({ applied: true });
+  await database.db.insert(schema.usageClaims).values({
+    orgId: reader.orgId,
+    periodStart: firstStart,
+    meter: "triage",
+    key: SEED,
+    amount: ALLOWANCE - 2,
+  });
 
   const request = await arrives("triage-inbound-request.eml", reader);
   await waitUntil(async () => (await threadRow(request.threadId)).triageMessageId === request.id);
@@ -330,7 +343,7 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   const fyi = await arrives("triage-inbound-fyi.eml", reader);
   await waitUntil(async () => (await threadRow(fyi.threadId)).triageMessageId === fyi.id);
   expect(await billing(reader.cookie)).toMatchObject({
-    triage: { used: 2, allowance: ALLOWANCE, pausedUntil: firstEnd.toISOString() },
+    triage: { used: ALLOWANCE, allowance: ALLOWANCE, pausedUntil: firstEnd.toISOString() },
   });
 
   const receipt = await arrives("triage-automated-receipt.eml", reader);
@@ -389,13 +402,15 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   expect(await billing(reader.cookie)).toMatchObject({ triage: { used: 1, pausedUntil: null } });
 });
 
-test("a Personal space is triaged with billing on and no plan, and nothing is counted", async () => {
+test("a Personal space is on Free: triaged, and counted against Free's month", async () => {
   const reader = await setUpWorkspace({ personal: true });
+  const now = new Date();
+  const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const request = await arrives("triage-inbound-request.eml", reader);
   const triaged = await waitUntil(async () => {
     const thread = await threadRow(request.threadId);
     return thread.triageMessageId === request.id && thread;
   });
   expect(triaged).toMatchObject({ triageSource: "ai", triagePausedUntil: null });
-  expect(await usageRows(reader.orgId)).toEqual([]);
+  expect(await usageRows(reader.orgId)).toEqual([{ periodStart: month, messageId: request.id }]);
 });

@@ -1,7 +1,9 @@
-import type { CrmPerson } from "@omni/db";
+import { personAddRecords, type CrmPerson } from "@omni/db";
 import { z } from "zod";
 import { companyRow, crmOf, personRow, rowContext, type CrmWorkspace } from "../crm.ts";
 import type { ToolContext } from "../server.ts";
+import { capRefusal } from "../../billing.ts";
+import { withinCrmRecords } from "./record-limit.ts";
 import {
   archivedSchema,
   changesFields,
@@ -64,16 +66,30 @@ async function addPerson(context: ToolContext, workspace: CrmWorkspace, input: P
         "Address edits need the person's `id`. Add the person with `email` first, then change their addresses.",
     };
   }
-  const owner = await ownerId(context, workspace, input.owner);
-  if ("error" in owner) return owner;
-  const added = await crmOf(context, workspace).addPerson({
-    name: input.name,
+  const adding = await personAddRecords(context.db, workspace.orgId, {
     address: input.email,
     companyId: input.company_id,
-    jobTitle: input.job_title,
-    phone: input.phone,
-    ownerMemberId: owner.id,
   });
+  const full =
+    adding > 0 &&
+    (await capRefusal(context.db, context.config, workspace.orgId, "crmRecords", adding));
+  if (full) return { error: `${full.message[0]!.toUpperCase()}${full.message.slice(1)}.` };
+  const owner = await ownerId(context, workspace, input.owner);
+  if ("error" in owner) return owner;
+  const added = await withinCrmRecords(context, workspace, (max) =>
+    crmOf(context, workspace).addPerson(
+      {
+        name: input.name!,
+        address: input.email!,
+        companyId: input.company_id,
+        jobTitle: input.job_title,
+        phone: input.phone,
+        ownerMemberId: owner.id,
+      },
+      max,
+    ),
+  );
+  if ("error" in added) return added;
   if (added.status !== "ok") return refusal(added);
   const result: Output["result"] = added.created ? "added" : "already_there";
   return { person: added.person, result };
@@ -146,14 +162,22 @@ async function addCompany(context: ToolContext, workspace: CrmWorkspace, input: 
       error: "Adding a company takes its `domains`; `add_domains` needs an `id`.",
     };
   }
+  const full = await capRefusal(context.db, context.config, workspace.orgId, "crmRecords");
+  if (full) return { error: `${full.message[0]!.toUpperCase()}${full.message.slice(1)}.` };
   const owner = await ownerId(context, workspace, input.owner);
   if ("error" in owner) return owner;
-  const added = await crmOf(context, workspace).createCompany({
-    name: input.name,
-    description: input.description,
-    domains: input.domains,
-    ownerMemberId: owner.id,
-  });
+  const added = await withinCrmRecords(context, workspace, (max) =>
+    crmOf(context, workspace).createCompany(
+      {
+        name: input.name!,
+        description: input.description,
+        domains: input.domains,
+        ownerMemberId: owner.id,
+      },
+      max,
+    ),
+  );
+  if ("error" in added) return added;
   return added.status === "ok" ? { company: added.company } : refusal(added);
 }
 

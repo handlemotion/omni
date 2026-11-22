@@ -240,8 +240,8 @@ Behavior only; the screens follow `DESIGN.md` and the Figma pass (Rodrigo).
 
 ## Agents
 
-Scope `drive:write`, audited as `mcp.drive_sheet`, under the `actions` rate limit, refused in an
-unpaid workspace, like the doc tools.
+Scope `drive:write`, audited as `mcp.drive_sheet`, under the `actions` rate limit, like the doc
+tools.
 
 - **Read.** `drive_fetch` on an Omni sheet renders it for an agent from the sheet itself (from
   the live document when it holds unsaved typing, `unsaved_edits: true`, as #707 does for docs):

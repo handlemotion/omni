@@ -133,8 +133,8 @@ then the object closes it with `4403`. A downgrade from Editor to Commenter: `do
 "commenter" }`, the socket stays, and its appends are refused `read_only`. An upgrade is heard the
 same way. The page follows `doc.access`; a socket closed with `4403` does not reconnect.
 
-**Billing.** A workspace that is not in good standing is read only (`inGoodStanding`): outsiders'
-appends are refused `read_only`, as their HTTP writes are.
+**Billing.** A workspace's plan never makes it read-only (`docs/spec/billing.md`): a workspace
+whose plan ends is on Free, and outsiders keep editing as before.
 
 ### 4. Who outsiders are to others, and what they see of members
 

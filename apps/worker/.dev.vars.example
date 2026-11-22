@@ -65,8 +65,6 @@ STORAGE_HASH_CHECK_MAX_BYTES=
 STORAGE_MAX_OPEN_UPLOADS=
 # Optional. Bytes one person's uploads in progress may hold in a workspace. Empty: 1 TB.
 STORAGE_MAX_RESERVED_BYTES=
-# Optional. Most a Personal space may store, in GB (decimals allowed). Empty: no cap.
-STORAGE_PERSONAL_GB=
 # Optional. Ceiling on what any one workspace may store, in GB. Empty: none.
 STORAGE_MAX_GB=
 
@@ -120,21 +118,20 @@ BILLING=
 STRIPE_SECRET_KEY=
 # Secret, required. Signing secret of the webhook endpoint (locally: `stripe listen` prints it).
 STRIPE_WEBHOOK_SECRET=
-# Required. Price id of the plan's monthly price. Amounts are set in Stripe, not here.
+# Required. Price id of the Team plan's monthly price. Amounts are set in Stripe, not here; what
+# each plan allows is PLAN_LIMITS in packages/contracts/src/plans.ts.
 STRIPE_PRICE_MONTHLY=
-# Optional. Price id of the yearly price. Empty offers monthly only.
+# Optional. Price id of Team's yearly price. Empty offers Team monthly only.
 STRIPE_PRICE_YEARLY=
+# Optional. Price ids of the Business plan (its own Stripe product). Empty monthly: Business is not offered.
+STRIPE_PRICE_BUSINESS_MONTHLY=
+STRIPE_PRICE_BUSINESS_YEARLY=
 # Optional, public. Publishable key (pk_test_..., same mode as STRIPE_SECRET_KEY): owners add a card
 # in the Billing page with Stripe Elements. Empty: adding a card happens in Stripe's portal.
 STRIPE_PUBLISHABLE_KEY=
-# Optional. Free trial days, once per workspace and once per account, no card needed. Empty or 0: no trial.
-BILLING_TRIAL_DAYS=
-# Required. AI-triaged emails per workspace per month. Past it, triage pauses until the next period.
-BILLING_TRIAGE_ALLOWANCE=
-# Optional, all three or none. GB of Storage a company's plan includes (decimals allowed),
-# the price id of the metered monthly price extra GB are billed at, and the event name of the Stripe
-# meter behind that price (aggregation: last). None: the plan has no storage allowance, nothing is metered.
-BILLING_STORAGE_INCLUDED_GB=
+# Optional, both or none. Extra storage past a paid plan's: the price id of the metered monthly price
+# extra GB are billed at, and the event name of the Stripe meter behind it (aggregation: last). None:
+# a plan's storage is a hard cap.
 STRIPE_PRICE_STORAGE=
 STRIPE_STORAGE_METER_EVENT=
 

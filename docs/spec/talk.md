@@ -121,7 +121,7 @@ file is left.
 
 ## API
 
-Under `/api/talk`, member sessions only, behind the plan's read-only gate like every write.
+Under `/api/talk`, member sessions only.
 
 | Route                                   | What                                                                    |
 | --------------------------------------- | ----------------------------------------------------------------------- |

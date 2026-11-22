@@ -9,6 +9,7 @@ import {
 } from "@omni/db";
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { requireCap } from "../billing.ts";
 import { resolveSession, systemMailSender, type AppEnv } from "../context.ts";
 import { notifyMembers } from "../realtime.ts";
 
@@ -71,6 +72,7 @@ export const join = new Hono<AppEnv>()
   })
   .post("/requests/:id/accept", async (c) => {
     const member = await decider(c);
+    await requireCap(c.var.db, c.var.config, member.orgId, "members");
     const userId = await acceptJoinRequest(c.var.db, {
       orgId: member.orgId,
       requestId: c.req.param("id"),

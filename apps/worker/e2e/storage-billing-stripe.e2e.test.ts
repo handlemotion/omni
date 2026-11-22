@@ -10,7 +10,7 @@ const requested = process.env.STRIPE_E2E === "1";
 const GIB = 1024 ** 3;
 const DAY_MS = 86_400_000;
 const METER_EVENT = "omni_e2e_storage_gb";
-const INCLUDED_GB = 1;
+const INCLUDED_GB = 100;
 
 async function settle<T>(read: () => Promise<T>, done: (value: T) => boolean, ms = 90_000) {
   const deadline = Date.now() + ms;
@@ -88,8 +88,6 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       vars: {
         STRIPE_PRICE_MONTHLY: prices.monthly,
         STRIPE_PRICE_YEARLY: prices.yearly,
-        BILLING_TRIAGE_ALLOWANCE: "500",
-        BILLING_STORAGE_INCLUDED_GB: String(INCLUDED_GB),
         STRIPE_PRICE_STORAGE: prices.storage,
         STRIPE_STORAGE_METER_EVENT: meter.event_name,
       },

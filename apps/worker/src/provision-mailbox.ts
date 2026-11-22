@@ -8,6 +8,7 @@ import { mailboxAddress } from "@omni/mail-core/domains";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { requireCap } from "./billing.ts";
 import type { AppEnv } from "./context.ts";
 import { callMailService, MailServiceError } from "./mail-service.ts";
 
@@ -116,6 +117,7 @@ export async function provisionMailbox(
         : "shared"
       : target.kind;
   const existing = await mailboxAtAddress(db, member.orgId, address);
+  if (!existing) await requireCap(db, c.var.config, member.orgId, "mailboxes");
   if (
     existing &&
     (existing.kind !== kind ||

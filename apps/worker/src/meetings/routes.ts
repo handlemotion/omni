@@ -9,6 +9,7 @@ import {
 } from "@omni/contracts";
 import { forMember, groupKeyFor, meetingsPipeline, storageWorkspaceFile } from "@omni/db";
 import { Hono, type Context } from "hono";
+import { gateMeter, hasAllowance } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
@@ -78,6 +79,17 @@ export const meetings = new Hono<AppEnv>()
   })
   .post("/", zValidator("json", startMeetingBodySchema), async (c) => {
     const body = c.req.valid("json");
+    const room = await hasAllowance(c.var.db, c.var.config, c.var.member.orgId, "meetingMinutes");
+    if (!room.ok && room.reason === "plan_required") {
+      return apiError(c, "plan_required", "recording meetings needs a paid plan", {
+        details: { feature: "meetings" },
+      });
+    }
+    if (!room.ok) {
+      return apiError(c, "allowance_reached", "this month's meeting minutes are used up", {
+        details: { meter: "meetingMinutes", resetsAt: room.until.toISOString() },
+      });
+    }
     const folderId = await recordingsFolder(memberFiles(c));
     if (!folderId) return apiError(c, "not_found", "your My files could not be reached");
     const ownDomains = [c.var.user.email.split("@")[1] ?? ""];
@@ -146,6 +158,13 @@ export const meetings = new Hono<AppEnv>()
     });
     if (!stopped && meeting.meeting.status !== "uploaded")
       return refused(c, { status: "not_stoppable" });
+    await gateMeter(c.var.db, c.var.config, {
+      orgId: c.var.member.orgId,
+      meter: "meetingMinutes",
+      key: body.audioNodeId,
+      amount: Math.max(1, Math.ceil(body.durationMs / 60_000)),
+      always: true,
+    });
     await enqueueMeeting(c.env, { ...job(c, id), step: "transcribe" });
     return c.body(null, 204);
   })

@@ -1,7 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";
-import { isCompany } from "../personal-space.ts";
 import { organizations, subscriptions } from "../schema/auth.ts";
 import { storageOverage, storagePeaks, storageUsage } from "../schema/storage.ts";
 
@@ -85,7 +84,7 @@ export async function noteSubscriptionPaymentMethod(
 export type StorageBilledWorkspace = Awaited<ReturnType<typeof storageBilledWorkspaces>>[number];
 
 /**
- * Every company with a subscription in good standing, with what it stores now: the workspaces
+ * Every workspace with a subscription in good standing, with what it stores now: the workspaces
  * the daily job records a peak for. One row per workspace, its newest such subscription, as
  * `workspaceSubscription` picks it.
  */
@@ -96,6 +95,7 @@ export async function storageBilledWorkspaces(db: Db) {
       stripeCustomerId: organizations.stripeCustomerId,
       stripeSubscriptionId: subscriptions.stripeSubscriptionId,
       stripeScheduleId: subscriptions.stripeScheduleId,
+      plan: subscriptions.plan,
       status: subscriptions.status,
       billingInterval: subscriptions.billingInterval,
       periodStart: subscriptions.periodStart,
@@ -105,7 +105,7 @@ export async function storageBilledWorkspaces(db: Db) {
     .from(subscriptions)
     .innerJoin(organizations, eq(organizations.id, subscriptions.orgId))
     .leftJoin(storageUsage, eq(storageUsage.orgId, subscriptions.orgId))
-    .where(and(inArray(subscriptions.status, PAID_STATUSES), isCompany(db, subscriptions.orgId)))
+    .where(inArray(subscriptions.status, PAID_STATUSES))
     .orderBy(subscriptions.orgId, desc(subscriptions.id));
   return rows.filter((row, i) => row.orgId !== rows[i - 1]?.orgId);
 }

@@ -6,7 +6,6 @@ import {
   type StoragePlace,
 } from "@omni/db";
 import { z } from "zod";
-import { inGoodStanding } from "../billing.ts";
 import type { WriteDeps } from "../storage/doc-write.ts";
 import type { ToolContext } from "./server.ts";
 
@@ -82,13 +81,10 @@ export async function placeFor(
   return { place, orgId: chosen.id };
 }
 
-/** Why a write cannot happen now (the rate limit, an unpaid plan), or null. */
-export async function ready(context: ToolContext, orgId: string) {
+/** Why a write cannot happen now (the rate limit), or null. */
+export async function ready(context: ToolContext, _orgId: string) {
   const wait = await context.rateLimit("actions");
   if (wait) return `Too many changes. Try again in ${wait} seconds.`;
-  if (!(await inGoodStanding(context.db, context.config, orgId))) {
-    return "This workspace is read-only until its plan is paid.";
-  }
   return null;
 }
 

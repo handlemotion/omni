@@ -1,18 +1,34 @@
-import { createStripeClient, mayManageBilling, PLAN_NAME } from "@omni/auth";
 import {
-  claimTrial,
-  createStripeSubscription,
+  createStripeClient,
+  mayManageBilling,
+  planOfPrice,
+  planPriceIds,
+  type BillingConfig,
+} from "@omni/auth";
+import {
+  CAPS,
+  PAID_PLAN_KEYS,
+  PLAN_LIMITS,
+  type Cap,
+  type PaidPlanKey,
+  type PlanKey,
+  type PlanLimits,
+} from "@omni/contracts";
+import {
+  applyStripeSubscription,
+  capUsage,
+  isPaid,
   schema,
-  trialUnavailable,
-  workspaceKind,
-  workspaceSubscription,
+  subscriptionRowFor,
+  type Db,
 } from "@omni/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import type Stripe from "stripe";
 import { z } from "zod";
 import { subscriptionFields } from "../billing-reconcile.ts";
-import { requireBilling, workspaceBilling } from "../billing.ts";
+import { entitlements, monthUsage, requireBilling } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 
@@ -23,10 +39,15 @@ const appPath = z
 
 const interval = z.enum(["month", "year"]).default("month");
 
+const paidPlan = z.enum(PAID_PLAN_KEYS).default("team");
+
 const checkoutBody = z.object({
+  plan: paidPlan,
   interval,
   returnPath: appPath.default("/"),
 });
+
+const planBody = z.object({ plan: paidPlan, interval });
 
 const trialBody = z.object({ interval });
 
@@ -105,25 +126,56 @@ const planPrice: (
   }
 };
 
-/**
- * Owners and admins only. A Personal space is free: it may never start a plan
- * (`subscribe`), and may manage one (`manage`: the portal, cards) only if it somehow has one,
- * so it can always be cancelled.
- */
+/** Owners and admins only: they choose and pay for the workspace's plan. */
 export async function requireBillingManager(
   c: { var: AppEnv["Variables"] },
-  purpose: "subscribe" | "manage" = "subscribe",
+  _purpose: "subscribe" | "manage" = "subscribe",
 ) {
-  if ((await workspaceKind(c.var.db, c.var.member.orgId)) === "personal") {
-    const existing =
-      purpose === "manage" ? await workspaceSubscription(c.var.db, c.var.member.orgId) : null;
-    if (!existing) {
-      throw new HTTPException(403, { message: "a Personal space is free; it has no plan" });
-    }
-  }
   if (!(await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId))) {
     throw new HTTPException(403, { message: "only owners and admins manage billing" });
   }
+}
+
+function priceFor(billing: BillingConfig, plan: PaidPlanKey, chosen: "month" | "year") {
+  const prices = billing.plans[plan];
+  if (!prices) throw new HTTPException(400, { message: `the ${plan} plan is not offered` });
+  const id = chosen === "year" ? prices.yearlyPriceId : prices.monthlyPriceId;
+  if (!id) throw new HTTPException(400, { message: `the ${plan} plan is not offered yearly` });
+  return id;
+}
+
+async function capsHeld(db: Db, orgId: string) {
+  const entries = await Promise.all(
+    CAPS.map(async (cap) => [cap, await capUsage(db, orgId, cap)] as const),
+  );
+  return Object.fromEntries(entries) as Record<Cap, number>;
+}
+
+async function moveSubscription(
+  stripe: Stripe,
+  billing: BillingConfig,
+  subscription: Stripe.Subscription,
+  input: { priceId: string; up: boolean },
+) {
+  const planPrices = planPriceIds(billing.plans);
+  const item = subscription.items.data.find((i) => planPrices.includes(i.price.id));
+  if (!item) throw new HTTPException(409, { message: "this subscription is no plan's" });
+  const toYear = planOfPrice(billing.plans, input.priceId)?.interval === "year";
+  const extras = subscription.items.data.filter(
+    (i) => i.id !== item.id && toYear && i.price.recurring?.usage_type === "metered",
+  );
+  for (const extra of extras) {
+    await stripe.subscriptionItems.del(
+      extra.id,
+      { proration_behavior: "none" },
+      { idempotencyKey: `omni-plan-yearly-item-del-${extra.id}` },
+    );
+  }
+  return stripe.subscriptions.update(subscription.id, {
+    items: [{ id: item.id, price: input.priceId }],
+    proration_behavior: input.up ? "always_invoice" : "create_prorations",
+    ...(input.up ? { payment_behavior: "pending_if_incomplete" as const } : {}),
+  });
 }
 
 async function expireOtherCheckouts(
@@ -150,30 +202,59 @@ async function expireOtherCheckouts(
   }
 }
 
+type LegacyTriage = {
+  used: number;
+  allowance: number;
+  periodEnd: string;
+  pausedUntil: string | null;
+};
+
+const amount = (price: PlanPrice | null) =>
+  price && { amount: price.amount, currency: price.currency };
+
+async function offeredPlans(c: { var: AppEnv["Variables"] }, billing: BillingConfig) {
+  const offered = PAID_PLAN_KEYS.filter((key) => billing.plans[key]);
+  return Promise.all(
+    offered.map(async (key) => {
+      const prices = billing.plans[key]!;
+      const [month, year] = await Promise.all([
+        planPrice(c, billing.secretKey, prices.monthlyPriceId),
+        planPrice(c, billing.secretKey, prices.yearlyPriceId),
+      ]);
+      return {
+        key,
+        name: month?.name ?? year?.name ?? null,
+        limits: PLAN_LIMITS[key] as PlanLimits,
+        intervals: prices.yearlyPriceId ? (["month", "year"] as const) : (["month"] as const),
+        prices: { month: amount(month), year: amount(year) },
+      };
+    }),
+  );
+}
+
 export const billing = new Hono<AppEnv>()
   .get("/billing", async (c) => {
-    const state = await workspaceBilling(c.var.db, c.var.config, c.var.member.orgId);
-    if (!state.enabled) return c.json({ enabled: false as const });
-    const { subscription, readOnly, triage } = state;
-    const plans = c.var.config.auth.billing!;
-    const [month, year] = await Promise.all([
-      planPrice(c, plans.secretKey, plans.monthlyPriceId),
-      planPrice(c, plans.secretKey, plans.yearlyPriceId),
+    const { db, config, member, user } = c.var;
+    const plan = await entitlements(db, config, member.orgId);
+    if (!plan.enabled) return c.json({ enabled: false as const });
+    const billingConfig = config.auth.billing!;
+    const [plans, held, used, canManage] = await Promise.all([
+      offeredPlans(c, billingConfig),
+      capsHeld(db, member.orgId),
+      monthUsage(db, member.orgId, plan.month.start),
+      mayManageBilling(db, user.id, member.orgId),
     ]);
-    const amount = (price: PlanPrice | null) =>
-      price && { amount: price.amount, currency: price.currency };
+    const { subscription, limits } = plan;
+    const team = plans.find((p) => p.key === "team");
+    const resets = plan.month.end.toISOString();
     return c.json({
       enabled: true as const,
-      readOnly,
-      canManage: await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId),
-      intervals: plans.yearlyPriceId ? (["month", "year"] as const) : (["month"] as const),
-      planName: month?.name ?? year?.name ?? null,
-      prices: { month: amount(month), year: amount(year) },
-      trialDays: plans.trialDays,
-      trialAvailable:
-        plans.trialDays > 0 &&
-        (await trialUnavailable(c.var.db, { orgId: c.var.member.orgId, userId: c.var.user.id })) ===
-          null,
+      plan: plan.plan satisfies PlanKey,
+      limits,
+      usage: { ...held, ...used },
+      month: { start: plan.month.start.toISOString(), end: resets },
+      plans: [{ key: "free" as const, limits: PLAN_LIMITS.free as PlanLimits }, ...plans],
+      canManage,
       subscription: subscription && {
         status: subscription.status,
         interval: subscription.billingInterval,
@@ -181,72 +262,49 @@ export const billing = new Hono<AppEnv>()
         trialEnd: subscription.trialEnd?.toISOString() ?? null,
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? false,
       },
-      triage: triage && {
-        used: triage.used,
-        allowance: triage.allowance,
-        periodEnd: triage.periodEnd.toISOString(),
-        pausedUntil: triage.paused ? triage.periodEnd.toISOString() : null,
-      },
+      readOnly: false,
+      intervals: team?.intervals ?? (["month"] as const),
+      planName: team?.name ?? null,
+      prices: team?.prices ?? { month: null, year: null },
+      trialDays: 0,
+      trialAvailable: false,
+      triage: {
+        used: used.triage,
+        allowance: limits.triage,
+        periodEnd: resets,
+        pausedUntil: used.triage >= limits.triage ? resets : null,
+      } as LegacyTriage | null,
     });
   })
 
   .post("/billing/trial", zValidator("json", trialBody), async (c) => {
-    const plans = requireBilling(c.var.config);
-    await requireBillingManager(c);
-    const { interval: chosen } = c.req.valid("json");
-    const priceId = chosen === "year" ? plans.yearlyPriceId : plans.monthlyPriceId;
-    if (!priceId) throw new HTTPException(400, { message: "yearly billing is not offered" });
-    const { orgId } = c.var.member;
-    const state = await workspaceBilling(c.var.db, c.var.config, orgId);
-    if (state.enabled && !state.readOnly) return c.json({ started: false as const });
-    if (plans.trialDays === 0) {
-      throw new HTTPException(409, { message: "no free trial is offered" });
-    }
-    const who = { orgId, userId: c.var.user.id };
-    const taken = (await trialUnavailable(c.var.db, who)) ?? (await claimTrial(c.var.db, who));
-    if (taken === "workspace") {
-      throw new HTTPException(409, { message: "this workspace has had its free trial" });
-    }
-    if (taken === "account") {
-      throw new HTTPException(409, {
-        message: "you have used your free trial on another workspace",
-      });
-    }
-    const stripe = createStripeClient(plans.secretKey);
-    const customer = await workspaceCustomer(c, stripe);
-    const subscription = await stripe.subscriptions.create(
+    requireBilling(c.var.config);
+    c.req.valid("json");
+    return c.json(
       {
-        customer,
-        items: [{ price: priceId }],
-        trial_period_days: plans.trialDays,
-        trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
-        metadata: { referenceId: orgId },
+        started: false as const,
+        error: "there is no free trial: every workspace starts on the Free plan",
       },
-      { idempotencyKey: `omni-workspace-trial-${orgId}-${chosen}` },
+      409,
     );
-    const fields = subscriptionFields(subscription, plans);
-    if (fields) await createStripeSubscription(c.var.db, orgId, { ...fields, plan: PLAN_NAME });
-    return c.json({ started: true as const });
   })
 
   .post("/billing/checkout", zValidator("json", checkoutBody), async (c) => {
-    const plans = requireBilling(c.var.config);
+    const billingConfig = requireBilling(c.var.config);
     await requireBillingManager(c);
-    const { interval, returnPath } = c.req.valid("json");
-    if (interval === "year" && !plans.yearlyPriceId) {
-      throw new HTTPException(400, { message: "yearly billing is not offered" });
-    }
-    const state = await workspaceBilling(c.var.db, c.var.config, c.var.member.orgId);
-    if (state.enabled && !state.readOnly) {
+    const { plan, interval, returnPath } = c.req.valid("json");
+    priceFor(billingConfig, plan, interval);
+    const current = await entitlements(c.var.db, c.var.config, c.var.member.orgId);
+    if (current.enabled && current.plan !== "free") {
       throw new HTTPException(409, {
-        message: "already subscribed; manage the plan in the portal",
+        message: "already on a paid plan; change it with POST /billing/plan",
       });
     }
     const url = appUrl(c, returnPath);
     const session = await c.var.auth.api.upgradeSubscription({
       headers: c.req.raw.headers,
       body: {
-        plan: PLAN_NAME,
+        plan,
         annual: interval === "year",
         customerType: "organization",
         referenceId: c.var.member.orgId,
@@ -256,8 +314,46 @@ export const billing = new Hono<AppEnv>()
       },
     });
     if (!session.url) throw new HTTPException(502, { message: "Stripe returned no checkout URL" });
-    await expireOtherCheckouts(c, plans.secretKey, "id" in session ? session.id : null);
+    await expireOtherCheckouts(c, billingConfig.secretKey, "id" in session ? session.id : null);
     return c.json({ url: session.url });
+  })
+
+  .post("/billing/plan", zValidator("json", planBody), async (c) => {
+    const billingConfig = requireBilling(c.var.config);
+    await requireBillingManager(c);
+    const { db, config, member } = c.var;
+    const { plan, interval: chosen } = c.req.valid("json");
+    const priceId = priceFor(billingConfig, plan, chosen);
+    const current = await entitlements(db, config, member.orgId);
+    const stored = current.enabled ? current.subscription : null;
+    if (!current.enabled || current.plan === "free" || !stored?.stripeSubscriptionId) {
+      throw new HTTPException(409, { message: "no paid plan to change; start one at checkout" });
+    }
+    if (stored.stripeScheduleId) {
+      throw new HTTPException(409, {
+        message: "this plan has a scheduled change; manage it in the portal",
+      });
+    }
+    const stripe = createStripeClient(billingConfig.secretKey);
+    const subscription = await stripe.subscriptions.retrieve(stored.stripeSubscriptionId);
+    if (!isPaid(subscription.status)) {
+      throw new HTTPException(409, { message: "the plan is not in good standing" });
+    }
+    const now = subscription.items.data.find((i) =>
+      planPriceIds(billingConfig.plans).includes(i.price.id),
+    );
+    if (now?.price.id === priceId) return c.json({ changed: false as const, plan });
+    const from = now && planOfPrice(billingConfig.plans, now.price.id);
+    const up =
+      !from ||
+      PAID_PLAN_KEYS.indexOf(plan) > PAID_PLAN_KEYS.indexOf(from.plan) ||
+      (plan === from.plan && chosen === "year");
+    const updated = await moveSubscription(stripe, billingConfig, subscription, { priceId, up });
+    const pending = updated.pending_update !== null;
+    const row = await subscriptionRowFor(db, updated.id);
+    const fields = subscriptionFields(updated, billingConfig);
+    if (row && fields && !pending) await applyStripeSubscription(db, row, fields);
+    return c.json({ changed: !pending, pending, plan });
   })
 
   .post("/billing/portal", zValidator("json", portalBody), async (c) => {

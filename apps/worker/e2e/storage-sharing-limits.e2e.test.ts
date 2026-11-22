@@ -11,7 +11,6 @@ beforeAll(async () => {
   stack = await startStorageStack({
     vars: {
       STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
-      BILLING_TRIAGE_ALLOWANCE: "500",
       SIGN_UP: "invitation",
       RATE_LIMIT_STORAGE_SHARE: "2/60",
       RATE_LIMIT_STORAGE_LINK: "4/60",
@@ -117,7 +116,7 @@ test("the link door answers 429 past RATE_LIMIT_STORAGE_LINK for that visitor's 
   await colleague.body?.cancel();
 });
 
-test("a read-only workspace still serves its link; changes and sharing answer 402, by the item's workspace", async () => {
+test("a lapsed workspace is Free: its link still serves, and changes through it and to its sharing still land", async () => {
   const lapsed = await company();
   const { folderId, shareId } = await sharedFolder(lapsed.owner);
   const bytes = randomBytes(2000);
@@ -128,10 +127,6 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
     (await stack.api(lapsed.owner.jar, "PUT", person(folderId, editor.email), { role: "editor" }))
       .status,
   ).toBe(200);
-  const other = await sharedFolder(editor);
-  await stack.api(editor.jar, "PUT", person(other.folderId, lapsed.owner.email), {
-    role: "editor",
-  });
 
   await stack.db
     .update(schema.subscriptions)
@@ -146,47 +141,25 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
   );
   expect(download.status).toBe(200);
   expect(Buffer.from(await download.arrayBuffer())).toEqual(bytes);
-  expect((await door("203.0.113.21", editor.jar, "GET", shareId)).status).toBe(200);
-  expect((await stack.api(lapsed.owner.jar, "GET", `/nodes/${folderId}/sharing`)).status).toBe(200);
 
-  const changes = [
-    await door("203.0.113.22", editor.jar, "POST", `${shareId}/folders`, {
-      name: "New",
-      parentId: folderId,
-    }),
-    await door("203.0.113.24", lapsed.owner.jar, "POST", `${shareId}/folders`, {
-      name: "Mine",
-      parentId: folderId,
-    }),
-    await door("203.0.113.22", editor.jar, "POST", `${shareId}/uploads`, {
-      name: "new.bin",
-      size: 1,
-      parentId: folderId,
-    }),
-    await door("203.0.113.22", editor.jar, "PATCH", `${shareId}/nodes/${file.id}`, {
-      name: "renamed.pdf",
-    }),
-  ];
-  for (const change of changes) {
-    expect(change.status).toBe(402);
-    expect(await change.json()).toMatchObject({ code: "BILLING_INACTIVE" });
-  }
-  const sharingChanges = [
-    await stack.api(lapsed.owner.jar, "PUT", person(folderId, address("late")), { role: "viewer" }),
-    await stack.api(lapsed.owner.jar, "DELETE", person(folderId, editor.email)),
-    await stack.api(lapsed.owner.jar, "PUT", `/nodes/${folderId}/sharing/link`, { reset: true }),
-  ];
-  for (const change of sharingChanges) {
-    expect(change).toMatchObject({ status: 402, body: { code: "BILLING_INACTIVE" } });
-  }
-  const listed = await stack.api(lapsed.owner.jar, "GET", `/nodes?parent=${folderId}`);
-  expect(listed.body.nodes.map((node: { name: string }) => node.name)).toEqual(["report.pdf"]);
-
-  const made = await door("203.0.113.23", lapsed.owner.jar, "POST", `${other.shareId}/folders`, {
-    name: "From the lapsed",
-    parentId: other.folderId,
+  const made = await door("203.0.113.22", editor.jar, "POST", `${shareId}/folders`, {
+    name: "New",
+    parentId: folderId,
   });
   expect(made.status).toBe(201);
+  const renamed = await door("203.0.113.22", editor.jar, "PATCH", `${shareId}/nodes/${file.id}`, {
+    name: "renamed.pdf",
+  });
+  expect(renamed.status).toBe(200);
+  const reset = await stack.api(lapsed.owner.jar, "PUT", `/nodes/${folderId}/sharing/link`, {
+    reset: true,
+  });
+  expect(reset.status).toBe(200);
+  const listed = await stack.api(lapsed.owner.jar, "GET", `/nodes?parent=${folderId}`);
+  expect(listed.body.nodes.map((node: { name: string }) => node.name).toSorted()).toEqual([
+    "New",
+    "renamed.pdf",
+  ]);
 });
 
 test("with SIGN_UP=invitation a grant is not an invitation: the share mail goes out, a magic link does not", async () => {

@@ -14,6 +14,7 @@ export * from "./workspaces.ts";
 export type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord } from "./schema/domains.ts";
 export * from "./pictures.ts";
 export * from "./billing.ts";
+export * from "./plan-usage.ts";
 export * from "./sign-in-emails.ts";
 export * from "./abandoned-sign-ups.ts";
 export * from "./preferences.ts";

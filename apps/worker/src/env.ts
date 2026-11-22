@@ -112,7 +112,6 @@ const configSchema = z
         .positive()
         .default(1024 ** 4),
     ),
-    STORAGE_PERSONAL_GB: optionalText.pipe(optionalGb),
     STORAGE_MAX_GB: optionalText.pipe(optionalGb),
     S2_BASIN_URL: optionalText.pipe(z.url().optional()),
     S2_BASIN: optionalText,

@@ -247,8 +247,8 @@ Each field sets an absolute value, so a retried call writes the same state:
 | `status`, `assignee`, `priority`, tags  | the conversation change functions, shared inboxes only    |
 
 Returns one result per change: `ok` with the fields applied, or an error for that change alone.
-Every change is checked against billing (`inGoodStanding`: a read-only workspace still reads), the
-per-person action rate limit, a realtime announcement so open apps update, and an
+Every change is checked against the per-person action rate limit (a workspace's plan never makes
+it read-only, `docs/spec/billing.md`), and gets a realtime announcement so open apps update, and an
 `audit_events` row (`mcp.triage`, `data.via = "mcp"`, the OAuth client id, the fields applied).
 
 The read and archive route bodies moved into `apps/worker/src/thread-writes.ts`, which takes
@@ -348,7 +348,7 @@ that opens in Omni as a page people edit together.
   OAuth client's name), never folded into its person's editing session
   (`docs/spec/docs.md`, "Versions").
 - **Limits.** Docs up to 1 MB; Markdown in up to 200k characters; up to 50 edits a call; the
-  `actions` rate limit; refused in a workspace whose plan is unpaid. Every write is audited as
+  `actions` rate limit. Every write is audited as
   `mcp.drive_doc`.
 
 ### Canvases: `drive_create_canvas`, `drive_edit_canvas`
@@ -372,7 +372,7 @@ for the agent). A canvas is an Omni board (`docs/spec/canvas.md`), type `text/vn
 - **Read.** `drive_fetch` returns a canvas in the person's workspaces as its outline (live when
   people are editing it, `unsaved_edits: true`); through a share, its words.
 - **Limits.** Canvases up to 400 KB and 2,000 elements (what one live-document record holds); up to 200 operations a call; the `actions`
-  rate limit; refused in a workspace whose plan is unpaid. Every write is audited as
+  rate limit. Every write is audited as
   `mcp.drive_canvas`.
 
 ### Sheets: `drive_create_sheet`, `drive_edit_sheet`

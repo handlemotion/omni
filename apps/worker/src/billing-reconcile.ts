@@ -1,4 +1,4 @@
-import { PLAN_NAME, type BillingConfig } from "@omni/auth";
+import { planOfPrice, planPriceIds, type BillingConfig } from "@omni/auth";
 import {
   applyStripeSubscription,
   billedWorkspaces,
@@ -103,13 +103,14 @@ export async function reconcileSubscriptions(input: {
 
 /**
  * What the plugin's `customer.subscription.updated` handler writes from `subscription`, or null
- * when the subscription is not this plan's (a multi-item subscription with none of its prices).
+ * when the subscription is no plan's (a multi-item subscription with none of their prices). Its
+ * `plan` is the tier the plan price belongs to, so a change of plan in Stripe lands here too.
  */
 export const subscriptionFields: (
   subscription: Stripe.Subscription,
   billing: BillingConfig,
 ) => StripeSubscriptionFields | null = (subscription, billing) => {
-  const prices = [billing.monthlyPriceId, billing.yearlyPriceId].filter(Boolean);
+  const prices = planPriceIds(billing.plans);
   const items = subscription.items.data;
   const matched = items.find((item) => prices.includes(item.price.id));
   const item = matched ?? (items.length === 1 ? items[0] : undefined);
@@ -133,7 +134,7 @@ export const subscriptionFields: (
     seats: item.quantity ?? 1,
     billingInterval: item.price.recurring?.interval ?? null,
     stripeScheduleId: subscription.schedule ? idOf(subscription.schedule) : null,
-    ...(matched ? { plan: PLAN_NAME } : {}),
+    ...(matched ? { plan: planOfPrice(billing.plans, matched.price.id)?.plan } : {}),
   };
 };
 

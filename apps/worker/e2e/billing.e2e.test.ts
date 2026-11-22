@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { PLAN_NAME } from "@omni/auth";
 import { ensurePersonalSpace, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -17,11 +16,11 @@ import {
 } from "./support.ts";
 import {
   BILLING_SECRETS,
-  MONTHLY_PRICE,
+  BUSINESS_MONTHLY_PRICE,
+  PLAN_PRICES,
   postStripeEvent,
   stripeEvent,
   subscriptionObject,
-  YEARLY_PRICE,
   type SubscriptionState,
 } from "./stripe-events.ts";
 
@@ -37,12 +36,7 @@ beforeAll(async () => {
   worker = await startWorker({
     databaseUrl: database.url,
     mailServiceUrl: mailService.url,
-    vars: {
-      STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
-      STRIPE_PRICE_YEARLY: YEARLY_PRICE,
-      BILLING_TRIAL_DAYS: "14",
-      BILLING_TRIAGE_ALLOWANCE: "500",
-    },
+    vars: PLAN_PRICES,
     secrets: BILLING_SECRETS,
   });
   const system = await createOrg(database.db, "system");
@@ -94,6 +88,7 @@ async function workspace(role = "owner") {
 
 type Billing = {
   enabled: boolean;
+  plan?: string;
   readOnly?: boolean;
   subscription?: { status: string; interval: string | null; periodEnd: string | null } | null;
 };
@@ -136,11 +131,11 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
 
   expect(await billing(cookie)).toMatchObject({
     enabled: true,
-    readOnly: true,
+    plan: "free",
+    readOnly: false,
     subscription: null,
   });
-  expect(await archive(cookie, threadId)).toBe(402);
-  expect((await api(worker, "/threads?view=all", cookie)).status).toBe(200);
+  expect(await archive(cookie, threadId)).toBe(200);
 
   const created = stripeEvent("customer.subscription.created", sub({}), at(0));
   expect(await postStripeEvent(worker.url, created)).toMatchObject({
@@ -148,10 +143,9 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
     body: { applied: true },
   });
   expect(await billing(cookie)).toMatchObject({
-    readOnly: false,
+    plan: "team",
     subscription: { status: "trialing", interval: "month" },
   });
-  expect(await archive(cookie, threadId)).not.toBe(402);
 
   const activated = stripeEvent(
     "customer.subscription.updated",
@@ -177,6 +171,15 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
   });
   expect(await subscriptionRows(org.id)).toEqual(afterActivation);
 
+  const movedUp = stripeEvent(
+    "customer.subscription.updated",
+    sub({ status: "active", trialEnd: undefined, priceId: BUSINESS_MONTHLY_PRICE }),
+    at(15),
+  );
+  expect((await postStripeEvent(worker.url, movedUp)).body).toMatchObject({ applied: true });
+  expect(await billing(cookie)).toMatchObject({ plan: "business" });
+  expect((await subscriptionRows(org.id))[0]).toMatchObject({ plan: "business" });
+
   const deleted = stripeEvent(
     "customer.subscription.deleted",
     sub({ status: "canceled", trialEnd: undefined }),
@@ -184,11 +187,11 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
   );
   expect((await postStripeEvent(worker.url, deleted)).body).toMatchObject({ applied: true });
   expect(await billing(cookie)).toMatchObject({
-    readOnly: true,
+    plan: "free",
+    readOnly: false,
     subscription: { status: "canceled" },
   });
-  expect(await archive(cookie, threadId)).toBe(402);
-  expect((await api(worker, `/threads/${threadId}`, cookie)).status).toBe(200);
+  expect(await archive(cookie, threadId)).toBe(200);
   const final = await subscriptionRows(org.id);
   expect((await postStripeEvent(worker.url, deleted)).body).toMatchObject({ applied: false });
   expect(await subscriptionRows(org.id)).toEqual(final);
@@ -198,7 +201,7 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
     .from(schema.stripeEvents)
     .where(eq(schema.stripeEvents.objectId, sub({}).id));
   expect(recorded.map((e) => e.id).toSorted()).toEqual(
-    [created.id, activated.id, late.id, deleted.id].toSorted(),
+    [created.id, activated.id, late.id, movedUp.id, deleted.id].toSorted(),
   );
 });
 
@@ -302,7 +305,7 @@ test("checkout and the portal are for the workspace's owners and admins only", a
   const direct = await api(worker, "/auth/subscription/upgrade", member.cookie, {
     method: "POST",
     headers: { origin: "http://localhost:5173" },
-    body: JSON.stringify({ plan: PLAN_NAME }),
+    body: JSON.stringify({ plan: "team" }),
   });
   expect(direct.status).toBe(404);
 
@@ -324,115 +327,51 @@ test("checkout and the portal are for the workspace's owners and admins only", a
   expect((await checkout(owner.cookie)).status).toBe(409);
 });
 
-test("a new workspace finishes setup only once it has a trial or a plan", async () => {
+test("a new workspace finishes setup on Free: no plan, no trial, nothing to pay first", async () => {
   const { db } = database;
   const owner = await workspace("owner");
   await db
     .insert(schema.orgSetup)
     .values({ orgId: owner.org.id, step: "mailboxes_created" })
     .onConflictDoUpdate({ target: schema.orgSetup.orgId, set: { step: "mailboxes_created" } });
-  const onboarding = async () =>
-    (await (await api(worker, "/onboarding", owner.cookie)).json()) as {
-      billing: { enabled: boolean };
-      organization: { setup: string; needsPlan: boolean };
-    };
-  const complete = () =>
-    api(worker, "/onboarding/complete", owner.cookie, { method: "POST", body: "{}" });
-
-  expect(await onboarding()).toMatchObject({
+  expect(await (await api(worker, "/onboarding", owner.cookie)).json()).toMatchObject({
     billing: { enabled: true },
-    organization: { setup: "mailboxes_created", needsPlan: true },
+    organization: { setup: "mailboxes_created", needsPlan: false },
   });
-  const refused = await complete();
-  expect(refused.status).toBe(402);
-  expect(await refused.json()).toMatchObject({ code: "BILLING_REQUIRED" });
-  expect(await billing(owner.cookie)).toMatchObject({ trialAvailable: true, trialDays: 14 });
-
-  for (const returnPath of ["//evil.example/x", "https://evil.example", "/\\evil.example"]) {
-    const away = await api(worker, "/billing/checkout", owner.cookie, {
-      method: "POST",
-      body: JSON.stringify({ interval: "month", returnPath }),
-    });
-    expect({ returnPath, status: away.status }).toEqual({ returnPath, status: 400 });
-  }
-
-  const start = new Date(Math.floor(Date.now() / 1000) * 1000);
-  const end = new Date(start.getTime() + 14 * 86_400_000);
-  await postStripeEvent(
-    worker.url,
-    stripeEvent(
-      "customer.subscription.created",
-      subscriptionObject({
-        id: `sub_e2e_${randomUUID().slice(0, 8)}`,
-        customer: owner.customer,
-        status: "trialing",
-        periodStart: start,
-        periodEnd: end,
-        trialEnd: end,
-      }),
-      new Date(),
-    ),
-  );
-  expect((await onboarding()).organization.needsPlan).toBe(false);
-  const finished = await complete();
-  expect(finished.status).toBe(200);
-  expect(await finished.json()).toMatchObject({ setup: "complete" });
-  expect(await billing(owner.cookie)).toMatchObject({ trialAvailable: false });
-});
-
-test("one free trial per account: the same person's next workspace pays, even after deleting the first", async () => {
-  const { db } = database;
-  const first = await workspace("owner");
-  const [owned] = await db
-    .select({ userId: schema.members.userId })
-    .from(schema.members)
-    .where(eq(schema.members.organizationId, first.org.id));
-  const userId = owned!.userId;
-  await db.insert(schema.trialClaims).values({ orgId: first.org.id, userId: userId });
-
-  const second = await createOrg(db, "second");
-  await db.insert(schema.members).values({
-    id: randomUUID(),
-    organizationId: second.id,
-    userId: userId,
-    role: "owner",
-    createdAt: new Date(),
+  expect(await billing(owner.cookie)).toMatchObject({
+    plan: "free",
+    trialAvailable: false,
+    trialDays: 0,
   });
-  await db
-    .update(schema.sessions)
-    .set({ activeOrganizationId: second.id })
-    .where(eq(schema.sessions.userId, userId));
-  first.cookie = first.cookie
-    .split("; ")
-    .filter((cookie) => !cookie.includes("session_data"))
-    .join("; ");
-
-  const trial = () =>
-    api(worker, "/billing/trial", first.cookie, {
-      method: "POST",
-      body: JSON.stringify({ interval: "month" }),
-    });
-  expect(await billing(first.cookie)).toMatchObject({ readOnly: true, trialAvailable: false });
-  const refused = await trial();
-  expect(refused.status).toBe(409);
-  expect(await refused.text()).toContain("another workspace");
-
-  await db.delete(schema.organizations).where(eq(schema.organizations.id, first.org.id));
-  expect(await billing(first.cookie)).toMatchObject({ trialAvailable: false });
-  expect((await trial()).status).toBe(409);
-
-  const other = `admin-${randomUUID().slice(0, 8)}@omni.test`;
-  const admin = await createMember(db, second.id, other);
-  await db.update(schema.members).set({ role: "admin" }).where(eq(schema.members.id, admin.id));
-  await db.insert(schema.trialClaims).values({ orgId: second.id, userId: randomUUID() });
-  const adminCookie = await signIn(worker, db, other);
-  expect(await billing(adminCookie)).toMatchObject({ trialAvailable: false });
-  const taken = await api(worker, "/billing/trial", adminCookie, {
+  const trial = await api(worker, "/billing/trial", owner.cookie, {
     method: "POST",
     body: JSON.stringify({ interval: "month" }),
   });
-  expect(taken.status).toBe(409);
-  expect(await taken.text()).toContain("this workspace has had its free trial");
+  expect(trial.status).toBe(409);
+  expect(
+    await db.select().from(schema.trialClaims).where(eq(schema.trialClaims.orgId, owner.org.id)),
+  ).toEqual([]);
+
+  for (const body of [
+    { interval: "month", returnPath: "//evil.example/x" },
+    { interval: "month", returnPath: "https://evil.example" },
+    { interval: "month", returnPath: "/\\evil.example" },
+    { plan: "enterprise", interval: "month" },
+    { plan: "free", interval: "month" },
+  ]) {
+    const refused = await api(worker, "/billing/checkout", owner.cookie, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    expect({ body, status: refused.status }).toEqual({ body, status: 400 });
+  }
+
+  const finished = await api(worker, "/onboarding/complete", owner.cookie, {
+    method: "POST",
+    body: "{}",
+  });
+  expect(finished.status).toBe(200);
+  expect(await finished.json()).toMatchObject({ setup: "complete" });
 });
 
 async function withoutBilling(unbilled: Awaited<ReturnType<typeof startWorker>>) {
@@ -477,19 +416,13 @@ test("BILLING=off turns billing off with every Stripe setting still in place", a
   switchedOff = await startWorker({
     databaseUrl: database.url,
     mailServiceUrl: mailService.url,
-    vars: {
-      BILLING: "off",
-      STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
-      STRIPE_PRICE_YEARLY: YEARLY_PRICE,
-      BILLING_TRIAL_DAYS: "14",
-      BILLING_TRIAGE_ALLOWANCE: "500",
-    },
+    vars: { BILLING: "off", ...PLAN_PRICES },
     secrets: BILLING_SECRETS,
   });
   expect(await withoutBilling(switchedOff)).toEqual({ enabled: false });
 });
 
-test("a Personal space is free: no plan, no trial, no checkout, and writable", async () => {
+test("a Personal space is on Free like any workspace, and its owner may move it to a paid plan", async () => {
   const { db } = database;
   const email = `personal-${randomUUID().slice(0, 8)}@omni.test`;
   let cookie = await signIn(worker, db, email);
@@ -504,32 +437,14 @@ test("a Personal space is free: no plan, no trial, no checkout, and writable", a
     .filter((c) => !c.includes("session_data"))
     .join("; ");
 
-  expect(await billing(cookie)).toMatchObject({ enabled: false });
-  for (const path of ["/billing/trial", "/billing/checkout"]) {
-    const response = await api(worker, path, cookie, {
-      method: "POST",
-      body: JSON.stringify({ interval: "month", returnPath: "/settings" }),
-    });
-    expect(response.status).toBe(403);
-  }
-  expect(
-    await db.select().from(schema.trialClaims).where(eq(schema.trialClaims.userId, user!.id)),
-  ).toEqual([]);
-  expect(await subscriptionRows(spaceId)).toEqual([]);
-
-  const portal = () =>
-    api(worker, "/billing/portal", cookie, {
-      method: "POST",
-      body: JSON.stringify({ returnPath: "/settings" }),
-    });
-  expect((await portal()).status).toBe(403);
+  expect(await billing(cookie)).toMatchObject({
+    enabled: true,
+    plan: "free",
+    canManage: true,
+    limits: { storageGb: 5, meetingMinutes: 0 },
+  });
   await db
     .insert(schema.subscriptions)
-    .values({ id: randomUUID(), plan: PLAN_NAME, orgId: spaceId, status: "active" });
-  expect((await portal()).status).not.toBe(403);
-  const again = await api(worker, "/billing/checkout", cookie, {
-    method: "POST",
-    body: JSON.stringify({ interval: "month", returnPath: "/settings" }),
-  });
-  expect(again.status).toBe(403);
+    .values({ id: randomUUID(), plan: "team", orgId: spaceId, status: "active" });
+  expect(await billing(cookie)).toMatchObject({ plan: "team", limits: { storageGb: 100 } });
 });

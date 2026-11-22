@@ -22,7 +22,7 @@ import {
 import { eq } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { workspaceBilling } from "../billing.ts";
+import { entitlements } from "../billing.ts";
 import { systemMailSender, type AppEnv } from "../context.ts";
 import { checkRateLimit, longestWait, tooManyRequests } from "../rate-limiter.ts";
 import { wireNode } from "./core.ts";
@@ -69,8 +69,8 @@ async function onProbation(c: Context<AppEnv>) {
     .where(eq(schema.users.id, user.id));
   if (!row || Date.now() - row.createdAt.getTime() < NEW_ACCOUNT_DAYS * 86_400_000) return true;
   if ((await workspaceKind(db, member.orgId)) === "personal") return true;
-  const billing = await workspaceBilling(db, config, member.orgId);
-  return billing.enabled && billing.readOnly;
+  const plan = await entitlements(db, config, member.orgId);
+  return plan.enabled && plan.plan === "free";
 }
 
 async function sendShareMail(c: Context<AppEnv>, to: string, node: StorageNode, shareId: string) {

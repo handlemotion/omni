@@ -5,8 +5,10 @@ import type {
   GoogleDisconnectBody,
   googleDisconnectResultSchema,
 } from "@omni/contracts";
+import { PLAN_LIMITS } from "@omni/contracts";
 import type { Keyring } from "@omni/crypto";
 import {
+  capUsage,
   type Db,
   deleteMailbox,
   findGmailMailboxes,
@@ -17,6 +19,7 @@ import {
   placeForAddress,
   saveMailbox,
   setMailboxStatus,
+  workspacePlan,
 } from "@omni/db";
 import { z } from "zod";
 import type { GoogleCredentials } from "../credentials.ts";
@@ -303,6 +306,16 @@ async function save(
     const owners = await mailboxOwnerIds(db, existing.id);
     if (!owners.includes(input.memberId)) {
       throw new ProvisionError(409, `${address} is connected by someone else in this workspace`);
+    }
+  }
+  if (!existing && input.planCaps) {
+    const plan = await workspacePlan(db, input.orgId);
+    const max = PLAN_LIMITS[plan].mailboxes;
+    if ((await capUsage(db, input.orgId, "mailboxes")) >= max) {
+      throw new ProvisionError(
+        409,
+        `this workspace's plan holds ${max} inboxes; move to a bigger plan for more`,
+      );
     }
   }
   const mailboxId = existing?.id ?? randomUUIDv7();

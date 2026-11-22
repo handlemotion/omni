@@ -6,14 +6,12 @@ import {
 } from "@omni/contracts";
 import {
   storageOverageOf,
-  workspaceKind,
-  workspaceSubscription,
   type Db,
   type StorageNode as NodeRow,
   type StorageUpload as UploadRow,
   type WorkspaceSubscription,
 } from "@omni/db";
-import { period } from "../billing.ts";
+import { entitlements, period } from "../billing.ts";
 import type { Config } from "../env.ts";
 import type { Logger } from "../log.ts";
 
@@ -62,32 +60,32 @@ export function extraGb(peakBytes: number, allowanceBytes: number) {
 /**
  * How much `orgId` may store: the one place the quota is decided.
  *
- * - `STORAGE_MAX_GB` caps every workspace, and `STORAGE_PERSONAL_GB` a Personal space, which
- *   never has a plan. Without billing these are the only limits.
- * - With billing on and storage on the plan, a company has the plan's allowance. It is also its
- *   cap unless extra storage can be billed: a paying monthly subscription that Stripe showed
- *   with a payment method. A trial, a yearly plan, no card and no plan are all capped.
+ * - `STORAGE_MAX_GB` caps every workspace. Without billing it is the only limit.
+ * - With billing on, a workspace has its plan's storage (`PLAN_LIMITS`). It is also its cap
+ *   unless extra storage can be billed: storage billing configured, and a paying monthly
+ *   subscription that Stripe showed with a payment method. Free, a yearly plan and no card are
+ *   all capped.
  */
 export async function storageLimit(db: Db, config: Config, orgId: string, now = new Date()) {
   const caps: number[] = [];
   if (config.STORAGE_MAX_GB !== undefined) caps.push(config.STORAGE_MAX_GB);
-  const personal = (await workspaceKind(db, orgId)) === "personal";
-  if (personal && config.STORAGE_PERSONAL_GB !== undefined) caps.push(config.STORAGE_PERSONAL_GB);
-  const plan = personal ? undefined : config.auth.billing?.storage;
+  const plan = await entitlements(db, config, orgId, now);
   let overagePeriodStart: Date | null = null;
-  if (plan) {
-    const subscription = await workspaceSubscription(db, orgId);
+  if (plan.enabled) {
+    const { subscription } = plan;
     if (
+      config.auth.billing?.storage &&
+      plan.plan !== "free" &&
       billsOverage(subscription) &&
       (await storageOverageOf(db, orgId)) === subscription.stripeSubscriptionId
     ) {
       overagePeriodStart = period(subscription, now)?.start ?? null;
     }
-    if (!overagePeriodStart) caps.push(plan.includedGb);
+    if (!overagePeriodStart) caps.push(plan.limits.storageGb);
   }
   return {
     limitBytes: caps.length ? Math.floor(Math.min(...caps) * GB) : null,
-    allowanceBytes: plan ? Math.floor(plan.includedGb * GB) : null,
+    allowanceBytes: plan.enabled ? Math.floor(plan.limits.storageGb * GB) : null,
     overagePeriodStart,
   } satisfies StorageLimit;
 }

@@ -402,7 +402,9 @@ lost.
 
 ## API
 
-Under `/api/meetings`, behind the plan's read-only gate. Member sessions reach everything below;
+Under `/api/meetings`. Recording needs a paid plan with minutes left this month (`hasAllowance`,
+then `gateMeter` with `meetingMinutes` and `always` for the recording's minutes when it ends;
+`docs/spec/billing.md`). Member sessions reach everything below;
 a signed-in user outside the workspace reaches `GET /:id`, its transcript, audio and Ask on
 meetings shared with them. A meeting the caller cannot see answers `404`.
 

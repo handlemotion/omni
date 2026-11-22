@@ -204,7 +204,7 @@ The server is the judge, by version, never by clock.
 
 `.DS_Store`, `Thumbs.db`, `desktop.ini`, `~$*`, `.~lock.*`, `*.tmp`, Finder's `._*` files, and
 bundles' extended attributes. Symlinks are not uploaded. A file over `STORAGE_MAX_FILE_BYTES`, or
-any upload while the workspace is full or read-only (`402`), stays local with an error badge and
+any upload while the workspace is full (`402`), stays local with an error badge and
 one notification, and retries when `/usage` says uploads are open.
 
 ## The shell (`apps/desktop`)

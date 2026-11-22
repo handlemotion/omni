@@ -28,6 +28,7 @@ export * from "./mail/ai-helpdesk.ts";
 export * from "./mail/ai-settings.ts";
 export * from "./mail/thread-filters.ts";
 export * from "./mail/placement.ts";
+export { mailboxCount } from "./mail/mailbox-count.ts";
 export * from "./mail/mailbox-teams.ts";
 export * from "./mail/workspace-mailboxes.ts";
 export * from "./mail/workspace-members.ts";

@@ -18,6 +18,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { billingConfig, billingFields, checkBillingEnv, optionalText } from "./billing-env.ts";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
+import { planCapHooks } from "./plan-caps.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
 import {
   afterUpdateMemberRole,
@@ -134,11 +135,7 @@ export type SignUp = AuthConfig["signUp"];
 /** Present only when billing is on (`STRIPE_SECRET_KEY` and friends set). */
 export type BillingConfig = NonNullable<AuthConfig["billing"]>;
 
-/**
- * The one plan's key, as the Stripe plugin stores it in `subscriptions.plan`. What customers see
- * (Checkout, the portal, invoices) is the Stripe product's name, set in Stripe.
- */
-export const PLAN_NAME = "omnipresent";
+export { planOfPrice, planPriceIds, type PlanPrices } from "./billing-env.ts";
 
 /** Who may start checkout or open the portal for a workspace. */
 export const BILLING_ROLES = ["owner", "admin"] as const;
@@ -174,13 +171,11 @@ function billingPlugin(env: AuthEnv, billing: BillingConfig) {
     organization: { enabled: true },
     subscription: {
       enabled: true,
-      plans: [
-        {
-          name: PLAN_NAME,
-          priceId: billing.monthlyPriceId,
-          annualDiscountPriceId: billing.yearlyPriceId,
-        },
-      ],
+      plans: Object.entries(billing.plans).map(([name, prices]) => ({
+        name,
+        priceId: prices.monthlyPriceId,
+        annualDiscountPriceId: prices.yearlyPriceId,
+      })),
       authorizeReference: ({ user, referenceId }) => mayManageBilling(env.db, user.id, referenceId),
       getCheckoutSessionParams: () => ({
         params: {
@@ -418,6 +413,18 @@ export function createAuth(env: AuthEnv) {
         roles: { owner: ownerAc, admin: adminAc, member: memberAc, freelancer: freelancerAc },
         organizationHooks: {
           ...personalSpaceHooks(env.db),
+          ...(env.billing && {
+            beforeCreateInvitation: async (input) => {
+              await personalSpaceHooks(env.db).beforeCreateInvitation(input);
+              await planCapHooks(env.db).beforeCreateInvitation(input);
+            },
+            beforeAddMember: async (input) => {
+              await personalSpaceHooks(env.db).beforeAddMember(input);
+              await planCapHooks(env.db).beforeAddMember(input);
+            },
+            beforeAcceptInvitation: planCapHooks(env.db).beforeAcceptInvitation,
+            beforeCreateOrganization: planCapHooks(env.db).beforeCreateOrganization,
+          }),
           beforeDeleteOrganization: async (input) => {
             await personalSpaceHooks(env.db).beforeDeleteOrganization(input);
             await beforeDeleteWorkspace(env.db, env.modules)(input);

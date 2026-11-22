@@ -12,7 +12,6 @@ import {
 } from "@omni/contracts";
 import { Hono } from "hono";
 import { z } from "zod";
-import { inGoodStanding } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { extraGb, storageLimit, wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
@@ -68,10 +67,9 @@ export const storageReads = new Hono<AppEnv>()
 
   .get("/usage", async (c) => {
     const { db, config, member } = c.var;
-    const [usage, limit, writable] = await Promise.all([
+    const [usage, limit] = await Promise.all([
       memberStorage(c).usage(),
       storageLimit(db, config, member.orgId),
-      inGoodStanding(db, config, member.orgId),
     ]);
     const usedBytes = usage?.bytes ?? 0;
     const reservedBytes = usage?.reservedBytes ?? 0;
@@ -87,7 +85,7 @@ export const storageReads = new Hono<AppEnv>()
       limitBytes,
       allowanceBytes,
       overage: peak === null ? null : { extraGb: extraGb(peak, allowanceBytes!) },
-      uploadsBlocked: writable ? (full ? "storage_full" : null) : "billing_inactive",
+      uploadsBlocked: full ? "storage_full" : null,
     } satisfies StorageUsage);
   });
 

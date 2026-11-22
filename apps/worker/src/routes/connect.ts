@@ -158,6 +158,7 @@ export const connect = new Hono<AppEnv>()
           memberId: c.var.member.id,
           userId: c.var.user.id,
           ...(c.var.user.scopeOrgId ? { scopeOrgId: c.var.user.scopeOrgId } : {}),
+          ...(c.var.config.auth.billing ? { planCaps: true } : {}),
           code,
           codeVerifier: flow.verifier,
           redirectUri: redirectUri(c),

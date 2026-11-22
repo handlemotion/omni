@@ -54,8 +54,32 @@ const NUMBER = new Intl.NumberFormat();
 const day = (iso: string) => DAY.format(new Date(iso));
 const shortDay = (iso: string) => SHORT_DAY.format(new Date(iso));
 
+const SAMPLE_LIMITS = {
+  members: 15,
+  mailboxes: 30,
+  domains: 5,
+  crmRecords: null,
+  storageGb: 100,
+  triage: 20_000,
+  assist: 250,
+  meetingMinutes: 900,
+};
 const SAMPLE_PLAN: Billing = {
   enabled: true,
+  plan: "team",
+  limits: SAMPLE_LIMITS,
+  usage: {
+    members: 4,
+    mailboxes: 6,
+    domains: 1,
+    crmRecords: 120,
+    storageGb: 3.2,
+    triage: 120,
+    assist: 12,
+    meetingMinutes: 180,
+  },
+  month: { start: "2026-11-04T00:00:00.000Z", end: "2026-12-04T00:00:00.000Z" },
+  plans: [],
   readOnly: false,
   canManage: true,
   intervals: ["month"],

@@ -9,11 +9,8 @@ export const auth: Auth = createAuth({
   billing: {
     secretKey: "sk_test_schema_generation_only",
     webhookSecret: "whsec_schema_generation_only",
-    monthlyPriceId: "price_schema_generation_only",
-    yearlyPriceId: undefined,
+    plans: { team: { monthlyPriceId: "price_schema_generation_only", yearlyPriceId: undefined } },
     publishableKey: undefined,
-    trialDays: 0,
-    triageAllowance: 1,
     storage: undefined,
   },
   sendMagicLink: async () => {

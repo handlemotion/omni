@@ -374,8 +374,7 @@ to `.dev.vars`.
 | `STORAGE_HASH_CHECK_MAX_BYTES` | var    | no       | Largest upload whose declared `sha256` the Worker checks by reading the file once more (about 1.5 s of CPU a GB); a mismatch answers `422 CHECKSUM_MISMATCH`. Past it the hash is kept as sent. Default 8 GB.                                         |
 | `STORAGE_MAX_OPEN_UPLOADS`     | var    | no       | Uploads one person may have in progress at once in a workspace; past it `POST /uploads` answers `429 TOO_MANY_UPLOADS`. Default 500.                                                                                                                  |
 | `STORAGE_MAX_RESERVED_BYTES`   | var    | no       | Bytes one person's uploads in progress may hold in a workspace (they count against its storage until they finish). Default 1 TB (`1099511627776`).                                                                                                    |
-| `STORAGE_PERSONAL_GB`          | var    | no       | Most a Personal space may store, in GB (1024³ bytes; decimals allowed). Past it uploads answer `402 STORAGE_FULL`. Empty: no cap.                                                                                                                     |
-| `STORAGE_MAX_GB`               | var    | no       | Ceiling on what any one workspace may store, in GB. Empty: none.                                                                                                                                                                                      |
+| `STORAGE_MAX_GB`               | var    | no       | Ceiling on what any one workspace may store, in GB, whatever its plan. Empty: none.                                                                                                                                                                   |
 | `UPLOAD_MAX_BYTES`             | var    | no       | Largest file one upload may stage for a send, in bytes. Empty: 25 MB (`26214400`).                                                                                                                                                                    |
 | `ENVIRONMENT`                  | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`.                                                                       |
 
@@ -466,7 +465,7 @@ which Cloudflare sets and clients cannot.
 | `RATE_LIMIT_PROVISION`             | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
 | `RATE_LIMIT_IMAGE_PROXY`           | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
 | `RATE_LIMIT_STORAGE_SHARE`         | `60/3600`  | Per member: people added to a file or folder in Storage, each of whom is sent one mail. Changing a role sends none and is free.                                               |
-| `RATE_LIMIT_STORAGE_SHARE_NEW`     | `10/86400` | Per person, on top of the above, while their account is under 7 days old or the workspace is free (a Personal space, or no paid plan).                                        |
+| `RATE_LIMIT_STORAGE_SHARE_NEW`     | `10/86400` | Per person, on top of the above, while their account is under 7 days old or the workspace is on the Free plan (or is a Personal space).                                       |
 | `RATE_LIMIT_STORAGE_LINK`          | `300/60`   | Per signed-in person, or per IP for a visitor who is not: requests to Storage's link door (`/api/storage/shared/*`).                                                          |
 | `RATE_LIMIT_STORAGE_LINK_PASSWORD` | `10/900`   | Per link and visitor: tries at a link password (`POST /api/storage/shared/:shareId/unlock`).                                                                                  |
 | `RATE_LIMIT_STORAGE_LINK_LIVE`     | `30/60`    | Per signed-in person, or per IP: live-document sockets opened through a link (`GET /api/storage/shared/:shareId/realtime`).                                                   |
@@ -475,34 +474,40 @@ which Cloudflare sets and clients cannot.
 
 #### Billing (optional)
 
-Off unless `STRIPE_SECRET_KEY` is set. With it off there is no plan, no limit and no read-only
-state: every workspace works as it always has. Hosted Omni turns it on; most self-hosters never
-need to. When on, each workspace (organization) has one flat plan; people, inboxes and domains
-are unlimited, and the only limit is a monthly allowance of AI-triaged emails. Past it, mail
-keeps arriving and triage pauses until the next period. A workspace with no plan in good
-standing is read-only: its mail syncs and reads, but nothing is sent or changed.
+Off unless `STRIPE_SECRET_KEY` is set. With it off there is no plan and no limit: every workspace
+works as it always has. Hosted Omni turns it on; most self-hosters never need to.
 
-| Variable                      | Kind   | Required with billing  | Notes                                                                                                          |
-| ----------------------------- | ------ | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `BILLING`                     | var    | no                     | `off` turns billing off with the Stripe settings left in place (and unchecked). Empty: on when the key is set. |
-| `STRIPE_SECRET_KEY`           | secret | turns it on            | Stripe secret key (`sk_test_…` in development).                                                                |
-| `STRIPE_WEBHOOK_SECRET`       | secret | yes                    | Signing secret of the webhook endpoint below (`whsec_…`).                                                      |
-| `STRIPE_PRICE_MONTHLY`        | var    | yes                    | Price id of the plan's monthly price. Amounts live in Stripe.                                                  |
-| `STRIPE_PRICE_YEARLY`         | var    | no                     | Price id of the yearly price. Empty offers monthly only.                                                       |
-| `STRIPE_PUBLISHABLE_KEY`      | var    | no                     | Publishable key (`pk_test_…`, same mode as the secret key). Owners add cards in the app; empty: in the portal. |
-| `BILLING_TRIAL_DAYS`          | var    | no                     | Free trial length, once per workspace and once per account, no card needed. Empty or `0`: no trial.            |
-| `BILLING_TRIAGE_ALLOWANCE`    | var    | yes                    | AI-triaged emails per workspace per month. Rule-filed threads and threads with no AI key never count.          |
-| `BILLING_STORAGE_INCLUDED_GB` | var    | no (all three or none) | GB of Storage a company's plan includes (decimals allowed). See "Storage on the plan" below.                   |
-| `STRIPE_PRICE_STORAGE`        | var    | no (all three or none) | Price id of the metered monthly price extra GB are billed at.                                                  |
-| `STRIPE_STORAGE_METER_EVENT`  | var    | no (all three or none) | Event name of the Stripe meter behind that price.                                                              |
+When on, every workspace starts on **Free** and may move to a flat paid plan, one price per
+workspace whatever its size: **Team** or **Business**. Each plan holds a number of members (open
+invitations count), inboxes, domains, CRM records (Free only) and GB of Drive, and allows a monthly
+amount of AI triage, drafted replies and meeting minutes (meetings need a paid plan). The numbers
+are `PLAN_LIMITS` in `packages/contracts/src/plans.ts`. Every limit is a hard cap: past one, that
+one thing is refused (`402 PLAN_LIMIT`, or for a monthly allowance, triage pauses until the next
+period) and nothing else stops. Nothing a workspace holds is ever taken away, and a workspace
+whose plan ends falls back to Free, writable as before. One person may own at most two Free
+workspaces. There is no trial: Free is how a workspace tries Omni.
+
+| Variable                        | Kind   | Required with billing | Notes                                                                                                          |
+| ------------------------------- | ------ | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `BILLING`                       | var    | no                    | `off` turns billing off with the Stripe settings left in place (and unchecked). Empty: on when the key is set. |
+| `STRIPE_SECRET_KEY`             | secret | turns it on           | Stripe secret key (`sk_test_…` in development; a restricted `rk_…` key works).                                 |
+| `STRIPE_WEBHOOK_SECRET`         | secret | yes                   | Signing secret of the webhook endpoint below (`whsec_…`).                                                      |
+| `STRIPE_PRICE_MONTHLY`          | var    | yes                   | Price id of **Team**'s monthly price. Amounts live in Stripe.                                                  |
+| `STRIPE_PRICE_YEARLY`           | var    | no                    | Price id of Team's yearly price. Empty offers Team monthly only.                                               |
+| `STRIPE_PRICE_BUSINESS_MONTHLY` | var    | no                    | Price id of **Business**'s monthly price. Empty: Business is not offered.                                      |
+| `STRIPE_PRICE_BUSINESS_YEARLY`  | var    | no                    | Price id of Business's yearly price.                                                                           |
+| `STRIPE_PUBLISHABLE_KEY`        | var    | no                    | Publishable key (`pk_test_…`, same mode as the secret key). Owners add cards in the app; empty: in the portal. |
+| `STRIPE_PRICE_STORAGE`          | var    | no (both or none)     | Price id of the metered monthly price extra GB past a paid plan's are billed at.                               |
+| `STRIPE_STORAGE_METER_EVENT`    | var    | no (both or none)     | Event name of the Stripe meter behind that price.                                                              |
 
 Set any of them without `STRIPE_SECRET_KEY` (or the key without the required ones) and the Worker
 refuses to start, naming the variable.
 
 Setup in Stripe:
 
-1. Create a product with a recurring monthly price (and a yearly one if you offer it); put their
-   ids in the price variables.
+1. Create one product per paid plan, **Team** and **Business** (customers see each product's name
+   on Checkout and invoices), each with a recurring monthly price and optionally a yearly one; put
+   their ids in the price variables. Each price is a plan's own: never share one between plans.
 2. Add a webhook endpoint at `<BETTER_AUTH_URL>/api/auth/stripe/webhook` for
    `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`
    and `customer.subscription.deleted`; its signing secret is `STRIPE_WEBHOOK_SECRET`. Set the
@@ -510,18 +515,20 @@ Setup in Stripe:
    `2026-08-26.dahlia`): the billing period is read from each subscription item's
    `current_period_start` / `current_period_end`, which older versions do not send, and the
    plan's period dates would be stored as invalid dates.
-3. Turn on the customer portal (Settings → Billing → Customer portal) so owners can switch
-   interval and cancel. Saved cards and invoices are also in the app's Billing page, which reads
+3. Turn on the customer portal (Settings → Billing → Customer portal) so owners can cancel and
+   update cards. Moving between Team and Business, and between monthly and yearly, is
+   `POST /api/billing/plan` in the app (a move up is charged at once and applies only once paid; a
+   move down is credited on the next invoice); if you also let the portal switch plans, list both
+   products there. Saved cards and invoices are also in the app's Billing page, which reads
    them from Stripe; adding a card there needs `STRIPE_PUBLISHABLE_KEY` (Developers → API keys).
 
 ##### Storage on the plan
 
-Optional. With the three storage variables unset, the plan has no storage
-allowance and nothing is metered: a company is held only by `STORAGE_MAX_GB`, when set. With
-them set, a company's plan includes `BILLING_STORAGE_INCLUDED_GB`. A trial, a yearly plan and a
-workspace with no card are capped there (`402 STORAGE_FULL`). A paying monthly workspace with a
-card may pass it, and is billed per whole extra GB for the most it stored in the billing period.
-Set `STORAGE_MAX_GB` too, so a runaway script cannot run up a bill.
+Each plan includes its GB of Drive. With the two storage variables unset, that is a hard cap
+(`402 STORAGE_FULL`). With them set, a paying monthly workspace with a card may pass it, and is
+billed per whole extra GB for the most it stored in the billing period; Free, a yearly plan and a
+workspace with no card stay capped. Set `STORAGE_MAX_GB` too, so a runaway script cannot run up a
+bill.
 
 In Stripe:
 

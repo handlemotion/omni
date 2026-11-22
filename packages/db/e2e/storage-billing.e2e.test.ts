@@ -48,7 +48,7 @@ test("a month's peak only rises, a new month starts from what is stored then, an
   expect(rows).toHaveLength(2);
 });
 
-test("the purge keeps a read-only workspace's Trash and empties everyone else's", async () => {
+test("the purge empties every workspace's due Trash, paying or not, and a rerun changes nothing", async () => {
   const before = new Date(Date.now() + 60_000);
   async function trashed(orgId: string, memberId: string) {
     const storage = forMember(db, memberId).storage;
@@ -75,19 +75,15 @@ test("the purge keeps a read-only workspace's Trash and empties everyone else's"
         async (id) => (await storageUsageOf(db, id)).bytes,
       ),
     );
+  expect(await bytes()).toEqual([40, 40, 40, 40]);
   for (let run = 0; run < 2; run++) {
-    const purged = await purgeStorageTrash(db, { before, keepReadOnly: true });
+    const purged = await purgeStorageTrash(db, { before });
     expect(purged.more).toBe(false);
-    expect(await bytes()).toEqual([40, 40, 0, 0]);
+    expect(await bytes()).toEqual([0, 0, 0, 0]);
   }
-  await subscribe(lapsed.id, "active");
-  await purgeStorageTrash(db, { before, keepReadOnly: true });
-  expect(await bytes()).toEqual([0, 40, 0, 0]);
-  await purgeStorageTrash(db, { before });
-  expect(await bytes()).toEqual([0, 0, 0, 0]);
 });
 
-test("a payment method is recorded for the customer's workspace only, and the daily job sees each paying company once", async () => {
+test("a payment method is recorded for the customer's workspace only, and the daily job sees each paying workspace once", async () => {
   const acme = await createOrg(db, "acme");
   const other = await createOrg(db, "other");
   await db
@@ -124,13 +120,20 @@ test("a payment method is recorded for the customer's workspace only, and the da
   const mine = (await storageBilledWorkspaces(db)).filter((row) =>
     [acme.id, other.id, space].includes(row.orgId),
   );
-  expect(mine).toEqual([
-    expect.objectContaining({
-      orgId: acme.id,
-      stripeCustomerId: "cus_acme",
-      stripeSubscriptionId: "sub_acme",
-      status: "active",
-      bytes: 70,
-    }),
-  ]);
+  expect(mine.toSorted((a, b) => (a.orgId === acme.id ? -1 : b.orgId === acme.id ? 1 : 0))).toEqual(
+    [
+      expect.objectContaining({
+        orgId: acme.id,
+        stripeCustomerId: "cus_acme",
+        stripeSubscriptionId: "sub_acme",
+        status: "active",
+        bytes: 70,
+      }),
+      expect.objectContaining({
+        orgId: space,
+        stripeSubscriptionId: "sub_personal",
+        status: "active",
+      }),
+    ],
+  );
 });
