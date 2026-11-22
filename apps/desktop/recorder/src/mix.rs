@@ -34,7 +34,7 @@ impl Interleaver {
             return None;
         }
         let mut frame = [0.0; FRAME * 2];
-        for pair in frame.chunks_exact_mut(2) {
+        for pair in frame.as_chunks_mut::<2>().0 {
             pair[0] = self.mic.pop_front().unwrap_or(0.0);
             pair[1] = self.system.pop_front().unwrap_or(0.0);
         }
@@ -100,7 +100,7 @@ mod tests {
         let mut mix = Interleaver::default();
         mix.push_mic(&[0.5; FRAME]);
         let frame = mix.frame().unwrap();
-        assert!(frame.chunks_exact(2).all(|p| p == [0.5, 0.0]));
+        assert!(frame.as_chunks::<2>().0.iter().all(|p| *p == [0.5, 0.0]));
         assert!(mix.frame().is_none());
     }
 
