@@ -14,7 +14,7 @@ public repository. No job depends on a machine of ours being on, and no job read
 | Desktop builds (desktop.yml)                               | `macos-26`, `windows-2025` | By hand                                       |
 | `Release PR` (release.yml)                                 | `ubuntu-latest`            | Every push to main (seconds)                  |
 | `Desktop release` (desktop-release.yml)                    | `macos-26`                 | A merged release PR that raises desktop       |
-| `iOS release` (ios-release.yml)                            | `macos-26`                 | A merged release PR that raises iOS           |
+| `iOS release` (ios-release.yml)                            | `xcode-27`                 | A merged release PR that raises iOS           |
 | `PR title` (pr-title.yml)                                  | `ubuntu-latest`            | Every pull request into main (seconds)        |
 | `Container scan (mail)`                                    | `ubuntu-latest`            | Weekly, or a pull request changing Dockerfile |
 
