@@ -1,4 +1,11 @@
-import { useMemo, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { Skeleton } from "skullet/react";
 import {
   IconCanvas,
@@ -55,6 +62,14 @@ export function FolderBody(
   const drag = useFolderDrag(source);
   const into = useDropInto();
   const room = useRoomDrop("page", drag.here);
+  const kept = useKeptScroll(JSON.stringify([source.shareId ?? null, source.place]));
+  const content = useCallback(
+    (element: HTMLDivElement | null) => {
+      room(element);
+      kept(element);
+    },
+    [room, kept],
+  );
   return (
     <DropZone
       bare
@@ -66,11 +81,59 @@ export function FolderBody(
         if (drag.here) void into(drag.here, event.items);
       }}
     >
-      <div ref={room} className="flex min-h-full flex-col" onKeyDownCapture={props.onKeyDown}>
+      <div ref={content} className="flex min-h-full flex-col" onKeyDownCapture={props.onKeyDown}>
         <Content {...props} drag={drag} />
       </div>
     </DropZone>
   );
+}
+
+const scrolledTo = new Map<string, number>();
+
+const INTENTS = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
+const RESTORE_MS = 5000;
+const HOLD_MS = 500;
+
+function useKeptScroll(key: string) {
+  const content = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const inner = content.current;
+    const element = inner?.parentElement;
+    if (!inner || !element) return;
+    const target = scrolledTo.get(key) ?? 0;
+    let touched = target === 0;
+    const touch = () => {
+      touched = true;
+      grown.disconnect();
+    };
+    const timers: ReturnType<typeof setTimeout>[] = touched ? [] : [setTimeout(touch, RESTORE_MS)];
+    let held = false;
+    const apply = () => {
+      if (touched) return;
+      if (element.scrollTop !== target) element.scrollTop = target;
+      if (held || element.scrollTop !== target) return;
+      held = true;
+      timers.push(setTimeout(touch, HOLD_MS));
+    };
+    const keep = () => {
+      if (touched) scrolledTo.set(key, element.scrollTop);
+      else apply();
+    };
+    const grown = new ResizeObserver(apply);
+    grown.observe(inner);
+    apply();
+    element.addEventListener("scroll", keep, { passive: true });
+    for (const intent of INTENTS) element.addEventListener(intent, touch, { passive: true });
+    return () => {
+      for (const timer of timers) clearTimeout(timer);
+      grown.disconnect();
+      element.removeEventListener("scroll", keep);
+      for (const intent of INTENTS) element.removeEventListener(intent, touch);
+    };
+  }, [key]);
+  return useCallback((element: HTMLElement | null) => {
+    content.current = element;
+  }, []);
 }
 
 const useFolderDrag: (source: FolderSource) => NodeDrag = (source) => {

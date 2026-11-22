@@ -15,7 +15,7 @@ export function TitleBar() {
   if (isMobile) return null;
   return (
     <div
-      className={`fixed inset-x-0 top-0 z-35 flex h-12 items-center gap-0.5 bg-shell pe-2.5 **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]! ${desktop.platform === "mac" ? "ps-[84px]" : "ps-[13.5px]"}`}
+      className={`fixed inset-x-0 top-0 z-35 flex h-12 items-center gap-0.5 bg-shell pe-2.5 **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]! ${desktop.platform === "mac" ? "ps-[88px]" : "ps-[13.5px]"}`}
     >
       <WorkspaceSwitcher chevron />
       <span

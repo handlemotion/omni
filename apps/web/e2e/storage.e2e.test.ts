@@ -519,6 +519,67 @@ test("picking another file while a text file has unsaved edits asks first and ke
   expect(await page.getByRole("region", { name: "a-notes.txt" }).count()).toBe(1);
 });
 
+test("closing a doc returns to the folder where it was scrolled", async () => {
+  const page = await signedIn(`scroll-${Date.now()}@gmail.test`, "/files/my");
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles([
+      ...Array.from({ length: 16 }, (_, at) => ({
+        name: `note-${String(at).padStart(2, "0")}.txt`,
+        mimeType: "text/plain",
+        buffer: Buffer.from(`note ${at}`),
+      })),
+      { name: "zz-plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n") },
+    ]);
+  await expect
+    .poll(
+      async () =>
+        (
+          await db
+            .select({ id: schema.storageNodes.id })
+            .from(schema.storageNodes)
+            .where(inArray(schema.storageNodes.name, ["note-00.txt", "note-15.txt", "zz-plan.md"]))
+        ).length,
+      { timeout: 30_000 },
+    )
+    .toBe(3);
+  await page.getByRole("row", { name: /note-00\.txt/ }).waitFor({ timeout: 30_000 });
+  const scrolled = () =>
+    page.evaluate(() => {
+      let at = document.querySelector("[role=row]")?.parentElement ?? null;
+      while (at && getComputedStyle(at).overflowY !== "auto") at = at.parentElement;
+      return at?.scrollTop ?? 0;
+    });
+  const last = page.getByRole("row", { name: /zz-plan\.md/ });
+  await page.mouse.move(800, 400);
+  await expect
+    .poll(
+      async () => {
+        await page.mouse.wheel(0, 2000);
+        return last.count();
+      },
+      { timeout: 30_000 },
+    )
+    .toBeGreaterThan(0);
+  await last.scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 10);
+  const before = await scrolled();
+  expect(before).toBeGreaterThan(0);
+
+  await last.click();
+  const editor = page.locator("[contenteditable=true]");
+  await editor.getByRole("heading", { name: "Plan" }).waitFor({ timeout: 15_000 });
+  await page.goBack();
+  await expect.poll(() => editor.count(), { timeout: 15_000 }).toBe(0);
+  await last.waitFor();
+  expect(await scrolled()).toBe(before);
+});
+
 async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
   const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, email);
