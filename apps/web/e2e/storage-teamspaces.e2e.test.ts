@@ -81,11 +81,17 @@ test("a member makes a private teamspace from the sidebar, files land in it, and
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/teamspace.png` });
 
   await page.getByRole("link", { name: "Recents" }).click();
-  await page
-    .getByRole("row", { name: /nda\.txt/ })
-    .getByText("Legal")
-    .waitFor();
+  await page.waitForURL(/\/files\/recents/);
+  await page.getByRole("row", { name: /nda\.txt/ }).waitFor();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/recents.png` });
+  await page.getByRole("row", { name: /nda\.txt/ }).click();
+  await page.waitForURL(
+    (url) =>
+      url.pathname.endsWith(`/files/t/${encodeURIComponent(teamspaceId)}`) &&
+      url.searchParams.get("file") === nda?.id,
+  );
+  await page.goBack();
+  await page.waitForURL(/\/files\/recents/);
   await page.goBack();
   await page.getByRole("button", { name: "Space settings" }).click();
   await page.getByRole("dialog").getByText("Owner").waitFor();
@@ -140,11 +146,10 @@ test("a folder shared out of a private space shows in the recipient's Recents", 
 
   const { page } = await signedIn(ben.id, org.id, org.slug);
   await page.getByRole("link", { name: "Recents" }).click();
-  await page
-    .getByRole("row", { name: /Board pack/ })
-    .getByText("Shared with you")
-    .waitFor({ timeout: 30_000 });
+  await page.getByRole("row", { name: /Board pack/ }).waitFor({ timeout: 30_000 });
   expect(await page.getByRole("row", { name: /Board pack/ }).count()).toBe(1);
+  await page.getByRole("row", { name: /Board pack/ }).click();
+  await page.waitForURL(/\/s\/[^/?]+/);
 });
 
 test("a deal made elsewhere shows its space in the open Drive sidebar", async () => {

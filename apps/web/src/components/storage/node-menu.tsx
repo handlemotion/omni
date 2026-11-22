@@ -64,8 +64,8 @@ export function NodeMenu(props: {
 }
 
 /**
- * Rows that are links somewhere else (Recents, Shared with me): Open, Show in folder where the
- * row has one, and Download for the member's own files.
+ * Rows that are links somewhere else (Shared with me): Open, Show in folder where the row has
+ * one, and Download for the member's own files.
  */
 export function LinkRowsMenu(props: {
   rows: { id: string; href: string; folderHref?: string; download?: () => void }[];

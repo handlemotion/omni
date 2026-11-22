@@ -43,13 +43,20 @@ export interface FileSectionsProps {
   drafts?: Drafts | undefined;
   /** The item whose name is a field (`use-inline-rename.ts`). */
   rename?: InlineRename | undefined;
-  /** Folder cards show a few of their files; off through a shared link's door. */
-  peek?: boolean | undefined;
+  /**
+   * Folder cards show a few of their files; off through a shared link's door, for every item or
+   * for those `peek` returns false for.
+   */
+  peek?: Peek;
   /** Dragging items onto folders (`node-drag.tsx`); off without it. */
   drag?: NodeDrag | undefined;
   /** Picking several items for a bulk action; off without it. */
   selection?: NodeSelection | undefined;
 }
+
+type Peek = boolean | ((node: StorageNode) => boolean) | undefined;
+
+const peeks = (peek: Peek, node: StorageNode) => (typeof peek === "function" ? peek(node) : peek);
 
 /** New folders not yet in the list, and their fields' handlers. */
 export interface Drafts {
@@ -187,7 +194,7 @@ function Items(props: {
   fileUrl: (node: StorageNode) => string;
   menu: (node: StorageNode) => SettingsRowMenuItem[];
   selection?: SelectionProps | undefined;
-  peek?: boolean | undefined;
+  peek?: Peek;
   drag?: NodeDrag | undefined;
   gap?: number | null;
   picking?: boolean;
@@ -240,7 +247,7 @@ function Items(props: {
                   href={href(node)}
                   url={props.fileUrl(node)}
                   fileUrl={props.fileUrl}
-                  peek={props.peek}
+                  peek={peeks(props.peek, node)}
                   menu={props.menu(node)}
                   name={nameOf(node)}
                   drag={props.drag}
@@ -268,7 +275,7 @@ function Items(props: {
                 href={href(node)}
                 url={props.fileUrl(node)}
                 menu={props.menu(node)}
-                prefetch={props.peek !== false}
+                prefetch={peeks(props.peek, node) !== false}
                 name={nameOf(node)}
                 drag={props.drag}
               />
