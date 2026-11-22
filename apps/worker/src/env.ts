@@ -63,7 +63,7 @@ const configSchema = z
     MEETINGS_FIRST_RETRY_SECONDS: optionalText.pipe(
       z.coerce.number<string | undefined>().int().positive().max(600).default(30),
     ),
-    GOOGLE_CALENDAR: optionalText.pipe(z.enum(["on", "off"]).default("on")),
+    GOOGLE_CALENDAR: optionalText.pipe(z.enum(["on", "all", "off"]).default("on")),
     TYPESAFE_API_KEY: optionalText,
     TRIAGE_PROVIDER: optionalText.pipe(z.enum(["jev", "claude"]).optional()),
     JEV_MODEL: optionalText,

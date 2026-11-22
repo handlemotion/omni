@@ -10,6 +10,7 @@ import { and, eq } from "drizzle-orm";
 import type { ImapFlow } from "imapflow";
 import {
   GOOGLE_CALENDAR_EVENTS_PATH,
+  GOOGLE_CALENDAR_LIST_PATH,
   GOOGLE_DISCONNECT_PATH,
   MAIL_EVENTS_PATH,
   MAIL_PING_PATH,
@@ -714,42 +715,45 @@ describe("a Google account", () => {
   });
 });
 
-describe("the Google Calendar route", () => {
-  it("answers only signed calls, only for the workspace's own mailbox, and reads no password mailbox's calendar", async () => {
-    const { box, orgId } = await seedConnectable();
-    await startMailService({
-      GOOGLE_CLIENT_ID: "e2e.apps.googleusercontent.com",
-      GOOGLE_CLIENT_SECRET: "e2e-secret",
-    });
-    const call = async (body: string, sign = true) => {
-      const headers = sign
-        ? await signRequest({
-            secret,
-            method: "POST",
-            path: GOOGLE_CALENDAR_EVENTS_PATH,
-            body,
-            nonce: randomUUID(),
-          })
-        : {};
-      const response = await fetch(`${serviceUrl}${GOOGLE_CALENDAR_EVENTS_PATH}`, {
-        method: "POST",
-        headers: { ...headers, "content-type": "application/json" },
-        body,
+describe("the Google Calendar routes", () => {
+  it.each([GOOGLE_CALENDAR_EVENTS_PATH, GOOGLE_CALENDAR_LIST_PATH])(
+    "%s answers only signed calls, only for the workspace's own mailbox, and reads no password mailbox's calendar",
+    async (path) => {
+      const { box, orgId } = await seedConnectable();
+      await startMailService({
+        GOOGLE_CLIENT_ID: "e2e.apps.googleusercontent.com",
+        GOOGLE_CLIENT_SECRET: "e2e-secret",
       });
-      return {
-        status: response.status,
-        json: (await response.json().catch(() => null)) as unknown,
+      const call = async (body: string, sign = true) => {
+        const headers = sign
+          ? await signRequest({
+              secret,
+              method: "POST",
+              path,
+              body,
+              nonce: randomUUID(),
+            })
+          : {};
+        const response = await fetch(`${serviceUrl}${path}`, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body,
+        });
+        return {
+          status: response.status,
+          json: (await response.json().catch(() => null)) as unknown,
+        };
       };
-    };
-    const own = JSON.stringify({ orgId, mailboxId: box.id });
-    expect((await call(own, false)).status).toBe(401);
-    expect(await call(own)).toEqual({
-      status: 200,
-      json: { status: "no_access", reason: "not_gmail" },
-    });
-    const other = await createOrg(db, `elsewhere-${randomUUID().slice(0, 8)}`);
-    expect((await call(JSON.stringify({ orgId: other.id, mailboxId: box.id }))).status).toBe(404);
-  });
+      const own = JSON.stringify({ orgId, mailboxId: box.id });
+      expect((await call(own, false)).status).toBe(401);
+      expect(await call(own)).toEqual({
+        status: 200,
+        json: { status: "no_access", reason: "not_gmail" },
+      });
+      const other = await createOrg(db, `elsewhere-${randomUUID().slice(0, 8)}`);
+      expect((await call(JSON.stringify({ orgId: other.id, mailboxId: box.id }))).status).toBe(404);
+    },
+  );
 });
 
 describe("a Google account's first sync", () => {

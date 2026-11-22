@@ -2,7 +2,7 @@ import { normalizeAddress } from "@omni/mail-core/addresses";
 import type { OutgoingEvent } from "@omni/mail-core/calendar";
 import { and, eq, ne } from "drizzle-orm";
 import { calendarAnswers, calendarAttendees, calendarEvents } from "../schema/index.ts";
-import { calendarsOf, NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
+import { calendarsOf, NOT_FOUND, ownCalendarsOf, type Ex, type VisibleMailbox } from "./core.ts";
 import type { CalendarResponse } from "./read.ts";
 import { answerSubject, queueCalendarMail, type Sender } from "./sends.ts";
 
@@ -245,7 +245,7 @@ const others = (attendees: readonly Pick<Guest, "address">[], me: string) =>
 export async function createOwnEvent(tx: Ex, writer: Writer, input: OwnEventInput) {
   const invalid = checked(input);
   if (invalid) return invalid;
-  const [calendar] = (await calendarsOf(tx, writer.mailboxes)).filter(
+  const [calendar] = (await ownCalendarsOf(tx, writer.mailboxes)).filter(
     (c) => c.id === input.calendarId,
   );
   if (!calendar) return NOT_FOUND;

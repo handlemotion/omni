@@ -1,20 +1,21 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import {
-  calendarCalendars,
-  calendarEvents,
-  calendarMemberPrefs,
-  calendarParts,
-} from "../schema/index.ts";
-import { calendarsOf, NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
+import { calendarEvents, calendarMemberPrefs, calendarParts } from "../schema/index.ts";
+import { calendarsOf, makeOwnCalendars, NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
 import { getEvent } from "./read.ts";
 
-/** A calendar as one member sees it: its inbox, and their color and toggle. */
+/**
+ * A calendar as one member sees it: its inbox, its name (null for the inbox's own, named after
+ * the inbox), whether it is read only (a Google calendar), and their color and toggle. The color
+ * is theirs, else Google's.
+ */
 export interface MemberCalendarView {
   id: string;
   orgId: string;
   mailboxId: string;
   address: string;
   kind: string;
+  name: string | null;
+  readOnly: boolean;
   color: string | null;
   hidden: boolean;
 }
@@ -33,7 +34,7 @@ export async function listMemberCalendars(
     calendarsOf(ex, mailboxes),
     ex.select().from(calendarMemberPrefs).where(eq(calendarMemberPrefs.memberId, memberId)),
   ]);
-  const made = new Set(existing.map((c) => c.mailboxId));
+  const made = new Set(existing.filter((c) => c.googleId === null).map((c) => c.mailboxId));
   const missing = mailboxes.filter((m) => !made.has(m.id));
   const calendars = missing.length ? await ensureCalendars(ex, mailboxes, missing) : existing;
   const byCalendar = new Map(prefs.map((p) => [p.calendarId, p]));
@@ -46,11 +47,19 @@ export async function listMemberCalendars(
           mailboxId: c.mailbox.id,
           address: c.mailbox.address,
           kind: c.mailbox.kind,
-          color: byCalendar.get(c.id)?.color ?? null,
+          name: c.name,
+          readOnly: c.googleId !== null,
+          color: byCalendar.get(c.id)?.color ?? c.color,
           hidden: byCalendar.get(c.id)?.hidden ?? false,
         }) satisfies MemberCalendarView,
     )
-    .toSorted((a, b) => a.address.localeCompare(b.address));
+    .toSorted(
+      (a, b) =>
+        a.address.localeCompare(b.address) ||
+        Number(a.readOnly) - Number(b.readOnly) ||
+        (a.name ?? "").localeCompare(b.name ?? "") ||
+        a.id.localeCompare(b.id),
+    );
 }
 
 async function ensureCalendars(
@@ -58,10 +67,7 @@ async function ensureCalendars(
   mailboxes: readonly VisibleMailbox[],
   missing: readonly VisibleMailbox[],
 ) {
-  await ex
-    .insert(calendarCalendars)
-    .values(missing.map((m) => ({ orgId: m.orgId, mailboxId: m.id })))
-    .onConflictDoNothing({ target: calendarCalendars.mailboxId });
+  await makeOwnCalendars(ex, missing);
   return calendarsOf(ex, mailboxes);
 }
 

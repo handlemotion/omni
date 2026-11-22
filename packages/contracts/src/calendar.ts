@@ -29,10 +29,14 @@ export const calendarAttendeeSchema = z.object({
 export const calendarSchema = z.object({
   id,
   mailboxId: id,
-  /** The inbox's address: the calendar's name, and who sends its invitations. */
+  /** The inbox's address: the account the calendar is under, and who sends its invitations. */
   address: z.string(),
   kind: z.string(),
-  /** The member's own color, `#rrggbb`; null for the app's default. */
+  /** A Google calendar's name; null for the inbox's own calendar, named after the inbox. */
+  name: z.string().nullable(),
+  /** A Google calendar: shown, never written to. Events are made on the inbox's own calendar. */
+  readOnly: z.boolean(),
+  /** The member's own color, else Google's, `#rrggbb`; null for the app's default. */
   color: z.string().nullable(),
   hidden: z.boolean(),
 });

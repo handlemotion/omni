@@ -50,17 +50,31 @@ export const calendarPartOutcome = pgEnum("calendar_part_outcome", [
   "invalid",
 ]);
 
-/** One per inbox, made the first time it is needed. Who sees it is who sees the inbox. */
+/**
+ * An inbox's calendars. Every inbox has its own (`google_id` null), made the first time it is
+ * needed, which mail's invitations and Omni's events land on and which shows a Gmail account's
+ * primary Google calendar. A Gmail inbox also has one per other calendar in its Google calendar
+ * list, read only in Omni ("Google calendars"). Who sees a calendar is who sees the inbox.
+ */
 export const calendarCalendars = pgTable(
   "calendar_calendars",
   {
     id: id(),
     orgId: orgId(),
     mailboxId: text("mailbox_id").notNull(),
+    /** The calendar's id in its Google account; null for the inbox's own calendar. */
+    googleId: text("google_id"),
+    /** Google's name for it; null for the inbox's own calendar, named after the inbox. */
+    name: text("name"),
+    /** Google's colour for it, `#rrggbb`: the default when a member picked none. */
+    color: text("color"),
     createdAt: createdAt(),
   },
   (t) => [
     unique("calendar_calendars_mailbox_id_unique").on(t.mailboxId),
+    unique("calendar_calendars_mailbox_google_unique")
+      .on(t.mailboxId, t.googleId)
+      .nullsNotDistinct(),
     unique("calendar_calendars_id_org_id_unique").on(t.id, t.orgId),
     foreignKey({
       name: "calendar_calendars_mailbox_org_fk",

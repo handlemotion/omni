@@ -42,17 +42,21 @@ const MAIL_SCOPE = "https://mail.google.com/";
  * accept (a restricted scope: unverified apps are capped at 100 users). The authorization URL must
  * also carry `access_type=offline` and `prompt=consent`, or Google returns no refresh token.
  * `profile` brings the account's photo and name (the id token's `picture`, `name`) for its inbox.
- * `calendar.events.readonly` lets the calendar show the account's own Google Calendar; it is
- * optional, and mail works without it. The Worker's consent redirect asks for the same five
- * (the calendar one unless `GOOGLE_CALENDAR=off`).
+ * `calendar.events.readonly` lets the calendar show the account's Google calendars, and
+ * `calendar.calendarlist.readonly` which ones it has besides the primary; both are optional, and
+ * mail works without them. The Worker's consent redirect asks for the same, the calendar ones as
+ * `GOOGLE_CALENDAR` says.
  */
 export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly";
+export const GOOGLE_CALENDAR_LIST_SCOPE =
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
 export const GOOGLE_MAIL_SCOPES = [
   MAIL_SCOPE,
   "openid",
   "email",
   "profile",
   GOOGLE_CALENDAR_SCOPE,
+  GOOGLE_CALENDAR_LIST_SCOPE,
 ] as const;
 const REFRESH_MARGIN_MS = 5 * 60_000;
 

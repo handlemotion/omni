@@ -589,6 +589,13 @@
       "when": 1795382144846,
       "tag": "0083_daily_calypso",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1795384943215,
+      "tag": "0084_typical_mastermind",
+      "breakpoints": true
     }
   ]
 }

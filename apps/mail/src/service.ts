@@ -328,12 +328,14 @@ export async function startService(config: ServiceConfig, log: Logger) {
               },
               input,
             ),
-          googleCalendarEvents: createGoogleCalendar({
-            db,
-            keyring: config.MAIL_CREDENTIALS_KEY,
-            oauth: google,
-            logger: log,
-          }),
+          ...googleCalendarRoutes(
+            createGoogleCalendar({
+              db,
+              keyring: config.MAIL_CREDENTIALS_KEY,
+              oauth: google,
+              logger: log,
+            }),
+          ),
         }
       : {}),
     disconnectGoogle: (input) =>
@@ -409,4 +411,8 @@ export async function startService(config: ServiceConfig, log: Logger) {
       await close();
     },
   } satisfies MailService;
+}
+
+function googleCalendarRoutes(calendar: ReturnType<typeof createGoogleCalendar>) {
+  return { googleCalendarEvents: calendar.events, googleCalendarList: calendar.list };
 }

@@ -10,7 +10,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { memberMail } from "../mail.ts";
 import { calendarBookingLinks, members, users } from "../schema/index.ts";
-import { calendarsOf, NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
+import { calendarsOf, NOT_FOUND, ownCalendarsOf, type Ex, type VisibleMailbox } from "./core.ts";
 import { listEvents } from "./read.ts";
 import { createOwnEvent, type InvalidEvent } from "./write.ts";
 
@@ -137,7 +137,7 @@ export async function createBookingLink(
 ) {
   const bad = badLink(input);
   if (bad) return invalidAt(bad);
-  const [calendar] = (await calendarsOf(ex, mailboxes)).filter((c) => c.id === input.calendarId);
+  const [calendar] = (await ownCalendarsOf(ex, mailboxes)).filter((c) => c.id === input.calendarId);
   if (!calendar) return NOT_FOUND;
   const [row] = await ex
     .insert(calendarBookingLinks)
@@ -176,7 +176,7 @@ export async function updateBookingLink(
   const bad = badLink(patch, row);
   if (bad) return invalidAt(bad);
   const calendar = patch.calendarId
-    ? (await calendarsOf(ex, mailboxes)).find((c) => c.id === patch.calendarId)
+    ? (await ownCalendarsOf(ex, mailboxes)).find((c) => c.id === patch.calendarId)
     : null;
   if (patch.calendarId && (!calendar || calendar.orgId !== row.orgId)) return NOT_FOUND;
   const [updated] = await ex

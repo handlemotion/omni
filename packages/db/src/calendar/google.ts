@@ -8,7 +8,7 @@ import {
   calendarGoogleSync,
   calendarParts,
 } from "../schema/index.ts";
-import type { Ex } from "./core.ts";
+import { makeOwnCalendars, type Ex } from "./core.ts";
 import { older, stored, syncAttendees, type Stored } from "./ingest.ts";
 
 /** A Gmail inbox's calendar, claimed for one Google sync pass, with where the last one stopped. */
@@ -51,10 +51,7 @@ export async function claimGoogleCalendars(
 ) {
   if (mailboxes.length === 0) return [];
   const now = options.now ?? new Date();
-  await db
-    .insert(calendarCalendars)
-    .values(mailboxes.map((m) => ({ orgId: m.orgId, mailboxId: m.id })))
-    .onConflictDoNothing({ target: calendarCalendars.mailboxId });
+  await makeOwnCalendars(db, mailboxes);
   const due = await db
     .select({
       calendarId: calendarCalendars.id,

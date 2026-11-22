@@ -483,6 +483,8 @@ export const GOOGLE_CALENDAR_EVENTS_PATH = "/google/calendar/events";
 export const googleCalendarEventsBodySchema = z.object({
   orgId: z.string().min(1),
   mailboxId: z.string().min(1),
+  /** The Google calendar to read, as its calendar list names it. Absent: the primary one. */
+  calendarId: z.string().min(1).max(1024).optional(),
   /** Changes since the pass that returned it. */
   syncToken: z.string().min(1).max(4096).optional(),
   /** The next page of a pass, sent with the pass's `syncToken` when it has one, as Google asks. */
@@ -510,6 +512,37 @@ export const googleCalendarEventsResultSchema = z.discriminatedUnion("status", [
 
 export type GoogleCalendarEventsBody = z.infer<typeof googleCalendarEventsBodySchema>;
 export type GoogleCalendarEventsResult = z.infer<typeof googleCalendarEventsResultSchema>;
+
+/**
+ * A Gmail inbox's Google calendar list (`calendarList.list`), for the Worker's sync to add the
+ * account's other calendars and retire the ones it left (`docs/spec/calendar.md`, "Google
+ * calendars"). Needs the optional `calendar.calendarlist.readonly` scope: without it, `no_scope`,
+ * and the inbox shows its primary calendar alone.
+ */
+export const GOOGLE_CALENDAR_LIST_PATH = "/google/calendar/list";
+
+export const googleCalendarListBodySchema = z.object({
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+});
+
+/** More than anyone subscribes to; Google pages at 250 and the list is read to the end. */
+export const GOOGLE_CALENDAR_LIST_MAX = 500;
+
+export const googleCalendarListResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("ok"),
+    /** Google's calendar list entries as Google sent them: untrusted, read by `readGoogleCalendar`. */
+    items: z.array(z.unknown()).max(GOOGLE_CALENDAR_LIST_MAX),
+  }),
+  z.object({
+    status: z.literal("no_access"),
+    reason: z.enum(["no_scope", "api_disabled", "revoked", "not_gmail"]),
+  }),
+]);
+
+export type GoogleCalendarListBody = z.infer<typeof googleCalendarListBodySchema>;
+export type GoogleCalendarListResult = z.infer<typeof googleCalendarListResultSchema>;
 
 export const HOSTED_DISCONNECT_PATH = "/hosting/mailbox/disconnect";
 
