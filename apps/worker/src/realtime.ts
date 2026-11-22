@@ -27,14 +27,27 @@ import {
   MAX_PRESENCE_MESSAGE,
   onDocAppend,
   onDocPresence,
+  passOnComments,
   passOnRecords,
 } from "./realtime-docs.ts";
 import {
+  driveAudience,
   filePresenceMessage,
+  insiders,
   leaveFile,
   onFilePresence,
   setConversation,
 } from "./realtime-files.ts";
+import { runAlarm, scheduleAlarm } from "./realtime-folds.ts";
+import { onOutsideAppend, onOutsidePresence } from "./realtime-outside-docs.ts";
+import {
+  allOutsiders,
+  isOutsider,
+  OUTSIDE_HEADER,
+  openOutside,
+  recheckOutsiders,
+} from "./realtime-outside.ts";
+import { closeOutsider, leavePresence } from "./realtime-presence.ts";
 
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
@@ -97,6 +110,10 @@ export class Realtime extends DurableObject<Env> {
   }
 
   override async fetch(request: Request) {
+    const outside = request.headers.get(OUTSIDE_HEADER);
+    if (outside !== null && !request.headers.has(MEMBER_HEADER)) {
+      return openOutside(this.ctx, request, outside, () => scheduleAlarm(this.ctx));
+    }
     const memberId = request.headers.get(MEMBER_HEADER);
     if (!memberId || request.headers.get("upgrade") !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 });
@@ -152,6 +169,27 @@ export class Realtime extends DurableObject<Env> {
     }
   }
 
+  /** Tells everyone on the doc that its comments changed (`doc.comments`). */
+  async commentsChanged(nodeId: string) {
+    passOnComments(this.ctx, nodeId);
+  }
+
+  /**
+   * Checks again the doors of the outsiders on these docs (or every one), after a change that may
+   * narrow what they reach: a link's or a grant's, the workspace's policy.
+   */
+  async recheckOutsiders(nodeIds: string[] | "all") {
+    await recheckOutsiders(this.ctx, this.env, nodeIds);
+  }
+
+  /** Rechecks every outsider and saves the docs whose save is due (`realtime-folds.ts`). */
+  override async alarm() {
+    await runAlarm(this.ctx, this.env, async (nodeId, node, events) => {
+      passOnRecords(this.ctx, nodeId, events);
+      await this.storageChanged(node.space, node.ownerMemberId, [node.parentId], node.teamspaceId);
+    });
+  }
+
   async storageChanged(
     space: StorageNodeSpace,
     ownerMemberId: string | null,
@@ -159,18 +197,7 @@ export class Realtime extends DurableObject<Env> {
     teamspaceId?: string | null,
   ) {
     const reaching = space === "teamspace" ? await this.teamspaceAudience(teamspaceId) : null;
-    const sockets =
-      space === "teamspace"
-        ? this.ctx.getWebSockets().filter((socket) => {
-            const tag = this.ctx.getTags(socket)[0];
-            return !!tag && !!reaching?.has(tag);
-          })
-        : ownerMemberId === null
-          ? this.ctx.getWebSockets()
-          : [
-              ...this.ctx.getWebSockets(ownerMemberId),
-              ...this.ctx.getWebSockets(syncTag(ownerMemberId)),
-            ];
+    const sockets = driveAudience(this.ctx, ownerMemberId, reaching);
     const message = JSON.stringify({
       type: "storage.changed",
       space,
@@ -182,6 +209,7 @@ export class Realtime extends DurableObject<Env> {
         socket.send(message);
       } catch {}
     }
+    if (allOutsiders(this.ctx).length > 0) await recheckOutsiders(this.ctx, this.env, "all");
   }
 
   /**
@@ -191,6 +219,7 @@ export class Realtime extends DurableObject<Env> {
    */
   override async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer) {
     if (typeof raw !== "string") return;
+    if (isOutsider(this.ctx, socket)) return this.fromOutsider(socket, raw);
     if (raw.length > messageLimit(raw)) return;
     let message;
     try {
@@ -209,7 +238,7 @@ export class Realtime extends DurableObject<Env> {
       return;
     }
     if (message.type === "doc.presence") {
-      onDocPresence(this.ctx, socket, message);
+      onDocPresence(this.ctx, socket, memberId, message);
       return;
     }
     const current = presenceOf(socket);
@@ -238,7 +267,7 @@ export class Realtime extends DurableObject<Env> {
     await this.send(others, [presenceEvent(memberId, this.memberState(memberId, presence))]);
     if (current?.threadId !== presence.threadId) {
       const here = new Map<string, Presence>();
-      for (const other of this.ctx.getWebSockets()) {
+      for (const other of insiders(this.ctx)) {
         const theirs = presenceOf(other);
         const them = this.ctx.getTags(other)[0];
         if (!theirs || !them || them === memberId || theirs.threadId !== presence.threadId) {
@@ -252,7 +281,22 @@ export class Realtime extends DurableObject<Env> {
     }
   }
 
+  private async fromOutsider(socket: WebSocket, raw: string) {
+    if (raw.length > messageLimit(raw)) return;
+    let message;
+    try {
+      message = clientMessage.parse(JSON.parse(raw));
+    } catch {
+      return;
+    }
+    if (message.type === "doc.append") await onOutsideAppend(this.ctx, this.env, socket, message);
+    if (message.type === "doc.presence") {
+      await onOutsidePresence(this.ctx, this.env, socket, message);
+    }
+  }
+
   override async webSocketClose(socket: WebSocket, code: number) {
+    if (isOutsider(this.ctx, socket)) return closeOutsider(this.ctx, socket, code);
     const presence = presenceOf(socket);
     const memberId = this.ctx.getTags(socket)[0];
     if (memberId) leaveFile(this.ctx, socket, memberId);
@@ -261,6 +305,7 @@ export class Realtime extends DurableObject<Env> {
   }
 
   override async webSocketError(socket: WebSocket) {
+    if (isOutsider(this.ctx, socket)) return leavePresence(this.ctx, socket);
     const presence = presenceOf(socket);
     const memberId = this.ctx.getTags(socket)[0];
     if (memberId) leaveFile(this.ctx, socket, memberId);

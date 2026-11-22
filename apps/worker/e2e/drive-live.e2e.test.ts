@@ -135,7 +135,7 @@ test("a doc edited past its stream's retention opens from its snap, and an agent
     enabled: true,
     entries: [
       { seqNum: snapAt, record: snap },
-      { seqNum: snapAt + 1, record: after },
+      { seqNum: snapAt + 1, record: { ...after, by: `m:${ana.id}` } },
     ],
     more: false,
   });

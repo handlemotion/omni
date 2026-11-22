@@ -19,6 +19,8 @@ const RULES = {
   storageShareNew: "RATE_LIMIT_STORAGE_SHARE_NEW",
   storageLink: "RATE_LIMIT_STORAGE_LINK",
   storageLinkPassword: "RATE_LIMIT_STORAGE_LINK_PASSWORD",
+  storageLinkLive: "RATE_LIMIT_STORAGE_LINK_LIVE",
+  storageLinkComment: "RATE_LIMIT_STORAGE_LINK_COMMENT",
   storageSync: "RATE_LIMIT_STORAGE_SYNC",
 } as const satisfies Record<string, keyof Config>;
 

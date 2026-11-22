@@ -347,6 +347,14 @@ export function foldContent(
   });
 }
 
+/** The doc a fold saves, as it is now; null when it is gone, in Trash, or not a file. */
+export async function foldTargetOf(db: Db, nodeId: string) {
+  const chain = await chainOf(db, nodeId);
+  const node = chain?.[0];
+  if (!chain || !node || node.kind !== "file" || !node.r2Key || inTrash(chain)) return null;
+  return toNode(node);
+}
+
 /**
  * Names outsiders whose typing the file's content at `contentVersion` holds, when a member's
  * tab saved it (their fold says so). Does nothing once the file has moved past that version.

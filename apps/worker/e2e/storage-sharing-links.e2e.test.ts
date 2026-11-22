@@ -231,7 +231,9 @@ test("the workspace policy closes and refuses public links and outside invites; 
     publicLinks: false,
     outsideSharing: false,
   });
-  expect(set.body).toEqual({ policy: { publicLinks: false, outsideSharing: false } });
+  expect(set.body).toEqual({
+    policy: { publicLinks: false, outsideSharing: false, linkEditing: true },
+  });
   expect((await stack.api(colleague.jar, "GET", "/policy")).body.policy.publicLinks).toBe(false);
 
   expect((await stack.api(anonymous(), "GET", `/shared/${shareId}`)).status).toBe(404);

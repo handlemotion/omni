@@ -1,6 +1,5 @@
 import { linkKeyMatches, linkPasswordMatches, signLinkKey } from "@omni/crypto";
 import {
-  STORAGE_LINK_KEY_HEADER,
   storageSharedQuerySchema,
   storageSharedUploadingQuerySchema,
   storageUnlockBodySchema,
@@ -29,7 +28,7 @@ import {
   type UploadingFile,
 } from "@omni/db";
 import { Hono, type Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { deleteCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { inGoodStanding, READ_ONLY_MESSAGE } from "../billing.ts";
 import { findMemberIds, resolveSession, type AppEnv, type SessionUser } from "../context.ts";
@@ -59,10 +58,10 @@ async function readsOnPage(shared: Pick<SharedStorage, "file">, file: StorageNod
   return parent.status === "ok" && isDocFile(parent.file.name, parent.file.mimeType);
 }
 import { zip } from "./zip.ts";
+import { liveOnPage, storageSharedLive } from "./shared-live.ts";
+import { COOKIE, cookiePath, guestFrom, mintGuest, presentedKey } from "./shared-keys.ts";
 
 const UNLOCK_MS = 12 * 60 * 60 * 1000;
-const COOKIE = "omni_link_key";
-const cookiePath = (shareId: string) => `/api/storage/shared/${encodeURIComponent(shareId)}`;
 
 const through: (
   root: SharedAccess["root"],
@@ -78,13 +77,15 @@ const through: (
     writer: door,
     via,
     downloads: true,
+    comments: door,
   };
 };
 
-const presentedKey = (c: Context<AppEnv>) =>
-  c.req.header(STORAGE_LINK_KEY_HEADER) ?? getCookie(c, COOKIE) ?? null;
-
-function visitorOf(c: Context<AppEnv>, user: SessionUser | null) {
+function visitorOf(
+  c: Context<AppEnv>,
+  user: SessionUser | null,
+  guest: LinkVisitor["guest"] = null,
+) {
   const key = presentedKey(c);
   const secret = c.var.config.auth.secret;
   return {
@@ -92,6 +93,7 @@ function visitorOf(c: Context<AppEnv>, user: SessionUser | null) {
     scopeOrgId: user?.scopeOrgId ?? null,
     unlocked: async (link: { shareId: string; passwordHash: string }) =>
       key ? linkKeyMatches(secret, link, key) : false,
+    guest,
   } satisfies LinkVisitor;
 }
 
@@ -120,7 +122,7 @@ const openShared: (
     const root = await granted.nodeByShareId(shareId);
     if (root) return { status: "ok", shared: through(root, granted, "grant") };
   }
-  const visitor = visitorOf(c, user);
+  const visitor = visitorOf(c, user, await guestFrom(c, shareId));
   const link = publicStorage(db, shareId, visitor);
   const root = await link.node();
   if (!root) {
@@ -143,6 +145,7 @@ const openShared: (
       writer: null,
       via: "link",
       downloads: settings?.linkDownloads ?? false,
+      comments: link,
     },
   };
 };
@@ -220,7 +223,8 @@ const open = createMiddleware<AppEnv>(async (c, next) => {
   const { root } = shared;
 
   if (c.req.method !== "GET" && c.req.method !== "HEAD") {
-    if (!shared.writer) return refused(c, "forbidden");
+    const commenting = /\/files\/[^/]+\/comments(\/[^/]+)?$/.test(c.req.path);
+    if (!shared.writer && !(commenting && shared.comments)) return refused(c, "forbidden");
     if (!(await inGoodStanding(db, config, root.node.orgId))) {
       return apiError(c, "billing_inactive", READ_ONLY_MESSAGE);
     }
@@ -333,12 +337,17 @@ export const storageShared = new Hono<AppEnv>()
     const show = (view: StorageNodeView) => (shared.via === "link" ? publicView(view) : view);
     if (!cursor) await audit(c, "viewed", item.node.id);
     if (item.node.kind !== "folder") {
+      const shareId = c.req.param("shareId");
+      const guestly = shared.via === "link" && item.role !== "viewer";
+      if (guestly && !(await guestFrom(c, shareId))) await mintGuest(c, shareId);
+      const live = liveOnPage(c, shared, item);
       return c.json({
         item: show(wireView(item)),
         nodes: [],
         nextCursor: null,
         downloads: shared.downloads,
         uploading: [],
+        live,
       } satisfies StorageSharedResponse);
     }
     const listed = await shared.list(item.node.id, {
@@ -395,4 +404,5 @@ export const storageShared = new Hono<AppEnv>()
     return response;
   })
 
+  .route("/:shareId", storageSharedLive)
   .route("/:shareId", storageChanges);

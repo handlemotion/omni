@@ -24,7 +24,10 @@ export interface Editing {
   checkedAt?: number;
 }
 
-/** Everything a socket's attachment holds: its conversation presence's fields and its file. */
+/**
+ * Everything a socket's attachment holds: its conversation presence's fields, its file, and for
+ * a doc's presence the client it speaks for (`peer`) and, for an outsider, who it is (`outside`).
+ */
 type Attachment = Record<string, unknown> & { file?: Editing };
 
 export const attachmentOf: (socket: WebSocket) => Attachment | null = (socket) => {
@@ -40,8 +43,13 @@ export const attachmentOf: (socket: WebSocket) => Attachment | null = (socket) =
  * file it edits.
  */
 export function setConversation(socket: WebSocket, presence: object | null) {
-  const file = attachmentOf(socket)?.file;
-  const next = { ...presence, ...(file ? { file } : {}) };
+  const { file, peer, outside } = attachmentOf(socket) ?? {};
+  const next = {
+    ...presence,
+    ...(file ? { file } : {}),
+    ...(peer ? { peer } : {}),
+    ...(outside ? { outside } : {}),
+  };
   socket.serializeAttachment(Object.keys(next).length > 0 ? next : null);
 }
 
@@ -62,9 +70,33 @@ const event = (nodeId: string, memberId: string, state: "editing" | "left") =>
     state,
   } satisfies StorageFilePresenceEvent);
 
+/**
+ * The object's sockets but outsiders' (`out:` tags, `docs/spec/live-sharing.md`): every listing
+ * of the workspace's sockets goes through here, so nothing meant for the workspace reaches
+ * someone outside it. `scripts/check-realtime-audience.mjs` keeps it the only way to list them.
+ */
+export function insiders(ctx: DurableObjectState, tag?: string) {
+  const sockets = tag === undefined ? ctx.getWebSockets() : ctx.getWebSockets(tag);
+  return sockets.filter((socket) => !ctx.getTags(socket)[0]?.startsWith("out:"));
+}
+
+/**
+ * Who hears that a drive changed: the teamspace's members (`reaching`), everyone for Shared, the
+ * owner's app and sync sockets for My files.
+ */
+export function driveAudience(
+  ctx: DurableObjectState,
+  ownerMemberId: string | null,
+  reaching: Set<string> | null,
+) {
+  if (reaching) return insiders(ctx).filter((socket) => reaching.has(ctx.getTags(socket)[0] ?? ""));
+  if (ownerMemberId === null) return insiders(ctx);
+  return [...insiders(ctx, ownerMemberId), ...insiders(ctx, `sync:${ownerMemberId}`)];
+}
+
 /** The app sockets that see the drive: everyone's for Shared, the owner's for My files. */
 export function audience(ctx: DurableObjectState, at: Editing) {
-  const sockets = at.ownerMemberId ? ctx.getWebSockets(at.ownerMemberId) : ctx.getWebSockets();
+  const sockets = insiders(ctx, at.ownerMemberId ?? undefined);
   const only = at.space === "teamspace" ? new Set(at.audience ?? []) : null;
   return sockets.filter((socket) => {
     const tag = ctx.getTags(socket)[0];
@@ -87,9 +119,9 @@ function stillEditing(
   nodeId: string,
   except: WebSocket,
 ) {
-  return ctx
-    .getWebSockets(memberId)
-    .some((other) => other !== except && editingOf(other)?.nodeId === nodeId);
+  return insiders(ctx, memberId).some(
+    (other) => other !== except && editingOf(other)?.nodeId === nodeId,
+  );
 }
 
 /** Takes the socket off the file it edits; the others hear `left` unless another tab still edits. */

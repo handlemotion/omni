@@ -21,6 +21,7 @@ import { apiError } from "../errors.ts";
 import { verifyAccessToken } from "../mcp/auth.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
 import { MEMBER_HEADER, SYNC_HEADER } from "../realtime.ts";
+import { OUTSIDE_HEADER } from "../realtime-outside.ts";
 import { storageChanges } from "./changes.ts";
 import { wireNode } from "./core.ts";
 import { decodeCursor, encodeCursor, memberStorage, refused } from "./http.ts";
@@ -180,6 +181,7 @@ export const storageSync = new Hono<AppEnv>()
     }
     const { id, orgId } = c.var.member;
     const headers = new Headers(c.req.raw.headers);
+    headers.delete(OUTSIDE_HEADER);
     headers.set(MEMBER_HEADER, id);
     headers.set(SYNC_HEADER, "1");
     const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));

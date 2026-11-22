@@ -101,6 +101,11 @@ export const ERROR_CODES = {
    * one person may: finish or cancel some first.
    */
   too_many_uploads: spec(429, "rate_limit", true),
+  /**
+   * A member opened their workspace's doc through its link: they join it live through
+   * `/api/realtime`, as a member, not through the link's socket.
+   */
+  use_member_socket: spec(409, "conflict"),
   /** A guarded write (`ifRevision`, `ifContentVersion`) read a node that has changed since. */
   version_conflict: spec(409, "conflict"),
   /** The file has no thumbnail (not an image the server can draw, or too large): show its icon. */

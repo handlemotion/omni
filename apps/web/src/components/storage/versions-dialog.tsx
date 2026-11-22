@@ -33,6 +33,8 @@ const SAMPLE: StorageVersions = {
     writtenAt: new Date(0).toISOString(),
     writtenByName: "Someone",
     writtenByAgent: null,
+    writtenByGuest: false,
+    coauthors: [],
   },
   versions: [],
   keepDays: 30,

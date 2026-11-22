@@ -1,5 +1,6 @@
 import {
   latestEpochStart,
+  STORAGE_LIVE_SNAP_EVERY,
   type StorageDocEvent,
   type StorageLiveEntry,
   type StorageLiveRecord,
@@ -17,6 +18,7 @@ const toBase64 = (bytes: Uint8Array) => {
   }
   return btoa(text);
 };
+const SNAP_MAX_CHARS = 850_000;
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 /**
@@ -32,6 +34,7 @@ export class LiveFile {
 
   private fold: { cv: number; s: number };
   private changedAt = -1;
+  private start = -1;
 
   private constructor(
     basin: S2Basin,
@@ -48,6 +51,12 @@ export class LiveFile {
 
   /** The live document of `nodeId` at `contentVersion`; null when nobody is editing it live. */
   static async open(basin: S2Basin, nodeId: string, contentVersion: number) {
+    const live = await LiveFile.latest(basin, nodeId);
+    return live?.fold.cv === contentVersion ? live : null;
+  }
+
+  /** The latest epoch of `nodeId`, whatever version of the file it last saved. */
+  static async latest(basin: S2Basin, nodeId: string) {
     const entries = await readLive(basin, nodeId, await latestLiveStart(basin, nodeId));
     const first = latestEpochStart(entries);
     if (!first) return null;
@@ -57,18 +66,29 @@ export class LiveFile {
       cv: record.cv,
       s: record.t === "snap" ? record.f : epoch,
     });
+    live.start = first.seqNum;
     if (record.t === "snap") {
       Y.applyUpdate(live.doc, fromBase64(record.u));
       live.next = record.s + 1;
       live.changedAt = record.s;
     }
     live.take(entries);
-    return live.fold.cv === contentVersion ? live : null;
+    return live;
+  }
+
+  /** The version of the file its latest recorded save made. */
+  get savedAs() {
+    return this.fold.cv;
   }
 
   /** The Markdown it holds now. */
   get markdown() {
     return liveMarkdown(this.doc);
+  }
+
+  /** The last record it holds, with every one before it. */
+  get through() {
+    return this.next - 1;
   }
 
   /** Whether it holds changes made after its latest save: typing the file does not have yet. */
@@ -96,6 +116,29 @@ export class LiveFile {
     const seqNum = await this.basin.append(docStream(this.nodeId), JSON.stringify(record));
     if (seqNum === null) throw new Error("storage: the live document refused a save");
     if (contentVersion > this.fold.cv) this.fold = { cv: contentVersion, s: through };
+    return { seqNum, record } satisfies StorageLiveEntry;
+  }
+
+  /**
+   * After a save through `through` as `contentVersion`, writes a snap when the epoch has gone
+   * `STORAGE_LIVE_SNAP_EVERY` records past its latest start: on a doc only outsiders type in, no
+   * tab writes one. Null when none is due, or the state is too large for one record.
+   */
+  async snapIfDue(contentVersion: number, through: number) {
+    if (this.start < 0 || through - this.start < STORAGE_LIVE_SNAP_EVERY) return null;
+    const u = toBase64(Y.encodeStateAsUpdate(this.doc));
+    if (u.length > SNAP_MAX_CHARS) return null;
+    const record: StorageLiveRecord = {
+      t: "snap",
+      e: this.epoch,
+      s: through,
+      cv: contentVersion,
+      f: through,
+      u,
+    };
+    const seqNum = await this.basin.append(docStream(this.nodeId), JSON.stringify(record));
+    if (seqNum === null) return null;
+    this.start = seqNum;
     return { seqNum, record } satisfies StorageLiveEntry;
   }
 

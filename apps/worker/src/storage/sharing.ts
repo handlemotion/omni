@@ -1,3 +1,4 @@
+import { createMiddleware } from "hono/factory";
 import { hashLinkPassword } from "@omni/crypto";
 import {
   storageEmailSchema,
@@ -100,6 +101,7 @@ async function linkSettings(body: {
   expiresAt?: string | null;
   password?: string | null;
   downloads?: boolean;
+  role?: StorageLinkSettings["role"];
 }) {
   const settings: StorageLinkSettings = {};
   if (body.expiresAt !== undefined) {
@@ -109,10 +111,25 @@ async function linkSettings(body: {
     settings.passwordHash = body.password === null ? null : await hashLinkPassword(body.password);
   }
   if (body.downloads !== undefined) settings.downloads = body.downloads;
+  if (body.role !== undefined) settings.role = body.role;
   return settings;
 }
 
+const recheckOutside = createMiddleware<AppEnv>(async (c, next) => {
+  await next();
+  if (c.req.method === "GET" || !c.res.ok) return;
+  const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(c.var.member.orgId));
+  c.executionCtx.waitUntil(
+    stub
+      .recheckOutsiders("all")
+      .catch((error: unknown) => c.var.log.warn("storage.outside_recheck_failed", { error })),
+  );
+});
+
 export const storageSharing = new Hono<AppEnv>()
+  .use("/nodes/:id/sharing/*", recheckOutside)
+  .use("/uploads/:id/sharing/*", recheckOutside)
+  .use("/policy", recheckOutside)
   .get("/nodes/:id/sharing", async (c) => {
     const found = await memberStorage(c).sharing(c.req.param("id"));
     if (found.status !== "ok") return refused(c, found.status);

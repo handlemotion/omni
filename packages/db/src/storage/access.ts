@@ -343,6 +343,13 @@ export const grantDoor: (
   };
 };
 
+/**
+ * The member a person with a grant writes as in `orgId` (their own member row there, or in their
+ * Personal space), as their saves through the grant door are recorded.
+ */
+export const granteeActor = (ex: Db, userId: string, orgId: string) =>
+  grantDoor(userId).actor(ex, orgId);
+
 /** A workspace's sharing policy; a workspace that never set one allows everything. */
 export interface StoragePolicy {
   /** Links open to anyone may be made and opened. */

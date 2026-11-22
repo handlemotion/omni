@@ -223,15 +223,16 @@ test("only a socket editing the file appends to its live document, and the other
 
   const update = { t: "update", e: 0, u: "AQ==" };
   boSocket.append(doc.id, 2, update);
+  const stamped = { ...update, by: `m:${bo.id}` };
   expect(await anaSocket.waitFor((e) => e.type === "doc.record" && e.seqNum === 1)).toEqual({
     type: "doc.record",
     nodeId: doc.id,
     seqNum: 1,
-    record: update,
+    record: stamped,
   });
   expect((await stack.api(cy.jar, "GET", `/files/${doc.id}/live?from=1`)).body).toEqual({
     enabled: true,
-    entries: [{ seqNum: 1, record: update }],
+    entries: [{ seqNum: 1, record: stamped }],
     more: false,
   });
   expect(ofDoc(cySocket.received)).toEqual([]);

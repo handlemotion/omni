@@ -5,6 +5,7 @@ import { crmDaily, crmMinute } from "./crm/jobs.ts";
 import { mailMinute } from "./mail/jobs.ts";
 import { notePaymentMethod } from "./storage/billing.ts";
 import { abortExpiredStorageUploads, storageDaily } from "./storage/jobs.ts";
+import { foldLive, type FoldAuthor, type FoldOutcome } from "./storage/live-fold.ts";
 import { sealSignatures } from "./storage/seal.ts";
 import { indexStorageTexts } from "./storage/texts.ts";
 import { cleanupExpiredUploads } from "./uploads.ts";
@@ -16,6 +17,20 @@ export interface Module extends ModuleLifecycle {
   daily?: (env: Env) => Promise<unknown>;
   /** After the Stripe webhook applied `event`. Safe to run twice for one event. */
   stripeEvent?: (db: Db, billing: BillingConfig, event: Stripe.Event) => Promise<unknown>;
+  /**
+   * Saves a doc's live document that people outside the workspace typed in, for the realtime
+   * object's alarm (`docs/spec/live-sharing.md`). Idempotent: nothing unsaved, nothing written.
+   */
+  foldLive?: (
+    env: Env,
+    input: {
+      orgId: string;
+      nodeId: string;
+      authors: FoldAuthor[];
+      member: { memberId: string; lastSeq: number } | null;
+      unrecorded?: { cv: number; through: number } | undefined;
+    },
+  ) => Promise<FoldOutcome>;
 }
 
 const mail: Module = {
@@ -30,6 +45,7 @@ const storage: Module = {
     Promise.all([abortExpiredStorageUploads(env), sealSignatures(env), indexStorageTexts(env)]),
   daily: storageDaily,
   stripeEvent: notePaymentMethod,
+  foldLive,
   memberRemoved: (db, { memberId, byMemberId }) =>
     handOverMemberStorage(db, { memberId, toMemberId: byMemberId }),
   workspaceDeleted: (db, { orgId }) => deleteWorkspaceStorage(db, orgId),

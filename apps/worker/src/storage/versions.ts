@@ -21,6 +21,8 @@ const wireContent = (content: StorageContent) => ({
   writtenAt: content.writtenAt.toISOString(),
   writtenByName: content.writtenByName,
   writtenByAgent: content.writtenByAgent,
+  writtenByGuest: content.writtenByGuest,
+  coauthors: content.coauthors,
 });
 
 export const storageVersions = new Hono<AppEnv>()

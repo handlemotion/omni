@@ -457,6 +457,8 @@ which Cloudflare sets and clients cannot.
 | `RATE_LIMIT_STORAGE_SHARE_NEW`     | `10/86400` | Per person, on top of the above, while their account is under 7 days old or the workspace is free (a Personal space, or no paid plan).                                        |
 | `RATE_LIMIT_STORAGE_LINK`          | `300/60`   | Per signed-in person, or per IP for a visitor who is not: requests to Storage's link door (`/api/storage/shared/*`).                                                          |
 | `RATE_LIMIT_STORAGE_LINK_PASSWORD` | `10/900`   | Per link and visitor: tries at a link password (`POST /api/storage/shared/:shareId/unlock`).                                                                                  |
+| `RATE_LIMIT_STORAGE_LINK_LIVE`     | `30/60`    | Per signed-in person, or per IP: live-document sockets opened through a link (`GET /api/storage/shared/:shareId/realtime`).                                                   |
+| `RATE_LIMIT_STORAGE_LINK_COMMENT`  | `30/600`   | Per guest: comments written through a link with no sign-in.                                                                                                                   |
 | `RATE_LIMIT_STORAGE_SYNC`          | `600/60`   | Per person and desktop app: requests to the desktop sync API (`/api/storage/sync/*`).                                                                                         |
 
 #### Billing (optional)

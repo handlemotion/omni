@@ -8,7 +8,17 @@ type StorageDocRefusal = Extract<StorageDocEvent, { type: "doc.refused" }>["reas
 import { z } from "zod";
 import { loadConfig } from "./env.ts";
 import { createLogger } from "./log.ts";
-import { audience, checkEditing, editingOf, leaveFile, setEditing } from "./realtime-files.ts";
+import {
+  audience,
+  checkEditing,
+  editingOf,
+  insiders,
+  leaveFile,
+  setEditing,
+} from "./realtime-files.ts";
+import { noteMemberTyped, settleOwed } from "./realtime-folds.ts";
+import { sendToOutsiders } from "./realtime-outside.ts";
+import { relayPresence, sendPresence } from "./realtime-presence.ts";
 import { s2Basin } from "./s2.ts";
 
 /** What an app sends: one record for the file's stream (`@omni/contracts`, `storageDocEventSchema`). */
@@ -33,27 +43,21 @@ export type DocPresenceMessage = z.infer<typeof docPresenceMessage>;
 export const MAX_PRESENCE_MESSAGE = STORAGE_DOC_PRESENCE_MAX + 256;
 
 /**
- * Passes a cursor on to the others editing the same file, as it is, and keeps nothing. Only from a
+ * Passes a member's cursor on to the others editing the same file, and keeps nothing. Only from a
  * socket that is editing that file, whose access `doc.append` and `file.presence` keep checked.
+ * Members hear it as it was sent; the doc's outsiders, if any, hear the member's name and colour
+ * alone (`realtime-presence.ts`).
  */
 export function onDocPresence(
   ctx: DurableObjectState,
   socket: WebSocket,
+  memberId: string,
   message: DocPresenceMessage,
 ) {
   const at = editingOf(socket);
   if (at?.nodeId !== message.nodeId || at.locked) return;
-  const event = JSON.stringify({
-    type: "doc.presence",
-    nodeId: message.nodeId,
-    u: message.u,
-  } satisfies StorageDocEvent);
-  for (const other of audience(ctx, at)) {
-    if (other === socket || editingOf(other)?.nodeId !== message.nodeId) continue;
-    try {
-      other.send(event);
-    } catch {}
-  }
+  const relayed = relayPresence(ctx, socket, { nodeId: message.nodeId, u: message.u, memberId });
+  if (relayed) sendPresence(ctx, socket, message.nodeId, relayed);
 }
 
 /** The stream of a file's live document. */
@@ -95,43 +99,56 @@ export async function onDocAppend(
     at = now;
   }
   if (at.locked) return refuse("locked");
+  const sent = message.record;
+  const record =
+    sent.t === "update"
+      ? { t: "update" as const, e: sent.e, u: sent.u, by: `m:${memberId}` }
+      : sent;
   let seqNum: number | null;
   try {
-    seqNum = await basin.append(
-      docStream(nodeId),
-      JSON.stringify(message.record),
-      message.matchSeqNum,
-    );
+    seqNum = await basin.append(docStream(nodeId), JSON.stringify(record), message.matchSeqNum);
   } catch (error) {
     createLogger({ component: "realtime" }).error("doc.append_failed", { error, nodeId });
     return refuse("unavailable");
   }
   if (seqNum === null) return refuse("tail");
   send(socket, { type: "doc.appended", nodeId, ref, seqNum });
-  const record = JSON.stringify({
-    type: "doc.record",
-    nodeId,
-    seqNum,
-    record: message.record,
-  } satisfies StorageDocEvent);
+  const event = { type: "doc.record", nodeId, seqNum, record } satisfies StorageDocEvent;
+  const forMembers = JSON.stringify(event);
   for (const other of audience(ctx, at)) {
     if (other === socket || editingOf(other)?.nodeId !== nodeId) continue;
     try {
-      other.send(record);
+      other.send(forMembers);
     } catch {}
+  }
+  sendToOutsiders(ctx, nodeId, [event]);
+  if (record.t === "update") await noteMemberTyped(ctx, { nodeId, memberId, seqNum });
+  if (record.t === "fold") {
+    await settleOwed(ctx, env, { nodeId, contentVersion: record.cv, s: record.s });
   }
 }
 
 /**
  * Passes records the Worker appended itself (a change made through an agent, and its save) to
- * every socket editing the file, the way `onDocAppend` passes on an app's.
+ * every socket editing the file, the way `onDocAppend` passes on an app's: the members' and the
+ * doc's outsiders'.
  */
 export function passOnRecords(ctx: DurableObjectState, nodeId: string, events: StorageDocEvent[]) {
-  const sockets = ctx.getWebSockets().filter((socket) => {
+  const sockets = insiders(ctx).filter((socket) => {
     const at = editingOf(socket);
     return at?.nodeId === nodeId && !at.locked;
   });
   for (const event of events) {
     for (const socket of sockets) send(socket, event);
   }
+  sendToOutsiders(ctx, nodeId, events);
+}
+
+/** Tells everyone on the doc, members and outsiders, that its comments changed. */
+export function passOnComments(ctx: DurableObjectState, nodeId: string) {
+  const event = { type: "doc.comments", nodeId } satisfies StorageDocEvent;
+  for (const socket of insiders(ctx)) {
+    if (editingOf(socket)?.nodeId === nodeId) send(socket, event);
+  }
+  sendToOutsiders(ctx, nodeId, [event]);
 }

@@ -24,6 +24,7 @@ import { crm } from "./crm/routes.ts";
 import { answerThrown, apiError } from "./errors.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER, WATCH_HEADER } from "./realtime.ts";
+import { OUTSIDE_HEADER } from "./realtime-outside.ts";
 import { account } from "./routes/account.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
@@ -122,6 +123,7 @@ const api = new Hono<AppEnv>()
     if (!member) return apiError(c, "not_found", "not a member of that organization");
     const { id, orgId } = member;
     const headers = new Headers(c.req.raw.headers);
+    headers.delete(OUTSIDE_HEADER);
     headers.set(MEMBER_HEADER, id);
     if (c.req.query("watch") === "1") headers.set(WATCH_HEADER, "1");
     else headers.delete(WATCH_HEADER);

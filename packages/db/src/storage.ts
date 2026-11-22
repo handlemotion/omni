@@ -53,6 +53,7 @@ export {
 export type { ArchiveResult, StorageArchiveEntry } from "./storage/archive.ts";
 export {
   linkState,
+  granteeActor,
   storagePolicyOf,
   type LinkState,
   type LinkVisitor,
@@ -98,6 +99,7 @@ export {
   STORAGE_SUPERSEDED_MS,
   addCoauthors,
   foldContent,
+  foldTargetOf,
   mergeCoauthors,
   type FoldContentResult,
   type StorageWriter,
@@ -367,4 +369,12 @@ export interface SharedAccess {
   via: "member" | "grant" | "link";
   /** False when the link alone opened it and the link is view only: no bytes leave. */
   downloads: boolean;
+  /** Where its comments are read and written: the writer's door, or the link's for its guest. */
+  comments: CommentDoor | null;
 }
+
+/** A door's comment operations. */
+export type CommentDoor = Pick<
+  PublicStorage,
+  "comments" | "addComment" | "editComment" | "deleteComment" | "resolveComment"
+>;
