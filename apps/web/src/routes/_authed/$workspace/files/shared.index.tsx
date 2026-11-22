@@ -12,5 +12,7 @@ export const Route = createFileRoute("/_authed/$workspace/files/shared/")({
   },
   loader: ({ context }) =>
     void context.queryClient.prefetchInfiniteQuery(storageListQuery({ space: "shared" })),
-  component: () => <FileList space="shared" />,
+  component: () => <FileList drive={SHARED} />,
 });
+
+const SHARED = { space: "shared" } as const;

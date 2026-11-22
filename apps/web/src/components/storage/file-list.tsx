@@ -1,5 +1,5 @@
 import { useParams, useSearch } from "@tanstack/react-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   IconClock3,
   IconComment,
@@ -11,6 +11,7 @@ import {
   IconMarkdown,
   IconNewDoc,
   IconPencil,
+  IconSettings,
   IconSparkle,
   IconTrash,
   IconUserAdd,
@@ -19,7 +20,15 @@ import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row
 import { useMember } from "@/hooks/use-session.ts";
 import { canConvertToDoc, useConvertToDoc } from "@/hooks/use-convert-doc.ts";
 import { useExportDoc } from "@/hooks/use-export-doc.ts";
-import { useStorageList, useTrashNode } from "@/hooks/use-storage.ts";
+import {
+  useStorageList,
+  useTeamspaceName,
+  useTeamspaces,
+  useTrashNode,
+} from "@/hooks/use-storage.ts";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { TeamspaceSettingsDialog } from "./teamspace-dialogs.tsx";
 import {
   driveOf,
   type DriveRoot,
@@ -42,6 +51,7 @@ const EMPTY = {
   personal: { title: "No files yet", description: "Files you add here are yours alone." },
   shared: { title: "No files yet", description: "Everyone in the workspace sees files here." },
   folder: { title: "This folder is empty", description: "Drop files here or upload them." },
+  teamspace: { title: "No files yet" },
 } as const;
 
 /** A link inside Storage, keeping the mailbox the switcher shows for the way back to mail. */
@@ -68,26 +78,28 @@ export function useOptionalStorageHref() {
   );
 }
 
-export function FileList({ space, folderId }: { space: StorageSpace; folderId?: string }) {
-  const place: StoragePlace = folderId ? { parentId: folderId } : { space };
+export function FileList({ drive, folderId }: { drive: DriveRoot; folderId?: string }) {
+  const place: StoragePlace = folderId ? { parentId: folderId } : drive;
   const list = useStorageList(place);
   const href = useStorageHref();
   const canTrash = useCanTrash();
   const menu = useRowMenu(canTrash);
   const path = list.folder?.path ?? [];
   const folderHref = useMemo(() => (node: StorageNode) => href(driveOf(node), node.id), [href]);
+  const label = useDriveLabel(drive);
   return (
     <FolderView
       title={(leaf) => (
         <FolderCrumbs
-          top={{ name: SPACE_LABEL[space], href: href(space) }}
+          top={{ name: label, href: href(drive) }}
           path={path}
-          href={(id) => href(space, id)}
+          href={(id) => href(drive, id)}
           leaf={leaf}
         />
       )}
+      actions={"teamspaceId" in drive ? <TeamspaceButton id={drive.teamspaceId} /> : undefined}
       source={{
-        label: path.at(-1)?.name ?? SPACE_LABEL[space],
+        label: path.at(-1)?.name ?? label,
         place,
         canWrite: true,
         list,
@@ -96,10 +108,39 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
         download,
         menu,
         canTrash,
-        move: { kind: "member", space, path },
-        empty: folderId ? EMPTY.folder : EMPTY[space],
+        move: { kind: "member", drive, path },
+        empty: folderId ? EMPTY.folder : "space" in drive ? EMPTY[drive.space] : EMPTY.teamspace,
       }}
     />
+  );
+}
+
+/** A drive's name: My files or Shared, or the teamspace's. */
+export function useDriveLabel(drive: DriveRoot) {
+  const teamspace = useTeamspaceName("teamspaceId" in drive ? drive.teamspaceId : undefined);
+  return "space" in drive ? SPACE_LABEL[drive.space] : (teamspace ?? "");
+}
+
+function TeamspaceButton(props: { id: string }) {
+  const { teamspaces } = useTeamspaces();
+  const teamspace = teamspaces.find((each) => each.id === props.id);
+  const [open, setOpen] = useState(false);
+  if (!teamspace) return null;
+  return (
+    <>
+      <TooltipTrigger delay={400}>
+        <Button
+          intent="plain"
+          size="sq-sm"
+          aria-label="Space settings"
+          onPress={() => setOpen(true)}
+        >
+          <IconSettings />
+        </Button>
+        <Tooltip>Space settings</Tooltip>
+      </TooltipTrigger>
+      {open && <TeamspaceSettingsDialog teamspace={teamspace} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -128,10 +169,18 @@ const docExports = (node: StorageNode, exportAs: ExportDoc) =>
 export function useCanTrash() {
   const { member } = useMember();
   const manager = /\b(owner|admin)\b/.test(member.role);
+  const { teamspaces } = useTeamspaces();
+  const owned = useMemo(
+    () => new Set(teamspaces.filter((t) => t.role === "owner").map((t) => t.id)),
+    [teamspaces],
+  );
   return useCallback(
     (node: StorageNode) =>
-      node.space === "personal" || manager || node.createdByMemberId === member.id,
-    [manager, member.id],
+      node.space === "personal" ||
+      manager ||
+      node.createdByMemberId === member.id ||
+      (!!node.teamspaceId && owned.has(node.teamspaceId)),
+    [manager, member.id, owned],
   );
 }
 

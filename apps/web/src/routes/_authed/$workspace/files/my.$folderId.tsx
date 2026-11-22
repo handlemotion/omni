@@ -12,5 +12,7 @@ export const Route = createFileRoute("/_authed/$workspace/files/my/$folderId")({
 
 function Folder() {
   const { folderId } = Route.useParams();
-  return <FileList key={folderId} space="personal" folderId={folderId} />;
+  return <FileList key={folderId} drive={PERSONAL} folderId={folderId} />;
 }
+
+const PERSONAL = { space: "personal" } as const;

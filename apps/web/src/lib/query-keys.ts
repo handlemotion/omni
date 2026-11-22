@@ -147,6 +147,8 @@ export const keys = {
   /** A request the signed-in person was asked to sign. */
   signing: (requestId: string) => [...storage(), "signing", requestId] as const,
   storageSharedWithMe: () => [...storage(), "shared-with-me"] as const,
+  /** The files changed most recently in the member's drives. */
+  storageRecent: () => [...storage(), "recent"] as const,
   /** What a link opens: the shared node, or a folder inside it. */
   storageLink: (shareId: string, nodeId: string | undefined) =>
     [...storage(), "link", shareId, nodeId ?? null] as const,

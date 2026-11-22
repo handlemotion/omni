@@ -18,6 +18,9 @@ const BY_CODE: Partial<Record<ErrorCode, string>> = {
   rate_limited: "Too many at once. Try again in a minute",
   sharing_policy: "Your workspace's sharing policy doesn't allow that",
   wrong_password: "That password isn't right",
+  not_empty: "Move its files out or to Trash first",
+  last_owner: "A space needs an owner",
+  not_in_workspace: "Only members of the workspace can be added",
 };
 
 const FINAL = new Set<string>([

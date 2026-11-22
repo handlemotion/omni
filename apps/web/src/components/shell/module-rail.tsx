@@ -24,7 +24,7 @@ const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
 
 const PATHS: Record<ModuleId, string> = {
   mail: "mail/inbox",
-  files: "files/my",
+  files: "files",
   crm: "crm/companies",
 };
 

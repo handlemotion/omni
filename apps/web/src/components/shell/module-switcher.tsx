@@ -40,7 +40,7 @@ interface Module {
   id: ModuleId;
   label: string;
   icon: ComponentType<{ className?: string }>;
-  home: "/$workspace/mail/inbox" | "/$workspace/files/my" | "/$workspace/crm/companies";
+  home: "/$workspace/mail/inbox" | "/$workspace/files" | "/$workspace/crm/companies";
   fill: string;
 }
 
@@ -55,7 +55,7 @@ const DRIVE: Module = {
   id: "files",
   label: "Drive",
   icon: IconFolderFilled,
-  home: "/$workspace/files/my",
+  home: "/$workspace/files",
   fill: "bg-module-drive",
 };
 const CRM: Module = {

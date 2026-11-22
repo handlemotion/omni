@@ -11,7 +11,15 @@ folders inside them. A CRM deal gets its own private teamspace whose members are
 people.
 
 "Workspace" stays the company (an organization, `org_id`). "Personal space" stays the Just me
-workspace. The new thing is a teamspace, in code and in the UI.
+workspace. The new thing is a teamspace in code and a **space** in the UI.
+
+## The sidebar
+
+Search, Recents and Trash, then **Spaces**: the spaces the member is in, each opening to its
+folders (folders only; files are in the page), then New space, and Browse spaces when there are
+open ones they are not in. My files and Shared show there only while they hold something. Recents
+lists the files changed most recently in the member's spaces and drives, with what was shared
+with them by address beside them, so Shared with me and the sidebar's Upload row go.
 
 ## Rules
 

@@ -16,14 +16,20 @@ import { GridList, GridListItem } from "@/components/ui/grid-list";
 import {
   useChangeNode,
   useDeleteForever,
-  useHasSharedFiles,
+  useDrives,
   useStorageLink,
   useStorageList,
 } from "@/hooks/use-storage.ts";
-import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
+import type { DriveEntry } from "@/hooks/use-storage.ts";
+import {
+  driveKey,
+  driveOf,
+  type DriveRoot,
+  type StorageNode,
+  type StoragePlace,
+} from "@/lib/storage.ts";
 import { eachAtMost } from "@/lib/each-at-most.ts";
 import { storageErrorToast } from "./storage-errors.ts";
-import { SPACE_LABEL } from "./storage-nav.tsx";
 
 /** Asks before deleting from Trash for good; the button says what happens. */
 export function DeleteForeverDialog(props: { node: StorageNode; onClose: () => void }) {
@@ -65,7 +71,7 @@ export function DeleteForeverDialog(props: { node: StorageNode; onClose: () => v
  * alone, from its top.
  */
 export type MoveScope =
-  | { kind: "member"; space: StorageSpace; path: { id: string; name: string }[] }
+  | { kind: "member"; drive: DriveRoot; path: { id: string; name: string }[] }
   | {
       kind: "link";
       shareId: string;
@@ -73,17 +79,15 @@ export type MoveScope =
       path: { id: string; name: string }[];
     };
 
-type Browse = { space: StorageSpace | null; path: { id: string; name: string }[] } | null;
-
-const SPACES = ["personal", "shared"] as const;
+type Browse = { drive: DriveRoot | null; path: { id: string; name: string }[] } | null;
 
 type Crumb = { id: string; name: string; go: () => void };
 
 function useMoveBrowser(scope: MoveScope, moving: StorageNode[]) {
   const link = scope.kind === "link" ? scope : null;
-  const hasShared = useHasSharedFiles();
+  const { drives } = useDrives();
   const [at, setAt] = useState<Browse>({
-    space: scope.kind === "member" ? scope.space : null,
+    drive: scope.kind === "member" ? scope.drive : null,
     path: scope.path,
   });
   const folder = at?.path.at(-1) ?? link?.top;
@@ -97,10 +101,12 @@ function useMoveBrowser(scope: MoveScope, moving: StorageNode[]) {
   const here =
     !!at &&
     moving.every(
-      (node) => (folder?.id ?? null) === node.parentId && (!!link || at.space === node.space),
+      (node) =>
+        (folder?.id ?? null) === node.parentId &&
+        (!!link || (!!at.drive && driveKey(at.drive) === driveKey(driveOf(node)))),
     );
-  const crumbs = crumbsFor({ link, at, setAt, hasShared });
-  const { rows, enter } = rowsAt(at, folders, setAt);
+  const crumbs = crumbsFor({ link, at, setAt, drives });
+  const { rows, enter } = rowsAt(at, folders, setAt, drives);
   const listing = link ? shared : member;
   const loadMore = at && listing.hasNextPage ? () => void listing.fetchNextPage() : undefined;
   return {
@@ -119,24 +125,25 @@ const crumbsFor: (props: {
   link: Extract<MoveScope, { kind: "link" }> | null;
   at: Browse;
   setAt: (at: Browse) => void;
-  hasShared: boolean;
+  drives: DriveEntry[];
 }) => Crumb[] = (props) => {
   const { link, at, setAt } = props;
-  const trail = (path: { id: string; name: string }[], space: StorageSpace | null) =>
-    path.map((entry, i) => ({ ...entry, go: () => setAt({ space, path: path.slice(0, i + 1) }) }));
+  const trail = (path: { id: string; name: string }[], drive: DriveRoot | null) =>
+    path.map((entry, i) => ({ ...entry, go: () => setAt({ drive, path: path.slice(0, i + 1) }) }));
   if (link) {
     return [
-      { ...link.top, go: () => setAt({ space: null, path: [] }) },
+      { ...link.top, go: () => setAt({ drive: null, path: [] }) },
       ...trail(at?.path ?? [], null),
     ];
   }
-  const top = props.hasShared ? [{ id: "top", name: "Drive", go: () => setAt(null) }] : [];
-  if (!at?.space) return top;
-  const space = at.space;
+  const top = props.drives.length > 1 ? [{ id: "top", name: "Drive", go: () => setAt(null) }] : [];
+  if (!at?.drive) return top;
+  const drive = at.drive;
+  const label = props.drives.find((each) => driveKey(each.drive) === driveKey(drive))?.label ?? "";
   return [
     ...top,
-    { id: space, name: SPACE_LABEL[space], go: () => setAt({ space, path: [] }) },
-    ...trail(at.path, space),
+    { id: driveKey(drive), name: label, go: () => setAt({ drive, path: [] }) },
+    ...trail(at.path, drive),
   ];
 };
 
@@ -152,11 +159,19 @@ const linkArgs: (
   ];
 };
 
-function rowsAt(at: Browse, folders: StorageNode[], setAt: (at: Browse) => void) {
+function rowsAt(
+  at: Browse,
+  folders: StorageNode[],
+  setAt: (at: Browse) => void,
+  drives: DriveEntry[],
+) {
   if (!at) {
     return {
-      rows: SPACES.map((space) => ({ id: space as string, name: SPACE_LABEL[space] })),
-      enter: (key: string) => setAt({ space: key as StorageSpace, path: [] }),
+      rows: drives.map(({ drive, label }) => ({ id: driveKey(drive), name: label })),
+      enter: (key: string) => {
+        const found = drives.find((each) => driveKey(each.drive) === key);
+        if (found) setAt({ drive: found.drive, path: [] });
+      },
     };
   }
   return {
@@ -174,7 +189,7 @@ const placeAt: (at: Browse, folder: { id: string } | undefined) => StoragePlace 
 ) => {
   if (!at) return null;
   if (folder) return { parentId: folder.id };
-  return { space: at.space ?? "personal" };
+  return at.drive ?? { space: "personal" };
 };
 
 /** Picks the folder to move `nodes` into, one level at a time, then Move here. */

@@ -4,7 +4,6 @@ import type { Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { FileTile } from "@/components/storage/file-glyph";
-import { SPACE_LABEL } from "@/components/storage/storage-nav.tsx";
 import { Breadcrumbs, BreadcrumbsItem } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +17,7 @@ import {
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
-import { useHasSharedFiles, useStorageList, useTeamspaces } from "@/hooks/use-storage.ts";
+import { useDrives, useStorageList } from "@/hooks/use-storage.ts";
 import { linkFilesMutation, type FileRecordKind } from "@/lib/crm-files.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { driveKey, driveOf, type DriveRoot, type StorageNode } from "@/lib/storage.ts";
@@ -27,20 +26,8 @@ import { crmErrorToast } from "./crm-errors.ts";
 
 type At = { drive: DriveRoot; path: { id: string; name: string }[] } | null;
 
-function useDrives() {
-  const hasShared = useHasSharedFiles();
-  const { teamspaces } = useTeamspaces();
-  const legacy = (hasShared ? (["shared", "personal"] as const) : (["personal"] as const)).map(
-    (space) => ({ drive: { space } as DriveRoot, label: SPACE_LABEL[space] }),
-  );
-  return [
-    ...teamspaces.map((t) => ({ drive: { teamspaceId: t.id } as DriveRoot, label: t.name })),
-    ...legacy,
-  ];
-}
-
 function useBrowse(q: string) {
-  const drives = useDrives();
+  const { drives } = useDrives();
   const single = drives.length === 1 ? drives[0]!.drive : null;
   const [at, setAt] = useState<At>(single ? { drive: single, path: [] } : null);
   const folder = at?.path.at(-1);

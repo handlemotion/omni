@@ -107,7 +107,7 @@ test("the chevrons step to the neighbouring module, the pages glide along, and s
   expect(await page.getByRole("button", { name: "No previous module" }).isDisabled()).toBe(true);
 
   await page.getByRole("button", { name: "Go to Drive" }).click();
-  await page.waitForURL((url) => place(url) === "/files/my");
+  await page.waitForURL((url) => place(url) === "/files");
   await shows(page, "files");
   await expect.poll(() => pageAt(page)).toBe(1);
 
@@ -118,7 +118,7 @@ test("the chevrons step to the neighbouring module, the pages glide along, and s
   expect(await page.getByRole("button", { name: "No next module" }).isDisabled()).toBe(true);
 
   await page.getByRole("button", { name: "Go to Drive" }).click();
-  await page.waitForURL((url) => place(url) === "/files/my");
+  await page.waitForURL((url) => place(url) === "/files");
   await expect.poll(() => pageAt(page)).toBe(1);
 });
 
@@ -130,7 +130,7 @@ test("a sideways swipe moves the pages under the fingers and opens the page it l
     [width * 0.2, 0],
     [width * 0.2, 0],
   ]);
-  await page.waitForURL((url) => place(url) === "/files/my");
+  await page.waitForURL((url) => place(url) === "/files");
   await shows(page, "files");
   await expect.poll(() => pageAt(page)).toBe(1);
   const positions = await page.evaluate(
@@ -143,7 +143,7 @@ test("a sideways swipe moves the pages under the fingers and opens the page it l
   await expect.poll(() => pageAt(page)).toBe(2);
 
   await swipe(page, [[-width * 0.7, 0]]);
-  await page.waitForURL((url) => place(url) === "/files/my");
+  await page.waitForURL((url) => place(url) === "/files");
   await expect.poll(() => pageAt(page)).toBe(1);
 });
 

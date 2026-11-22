@@ -7,5 +7,7 @@ export const Route = createFileRoute("/_authed/$workspace/files/my/")({
   validateSearch: filesSearch,
   loader: ({ context }) =>
     void context.queryClient.prefetchInfiniteQuery(storageListQuery({ space: "personal" })),
-  component: () => <FileList space="personal" />,
+  component: () => <FileList drive={PERSONAL} />,
 });
+
+const PERSONAL = { space: "personal" } as const;

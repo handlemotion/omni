@@ -18,6 +18,14 @@ export const storageSearchQuery = (q: string, filter?: StorageSearchFilter) =>
     enabled: q.trim().length > 0,
   });
 
+/** The files changed most recently in the member's spaces and drives, newest first. */
+export const storageRecentQuery = () =>
+  queryOptions({
+    queryKey: keys.storageRecent(),
+    queryFn: ({ signal }) => call(api.storage.recent.$get(undefined, { init: { signal } })),
+    select: (data) => data.nodes,
+  });
+
 /** A drive's cluster glyphs, by top-level folder id. */
 export const storageFolderIconsQuery = (drive: DriveRoot) =>
   queryOptions({

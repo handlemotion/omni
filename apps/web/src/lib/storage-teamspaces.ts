@@ -57,6 +57,14 @@ export const updateTeamspaceMutation = (client: QueryClient) =>
     onSuccess: () => refreshTeamspaces(client),
   });
 
+/** `mutate(id)`: the member joins an open teamspace. */
+export const joinTeamspaceMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: (id: string) => call(api.storage.teamspaces[":id"].join.$post({ param: { id } })),
+    onSuccess: () => refreshTeamspaces(client),
+  });
+
 /** `mutate(id)`: deletes a teamspace that holds nothing outside Trash. */
 export const deleteTeamspaceMutation = (client: QueryClient) =>
   mutationOptions({

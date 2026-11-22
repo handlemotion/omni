@@ -14,7 +14,16 @@ import {
   type DriveRoot,
 } from "../lib/storage.ts";
 import { keys } from "../lib/query-keys.ts";
-import { storageTeamspacesQuery } from "../lib/storage-teamspaces.ts";
+import {
+  createTeamspaceMutation,
+  deleteTeamspaceMutation,
+  joinTeamspaceMutation,
+  putTeamspaceMemberMutation,
+  storageTeamspaceMembersQuery,
+  storageTeamspacesQuery,
+  updateTeamspaceMutation,
+  type StorageTeamspace,
+} from "../lib/storage-teamspaces.ts";
 import {
   linkUploading,
   putPersonMutation,
@@ -281,8 +290,63 @@ export function useTeamspaces() {
   return { teamspaces: query.data ?? [], isPending: query.isPending };
 }
 
+/** A drive the member can browse, with its name. */
+export interface DriveEntry {
+  drive: DriveRoot;
+  label: string;
+  teamspace?: StorageTeamspace | undefined;
+}
+
+const LEGACY_LABEL = { personal: "Personal", shared: "Team" } as const;
+
+/** The drives the member can browse: their teamspaces, then Shared in a company, then My files. */
+export function useDrives() {
+  const hasShared = useHasSharedFiles();
+  const { teamspaces, isPending } = useTeamspaces();
+  const legacy = hasShared ? (["shared", "personal"] as const) : (["personal"] as const);
+  const drives: DriveEntry[] = [
+    ...teamspaces.map((teamspace) => ({
+      drive: { teamspaceId: teamspace.id },
+      label: teamspace.name,
+      teamspace,
+    })),
+    ...legacy.map((space) => ({ drive: { space }, label: LEGACY_LABEL[space] })),
+  ];
+  return { drives, isPending };
+}
+
 /** A teamspace's name, once the list has it. */
 export function useTeamspaceName(teamspaceId: string | undefined) {
   const { teamspaces } = useTeamspaces();
   return teamspaces.find((teamspace) => teamspace.id === teamspaceId)?.name;
+}
+
+/** `mutate({ name, private, memberIds })`. */
+export function useCreateTeamspace() {
+  return useMutation(createTeamspaceMutation(useQueryClient()));
+}
+
+/** `mutate({ id, name?, private? })`. */
+export function useUpdateTeamspace() {
+  return useMutation(updateTeamspaceMutation(useQueryClient()));
+}
+
+/** `mutate(id)`: joins an open teamspace. */
+export function useJoinTeamspace() {
+  return useMutation(joinTeamspaceMutation(useQueryClient()));
+}
+
+/** `mutate(id)`. */
+export function useDeleteTeamspace() {
+  return useMutation(deleteTeamspaceMutation(useQueryClient()));
+}
+
+/** `mutate({ id, memberId, role })`; `role: null` takes them out. */
+export function usePutTeamspaceMember() {
+  return useMutation(putTeamspaceMemberMutation(useQueryClient()));
+}
+
+/** Who is in a teamspace, owners first. */
+export function useTeamspaceMembers(teamspaceId: string) {
+  return useQuery(storageTeamspaceMembersQuery(teamspaceId));
 }

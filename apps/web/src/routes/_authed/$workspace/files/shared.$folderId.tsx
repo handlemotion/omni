@@ -12,5 +12,7 @@ export const Route = createFileRoute("/_authed/$workspace/files/shared/$folderId
 
 function Folder() {
   const { folderId } = Route.useParams();
-  return <FileList key={folderId} space="shared" folderId={folderId} />;
+  return <FileList key={folderId} drive={SHARED} folderId={folderId} />;
 }
+
+const SHARED = { space: "shared" } as const;
