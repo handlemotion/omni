@@ -47,14 +47,11 @@ async function minutesUsed(orgId: string) {
   return rows.reduce((sum, row) => sum + row.amount, 0);
 }
 
-test("meetings need a paid plan; a stopped recording's minutes count once; a used-up month refuses the next", async () => {
+test("meetings need a plan or a trial; a stopped recording's minutes count once; a used-up month refuses the next", async () => {
   const org = await stack.company(`meet-${randomUUID().slice(0, 8)}`);
   const dana = await stack.member(org.id, "owner");
 
-  expect(await start(dana)).toMatchObject({
-    status: 402,
-    body: { code: "PLAN_REQUIRED", details: { feature: "meetings" } },
-  });
+  expect(await start(dana)).toMatchObject({ status: 402, body: { code: "BILLING_INACTIVE" } });
 
   const periodStart = new Date(Date.now() - 86_400_000);
   await stack.db.insert(schema.subscriptions).values({

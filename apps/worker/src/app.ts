@@ -7,6 +7,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { routePath } from "hono/route";
+import { requireWritableWorkspace } from "./billing.ts";
 import {
   findMember,
   personalSpaceForOldClients,
@@ -106,6 +107,7 @@ const api = new Hono<AppEnv>()
   .use("/me", personalSpaceForOldClients)
   .use(requireMember)
   .use(requireMailboxMember)
+  .use(requireWritableWorkspace)
   .get("/me", async (c) =>
     c.json({ ...c.var.member, setup: await orgSetupStep(c.var.db, c.var.member.orgId) }),
   )

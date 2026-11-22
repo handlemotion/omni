@@ -407,7 +407,7 @@ Worker's e2e tests on the real stack, which run it end to end. It gets no unit t
 | File tiles           | 100 on a canvas                                                                                                      |
 | Images               | Drive's upload limit each; drawn from thumbnails                                                                     |
 | Zoom                 | 5% to 800%                                                                                                           |
-| Agents               | 200 operations a call, a `scene` up to 400 KB; the `actions` rate limit                                     |
+| Agents               | 200 operations a call, a `scene` up to 400 KB; the `actions` rate limit; refused in a workspace whose plan is unpaid |
 
 The element and body limits come from the live layer: a live document starts from one record
 holding its whole state (a seed, or a snap), and a record must stay under 1 MiB. A canvas's
@@ -463,7 +463,8 @@ K3 and K4 are independent of each other. K4 waits for Figma; K1 to K3 do not.
     `drive_fetch` returns the outline with ids and boxes.
   - Refs: one call adds two stickies with refs and connects them by ref; the answer maps both.
   - A miss (an id that is not there) changes nothing and answers with the outline.
-  - Limits: the 2,001st element and the 201st operation are refused whole.
+  - Limits: the 2,001st element and the 201st operation are refused whole. (An unpaid workspace
+    is refused by the gate the doc tools share, `ready` in `apps/worker/src/mcp/drive-write.ts`.)
 - `apps/worker/e2e/drive-canvas-live.e2e.test.ts`, on the real realtime socket and S2:
   - A tab moves sticky A and types in sticky B without saving. `drive_fetch` shows both with
     `unsaved_edits: true`.

@@ -1,4 +1,4 @@
-import type { PaidPlanKey } from "@omni/contracts";
+import type { PlanKey } from "@omni/contracts";
 import { z } from "zod";
 
 export const optionalText = z
@@ -7,7 +7,7 @@ export const optionalText = z
   .transform((value) => value || undefined);
 
 /**
- * Billing: a Free plan, then flat plans per workspace (Team, Business), never per member. What
+ * Billing: flat plans per workspace (Team, Business), never per member, after a free trial. What
  * each plan allows is `PLAN_LIMITS` in `@omni/contracts`; amounts live in Stripe as prices, and
  * only their ids are config. All of it is optional: with no `STRIPE_SECRET_KEY` there is no
  * Stripe plugin, no plan and no limit.
@@ -40,6 +40,13 @@ export const billingFields = {
       .optional(),
   ),
   /**
+   * Free trial length in days, once per workspace and once per account, no card needed. Empty: 7.
+   * `0`: no trial.
+   */
+  BILLING_TRIAL_DAYS: optionalText.pipe(
+    z.string().regex(/^\d+$/, "use a whole number").transform(Number).optional(),
+  ),
+  /**
    * Extra storage past a paid plan's: the metered price extra GB are billed at, and the event
    * name of the Stripe meter behind it. Both or none; with none, a plan's storage is a hard cap.
    */
@@ -63,6 +70,7 @@ export function checkBillingEnv(env: BillingEnv, ctx: z.RefinementCtx) {
       "STRIPE_PRICE_BUSINESS_MONTHLY",
       "STRIPE_PRICE_BUSINESS_YEARLY",
       "STRIPE_PUBLISHABLE_KEY",
+      "BILLING_TRIAL_DAYS",
       ...STORAGE_BILLING,
     ] as const;
     for (const name of stray.filter((n) => env[n] !== undefined)) {
@@ -129,7 +137,7 @@ export function billingConfig(env: BillingEnv) {
   ) {
     return undefined;
   }
-  const plans: Partial<Record<PaidPlanKey, PlanPrices>> = {
+  const plans: Partial<Record<PlanKey, PlanPrices>> = {
     team: { monthlyPriceId: env.STRIPE_PRICE_MONTHLY, yearlyPriceId: env.STRIPE_PRICE_YEARLY },
   };
   if (env.STRIPE_PRICE_BUSINESS_MONTHLY) {
@@ -142,6 +150,7 @@ export function billingConfig(env: BillingEnv) {
     secretKey: env.STRIPE_SECRET_KEY,
     webhookSecret: env.STRIPE_WEBHOOK_SECRET,
     publishableKey: env.STRIPE_PUBLISHABLE_KEY,
+    trialDays: env.BILLING_TRIAL_DAYS ?? 7,
     plans,
     storage:
       env.STRIPE_PRICE_STORAGE && env.STRIPE_STORAGE_METER_EVENT
@@ -151,8 +160,8 @@ export function billingConfig(env: BillingEnv) {
 }
 
 /** The paid plan a Stripe price belongs to, and its interval, or null when it is no plan's. */
-export function planOfPrice(plans: Partial<Record<PaidPlanKey, PlanPrices>>, priceId: string) {
-  for (const [plan, prices] of Object.entries(plans) as [PaidPlanKey, PlanPrices][]) {
+export function planOfPrice(plans: Partial<Record<PlanKey, PlanPrices>>, priceId: string) {
+  for (const [plan, prices] of Object.entries(plans) as [PlanKey, PlanPrices][]) {
     if (prices.monthlyPriceId === priceId) return { plan, interval: "month" as const };
     if (prices.yearlyPriceId === priceId) return { plan, interval: "year" as const };
   }
@@ -160,6 +169,6 @@ export function planOfPrice(plans: Partial<Record<PaidPlanKey, PlanPrices>>, pri
 }
 
 /** Every price id a plan is sold at. */
-export function planPriceIds(plans: Partial<Record<PaidPlanKey, PlanPrices>>) {
+export function planPriceIds(plans: Partial<Record<PlanKey, PlanPrices>>) {
   return Object.values(plans).flatMap((p) => [p.monthlyPriceId, p.yearlyPriceId ?? []].flat());
 }

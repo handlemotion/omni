@@ -98,6 +98,7 @@ describe.runIf(requested)("Stripe test mode", () => {
         STRIPE_PRICE_YEARLY: prices.yearly,
         STRIPE_PRICE_BUSINESS_MONTHLY: prices.business,
         STRIPE_PRICE_BUSINESS_YEARLY: prices.businessYearly,
+        BILLING_TRIAL_DAYS: String(TRIAL_DAYS),
         STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || "pk_test_omnie2e",
       },
       secrets: { STRIPE_SECRET_KEY: key, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET },
@@ -120,7 +121,7 @@ describe.runIf(requested)("Stripe test mode", () => {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
-  test("a workspace checks out, is subscribed by Stripe's events, opens the portal, and falls to Free when it ends", async () => {
+  test("a workspace starts a trial, is subscribed by Stripe's events, opens the portal, then moves up at once, down with a credit, and never up on a failing card", async () => {
     const { db } = database;
     const org = await createOrg(db, "stripe");
     const email = `owner-${randomUUID().slice(0, 8)}@omni.test`;
@@ -160,9 +161,9 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(created.results.every((r) => r.status === 200)).toBe(true);
     const state = (await (await api("/billing", cookie)).json()) as Record<string, unknown>;
     expect(state).toMatchObject({
-      plan: "team",
       readOnly: false,
       subscription: { status: "trialing", interval: "month" },
+      plan: "team",
       triage: { used: 0, allowance: 20_000 },
     });
 
@@ -182,12 +183,42 @@ describe.runIf(requested)("Stripe test mode", () => {
       /^https:\/\/billing\.stripe\.com\//,
     );
 
+    const card = await stripe.paymentMethods.attach("pm_card_visa", { customer });
+    await stripe.customers.update(customer, {
+      invoice_settings: { default_payment_method: card.id },
+    });
+    await stripe.subscriptions.update(subscription.id, { trial_end: "now" });
+    const item = async () =>
+      (await stripe.subscriptions.retrieve(subscription.id)).items.data[0]!.price.id;
+    const move = async (plan: string) =>
+      (await api("/billing/plan", cookie, { plan, interval: "month" })).json();
+    const planNow = async () =>
+      ((await (await api("/billing", cookie)).json()) as { plan: string }).plan;
+
+    expect(await move("business")).toEqual({ changed: true, pending: false, plan: "business" });
+    expect(await item()).toBe(prices.business);
+    expect(await planNow()).toBe("business");
+    const [charge] = (await stripe.invoices.list({ subscription: subscription.id, limit: 1 })).data;
+    expect(charge).toMatchObject({ billing_reason: "subscription_update", status: "paid" });
+    expect(await move("business")).toEqual({ changed: false, plan: "business" });
+
+    expect(await move("team")).toEqual({ changed: true, pending: false, plan: "team" });
+    expect(await item()).toBe(prices.monthly);
+    expect(await planNow()).toBe("team");
+    const credits = await stripe.invoiceItems.list({ customer, pending: true });
+    expect(credits.data.some((i) => i.amount < 0)).toBe(true);
+
+    const failing = await stripe.paymentMethods.attach("pm_card_chargeCustomerFail", { customer });
+    await stripe.subscriptions.update(subscription.id, { default_payment_method: failing.id });
+    expect(await move("business")).toEqual({ changed: false, pending: true, plan: "business" });
+    expect(await item()).toBe(prices.monthly);
+    expect(await planNow()).toBe("team");
+
     const canceledSince = Math.floor(Date.now() / 1000) - 1;
     await stripe.subscriptions.cancel(subscription.id);
     await forwardEvents(subscription.id, canceledSince, ["customer.subscription.deleted"]);
     expect(await (await api("/billing", cookie)).json()).toMatchObject({
-      plan: "free",
-      readOnly: false,
+      readOnly: true,
       subscription: { status: "canceled" },
     });
   }, 90_000);
@@ -298,81 +329,88 @@ describe.runIf(requested)("Stripe test mode", () => {
     return customer;
   }
 
-  test("checkout sells each plan at its own price; a paying workspace moves up at once, down with a credit, and a failing card never unlocks the bigger plan", async () => {
+  test("setup's plan step: the trial starts with no card and no Stripe page; after it, Checkout charges", async () => {
     const { db } = database;
-    const { org, cookie } = await ownerOf("plans");
-    const offer = (await (await api("/billing", cookie)).json()) as {
-      plan: string;
-      plans: { key: string; prices: { month: { amount: number } | null } }[];
+    const { org, cookie } = await ownerOf("plan-page");
+    const plan = (await (await api("/billing", cookie)).json()) as {
+      trialAvailable: boolean;
+      prices: { month: { amount: number; currency: string } | null };
     };
-    expect(offer.plan).toBe("free");
-    const business = await stripe.prices.retrieve(prices.business);
-    expect(offer.plans.map((p) => p.key)).toEqual(["free", "team", "business"]);
-    expect(offer.plans[2]!.prices.month).toMatchObject({ amount: business.unit_amount });
+    const monthly = await stripe.prices.retrieve(prices.monthly);
+    expect(plan.trialAvailable).toBe(true);
+    expect(plan.prices.month).toEqual({ amount: monthly.unit_amount, currency: monthly.currency });
 
-    const checkout = await api("/billing/checkout", cookie, {
-      plan: "business",
-      interval: "month",
-      returnPath: "/settings/billing",
-    });
-    expect(checkout.status).toBe(200);
-    const customer = await customerOf(org.id);
-    const [session] = (await stripe.checkout.sessions.list({ customer, limit: 1 })).data;
-    expect(session!.amount_total).toBe(business.unit_amount);
-    expect((await api("/billing/plan", cookie, { plan: "team", interval: "month" })).status).toBe(
-      409,
-    );
-
-    const card = await stripe.paymentMethods.attach("pm_card_visa", { customer });
-    await stripe.customers.update(customer, {
-      invoice_settings: { default_payment_method: card.id },
-    });
     const since = Math.floor(Date.now() / 1000) - 5;
-    const subscription = await stripe.subscriptions.create({
-      customer,
-      items: [{ price: prices.monthly }],
-      metadata: { referenceId: org.id },
+    const started = await api("/billing/trial", cookie, { interval: "year" });
+    expect(await started.json()).toEqual({ started: true });
+    const onboarding = async () =>
+      (
+        (await (await api("/onboarding", cookie)).json()) as {
+          organization: { needsPlan: boolean };
+        }
+      ).organization;
+    expect(await onboarding()).toMatchObject({ needsPlan: false });
+    const rows = () =>
+      db.select().from(schema.subscriptions).where(eq(schema.subscriptions.orgId, org.id));
+    const [row] = await rows();
+    expect(row).toMatchObject({ status: "trialing", billingInterval: "year", plan: "team" });
+    const customer = await customerOf(org.id);
+    const inStripe = await stripe.subscriptions.list({ customer, status: "all" });
+    expect(inStripe.data).toHaveLength(1);
+    expect(inStripe.data[0]).toMatchObject({ status: "trialing", default_payment_method: null });
+
+    expect(await (await api("/billing/trial", cookie, { interval: "year" })).json()).toEqual({
+      started: false,
     });
-    await forwardEvents(subscription.id, since, ["customer.subscription.created"]);
-    const state = async () =>
-      (await (await api("/billing", cookie)).json()) as {
-        plan: string;
-        limits: { members: number };
-      };
-    expect(await state()).toMatchObject({ plan: "team", limits: { members: 15 } });
-    const item = async () =>
-      (await stripe.subscriptions.retrieve(subscription.id)).items.data[0]!.price.id;
+    const created = await forwardEvents(inStripe.data[0]!.id, since, [
+      "customer.subscription.created",
+    ]);
+    expect(created.results.every((r) => r.status === 200)).toBe(true);
+    expect(await rows()).toHaveLength(1);
+    expect((await stripe.subscriptions.list({ customer, status: "all" })).data).toHaveLength(1);
 
-    const up = await api("/billing/plan", cookie, { plan: "business", interval: "month" });
-    expect(await up.json()).toEqual({ changed: true, pending: false, plan: "business" });
-    expect(await item()).toBe(prices.business);
-    expect(await state()).toMatchObject({ plan: "business", limits: { members: 75 } });
-    const [charge] = (await stripe.invoices.list({ subscription: subscription.id, limit: 1 })).data;
-    expect(charge).toMatchObject({ billing_reason: "subscription_update", status: "paid" });
-    expect(charge!.amount_paid).toBeGreaterThan(0);
+    const endedSince = Math.floor(Date.now() / 1000) - 1;
+    await stripe.subscriptions.cancel(inStripe.data[0]!.id);
+    await forwardEvents(inStripe.data[0]!.id, endedSince, ["customer.subscription.deleted"]);
+    expect(await onboarding()).toMatchObject({ needsPlan: true });
+    expect(await (await api("/billing", cookie)).json()).toMatchObject({ trialAvailable: false });
+    expect((await api("/billing/trial", cookie, { interval: "month" })).status).toBe(409);
+    expect(
+      (await api("/billing/checkout", cookie, { interval: "month", returnPath: "/onboarding" }))
+        .status,
+    ).toBe(200);
+    const [session] = (await stripe.checkout.sessions.list({ customer, limit: 1 })).data;
+    expect(session!.amount_total).toBe(monthly.unit_amount);
+    expect(decodeURIComponent(session!.success_url ?? "")).toContain("/onboarding");
+    expect(session!.cancel_url).toMatch(/\/onboarding$/);
 
-    const again = await api("/billing/plan", cookie, { plan: "business", interval: "month" });
-    expect(await again.json()).toEqual({ changed: false, plan: "business" });
-
-    const down = await api("/billing/plan", cookie, { plan: "team", interval: "month" });
-    expect(await down.json()).toEqual({ changed: true, pending: false, plan: "team" });
-    expect(await item()).toBe(prices.monthly);
-    expect(await state()).toMatchObject({ plan: "team" });
-    const credits = await stripe.invoiceItems.list({ customer, pending: true });
-    expect(credits.data.some((i) => i.amount < 0)).toBe(true);
-
-    const failing = await stripe.paymentMethods.attach("pm_card_chargeCustomerFail", { customer });
-    await stripe.subscriptions.update(subscription.id, { default_payment_method: failing.id });
-    const refused = await api("/billing/plan", cookie, { plan: "business", interval: "month" });
-    expect(await refused.json()).toEqual({ changed: false, pending: true, plan: "business" });
-    expect(await item()).toBe(prices.monthly);
-    expect(await state()).toMatchObject({ plan: "team" });
-    const [row] = await db
-      .select()
-      .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.stripeSubscriptionId, subscription.id));
-    expect(row).toMatchObject({ orgId: org.id, plan: "team", status: "active" });
-  }, 120_000);
+    const [owned] = await db
+      .select({ userId: schema.members.userId })
+      .from(schema.members)
+      .where(eq(schema.members.organizationId, org.id));
+    const userId = owned!.userId;
+    const next = await createOrg(db, "plan-page-next");
+    await db.insert(schema.members).values({
+      id: randomUUID(),
+      organizationId: next.id,
+      userId: userId,
+      role: "owner",
+      createdAt: new Date(),
+    });
+    await db
+      .update(schema.sessions)
+      .set({ activeOrganizationId: next.id })
+      .where(eq(schema.sessions.userId, userId));
+    expect(await (await api("/billing", cookie)).json()).toMatchObject({ trialAvailable: false });
+    expect((await api("/billing/trial", cookie, { interval: "month" })).status).toBe(409);
+    expect(
+      (await api("/billing/checkout", cookie, { interval: "month", returnPath: "/onboarding" }))
+        .status,
+    ).toBe(200);
+    const [paid] = (await stripe.checkout.sessions.list({ customer: await customerOf(next.id) }))
+      .data;
+    expect(paid!.amount_total).toBe(monthly.unit_amount);
+  }, 90_000);
 
   test("a second checkout expires the first, so two tabs cannot both subscribe", async () => {
     const { org, cookie } = await ownerOf("two-tabs");
@@ -433,7 +471,7 @@ describe.runIf(requested)("Stripe test mode", () => {
     ]);
     const all = [...deleted.events, ...touched.events];
     expect(await (await api("/billing", cookie)).json()).toMatchObject({
-      plan: "team",
+      readOnly: false,
       subscription: { status: "trialing" },
     });
 
@@ -450,9 +488,11 @@ describe.runIf(requested)("Stripe test mode", () => {
 
   test("cards: added by a SetupIntent, charged by the plan, the last one kept; invoices listed", async () => {
     const { org, cookie } = await ownerOf("cards");
-    expect((await api("/billing/checkout", cookie, { interval: "month" })).status).toBe(200);
+    expect(await (await api("/billing/trial", cookie, { interval: "month" })).json()).toEqual({
+      started: true,
+    });
     const customer = await customerOf(org.id);
-    const trialing = await trial(customer, { referenceId: org.id });
+    const [trialing] = (await stripe.subscriptions.list({ customer })).data;
     type Cards = { cards: { id: string; brand: string; last4: string; isDefault: boolean }[] };
     const cards = async () => (await (await api("/billing/cards", cookie)).json()) as Cards;
     expect(await cards()).toEqual({ cards: [], addCard: true });

@@ -63,14 +63,17 @@
     "STRIPE_PRICE_BUSINESS_YEARLY": "",
     // Public: Stripe.js needs it to add a card in the Billing page. Empty: cards are added in the portal.
     "STRIPE_PUBLISHABLE_KEY": "",
+    // Free trial days, once per workspace and per account (empty: 7; 0: no trial).
+    "BILLING_TRIAL_DAYS": "",
     // Extra storage past a paid plan's: the metered price per GB and the event name of the
     // Stripe meter behind it. Both or none (none: a plan's storage is a hard cap).
     "STRIPE_PRICE_STORAGE": "",
     "STRIPE_STORAGE_METER_EVENT": "",
     "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
-    // Storage. Largest file in bytes (empty: 5 GB); the most any one workspace may store,
-    // in GB, whatever its plan (empty: no cap).
+    // Storage. Largest file in bytes (empty: 5 GB); the most a Personal space and any
+    // one workspace may store, in GB, whatever its plan (empty: no cap).
     "STORAGE_MAX_FILE_BYTES": "",
+    "STORAGE_PERSONAL_GB": "",
     "STORAGE_MAX_GB": "",
     // Live co-editing on S2: the basin's API base ending in /v1, and its name. Empty:
     // documents edit with checked saves only. The S2_ACCESS_TOKEN secret goes with them.

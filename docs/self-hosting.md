@@ -375,6 +375,7 @@ to `.dev.vars`.
 | `STORAGE_HASH_CHECK_MAX_BYTES` | var    | no       | Largest upload whose declared `sha256` the Worker checks by reading the file once more (about 1.5 s of CPU a GB); a mismatch answers `422 CHECKSUM_MISMATCH`. Past it the hash is kept as sent. Default 8 GB.                                         |
 | `STORAGE_MAX_OPEN_UPLOADS`     | var    | no       | Uploads one person may have in progress at once in a workspace; past it `POST /uploads` answers `429 TOO_MANY_UPLOADS`. Default 500.                                                                                                                  |
 | `STORAGE_MAX_RESERVED_BYTES`   | var    | no       | Bytes one person's uploads in progress may hold in a workspace (they count against its storage until they finish). Default 1 TB (`1099511627776`).                                                                                                    |
+| `STORAGE_PERSONAL_GB`          | var    | no       | Most a Personal space may store, in GB (1024³ bytes; decimals allowed). Past it uploads answer `402 STORAGE_FULL`. Empty: no cap.                                                                                                                     |
 | `STORAGE_MAX_GB`               | var    | no       | Ceiling on what any one workspace may store, in GB, whatever its plan. Empty: none.                                                                                                                                                                   |
 | `UPLOAD_MAX_BYTES`             | var    | no       | Largest file one upload may stage for a send, in bytes. Empty: 25 MB (`26214400`).                                                                                                                                                                    |
 | `ENVIRONMENT`                  | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`.                                                                       |
@@ -466,7 +467,7 @@ which Cloudflare sets and clients cannot.
 | `RATE_LIMIT_PROVISION`             | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
 | `RATE_LIMIT_IMAGE_PROXY`           | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
 | `RATE_LIMIT_STORAGE_SHARE`         | `60/3600`  | Per member: people added to a file or folder in Storage, each of whom is sent one mail. Changing a role sends none and is free.                                               |
-| `RATE_LIMIT_STORAGE_SHARE_NEW`     | `10/86400` | Per person, on top of the above, while their account is under 7 days old or the workspace is on the Free plan (or is a Personal space).                                       |
+| `RATE_LIMIT_STORAGE_SHARE_NEW`     | `10/86400` | Per person, on top of the above, while their account is under 7 days old or the workspace is free (a Personal space, or no paid plan).                                        |
 | `RATE_LIMIT_STORAGE_LINK`          | `300/60`   | Per signed-in person, or per IP for a visitor who is not: requests to Storage's link door (`/api/storage/shared/*`).                                                          |
 | `RATE_LIMIT_STORAGE_LINK_PASSWORD` | `10/900`   | Per link and visitor: tries at a link password (`POST /api/storage/shared/:shareId/unlock`).                                                                                  |
 | `RATE_LIMIT_STORAGE_LINK_LIVE`     | `30/60`    | Per signed-in person, or per IP: live-document sockets opened through a link (`GET /api/storage/shared/:shareId/realtime`).                                                   |
@@ -475,18 +476,18 @@ which Cloudflare sets and clients cannot.
 
 #### Billing (optional)
 
-Off unless `STRIPE_SECRET_KEY` is set. With it off there is no plan and no limit: every workspace
-works as it always has. Hosted Omni turns it on; most self-hosters never need to.
+Off unless `STRIPE_SECRET_KEY` is set. With it off there is no plan, no limit and no read-only
+state: every workspace works as it always has. Hosted Omni turns it on; most self-hosters never
+need to.
 
-When on, every workspace starts on **Free** and may move to a flat paid plan, one price per
-workspace whatever its size: **Team** or **Business**. Each plan holds a number of members (open
-invitations count), inboxes, domains, CRM records (Free only) and GB of Drive, and allows a monthly
-amount of AI triage, drafted replies and meeting minutes (meetings need a paid plan). The numbers
-are `PLAN_LIMITS` in `packages/contracts/src/plans.ts`. Every limit is a hard cap: past one, that
-one thing is refused (`402 PLAN_LIMIT`, or for a monthly allowance, triage pauses until the next
-period) and nothing else stops. Nothing a workspace holds is ever taken away, and a workspace
-whose plan ends falls back to Free, writable as before. One person may own at most two Free
-workspaces. There is no trial: Free is how a workspace tries Omni.
+When on, a workspace gets one free trial (a week by default, no card, once per workspace and once
+per account) and then a flat paid plan, one price per workspace whatever its size: **Team** or
+**Business**. Each plan holds a number of members (open invitations count), inboxes, domains and
+GB of Drive, and allows a monthly amount of AI triage, drafted replies and meeting minutes. The
+numbers are `PLAN_LIMITS` in `packages/contracts/src/plans.ts`. Every limit is a hard cap: past
+one, that one thing is refused (`402 PLAN_LIMIT`, or for a monthly allowance, triage pauses until
+the next period). A workspace with no plan in good standing is read-only: its mail syncs and
+reads, but nothing is sent or changed, and setup still works.
 
 | Variable                        | Kind   | Required with billing | Notes                                                                                                          |
 | ------------------------------- | ------ | --------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -498,6 +499,7 @@ workspaces. There is no trial: Free is how a workspace tries Omni.
 | `STRIPE_PRICE_BUSINESS_MONTHLY` | var    | no                    | Price id of **Business**'s monthly price. Empty: Business is not offered.                                      |
 | `STRIPE_PRICE_BUSINESS_YEARLY`  | var    | no                    | Price id of Business's yearly price.                                                                           |
 | `STRIPE_PUBLISHABLE_KEY`        | var    | no                    | Publishable key (`pk_test_…`, same mode as the secret key). Owners add cards in the app; empty: in the portal. |
+| `BILLING_TRIAL_DAYS`            | var    | no                    | Free trial length in days, once per workspace and once per account, no card needed. Empty: 7. `0`: no trial.   |
 | `STRIPE_PRICE_STORAGE`          | var    | no (both or none)     | Price id of the metered monthly price extra GB past a paid plan's are billed at.                               |
 | `STRIPE_STORAGE_METER_EVENT`    | var    | no (both or none)     | Event name of the Stripe meter behind that price.                                                              |
 
@@ -527,8 +529,8 @@ Setup in Stripe:
 
 Each plan includes its GB of Drive. With the two storage variables unset, that is a hard cap
 (`402 STORAGE_FULL`). With them set, a paying monthly workspace with a card may pass it, and is
-billed per whole extra GB for the most it stored in the billing period; Free, a yearly plan and a
-workspace with no card stay capped. Set `STORAGE_MAX_GB` too, so a runaway script cannot run up a
+billed per whole extra GB for the most it stored in the billing period; a trial, a yearly plan and
+a workspace with no card stay capped. Set `STORAGE_MAX_GB` too, so a runaway script cannot run up a
 bill.
 
 In Stripe:

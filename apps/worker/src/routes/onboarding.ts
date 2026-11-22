@@ -25,8 +25,9 @@ import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { requireCap } from "../billing.ts";
+import { inGoodStanding, requireCap } from "../billing.ts";
 import { requireMember, resolveSession, type AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import {
   advanceDomainStep,
   audit,
@@ -145,7 +146,7 @@ export const onboarding = new Hono<AppEnv>()
         name: org?.name ?? "",
         role: member.role,
         setup: await orgSetupStep(db, member.orgId),
-        needsPlan: false,
+        needsPlan: !(await inGoodStanding(db, config, member.orgId)),
       },
       ...views,
     });
@@ -358,6 +359,13 @@ export const onboarding = new Hono<AppEnv>()
     const step = await orgSetupStep(db, member.orgId);
     if (SETUP_STEPS.indexOf(step) < SETUP_STEPS.indexOf("mailboxes_created")) {
       throw new HTTPException(409, { message: "create a mailbox before finishing setup" });
+    }
+    if (!(await inGoodStanding(db, c.var.config, member.orgId))) {
+      return apiError(
+        c,
+        "billing_required",
+        "start the free trial or choose a plan before finishing setup",
+      );
     }
     return c.json({ setup: await advanceOrgSetup(db, member.orgId, "complete") });
   });

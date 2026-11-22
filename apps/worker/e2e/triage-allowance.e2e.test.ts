@@ -402,15 +402,13 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   expect(await billing(reader.cookie)).toMatchObject({ triage: { used: 1, pausedUntil: null } });
 });
 
-test("a Personal space is on Free: triaged, and counted against Free's month", async () => {
+test("a Personal space is triaged with billing on and no plan, and nothing is counted", async () => {
   const reader = await setUpWorkspace({ personal: true });
-  const now = new Date();
-  const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const request = await arrives("triage-inbound-request.eml", reader);
   const triaged = await waitUntil(async () => {
     const thread = await threadRow(request.threadId);
     return thread.triageMessageId === request.id && thread;
   });
   expect(triaged).toMatchObject({ triageSource: "ai", triagePausedUntil: null });
-  expect(await usageRows(reader.orgId)).toEqual([{ periodStart: month, messageId: request.id }]);
+  expect(await usageRows(reader.orgId)).toEqual([]);
 });

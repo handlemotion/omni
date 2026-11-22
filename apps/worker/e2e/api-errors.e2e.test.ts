@@ -35,16 +35,14 @@ beforeAll(async () => {
     mailServiceUrl: mailService.url,
     vars: {
       STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
+      BILLING_TRIAL_DAYS: "14",
       RATE_LIMIT_STORAGE_LINK: "1/60",
     },
     secrets: BILLING_SECRETS,
   });
   const system = await createOrg(database.db, "system");
   await createMailbox(database.db, system.id, SYSTEM_MAIL_FROM);
-  const org = await createOrg(database.db, "free");
-  await database.db
-    .insert(schema.crmPeople)
-    .values(Array.from({ length: 500 }, (_, i) => ({ orgId: org.id, name: `Person ${i}` })));
+  const org = await createOrg(database.db, "unpaid");
   const email = `owner-${randomUUID().slice(0, 8)}@omni.test`;
   const owner = await createMember(database.db, org.id, email);
   await database.db
@@ -90,12 +88,15 @@ test("an old client that sends no header still gets `error` as the message strin
   expect(toApiError(missing.body, "fallback")).toMatchObject({ code: "not_found" });
 });
 
-test("a tab opened before this format still gets the upper-case codes it matches", async () => {
-  const refused = await call("/api/crm/companies", { method: "POST", body: { name: "Client" } });
+test("a tab of the Files UI opened before this format still gets the upper-case codes it matches", async () => {
+  const refused = await call("/api/storage/folders", {
+    method: "POST",
+    body: { name: "Plans", space: "personal" },
+  });
   expect(refused.status).toBe(402);
   expect(legacyErrorBodySchema.parse(refused.body)).toMatchObject({
-    code: "PLAN_LIMIT",
-    category: "quota",
+    code: "BILLING_INACTIVE",
+    category: "billing",
   });
 });
 
@@ -141,18 +142,17 @@ test("a rate-limited request answers 429 with `error.limit` and the rate-limit h
   expect(error.limit!.resetMs).toBeGreaterThan(Date.now());
 });
 
-test("adding past the plan answers 402 `plan_limit` with the cap in `details`", async () => {
-  const refused = await call("/api/crm/companies", {
+test("a write in a workspace without a plan answers 402 `billing_inactive`", async () => {
+  const refused = await call("/api/storage/folders", {
     method: "POST",
     headers: nested,
-    body: { name: "Client" },
+    body: { name: "Plans", space: "personal" },
   });
   expect(refused.status).toBe(402);
   expect(errorBodyV2Schema.parse(refused.body).error).toMatchObject({
-    code: "plan_limit",
-    category: "quota",
+    code: "billing_inactive",
+    category: "billing",
     retryable: false,
-    details: { cap: "crmRecords", max: 500, held: 500, plan: "free" },
   });
 });
 

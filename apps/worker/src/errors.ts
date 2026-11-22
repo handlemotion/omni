@@ -9,7 +9,6 @@ import {
   type LegacyErrorBody,
   type RateLimitInfo,
 } from "@omni/contracts";
-import { CrmRecordLimitError } from "@omni/db";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./context.ts";
@@ -78,11 +77,6 @@ function statusOf(error: unknown) {
 /** `app.onError`: every thrown refusal gets its code here; anything else is a 500 that says nothing. */
 export function answerThrown(error: Error, c: Context<AppEnv>) {
   if (error instanceof ApiFailure) return apiError(c, error.code, error.message, error.extras);
-  if (error instanceof CrmRecordLimitError) {
-    return apiError(c, "plan_limit", error.message, {
-      details: { cap: "crmRecords", max: error.max, held: error.held },
-    });
-  }
   const status = statusOf(error);
   if (status !== undefined) return apiError(c, codeForStatus(status), error.message);
   (c.var.log ?? createLogger()).error("http.error", { error, orgId: c.var.member?.orgId });

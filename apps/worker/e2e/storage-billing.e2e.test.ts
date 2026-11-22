@@ -17,9 +17,9 @@ import { CookieJar, signIn } from "./support.ts";
 const GIB = 1024 ** 3;
 const DAY_MS = 86_400_000;
 const TEAM = 100 * GIB;
-const FREE = 5 * GIB;
 const ROOM = 2 * MIB;
 const CEILING = TEAM + 3 * MIB;
+const PERSONAL = MIB;
 
 let stack: StorageStack;
 beforeAll(async () => {
@@ -30,6 +30,7 @@ beforeAll(async () => {
       STRIPE_PRICE_STORAGE: "price_e2e_storage",
       STRIPE_STORAGE_METER_EVENT: "omni_e2e_storage_gb",
       STORAGE_MAX_GB: String(CEILING / GIB),
+      STORAGE_PERSONAL_GB: String(PERSONAL / GIB),
     },
     secrets: BILLING_SECRETS,
   });
@@ -99,7 +100,7 @@ const usage = async (person: Person) => (await stack.api(person.jar, "GET", "/us
 const peaks = (orgId: string) =>
   stack.db.select().from(schema.storagePeaks).where(eq(schema.storagePeaks.orgId, orgId));
 
-test("the daily job records each paying workspace's peak per usage month, and empties a lapsed one's Trash like any", async () => {
+test("the daily job records each paying workspace's peak per usage month and leaves a read-only workspace's Trash alone", async () => {
   const bucket = await stack.bucket();
   const old = new Date(Date.now() - 31 * DAY_MS);
   async function withOldTrash(plan: Plan) {
@@ -132,9 +133,11 @@ test("the daily job records each paying workspace's peak per usage month, and em
 
   expect(await bucket.head(storageObjectKey(paying.org.id, paying.file.id))).toBeNull();
   expect(await stack.usedBytes(paying.org.id)).toBe(0);
-  expect(await bucket.head(storageObjectKey(lapsed.org.id, lapsed.file.id))).toBeNull();
-  expect(await stack.usedBytes(lapsed.org.id)).toBe(0);
-  expect((await stack.api(lapsed.owner.jar, "GET", "/trash")).body.nodes).toEqual([]);
+  expect(await bucket.head(storageObjectKey(lapsed.org.id, lapsed.file.id))).not.toBeNull();
+  expect(await stack.usedBytes(lapsed.org.id)).toBe(300);
+  expect((await stack.api(lapsed.owner.jar, "GET", "/trash")).body.nodes).toEqual([
+    expect.objectContaining({ id: lapsed.file.id }),
+  ]);
   expect(await peaks(lapsed.org.id)).toEqual([]);
   expect(await peaks(measured.org.id)).toEqual([
     { orgId: measured.org.id, periodStart: start, peakBytes: 1000 },
@@ -240,16 +243,14 @@ test("the plan's storage caps a trial, a yearly plan and a workspace with no car
   await signIn(stack.worker, stack.db, `solo-${randomUUID().slice(0, 8)}@personal.test`, jar);
   await stack.justMe(jar);
   expect((await stack.api(jar, "GET", "/usage")).body).toMatchObject({
-    limitBytes: FREE,
-    allowanceBytes: FREE,
+    limitBytes: PERSONAL,
+    allowanceBytes: null,
     overage: null,
-    uploadsBlocked: null,
   });
   const none = await company(null);
   expect(await usage(none.owner)).toMatchObject({
-    limitBytes: FREE,
-    allowanceBytes: FREE,
-    uploadsBlocked: null,
+    limitBytes: TEAM,
+    uploadsBlocked: "billing_inactive",
   });
 });
 

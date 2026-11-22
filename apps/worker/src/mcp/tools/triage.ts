@@ -8,6 +8,7 @@ import {
   type ConversationChange,
 } from "@omni/db";
 import { z } from "zod";
+import { inGoodStanding } from "../../billing.ts";
 import { pingMailService } from "../../mail-service.ts";
 import { fanOut, notifyMembers } from "../../realtime.ts";
 import {
@@ -223,10 +224,21 @@ async function applyOne(
   change: Change,
   found: Found | undefined,
   effects: Effects,
+  standing: Map<string, Promise<boolean>>,
 ) {
   const member = found && (await reads.memberFor(change.thread_id));
   if (!found || !member) {
     const result: Outcome = { applied: [], error: "not a thread you can see" };
+    return result;
+  }
+  const good =
+    standing.get(member.orgId) ?? inGoodStanding(context.db, context.config, member.orgId);
+  standing.set(member.orgId, good);
+  if (!(await good)) {
+    const result: Outcome = {
+      applied: [],
+      error: "this workspace is read-only until its plan is paid",
+    };
     return result;
   }
   const target: Target = {
@@ -264,6 +276,7 @@ async function triage(context: ToolContext, input: z.infer<typeof inputSchema>) 
   const scoped = readsFor(context, input.workspace);
   if ("error" in scoped) return toolError(scoped.error);
   const effects: Effects = { changed: new Map(), queued: false };
+  const standing = new Map<string, Promise<boolean>>();
   const threads = await scoped.reads.getThreads(input.changes.map((c) => c.thread_id));
   const found = new Map(
     threads.map((t) => [t.id, { mailboxId: t.mailboxId, lastMessageAt: t.lastMessageAt }]),
@@ -276,6 +289,7 @@ async function triage(context: ToolContext, input: z.infer<typeof inputSchema>) 
       change,
       found.get(change.thread_id),
       effects,
+      standing,
     );
     results.push({
       thread_id: change.thread_id,

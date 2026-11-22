@@ -1,6 +1,20 @@
-import { and, eq, inArray, isNotNull, lt, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  eq,
+  exists,
+  inArray,
+  isNotNull,
+  lt,
+  not,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
+import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";
-import { organizations, users } from "../schema/auth.ts";
+import { isCompany } from "../personal-space.ts";
+import { organizations, subscriptions, users } from "../schema/auth.ts";
 import { userEmails } from "../schema/identity.ts";
 import {
   storageGrants,
@@ -21,17 +35,43 @@ export async function storageUsageOf(db: Db, orgId: string) {
   return { bytes: row?.bytes ?? 0, reservedBytes: await reservedBytes(db, orgId) };
 }
 
+function inGoodStanding(db: Db, orgId: AnyColumn) {
+  return or(
+    not(isCompany(db, orgId)),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(subscriptions)
+        .where(and(eq(subscriptions.orgId, orgId), inArray(subscriptions.status, PAID_STATUSES))),
+    ),
+  );
+}
+
 /**
  * Deletes what was trashed before `before`, rows first, and subtracts its bytes. Returns the
  * objects the caller must now delete, and whether more is waiting. Each trashed node goes in
  * its own transaction, so a run that stops halfway has still freed what it returned.
+ *
+ * `keepReadOnly` (the caller sets it where billing is on) leaves the Trash of a workspace with
+ * no plan in good standing alone: restoring is a write it cannot make, and nothing is deleted
+ * for not paying. Its 30 days are not extended: what is due goes with the first purge after it
+ * pays again.
  */
-export async function purgeStorageTrash(db: Db, options: { before: Date; limit?: number }) {
+export async function purgeStorageTrash(
+  db: Db,
+  options: { before: Date; limit?: number; keepReadOnly?: boolean },
+) {
   const limit = options.limit ?? 100;
   const due = await db
     .select({ id: storageNodes.id, orgId: storageNodes.orgId })
     .from(storageNodes)
-    .where(and(isNotNull(storageNodes.trashedAt), lt(storageNodes.trashedAt, options.before)))
+    .where(
+      and(
+        isNotNull(storageNodes.trashedAt),
+        lt(storageNodes.trashedAt, options.before),
+        options.keepReadOnly ? inGoodStanding(db, storageNodes.orgId) : undefined,
+      ),
+    )
     .orderBy(storageNodes.trashedAt)
     .limit(limit + 1);
   const r2Keys: string[] = [];
@@ -53,10 +93,11 @@ export async function purgeStorageTrash(db: Db, options: { before: Date; limit?:
  * Deletes the versions replaced before `before`, and the autosaves superseded before
  * `supersededBefore`, rows first, and subtracts their bytes. Returns the objects the caller must now delete, and whether more is waiting. Each
  * version goes in its own transaction, and one restored meanwhile is no longer there to delete.
+ * `keepReadOnly` is as for `purgeStorageTrash`: nothing is deleted for not paying.
  */
 export async function purgeStorageVersions(
   db: Db,
-  options: { before: Date; supersededBefore?: Date; limit?: number },
+  options: { before: Date; supersededBefore?: Date; limit?: number; keepReadOnly?: boolean },
 ) {
   const limit = options.limit ?? 100;
   const isDue = or(
@@ -68,7 +109,7 @@ export async function purgeStorageVersions(
   const due = await db
     .select({ id: storageVersions.id, orgId: storageVersions.orgId })
     .from(storageVersions)
-    .where(isDue)
+    .where(and(isDue, options.keepReadOnly ? inGoodStanding(db, storageVersions.orgId) : undefined))
     .orderBy(storageVersions.replacedAt)
     .limit(limit + 1);
   const r2Keys: string[] = [];

@@ -9,7 +9,7 @@ import {
 } from "@omni/contracts";
 import { forMember, meetingsPipeline, recurrenceKey, storageWorkspaceFile } from "@omni/db";
 import { Hono, type Context } from "hono";
-import { gateMeter, hasAllowance } from "../billing.ts";
+import { gateMeter, hasAllowance, READ_ONLY_MESSAGE } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
@@ -88,16 +88,12 @@ export const meetings = new Hono<AppEnv>()
   .post("/", zValidator("json", startMeetingBodySchema), async (c) => {
     const body = c.req.valid("json");
     const room = await hasAllowance(c.var.db, c.var.config, c.var.member.orgId, "meetingMinutes");
-    if (!room.ok && room.reason === "plan_required") {
-      return apiError(c, "plan_required", "recording meetings needs a paid plan", {
-        details: { feature: "meetings" },
-      });
-    }
-    if (!room.ok) {
+    if (!room.ok && room.reason === "allowance_reached") {
       return apiError(c, "allowance_reached", "this month's meeting minutes are used up", {
         details: { meter: "meetingMinutes", resetsAt: room.until.toISOString() },
       });
     }
+    if (!room.ok) return apiError(c, "billing_inactive", READ_ONLY_MESSAGE);
     const folderId = await recordingsFolder(memberFiles(c));
     if (!folderId) return apiError(c, "not_found", "your My files could not be reached");
     const started = await memberMeetings(c).start({

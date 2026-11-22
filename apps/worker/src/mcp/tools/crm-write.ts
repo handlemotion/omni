@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { schema } from "@omni/db";
 import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
+import { inGoodStanding } from "../../billing.ts";
 import { announce, crmWorkspace, type CrmWorkspace } from "../crm.ts";
 import {
   contractSchema,
@@ -163,6 +164,9 @@ async function write(context: ToolContext, input: Input) {
   if (wait) return toolError(`Too many changes. Try again in ${wait} seconds.`);
   const workspace = await crmWorkspace(context, input.workspace);
   if ("error" in workspace) return toolError(workspace.error);
+  if (!(await inGoodStanding(context.db, context.config, workspace.orgId))) {
+    return toolError("This workspace is read-only until its plan is paid.");
+  }
   const claimed = input.idempotency_key
     ? await claim(context, workspace, input.idempotency_key)
     : null;

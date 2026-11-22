@@ -1,13 +1,10 @@
 import type { Cap } from "@omni/contracts";
-import { and, count, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
-import { PAID_STATUSES } from "./billing.ts";
+import { and, count, eq, gt, or } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import { crmRecordCount } from "./crm.ts";
 import { mailboxCount } from "./mail.ts";
 import { storageUsageOf } from "./storage.ts";
-import { invitations, members, subscriptions } from "./schema/auth.ts";
+import { invitations, members } from "./schema/auth.ts";
 import { domainClaims } from "./schema/domains.ts";
-import { personalSpaces } from "./schema/identity.ts";
 
 type Executor = Pick<Db, "select">;
 
@@ -74,43 +71,7 @@ export async function capUsage(db: Db, orgId: string, cap: Cap, now = new Date()
       return mailboxCount(db, orgId);
     case "domains":
       return domainCount(db, orgId, now);
-    case "crmRecords":
-      return crmRecordCount(db, orgId);
     case "storageGb":
       return (await storageUsageOf(db, orgId)).bytes / GB;
   }
-}
-
-/**
- * Workspaces `userId` owns that have no subscription in good standing: the Free ones. A
- * Personal space is not counted; it is made for its person, not chosen.
- */
-export async function freeWorkspacesOwnedBy(db: Executor, userId: string) {
-  const [row] = await db
-    .select({ n: count() })
-    .from(members)
-    .where(
-      and(
-        eq(members.userId, userId),
-        eq(members.role, "owner"),
-        notExists(
-          db
-            .select({ one: sql`1` })
-            .from(subscriptions)
-            .where(
-              and(
-                eq(subscriptions.orgId, members.organizationId),
-                inArray(subscriptions.status, [...PAID_STATUSES]),
-              ),
-            ),
-        ),
-        notExists(
-          db
-            .select({ one: sql`1` })
-            .from(personalSpaces)
-            .where(eq(personalSpaces.orgId, members.organizationId)),
-        ),
-      ),
-    );
-  return row?.n ?? 0;
 }

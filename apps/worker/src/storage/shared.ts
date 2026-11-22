@@ -30,6 +30,7 @@ import {
 import { Hono, type Context } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
+import { inGoodStanding, READ_ONLY_MESSAGE } from "../billing.ts";
 import { findMemberIds, resolveSession, type AppEnv, type SessionUser } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
@@ -204,7 +205,7 @@ const visitorKey = (c: Context<AppEnv>, user: SessionUser | null) =>
   user ? `user:${user.id}` : `ip:${clientIp(c.req.raw)}`;
 
 const open = createMiddleware<AppEnv>(async (c, next) => {
-  const { config } = c.var;
+  const { db, config } = c.var;
   const user = (await resolveSession(c))?.user ?? null;
   const wait = await checkRateLimit(c.env, config, "storageLink", visitorKey(c, user));
   if (wait) return tooManyRequests(c, wait, "storageLink");
@@ -223,10 +224,14 @@ const open = createMiddleware<AppEnv>(async (c, next) => {
   const { shared } = opened;
   c.set("shared", shared);
   c.set("linkUser", user);
+  const { root } = shared;
 
   if (c.req.method !== "GET" && c.req.method !== "HEAD") {
     const commenting = /\/files\/[^/]+\/comments(\/[^/]+)?$/.test(c.req.path);
     if (!shared.writer && !(commenting && shared.comments)) return refused(c, "forbidden");
+    if (!(await inGoodStanding(db, config, root.node.orgId))) {
+      return apiError(c, "billing_inactive", READ_ONLY_MESSAGE);
+    }
   }
   await next();
 });

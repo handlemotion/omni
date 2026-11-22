@@ -65,6 +65,8 @@ STORAGE_HASH_CHECK_MAX_BYTES=
 STORAGE_MAX_OPEN_UPLOADS=
 # Optional. Bytes one person's uploads in progress may hold in a workspace. Empty: 1 TB.
 STORAGE_MAX_RESERVED_BYTES=
+# Optional. Most a Personal space may store, in GB (decimals allowed). Empty: no cap.
+STORAGE_PERSONAL_GB=
 # Optional. Ceiling on what any one workspace may store, in GB. Empty: none.
 STORAGE_MAX_GB=
 
@@ -132,6 +134,8 @@ STRIPE_PRICE_BUSINESS_YEARLY=
 # Optional, public. Publishable key (pk_test_..., same mode as STRIPE_SECRET_KEY): owners add a card
 # in the Billing page with Stripe Elements. Empty: adding a card happens in Stripe's portal.
 STRIPE_PUBLISHABLE_KEY=
+# Optional. Free trial days, once per workspace and once per account, no card needed. Empty: 7. 0: no trial.
+BILLING_TRIAL_DAYS=
 # Optional, both or none. Extra storage past a paid plan's: the price id of the metered monthly price
 # extra GB are billed at, and the event name of the Stripe meter behind it (aggregation: last). None:
 # a plan's storage is a hard cap.

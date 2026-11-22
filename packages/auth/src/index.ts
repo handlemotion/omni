@@ -423,7 +423,6 @@ export function createAuth(env: AuthEnv) {
               await planCapHooks(env.db).beforeAddMember(input);
             },
             beforeAcceptInvitation: planCapHooks(env.db).beforeAcceptInvitation,
-            beforeCreateOrganization: planCapHooks(env.db).beforeCreateOrganization,
           }),
           beforeDeleteOrganization: async (input) => {
             await personalSpaceHooks(env.db).beforeDeleteOrganization(input);

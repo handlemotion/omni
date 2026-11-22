@@ -15,7 +15,6 @@ import { imageHeaders } from "../image-proxy.ts";
 import { MAX_PICTURE_BYTES, pictureUpload, sniffImageType } from "../routes/pictures.ts";
 import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
-import { capMax, requireCap } from "../billing.ts";
 import {
   announce,
   encodeCursor,
@@ -81,9 +80,7 @@ export const deals = new Hono<AppEnv>()
   })
 
   .post("/deals", zValidator("json", crmCreateDealBodySchema), async (c) => {
-    await requireCap(c.var.db, c.var.config, c.var.member.orgId, "crmRecords");
-    const max = await capMax(c.var.db, c.var.config, c.var.member.orgId, "crmRecords");
-    const made = await memberCrm(c).createDeal(c.req.valid("json"), max);
+    const made = await memberCrm(c).createDeal(c.req.valid("json"));
     if (made.status !== "ok") return refused(c, made);
     await announce(c, "deal", [made.deal.id]);
     return c.json({ deal: wireDeal(made.deal) } satisfies CrmDealResponse, 201);

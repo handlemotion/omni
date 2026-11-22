@@ -5,7 +5,7 @@ import type {
   GoogleDisconnectBody,
   googleDisconnectResultSchema,
 } from "@omni/contracts";
-import { PLAN_LIMITS } from "@omni/contracts";
+import { PLAN_LIMITS, TRIAL_PLAN } from "@omni/contracts";
 import type { Keyring } from "@omni/crypto";
 import {
   capUsage,
@@ -310,7 +310,7 @@ async function save(
   }
   if (!existing && input.planCaps) {
     const plan = await workspacePlan(db, input.orgId);
-    const max = PLAN_LIMITS[plan].mailboxes;
+    const max = PLAN_LIMITS[plan ?? TRIAL_PLAN].mailboxes;
     if ((await capUsage(db, input.orgId, "mailboxes")) >= max) {
       throw new ProvisionError(
         409,

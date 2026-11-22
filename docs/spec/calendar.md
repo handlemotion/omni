@@ -459,8 +459,8 @@ days, errors as `{ error, code }`.
 - Writes publish `{ type: "calendar.changed", calendarIds }` to the sockets of each calendar's
   inbox members.
 - Error codes: `NOT_FOUND`, `NOT_ORGANIZER` (an invitation's details are its organizer's), `NOT_INVITED`
-  (no attendee line for the inbox to answer), and `WINDOW_TOO_LARGE`. A workspace's plan never
-  makes its calendar read-only (`docs/spec/billing.md`).
+  (no attendee line for the inbox to answer), `WINDOW_TOO_LARGE`, and the platform's
+  `BILLING_INACTIVE` for writes on a read-only workspace.
 - A Personal space has a calendar too: its inboxes are in it.
 
 ## Agents
@@ -539,6 +539,7 @@ Each test is named for the bug it catches.
 - Changing an event's time sends one update with a higher sequence to each guest; removing a guest
   sends them a cancellation.
 - A member without access to a shared inbox gets `404` for its events and invites.
+- A read-only workspace reads every route and gets `402` on every write.
 
 **K2b. Availability and agents**
 

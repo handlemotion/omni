@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { createDraft, schema } from "@omni/db";
 import { replyRecipients, replySubject } from "@omni/mail-core/compose";
 import { z } from "zod";
+import { inGoodStanding } from "../../billing.ts";
 import { fanOut } from "../../realtime.ts";
 import { result, threadUrl, toolError } from "../format.ts";
 import { readsFor } from "../scope.ts";
@@ -34,6 +35,9 @@ async function draft(context: ToolContext, input: z.infer<typeof inputSchema>) {
   const member = thread && (await scoped.reads.memberFor(thread.id));
   if (!thread || !member) {
     return toolError("No thread with that id you can see. Ids come from `search` or `inbox`.");
+  }
+  if (!(await inGoodStanding(context.db, context.config, member.orgId))) {
+    return toolError("This workspace is read-only until its plan is paid.");
   }
   const message = input.message_id
     ? thread.messages.find((m) => m.id === input.message_id)

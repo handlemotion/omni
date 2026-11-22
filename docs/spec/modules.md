@@ -58,8 +58,8 @@ Shared today, and used as is by every module:
 
 - **People and workspaces**: users, members, Personal spaces, session scope (`@omni/auth`).
 - **The doors**: `forMember` and `forUser`, one property per module.
-- **The plan** (`docs/spec/billing.md`): `requireCap` before a module adds something its plan
-  caps, `gateMeter` before it runs something costly that a plan meters. There is no read-only gate.
+- **The plan**: the read-only gate denies every write by default, so a new module's routes are
+  covered without listing them.
 - **Realtime, queue, crons, rate limits, system mail, request tracing** in the Worker.
 - **The agent door**: `/mcp` and its OAuth scopes.
 - **The typed client**: a new route shows up in `@omni/client` by itself.

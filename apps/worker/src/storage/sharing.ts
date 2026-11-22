@@ -70,7 +70,7 @@ async function onProbation(c: Context<AppEnv>) {
   if (!row || Date.now() - row.createdAt.getTime() < NEW_ACCOUNT_DAYS * 86_400_000) return true;
   if ((await workspaceKind(db, member.orgId)) === "personal") return true;
   const plan = await entitlements(db, config, member.orgId);
-  return plan.enabled && plan.plan === "free";
+  return plan.enabled && plan.readOnly;
 }
 
 async function sendShareMail(c: Context<AppEnv>, to: string, node: StorageNode, shareId: string) {

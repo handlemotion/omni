@@ -87,8 +87,6 @@ export const ERROR_CODES = {
    * to a bigger plan.
    */
   allowance_reached: spec(402, "quota"),
-  /** Only a paid plan has this (`details.feature`, such as meetings). */
-  plan_required: spec(402, "billing"),
   file_too_large: spec(413, "payload_too_large"),
   invalid_name: spec(400, "validation"),
   invalid_email: spec(400, "validation"),

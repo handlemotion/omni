@@ -11,6 +11,7 @@ export const auth: Auth = createAuth({
     webhookSecret: "whsec_schema_generation_only",
     plans: { team: { monthlyPriceId: "price_schema_generation_only", yearlyPriceId: undefined } },
     publishableKey: undefined,
+    trialDays: 0,
     storage: undefined,
   },
   sendMagicLink: async () => {

@@ -1,4 +1,3 @@
-import { holdCrmRecords, personAddRecords } from "./crm/record-count.ts";
 import type { Db } from "./client.ts";
 import {
   addCompanyDomain,
@@ -150,7 +149,6 @@ export {
   type CrmBulkResult,
 } from "./crm/bulk.ts";
 export type { CrmListCursor, CrmSort, CrmSortDir, CrmSortKey } from "./crm/list-order.ts";
-export { CrmRecordLimitError, crmRecordCount, personAddRecords } from "./crm/record-count.ts";
 export type { CompanyChange } from "./crm/company-change.ts";
 export type {
   CompanyPatch,
@@ -328,11 +326,8 @@ export function memberCrm(db: Db, memberId: string) {
     listCompanies: (input: ListCompaniesInput = {}) =>
       asMember(door, (m, ex) => listCompanies(ex, m, input)),
     company: (id: string) => asMember(door, (m, ex) => getCompany(ex, m, id)),
-    createCompany: (input: Parameters<typeof createCompany>[2], maxRecords: number | null = null) =>
-      writeAsMember(door, async (m, tx) => {
-        await holdCrmRecords(tx, m.orgId, maxRecords, 1);
-        return createCompany(tx, m, input);
-      }),
+    createCompany: (input: Parameters<typeof createCompany>[2]) =>
+      writeAsMember(door, (m, tx) => createCompany(tx, m, input)),
     updateCompany: (id: string, patch: CompanyPatch) =>
       writeAsMember(door, (m, tx) => updateCompany(tx, m, id, patch)),
     changeCompany: (id: string, change: CompanyChange) =>
@@ -349,12 +344,7 @@ export function memberCrm(db: Db, memberId: string) {
       asMember(door, (m, ex) => listPeople(ex, m, input)),
     person: (id: string) => asMember(door, (m, ex) => getPerson(ex, m, id)),
     personDetail: (id: string) => asMember(door, (m, ex) => getPersonDetail(ex, m, id)),
-    addPerson: (input: AddPersonInput, maxRecords: number | null = null) =>
-      writeAsMember(door, async (m, tx) => {
-        const adding = maxRecords === null ? 0 : await personAddRecords(tx, m.orgId, input);
-        await holdCrmRecords(tx, m.orgId, maxRecords, adding);
-        return addPerson(tx, m, input);
-      }),
+    addPerson: (input: AddPersonInput) => writeAsMember(door, (m, tx) => addPerson(tx, m, input)),
     updatePerson: (id: string, patch: UpdatePersonInput) =>
       writeAsMember(door, (m, tx) => updatePerson(tx, m, id, patch)),
     archivePerson: (id: string) => writeAsMember(door, (m, tx) => archivePerson(tx, m, id)),
@@ -373,11 +363,7 @@ export function memberCrm(db: Db, memberId: string) {
         (m, ex) => (isFreelancer(m) ? freelancerDeal(ex, m, id) : getDeal(ex, m, id)),
         onProject(id),
       ),
-    createDeal: (input: DealInput, maxRecords: number | null = null) =>
-      writeAsMember(door, async (m, tx) => {
-        await holdCrmRecords(tx, m.orgId, maxRecords, 1);
-        return createDeal(tx, m, input);
-      }),
+    createDeal: (input: DealInput) => writeAsMember(door, (m, tx) => createDeal(tx, m, input)),
     updateDeal: (id: string, patch: DealPatch) =>
       writeAsMember(door, (m, tx) => updateDeal(tx, m, id, patch)),
     setDealIcon: (id: string, iconId: string | null) =>

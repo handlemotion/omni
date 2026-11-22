@@ -54,7 +54,7 @@ beforeAll(async () => {
       BETTER_AUTH_URL: `http://127.0.0.1:${port}`,
       S2_BASIN_URL: "http://127.0.0.1:54380/v1",
       S2_BASIN: "omni-docs-dev",
-      STORAGE_MAX_GB: "1",
+      STORAGE_PERSONAL_GB: "1",
     },
   });
   const system = await createOrg(db, "system");
