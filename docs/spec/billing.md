@@ -44,8 +44,8 @@ limits.
   triaged (`402 BILLING_INACTIVE`), and setup still works (domains, inboxes, invitations, billing
   itself: `READ_ONLY_ALLOWED`). Setup is held to Team's caps. A workspace finishes setup only once
   it has a trial or a plan.
-- **A Personal space is free and has no plan or limit**, as before. Removing the Personal space
-  as a kind of workspace is a later layer of this work, and decides this.
+- **A Personal space is billed like any workspace.** It gets the one trial, then pays or is
+  read-only (see "One kind of workspace").
 
 ## How the limits behave
 
@@ -111,7 +111,24 @@ limit.
 - The `assist` meter has no caller until drafted replies ship; it must call `gateMeter` before
   the model runs.
 - Disputes, refunds and early fraud warnings from Stripe are not handled yet.
-- Removing Personal spaces as a kind of workspace.
+
+## One kind of workspace
+
+A Personal space is the workspace Omni makes for a person (Just me, mail on an address no company
+claims, a Drive item shared with them). It is a workspace like any other: it takes invitations,
+teams, shared inboxes, a CRM, Talk and a Shared drive, and an owner may delete it. It has a plan,
+caps and meters, and without a trial or a plan it is read-only. Someone who was only shared a
+file never pays: a shared item is read and changed under the sharing workspace's plan
+(`/api/storage/shared`), never their own.
+
+What still sets one apart is where it comes from, not what it may do:
+
+- `personal_spaces` names each person's own one, so mail and shared files have somewhere to
+  land, and it is made on demand (`v1.md`).
+- Onboarding's status leaves it out (`organization: null`), so "Set up a company" from it starts
+  a new workspace instead of resuming this one, and setting up a mailbox there by address makes
+  it the person's own.
+- Without billing, `STORAGE_PERSONAL_GB` still caps it.
 
 ## Plan
 

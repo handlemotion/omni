@@ -487,12 +487,23 @@ test("BILLING=off turns billing off with every Stripe setting still in place", a
   expect(await withoutBilling(switchedOff)).toEqual({ enabled: false });
 });
 
-test("a Personal space is free: no plan, no trial, no checkout, and writable", async () => {
+test("a Personal space is billed like any workspace: read-only without a plan, writable with one", async () => {
   const { db } = database;
   const email = `personal-${randomUUID().slice(0, 8)}@omni.test`;
   let cookie = await signIn(worker, db, email);
   const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
   const spaceId = await ensurePersonalSpace(db, user!.id);
+  const [member] = await db
+    .select({ id: schema.members.id })
+    .from(schema.members)
+    .where(eq(schema.members.organizationId, spaceId));
+  const mailbox = await createMailbox(db, spaceId, `me-${randomUUID().slice(0, 8)}@gmail.test`);
+  await grant(db, spaceId, mailbox.id, member!.id);
+  const { threadId } = await seedMessage(db, mailbox, {
+    subject: "Hello",
+    fromAddress: "ana@client.example",
+    uid: 1,
+  });
   await db
     .update(schema.sessions)
     .set({ activeOrganizationId: spaceId })
@@ -502,32 +513,17 @@ test("a Personal space is free: no plan, no trial, no checkout, and writable", a
     .filter((c) => !c.includes("session_data"))
     .join("; ");
 
-  expect(await billing(cookie)).toMatchObject({ enabled: false });
-  for (const path of ["/billing/trial", "/billing/checkout"]) {
-    const response = await api(worker, path, cookie, {
-      method: "POST",
-      body: JSON.stringify({ interval: "month", returnPath: "/settings" }),
-    });
-    expect(response.status).toBe(403);
-  }
-  expect(
-    await db.select().from(schema.trialClaims).where(eq(schema.trialClaims.userId, user!.id)),
-  ).toEqual([]);
-  expect(await subscriptionRows(spaceId)).toEqual([]);
+  expect(await billing(cookie)).toMatchObject({
+    enabled: true,
+    plan: null,
+    readOnly: true,
+    trialAvailable: true,
+  });
+  expect(await archive(cookie, threadId)).toBe(402);
 
-  const portal = () =>
-    api(worker, "/billing/portal", cookie, {
-      method: "POST",
-      body: JSON.stringify({ returnPath: "/settings" }),
-    });
-  expect((await portal()).status).toBe(403);
   await db
     .insert(schema.subscriptions)
     .values({ id: randomUUID(), plan: "team", orgId: spaceId, status: "active" });
-  expect((await portal()).status).not.toBe(403);
-  const again = await api(worker, "/billing/checkout", cookie, {
-    method: "POST",
-    body: JSON.stringify({ interval: "month", returnPath: "/settings" }),
-  });
-  expect(again.status).toBe(403);
+  expect(await billing(cookie)).toMatchObject({ plan: "team", readOnly: false });
+  expect(await archive(cookie, threadId)).toBe(200);
 });

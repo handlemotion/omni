@@ -402,13 +402,31 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   expect(await billing(reader.cookie)).toMatchObject({ triage: { used: 1, pausedUntil: null } });
 });
 
-test("a Personal space is triaged with billing on and no plan, and nothing is counted", async () => {
+test("a Personal space's triage is metered on its plan, like any workspace's", async () => {
   const reader = await setUpWorkspace({ personal: true });
+  const start = second(Date.now() - 86_400_000);
+  const subscribed = await postStripeEvent(
+    worker.url,
+    stripeEvent(
+      "customer.subscription.created",
+      subscriptionObject({
+        id: `sub_e2e_${randomUUID().slice(0, 8)}`,
+        customer: reader.customer,
+        status: "trialing",
+        periodStart: start,
+        periodEnd: new Date(start.getTime() + 7 * 86_400_000),
+      }),
+      new Date(Date.now() - 60_000),
+    ),
+  );
+  expect(subscribed.body).toMatchObject({ applied: true });
   const request = await arrives("triage-inbound-request.eml", reader);
   const triaged = await waitUntil(async () => {
     const thread = await threadRow(request.threadId);
     return thread.triageMessageId === request.id && thread;
   });
   expect(triaged).toMatchObject({ triageSource: "ai", triagePausedUntil: null });
-  expect(await usageRows(reader.orgId)).toEqual([]);
+  expect(await usageRows(reader.orgId)).toEqual([
+    expect.objectContaining({ messageId: request.id }),
+  ]);
 });

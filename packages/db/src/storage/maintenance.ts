@@ -5,7 +5,6 @@ import {
   inArray,
   isNotNull,
   lt,
-  not,
   or,
   sql,
   type AnyColumn,
@@ -13,7 +12,6 @@ import {
 } from "drizzle-orm";
 import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";
-import { isCompany } from "../personal-space.ts";
 import { organizations, subscriptions, users } from "../schema/auth.ts";
 import { userEmails } from "../schema/identity.ts";
 import {
@@ -36,14 +34,11 @@ export async function storageUsageOf(db: Db, orgId: string) {
 }
 
 function inGoodStanding(db: Db, orgId: AnyColumn) {
-  return or(
-    not(isCompany(db, orgId)),
-    exists(
-      db
-        .select({ one: sql`1` })
-        .from(subscriptions)
-        .where(and(eq(subscriptions.orgId, orgId), inArray(subscriptions.status, PAID_STATUSES))),
-    ),
+  return exists(
+    db
+      .select({ one: sql`1` })
+      .from(subscriptions)
+      .where(and(eq(subscriptions.orgId, orgId), inArray(subscriptions.status, PAID_STATUSES))),
   );
 }
 

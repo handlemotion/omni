@@ -13,7 +13,6 @@ import {
   claimUsage,
   planOf,
   usageOf,
-  workspaceKind,
   workspaceSubscription,
   type Db,
   type WorkspaceSubscription,
@@ -55,7 +54,7 @@ export type Entitlements =
 /**
  * What `orgId` may do now: the one place a workspace's plan is decided. A subscription in good
  * standing, a trial included, gives its plan; anything else leaves the workspace read-only until
- * it starts a trial or pays. A Personal space has no plan and no limit, and billing off has none.
+ * it starts a trial or pays. Billing off has no plan and no limit.
  */
 export const entitlements: (
   db: Db,
@@ -63,7 +62,7 @@ export const entitlements: (
   orgId: string,
   now?: Date,
 ) => Promise<Entitlements> = async (db, config, orgId, now = new Date()) => {
-  if (!config.auth.billing || (await workspaceKind(db, orgId)) === "personal") {
+  if (!config.auth.billing) {
     return { enabled: false };
   }
   const subscription = await workspaceSubscription(db, orgId);

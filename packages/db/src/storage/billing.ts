@@ -1,7 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";
-import { isCompany } from "../personal-space.ts";
 import { organizations, subscriptions } from "../schema/auth.ts";
 import { storageOverage, storagePeaks, storageUsage } from "../schema/storage.ts";
 
@@ -106,7 +105,7 @@ export async function storageBilledWorkspaces(db: Db) {
     .from(subscriptions)
     .innerJoin(organizations, eq(organizations.id, subscriptions.orgId))
     .leftJoin(storageUsage, eq(storageUsage.orgId, subscriptions.orgId))
-    .where(and(inArray(subscriptions.status, PAID_STATUSES), isCompany(db, subscriptions.orgId)))
+    .where(inArray(subscriptions.status, PAID_STATUSES))
     .orderBy(subscriptions.orgId, desc(subscriptions.id));
   return rows.filter((row, i) => row.orgId !== rows[i - 1]?.orgId);
 }

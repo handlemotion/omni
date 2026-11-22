@@ -14,7 +14,6 @@ import {
 import {
   forUser,
   schema,
-  workspaceKind,
   type StorageLinkSettings,
   type StorageNode,
   type StorageSharing as SharingRow,
@@ -68,7 +67,6 @@ async function onProbation(c: Context<AppEnv>) {
     .from(schema.users)
     .where(eq(schema.users.id, user.id));
   if (!row || Date.now() - row.createdAt.getTime() < NEW_ACCOUNT_DAYS * 86_400_000) return true;
-  if ((await workspaceKind(db, member.orgId)) === "personal") return true;
   const plan = await entitlements(db, config, member.orgId);
   return plan.enabled && plan.readOnly;
 }

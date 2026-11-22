@@ -4,7 +4,14 @@ import type { Db } from "./client.ts";
 import { orgHoldsCrmRecords } from "./crm.ts";
 import { orgHasMailbox } from "./mail.ts";
 import { isCompany } from "./personal-space.ts";
-import { invitations, members, organizations, sessions, users } from "./schema/auth.ts";
+import {
+  invitations,
+  members,
+  organizations,
+  sessions,
+  subscriptions,
+  users,
+} from "./schema/auth.ts";
 import { personalSpaces, userEmails } from "./schema/identity.ts";
 import { grantsForUserRow, orgHoldsFiles } from "./storage.ts";
 
@@ -18,9 +25,9 @@ export const ABANDONED_SIGN_UP_BATCH = 500;
  * Deletes accounts that have no workspace and nothing that would give them one, created and last
  * signed in to before `idleSince`, oldest first, at most `limit`. Answers what it deleted.
  *
- * Kept: anyone in a company, or whose Personal space holds a mailbox, a file or a CRM record, or
- * has another
- * member (deleting it would take their workspace); anyone with a
+ * Kept: anyone in a company, or whose Personal space holds a mailbox, a file or a CRM record,
+ * has another member (deleting it would take their workspace), or has ever had a subscription
+ * (deleting it would leave a Stripe customer billed with no account to cancel from); anyone with a
  * live invitation to their primary or any extra sign-in email (they may still accept it); anyone
  * who ever invited someone (they were a member, and deleting them would cascade to those
  * invitations); anyone something in Storage is shared with, at an address they verified (the
@@ -51,6 +58,12 @@ export async function deleteAbandonedSignUps(
                   orgHasMailbox(sql`${members.organizationId}`),
                   orgHoldsFiles(sql`${members.organizationId}`),
                   orgHoldsCrmRecords(sql`${members.organizationId}`),
+                  exists(
+                    db
+                      .select({ one: sql`1` })
+                      .from(subscriptions)
+                      .where(eq(subscriptions.orgId, members.organizationId)),
+                  ),
                   exists(
                     db
                       .select({ one: sql`1` })

@@ -61,17 +61,22 @@ export function extraGb(peakBytes: number, allowanceBytes: number) {
 /**
  * How much `orgId` may store: the one place the quota is decided.
  *
- * - `STORAGE_MAX_GB` caps every workspace, and `STORAGE_PERSONAL_GB` a Personal space, which
- *   never has a plan. Without billing these are the only limits.
- * - With billing on, a company has its plan's storage (`PLAN_LIMITS`). It is also its cap unless
+ * - `STORAGE_MAX_GB` caps every workspace. Without billing, `STORAGE_PERSONAL_GB` also caps a
+ *   Personal space; these are then the only limits.
+ * - With billing on, every workspace has its plan's storage (`PLAN_LIMITS`). It is also its cap unless
  *   extra storage can be billed: storage billing configured, and a paying monthly subscription
  *   that Stripe showed with a payment method. A trial, a yearly plan and no card are capped.
  */
 export async function storageLimit(db: Db, config: Config, orgId: string, now = new Date()) {
   const caps: number[] = [];
   if (config.STORAGE_MAX_GB !== undefined) caps.push(config.STORAGE_MAX_GB);
-  const personal = (await workspaceKind(db, orgId)) === "personal";
-  if (personal && config.STORAGE_PERSONAL_GB !== undefined) caps.push(config.STORAGE_PERSONAL_GB);
+  if (
+    !config.auth.billing &&
+    config.STORAGE_PERSONAL_GB !== undefined &&
+    (await workspaceKind(db, orgId)) === "personal"
+  ) {
+    caps.push(config.STORAGE_PERSONAL_GB);
+  }
   const plan = await entitlements(db, config, orgId, now);
   let overagePeriodStart: Date | null = null;
   if (plan.enabled) {

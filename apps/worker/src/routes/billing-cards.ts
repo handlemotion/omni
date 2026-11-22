@@ -29,7 +29,7 @@ async function storedCustomer(c: Ctx) {
 
 async function manage(c: Ctx) {
   const plans = requireBilling(c.var.config);
-  await requireBillingManager(c, "manage");
+  await requireBillingManager(c);
   return { plans, stripe: createStripeClient(plans.secretKey) };
 }
 

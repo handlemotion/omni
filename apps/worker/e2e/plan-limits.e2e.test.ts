@@ -208,7 +208,7 @@ test("a month's meter counts each key once, refuses past the allowance, and a re
   expect(rows.map((r) => r.amount).reduce((a, b) => a + b, 0)).toBe(105);
 });
 
-test("a Personal space, which has no plan yet, is held to no member cap", async () => {
+test("a Personal space is held to the member cap like any workspace", async () => {
   const jar = new CookieJar();
   const email = `solo-${tag()}@gmail.test`;
   await signIn(stack.worker, stack.database.db, email, jar);
@@ -228,5 +228,8 @@ test("a Personal space, which has no plan yet, is held to no member cap", async 
       inviterId: owner!.userId,
     })),
   );
-  expect((await invite(jar)).status).toBe(200);
+  expect(await invite(jar)).toMatchObject({
+    status: 402,
+    body: { code: "PLAN_LIMIT", details: { cap: "members", max: 15, held: 16, plan: null } },
+  });
 });

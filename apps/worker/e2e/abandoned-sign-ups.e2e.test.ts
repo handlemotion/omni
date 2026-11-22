@@ -157,7 +157,7 @@ test("the daily cron deletes only accounts with no workspace, no way into one, a
   expect(await remaining(everyone)).toEqual(left);
 });
 
-test("an abandoned account's empty Personal space goes with it; one holding mail, a file, a CRM record or another member keeps its owner", async () => {
+test("an abandoned account's empty Personal space goes with it; one holding mail, a file, a CRM record, another member or a subscription keeps its owner", async () => {
   const { db } = database;
   const gone = await signUp("personal-gone", 45);
   const goneSpace = await ensurePersonalSpace(db, gone.id);
@@ -186,19 +186,30 @@ test("an abandoned account's empty Personal space goes with it; one holding mail
     address: "ana@client.test",
   });
   expect(added.status).toBe("ok");
+  const paying = await signUp("personal-paying", 45);
+  const payingSpace = await ensurePersonalSpace(db, paying.id);
+  await db
+    .insert(schema.subscriptions)
+    .values({ id: randomUUID(), plan: "team", orgId: payingSpace, status: "active" });
 
   await runDaily();
 
-  expect(await remaining([gone.id, kept.id, files.id, shared.id, crm.id])).toEqual(
-    new Set([kept.id, files.id, shared.id, crm.id]),
-  );
+  const ids = [gone.id, kept.id, files.id, shared.id, crm.id, paying.id];
+  expect(await remaining(ids)).toEqual(new Set(ids.slice(1)));
   const spaces = await db
     .select({ id: schema.organizations.id })
     .from(schema.organizations)
     .where(
-      inArray(schema.organizations.id, [goneSpace, keptSpace, filesSpace, sharedSpace, crmSpace]),
+      inArray(schema.organizations.id, [
+        goneSpace,
+        keptSpace,
+        filesSpace,
+        sharedSpace,
+        crmSpace,
+        payingSpace,
+      ]),
     );
   expect(spaces.map((space) => space.id).toSorted()).toEqual(
-    [keptSpace, filesSpace, sharedSpace, crmSpace].toSorted(),
+    [keptSpace, filesSpace, sharedSpace, crmSpace, payingSpace].toSorted(),
   );
 });

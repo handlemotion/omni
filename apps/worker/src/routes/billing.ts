@@ -22,8 +22,6 @@ import {
   trialUnavailable,
   schema,
   subscriptionRowFor,
-  workspaceKind,
-  workspaceSubscription,
   type Db,
 } from "@omni/db";
 import { and, eq, isNull } from "drizzle-orm";
@@ -130,22 +128,8 @@ const planPrice: (
   }
 };
 
-/**
- * Owners and admins only. A Personal space is free: it may never start a plan
- * (`subscribe`), and may manage one (`manage`: the portal, cards) only if it somehow has one,
- * so it can always be cancelled.
- */
-export async function requireBillingManager(
-  c: { var: AppEnv["Variables"] },
-  purpose: "subscribe" | "manage" = "subscribe",
-) {
-  if ((await workspaceKind(c.var.db, c.var.member.orgId)) === "personal") {
-    const existing =
-      purpose === "manage" ? await workspaceSubscription(c.var.db, c.var.member.orgId) : null;
-    if (!existing) {
-      throw new HTTPException(403, { message: "a Personal space is free; it has no plan" });
-    }
-  }
+/** Owners and admins only. */
+export async function requireBillingManager(c: { var: AppEnv["Variables"] }) {
   if (!(await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId))) {
     throw new HTTPException(403, { message: "only owners and admins manage billing" });
   }
@@ -415,7 +399,7 @@ export const billing = new Hono<AppEnv>()
 
   .post("/billing/portal", zValidator("json", portalBody), async (c) => {
     requireBilling(c.var.config);
-    await requireBillingManager(c, "manage");
+    await requireBillingManager(c);
     const portal = await c.var.auth.api.createBillingPortal({
       headers: c.req.raw.headers,
       body: {

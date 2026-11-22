@@ -243,9 +243,8 @@ test("the plan's storage caps a trial, a yearly plan and a workspace with no car
   await signIn(stack.worker, stack.db, `solo-${randomUUID().slice(0, 8)}@personal.test`, jar);
   await stack.justMe(jar);
   expect((await stack.api(jar, "GET", "/usage")).body).toMatchObject({
-    limitBytes: PERSONAL,
-    allowanceBytes: null,
-    overage: null,
+    limitBytes: TEAM,
+    uploadsBlocked: "billing_inactive",
   });
   const none = await company(null);
   expect(await usage(none.owner)).toMatchObject({

@@ -78,16 +78,17 @@ test("the purge keeps a read-only workspace's Trash and empties everyone else's"
   for (let run = 0; run < 2; run++) {
     const purged = await purgeStorageTrash(db, { before, keepReadOnly: true });
     expect(purged.more).toBe(false);
-    expect(await bytes()).toEqual([40, 40, 0, 0]);
+    expect(await bytes()).toEqual([40, 40, 0, 40]);
   }
   await subscribe(lapsed.id, "active");
+  await subscribe(space, "trialing");
   await purgeStorageTrash(db, { before, keepReadOnly: true });
   expect(await bytes()).toEqual([0, 40, 0, 0]);
   await purgeStorageTrash(db, { before });
   expect(await bytes()).toEqual([0, 0, 0, 0]);
 });
 
-test("a payment method is recorded for the customer's workspace only, and the daily job sees each paying company once", async () => {
+test("a payment method is recorded for the customer's workspace only, and the daily job sees each paying workspace once", async () => {
   const acme = await createOrg(db, "acme");
   const other = await createOrg(db, "other");
   await db
@@ -124,13 +125,22 @@ test("a payment method is recorded for the customer's workspace only, and the da
   const mine = (await storageBilledWorkspaces(db)).filter((row) =>
     [acme.id, other.id, space].includes(row.orgId),
   );
-  expect(mine).toEqual([
+  expect(
+    mine.toSorted((a, b) =>
+      String(a.stripeSubscriptionId).localeCompare(String(b.stripeSubscriptionId)),
+    ),
+  ).toEqual([
     expect.objectContaining({
       orgId: acme.id,
       stripeCustomerId: "cus_acme",
       stripeSubscriptionId: "sub_acme",
       status: "active",
       bytes: 70,
+    }),
+    expect.objectContaining({
+      orgId: space,
+      stripeSubscriptionId: "sub_personal",
+      status: "active",
     }),
   ]);
 });
