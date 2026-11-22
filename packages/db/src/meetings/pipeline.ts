@@ -249,6 +249,9 @@ export interface SavedNotes {
   summary: string;
   highlights: Array<{ text: string; atMs: number }>;
   topics: string[];
+  decisions?: Array<{ text: string; atMs: number }>;
+  questions?: Array<{ text: string; atMs: number }>;
+  chapters?: Array<{ title: string; startMs: number; points: string[] }>;
   actions: Array<{ kind: "task" | "email"; payload: Record<string, unknown> }>;
   model: string;
   promptVersion: number;
@@ -268,6 +271,9 @@ export async function saveNotes(ex: Ex, meetingId: string, orgId: string, notes:
       summary: notes.summary,
       highlights: notes.highlights,
       topics: notes.topics,
+      decisions: notes.decisions ?? [],
+      questions: notes.questions ?? [],
+      chapters: notes.chapters ?? [],
       model: notes.model,
       promptVersion: notes.promptVersion,
     })

@@ -75,6 +75,14 @@ export function notesBlock(
     for (const h of notes.highlights) lines.push(`- **${formatClock(h.atMs)}** ${h.text}`);
     lines.push("");
   }
+  const moments = (title: string, list: Array<{ text: string; atMs: number }>) => {
+    if (!list.length) return;
+    lines.push(`### ${title}`, "");
+    for (const m of list) lines.push(`- **${formatClock(m.atMs)}** ${m.text}`);
+    lines.push("");
+  };
+  moments("Decisions", notes.decisions);
+  moments("Open questions", notes.questions);
   if (actions.length) {
     lines.push("### Actions", "");
     for (const a of actions) lines.push(actionLine(a.kind, a.payload));

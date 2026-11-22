@@ -37,7 +37,8 @@ const kickoffSpeakers = resolveSpeakers({
 export const notesScenarios: Array<{
   id: string;
   input: WriteNotesInput;
-  holds: { summaryWords: string[]; emailTo: string | null; taskWord: string };
+  /** `recordedAt` is the prompt version the answer was recorded with: v1 has no decisions or chapters. */
+  holds: { summaryWords: string[]; emailTo: string | null; taskWord: string; recordedAt: number };
 }> = [
   {
     id: "notes-two-person-es",
@@ -51,7 +52,7 @@ export const notesScenarios: Array<{
       durationMs: call.durationMs,
       language: call.language,
     },
-    holds: { summaryWords: ["acceso"], emailTo: marta.address, taskWord: "acceso" },
+    holds: { summaryWords: ["acceso"], emailTo: marta.address, taskWord: "acceso", recordedAt: 1 },
   },
   {
     id: "notes-kickoff-en",
@@ -65,7 +66,7 @@ export const notesScenarios: Array<{
       durationMs: kickoff.durationMs,
       language: kickoff.language,
     },
-    holds: { summaryWords: ["retention"], emailTo: null, taskWord: "cohort" },
+    holds: { summaryWords: ["retention"], emailTo: null, taskWord: "cohort", recordedAt: 2 },
   },
 ];
 

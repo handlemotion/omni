@@ -205,6 +205,16 @@ test("a recorded call becomes a transcript with names, notes and actions, for it
 
   const transcript = await api(ben, "GET", `/${meetingId}/transcript`);
   expect(transcript.body.segments).toHaveLength(6);
+  expect(ready.body.notes).toMatchObject({ decisions: [], questions: [], chapters: [] });
+  const spoken = new Map<string, number>();
+  for (const g of transcript.body.segments) {
+    spoken.set(g.speaker, (spoken.get(g.speaker) ?? 0) + g.endMs - g.startMs);
+  }
+  expect(Object.fromEntries(ready.body.talk.map((t: any) => [t.label, t.ms]))).toEqual(
+    Object.fromEntries(spoken),
+  );
+  expect(ready.body.talk.reduce((sum: number, t: any) => sum + t.share, 0)).toBeCloseTo(1, 2);
+  expect(ready.body.talk[0].ms).toBeGreaterThanOrEqual(ready.body.talk.at(-1).ms);
   expect((await api(ben, "GET", `/${meetingId}`)).body.role).toBe("viewer");
   expect((await api(ben, "PATCH", `/${meetingId}`, { title: "mine" })).status).toBe(403);
   expect((await api(cy, "GET", `/${meetingId}`)).status).toBe(404);

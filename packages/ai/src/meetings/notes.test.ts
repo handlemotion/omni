@@ -45,6 +45,11 @@ describe.each(notesScenarios)("$id", ({ id, input, holds }) => {
     expect(tasks.some((t) => t.title.toLowerCase().includes(holds.taskWord))).toBe(true);
     const emailTo = notes.actions.flatMap((a) => (a.kind === "email" ? a.to : []));
     expect(holds.emailTo === null || emailTo.includes(holds.emailTo)).toBe(true);
+    const newParts = [notes.decisions.length > 0, notes.chapters.length > 0];
+    expect(newParts).toEqual(holds.recordedAt >= 2 ? [true, true] : [false, false]);
+    for (const m of [...notes.decisions, ...notes.questions]) {
+      expect(m.atMs).toBeLessThanOrEqual(input.durationMs);
+    }
     expect(JSON.stringify(notes)).not.toMatch(/Speaker \d/);
   });
 });
@@ -111,10 +116,20 @@ describe("cleanNotes", () => {
       { text: "Not a time", at: "soon" },
     ],
     actions: [
-      { kind: "task", title: " ", owner: "", due: "", to: [], subject: "", body: "" },
+      {
+        kind: "task",
+        title: " ",
+        description: "",
+        owner: "",
+        due: "",
+        to: [],
+        subject: "",
+        body: "",
+      },
       {
         kind: "email",
         title: "",
+        description: "",
         owner: "",
         due: "",
         to: ["stranger@else.test"],
@@ -124,6 +139,7 @@ describe("cleanNotes", () => {
       {
         kind: "email",
         title: "",
+        description: "",
         owner: "",
         due: "",
         to: ["MARTA@client.test"],
@@ -133,12 +149,27 @@ describe("cleanNotes", () => {
       {
         kind: "email",
         title: "",
+        description: "",
         owner: "",
         due: "",
         to: ["marta@client.test"],
         subject: "Two",
         body: "b",
       },
+    ],
+    decisions: [
+      { text: "Ship on the 4th", at: "00:30" },
+      { text: "After the end", at: "59:00" },
+    ],
+    questions: [
+      { text: " ", at: "00:10" },
+      { text: "Who owns the export?", at: "01:05" },
+    ],
+    chapters: [
+      { title: "Budget", at: "01:00", points: ["18k", " ", "two reviews"] },
+      { title: "Intro", at: "00:00", points: ["Hello"] },
+      { title: "Later", at: "59:00", points: [] },
+      { title: " ", at: "00:20", points: ["no title"] },
     ],
     topics: ["a", " ", "b"],
   };
@@ -152,6 +183,57 @@ describe("cleanNotes", () => {
       { kind: "email", to: ["marta@client.test"], subject: "One", body: "b" },
     ]);
     expect(notes.topics).toEqual(["a", "b"]);
+  });
+
+  it("keeps decisions and open questions inside the meeting, and chapters in order", () => {
+    const notes = cleanNotes(answer, input);
+    expect(notes.decisions).toEqual([{ text: "Ship on the 4th", atMs: 30_000 }]);
+    expect(notes.questions).toEqual([{ text: "Who owns the export?", atMs: 65_000 }]);
+    expect(notes.chapters).toEqual([
+      { title: "Intro", startMs: 0, points: ["Hello"] },
+      { title: "Budget", startMs: 60_000, points: ["18k", "two reviews"] },
+    ]);
+  });
+
+  it("keeps a task's description, and none when it is blank", () => {
+    const notes = cleanNotes(
+      {
+        ...answer,
+        actions: [
+          {
+            kind: "task",
+            title: "Send the deck",
+            description: " So the client can review it before Friday. ",
+            owner: "Dana",
+            due: "",
+            to: [],
+            subject: "",
+            body: "",
+          },
+          {
+            kind: "task",
+            title: "Book the room",
+            description: " ",
+            owner: "",
+            due: "",
+            to: [],
+            subject: "",
+            body: "",
+          },
+        ],
+      },
+      input,
+    );
+    expect(notes.actions).toEqual([
+      {
+        kind: "task",
+        title: "Send the deck",
+        description: "So the client can review it before Friday.",
+        owner: "Dana",
+        due: null,
+      },
+      { kind: "task", title: "Book the room", description: null, owner: null, due: null },
+    ]);
   });
 });
 

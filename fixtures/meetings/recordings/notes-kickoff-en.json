@@ -2,13 +2,18 @@
   "user": "Title: (none)\n\nWrite the notes in this language: English\n\nAttendees:\n- Dana Ruiz <dana@studio.test>\n- José Ortega <jose@studio.test>\n- Priya Nair <priya@studio.test>\n\nTranscript:\n[00:00] Dana Ruiz: Morning everyone, quick kickoff today.\n[00:04] Priya Nair: Signups are up seven and a half percent week over week.\n[00:10] Speaker 3: Retention for AI notes users sits at sixty six percent.\n[00:16] Dana Ruiz: Great. Jose, can you send the cohort chart by Thursday?\n[00:21] Speaker 3: Sure, Thursday works.",
   "response": {
     "model": "claude-haiku-5-5",
-    "id": "msg_011ChJMiLUsT5YmFLNEsnGBm",
+    "id": "msg_011ChJcAqeuUBb9vcRvhFC2y",
     "type": "message",
     "role": "assistant",
     "content": [
       {
+        "type": "thinking",
+        "thinking": "",
+        "signature": "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"
+      },
+      {
         "type": "text",
-        "text": "{\"title\":\"Morning kickoff: signups and retention\",\"summary\":\"A quick kickoff meeting where Priya Nair reported signups up 7.5 percent week over week and a speaker reported 66 percent retention for AI notes users. Jose Ortega agreed to send the cohort chart by Thursday.\",\"highlights\":[{\"text\":\"Signups are up 7.5 percent week over week (Priya Nair).\",\"at\":\"00:04\"},{\"text\":\"Retention for AI notes users is at 66 percent.\",\"at\":\"00:10\"},{\"text\":\"Jose Ortega agreed to send the cohort chart by Thursday.\",\"at\":\"00:21\"}],\"actions\":[{\"kind\":\"task\",\"title\":\"Send the cohort chart\",\"owner\":\"José Ortega\",\"due\":\"Thursday\",\"to\":[],\"subject\":\"\",\"body\":\"\"},{\"kind\":\"email\",\"title\":\"\",\"owner\":\"\",\"due\":\"\",\"to\":[\"dana@studio.test\",\"jose@studio.test\",\"priya@studio.test\"],\"subject\":\"Kickoff recap: signups and retention\",\"body\":\"Hi all, recap of today's kickoff: signups are up 7.5 percent week over week, and retention for AI notes users sits at 66 percent. José Ortega will send the cohort chart by Thursday. This meeting was recorded and transcribed.\"}],\"topics\":[\"signups\",\"retention\",\"kickoff\",\"cohort analysis\"]}"
+        "text": "{\"title\":\"Morning kickoff: signups and retention\",\"summary\":\"Dana Ruiz opened a short kickoff with two metrics: signups are up 7.5% week over week, and retention for AI notes users is 66%. Dana asked José Ortega to send the cohort chart by Thursday, and he agreed.\",\"highlights\":[{\"text\":\"Signups are up 7.5% week over week (Priya Nair).\",\"at\":\"00:04\"},{\"text\":\"Retention for AI notes users is 66%.\",\"at\":\"00:10\"},{\"text\":\"José Ortega agreed to send the cohort chart by Thursday.\",\"at\":\"00:21\"}],\"decisions\":[{\"text\":\"José Ortega will send the cohort chart by Thursday.\",\"at\":\"00:21\"}],\"questions\":[],\"chapters\":[{\"title\":\"Kickoff metrics\",\"at\":\"00:00\",\"points\":[\"Dana Ruiz opened the quick kickoff.\",\"Priya Nair reported signups up 7.5% week over week.\",\"Retention for AI notes users is at 66%.\",\"José Ortega will send the cohort chart by Thursday.\"]}],\"actions\":[{\"kind\":\"task\",\"title\":\"Send the cohort chart\",\"description\":\"Share the cohort chart with the team so the retention figures can be reviewed.\",\"owner\":\"José Ortega\",\"due\":\"Thursday\",\"to\":[],\"subject\":\"\",\"body\":\"\"},{\"kind\":\"email\",\"title\":\"Follow-up to kickoff\",\"description\":\"\",\"owner\":\"\",\"due\":\"\",\"to\":[\"dana@studio.test\",\"jose@studio.test\",\"priya@studio.test\"],\"subject\":\"Kickoff notes: signups and retention\",\"body\":\"Hi all,\\n\\nThanks for the kickoff. Recap:\\n- Signups are up 7.5% week over week.\\n- Retention for AI notes users is at 66%.\\n- José will send the cohort chart by Thursday.\\n\\nThis meeting was recorded and transcribed.\\n\\nDana\"}],\"topics\":[\"signups\",\"retention\",\"cohort analysis\",\"kickoff\"]}"
       }
     ],
     "container": null,
@@ -16,16 +21,16 @@
     "stop_sequence": null,
     "stop_details": null,
     "usage": {
-      "input_tokens": 1275,
+      "input_tokens": 1856,
       "cache_creation_input_tokens": 0,
       "cache_read_input_tokens": 0,
       "cache_creation": {
         "ephemeral_5m_input_tokens": 0,
         "ephemeral_1h_input_tokens": 0
       },
-      "output_tokens": 451,
+      "output_tokens": 1028,
       "output_tokens_details": {
-        "thinking_tokens": 0
+        "thinking_tokens": 365
       },
       "service_tier": "standard",
       "inference_geo": "global",

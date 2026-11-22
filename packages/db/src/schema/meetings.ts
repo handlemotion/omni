@@ -186,6 +186,21 @@ export const meetingsNotes = pgTable(
     summary: text("summary").notNull(),
     highlights: jsonb("highlights").$type<Array<{ text: string; atMs: number }>>().notNull(),
     topics: jsonb("topics").$type<string[]>().notNull(),
+    /** What the meeting settled, each with when. Empty for notes written before prompt v2. */
+    decisions: jsonb("decisions")
+      .$type<Array<{ text: string; atMs: number }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** What it raised and left open, each with when. */
+    questions: jsonb("questions")
+      .$type<Array<{ text: string; atMs: number }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** Its parts in order, each with where it starts and what was said in it. */
+    chapters: jsonb("chapters")
+      .$type<Array<{ title: string; startMs: number; points: string[] }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     model: text("model").notNull(),
     promptVersion: integer("prompt_version").notNull(),
     writtenToDocAt: timestamptz("written_to_doc_at"),

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, count, desc, eq, inArray, lt, max, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, lt, max, sql } from "drizzle-orm";
 import {
   meetingsActions,
   meetingsAttendees,
@@ -39,10 +39,31 @@ export const meetingView = (m: typeof meetingsMeetings.$inferSelect) => ({
 
 export type MeetingView = ReturnType<typeof meetingView>;
 
+async function talkTime(ex: Ex, meetingId: string) {
+  const rows = await ex
+    .select({
+      label: meetingsSegments.speakerLabel,
+      ms: sql<number>`sum(greatest(${meetingsSegments.endMs} - ${meetingsSegments.startMs}, 0))::int`,
+      turns: sql<number>`count(*)::int`,
+    })
+    .from(meetingsSegments)
+    .where(and(eq(meetingsSegments.meetingId, meetingId), isNotNull(meetingsSegments.speakerLabel)))
+    .groupBy(meetingsSegments.speakerLabel);
+  const total = rows.reduce((sum, r) => sum + r.ms, 0);
+  return rows
+    .map((r) => ({
+      label: r.label as string,
+      ms: r.ms,
+      turns: r.turns,
+      share: total ? Math.round((r.ms / total) * 1000) / 1000 : 0,
+    }))
+    .sort((a, b) => b.ms - a.ms);
+}
+
 /** One meeting with its people, speakers, notes and actions; sharing only for its editors. */
 export function getMeeting(ex: Ex, actor: MeetingsActor | null, meetingId: string) {
   return withMeeting(ex, actor, meetingId, "viewer", async ({ meeting, role }) => {
-    const [attendees, speakers, notes, actions] = await Promise.all([
+    const [attendees, speakers, notes, actions, talk] = await Promise.all([
       ex
         .select({ address: meetingsAttendees.address, name: meetingsAttendees.name })
         .from(meetingsAttendees)
@@ -54,6 +75,7 @@ export function getMeeting(ex: Ex, actor: MeetingsActor | null, meetingId: strin
         .from(meetingsActions)
         .where(eq(meetingsActions.meetingId, meetingId))
         .orderBy(asc(meetingsActions.seq)),
+      talkTime(ex, meetingId),
     ]);
     const editor = atLeast(role, "editor");
     const grants = editor
@@ -77,8 +99,16 @@ export function getMeeting(ex: Ex, actor: MeetingsActor | null, meetingId: strin
       attendees,
       speakers: speakers.map(({ orgId: _org, meetingId: _m, ...s }) => s),
       notes: notes[0]
-        ? { summary: notes[0].summary, highlights: notes[0].highlights, topics: notes[0].topics }
+        ? {
+            summary: notes[0].summary,
+            highlights: notes[0].highlights,
+            topics: notes[0].topics,
+            decisions: notes[0].decisions,
+            questions: notes[0].questions,
+            chapters: notes[0].chapters,
+          }
         : null,
+      talk,
       actions: actions.map((a) => ({
         id: a.id,
         kind: a.kind,
