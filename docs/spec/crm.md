@@ -40,17 +40,17 @@ scopes keep `crm`.
 
 ## What we take from Attio and Twenty
 
-| Pattern                             | In v1                                                         | Later                                    |
-| ----------------------------------- | ------------------------------------------------------------- | ---------------------------------------- |
-| Records fill from mail              | Add once, then every email shows by itself                    | Opt-in sharing across the workspace      |
-| Company from the email domain       | Made or found when a person is added; webmail makes none      | Enrichment (logo, description)           |
-| One timeline per record             | Events, notes, contracts, emails, merged newest first         | Meetings, files, tasks                   |
-| A pipeline you drag                 | Stages with a fixed kind and a free name; a board by stage    | Several pipelines, saved views           |
-| Notes on records                    | Plain notes on one record                                     | Mentions, notes on several records       |
-| Files on records                    | The record's folder in Shared, plus Drive files linked in place | Previews                                 |
-| An API first, and agents            | Every route typed; MCP tools                                  | Webhooks                                 |
-| A flexible data model               | Fixed columns                                                 | Custom fields as definitions plus JSON   |
-| Contracts and a client's own view   | Stored, tracked, sent and signed in Omni                      | The client dashboard |
+| Pattern                           | In v1                                                           | Later                                  |
+| --------------------------------- | --------------------------------------------------------------- | -------------------------------------- |
+| Records fill from mail            | Add once, then every email shows by itself                      | Opt-in sharing across the workspace    |
+| Company from the email domain     | Made or found when a person is added; webmail makes none        | Enrichment (logo, description)         |
+| One timeline per record           | Events, notes, contracts, emails, merged newest first           | Meetings (`meetings.md`), files, tasks |
+| A pipeline you drag               | Stages with a fixed kind and a free name; a board by stage      | Several pipelines, saved views         |
+| Notes on records                  | Plain notes on one record                                       | Mentions, notes on several records     |
+| Files on records                  | The record's folder in Shared, plus Drive files linked in place | Previews                               |
+| An API first, and agents          | Every route typed; MCP tools                                    | Webhooks                               |
+| A flexible data model             | Fixed columns                                                   | Custom fields as definitions plus JSON |
+| Contracts and a client's own view | Stored, tracked, sent and signed in Omni                        | The client dashboard                   |
 
 ## Objects
 
@@ -209,36 +209,36 @@ deliverable in review, the team's write, is what the gate refuses.
 All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 `@omni/contracts/crm.ts`. Lists are cursor paged. A Personal space answers `404 NO_CRM`.
 
-| Route                                                               | Does                                                                                                         |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `GET /companies` · `POST /companies`                                | List by name, `?q=` to filter. Create.                                                                       |
-| `GET /companies/:id` · `PATCH` · `DELETE`                           | Read with domains, people and deals. Change. Archive; `?forever=1` deletes for good (owners and admins).     |
-| `PUT /companies/:id/domains/:domain` · `DELETE` the same            | Add or remove a domain. A webmail or taken domain is refused.                                                |
-| `GET /people` · `POST /people`                                      | List, `?q=`, `?company=`. `POST` is "add once": an address that has a person returns that person.            |
-| `GET /people/:id` · `PATCH` · `DELETE`                              | Read. Change, addresses included. Archive or delete.                                                         |
-| `GET /deals` · `POST /deals`                                        | List, `?stage=`, `?kind=` (one or several, `open,won`), `?owner=`, `?company=`. Create.                     |
-| `GET /deals/:id` · `PATCH` · `DELETE`                               | Read with its people and contracts. Change, move stage, set people. Archive or delete.                       |
-| `GET /stages` · `PUT /stages`                                       | The ordered list. Replace it (owners and admins): rename, add, reorder. A stage holding deals stays.         |
-| `POST /notes` · `PATCH /notes/:id` · `DELETE /notes/:id`            | Write a note on one record. Its author edits or deletes it.                                                  |
-| `GET /companies/:id/timeline` · same for people and deals           | The merged timeline, newest first.                                                                           |
-| `POST /companies/:id/folder` · `POST /deals/:id/folder`             | Finds or makes the record's folder and returns its node id. The apps then use `/api/storage` on it.          |
-| `GET /companies/:id/links` · `POST` · `DELETE …/links/:nodeId` (and deals) | Drive files linked where they live. `POST` takes `nodeIds` the member can open now; linking twice is a no-op. |
-| `GET /contracts` · `POST /contracts` · `PATCH /contracts/:id` · `DELETE` | List by `?company=` or `?deal=`. Create. Change status, dates or file. Delete (never a signed one).     |
-| `POST /contracts/:id/send` · `POST /contracts/:id/void`             | Send a draft's PDF to its signers; void the open request (back to draft). `SIGNATURE_OPEN` while it is out.  |
-| `POST /contracts/:id/signed-copy`                                   | Signed elsewhere: the executed PDF, when, and who signed. The contract is `signed` with it; both files lock.  |
-| `POST /companies/:id/restore` · same for people and deals          | Brings an archived record back.                                                                   |
-| `POST /companies/bulk` · same for people and deals                 | One action (`archive`, `restore`, `delete`, `owner`; deals `stage`) on up to 200 ids, each by its own rules. |
-| `GET /lookup?address=`                                              | Up to 50 addresses. The people, companies and open deals that match, for the conversation sidebar.           |
-| `GET /search?q=`                                                    | People, companies and deals whose name, address or domain starts with the words. For pickers.                |
-| `GET /settings` · `PUT /settings`                                   | The default currency.                                                                                        |
-| `GET /tasks` · `POST /tasks` · `GET /tasks/counts`                  | List by `?status=`, `?assignee=`, `?due=`, `?company=`/`?person=`/`?deal=`, `?q=` (see Tasks). Create. Counts.    |
-| `GET /tasks/:id` · `PATCH` · `DELETE`                               | Read. Change, complete or reopen (`done`), move to another record. Delete.                                   |
-| `GET /deals/:id/access` · `PUT /deals/:id/access/:email` · `DELETE` | Who outside the team reaches the project. `PUT { scope }` adds or changes; a freelancer gets the folder. Teammates only. |
-| `GET /api/portal/projects` · `GET /api/portal/projects/:id`        | The client portal, for any signed-in person: their projects, and one with milestones, shown deliverables, contracts and files. |
-| `POST /api/portal/projects/:id/deliverables/:id/review`             | `{ decision: approve \| request_changes, note }` while in review. `note_required` for changes.             |
-| `GET /deals/:id/plan`                                               | The deal's milestones in order and its deliverables, oldest first.                                           |
-| `POST /deals/:id/milestones` · `PATCH /milestones/:id` · `DELETE`   | Add one last. Change; `position` moves it. Delete; its deliverables stay, under no milestone.                 |
-| `POST /deals/:id/deliverables` · `PATCH /deliverables/:id` · `DELETE` | Add, change, delete. `milestoneId` is one of the deal's, `nodeId` a file the member can open.              |
+| Route                                                                      | Does                                                                                                                           |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /companies` · `POST /companies`                                       | List by name, `?q=` to filter. Create.                                                                                         |
+| `GET /companies/:id` · `PATCH` · `DELETE`                                  | Read with domains, people and deals. Change. Archive; `?forever=1` deletes for good (owners and admins).                       |
+| `PUT /companies/:id/domains/:domain` · `DELETE` the same                   | Add or remove a domain. A webmail or taken domain is refused.                                                                  |
+| `GET /people` · `POST /people`                                             | List, `?q=`, `?company=`. `POST` is "add once": an address that has a person returns that person.                              |
+| `GET /people/:id` · `PATCH` · `DELETE`                                     | Read. Change, addresses included. Archive or delete.                                                                           |
+| `GET /deals` · `POST /deals`                                               | List, `?stage=`, `?kind=` (one or several, `open,won`), `?owner=`, `?company=`. Create.                                        |
+| `GET /deals/:id` · `PATCH` · `DELETE`                                      | Read with its people and contracts. Change, move stage, set people. Archive or delete.                                         |
+| `GET /stages` · `PUT /stages`                                              | The ordered list. Replace it (owners and admins): rename, add, reorder. A stage holding deals stays.                           |
+| `POST /notes` · `PATCH /notes/:id` · `DELETE /notes/:id`                   | Write a note on one record. Its author edits or deletes it.                                                                    |
+| `GET /companies/:id/timeline` · same for people and deals                  | The merged timeline, newest first.                                                                                             |
+| `POST /companies/:id/folder` · `POST /deals/:id/folder`                    | Finds or makes the record's folder and returns its node id. The apps then use `/api/storage` on it.                            |
+| `GET /companies/:id/links` · `POST` · `DELETE …/links/:nodeId` (and deals) | Drive files linked where they live. `POST` takes `nodeIds` the member can open now; linking twice is a no-op.                  |
+| `GET /contracts` · `POST /contracts` · `PATCH /contracts/:id` · `DELETE`   | List by `?company=` or `?deal=`. Create. Change status, dates or file. Delete (never a signed one).                            |
+| `POST /contracts/:id/send` · `POST /contracts/:id/void`                    | Send a draft's PDF to its signers; void the open request (back to draft). `SIGNATURE_OPEN` while it is out.                    |
+| `POST /contracts/:id/signed-copy`                                          | Signed elsewhere: the executed PDF, when, and who signed. The contract is `signed` with it; both files lock.                   |
+| `POST /companies/:id/restore` · same for people and deals                  | Brings an archived record back.                                                                                                |
+| `POST /companies/bulk` · same for people and deals                         | One action (`archive`, `restore`, `delete`, `owner`; deals `stage`) on up to 200 ids, each by its own rules.                   |
+| `GET /lookup?address=`                                                     | Up to 50 addresses. The people, companies and open deals that match, for the conversation sidebar.                             |
+| `GET /search?q=`                                                           | People, companies and deals whose name, address or domain starts with the words. For pickers.                                  |
+| `GET /settings` · `PUT /settings`                                          | The default currency.                                                                                                          |
+| `GET /tasks` · `POST /tasks` · `GET /tasks/counts`                         | List by `?status=`, `?assignee=`, `?due=`, `?company=`/`?person=`/`?deal=`, `?q=` (see Tasks). Create. Counts.                 |
+| `GET /tasks/:id` · `PATCH` · `DELETE`                                      | Read. Change, complete or reopen (`done`), move to another record. Delete.                                                     |
+| `GET /deals/:id/access` · `PUT /deals/:id/access/:email` · `DELETE`        | Who outside the team reaches the project. `PUT { scope }` adds or changes; a freelancer gets the folder. Teammates only.       |
+| `GET /api/portal/projects` · `GET /api/portal/projects/:id`                | The client portal, for any signed-in person: their projects, and one with milestones, shown deliverables, contracts and files. |
+| `POST /api/portal/projects/:id/deliverables/:id/review`                    | `{ decision: approve \| request_changes, note }` while in review. `note_required` for changes.                                 |
+| `GET /deals/:id/plan`                                                      | The deal's milestones in order and its deliverables, oldest first.                                                             |
+| `POST /deals/:id/milestones` · `PATCH /milestones/:id` · `DELETE`          | Add one last. Change; `position` moves it. Delete; its deliverables stay, under no milestone.                                  |
+| `POST /deals/:id/deliverables` · `PATCH /deliverables/:id` · `DELETE`      | Add, change, delete. `milestoneId` is one of the deal's, `nodeId` a file the member can open.                                  |
 
 - Every list takes `sort` (`name`, `created`, `updated`; deals also `value`, `closeOn`,
   `stageEntered`), `dir`, `owner` (an id or `none`), `createdAfter`, `createdBefore` and
@@ -354,11 +354,11 @@ Still out: custom fields, saved views, several pipelines, merging duplicates, im
 
 Four tools on the MCP server, through the same member door:
 
-| Tool         | Scope       | Does                                                                                     |
-| ------------ | ----------- | ---------------------------------------------------------------------------------------- |
-| `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, owner, archived, stage kind or close date. Compact rows. |
-| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, files, open tasks, a deal's plan and project access, recent notes and thread ids. |
-| `crm_tasks`  | `crm:read`  | Lists tasks by status, assignee, due (overdue, upcoming, none), record or title words.    |
+| Tool         | Scope       | Does                                                                                                                                                                       |
+| ------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, owner, archived, stage kind or close date. Compact rows.                                                                 |
+| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, files, open tasks, a deal's plan and project access, recent notes and thread ids.                              |
+| `crm_tasks`  | `crm:read`  | Lists tasks by status, assignee, due (overdue, upcoming, none), record or title words.                                                                                     |
 | `crm_write`  | `crm:write` | Adds or changes a record, task, milestone, deliverable or draft contract, archives or restores, links files, adds a note, or changes many at once. Never deletes or sends. |
 
 Thread ids from `crm_fetch` go to the mail `fetch` tool, which applies mail's own access. Note

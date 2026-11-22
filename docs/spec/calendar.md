@@ -19,8 +19,7 @@ sits: next to the mail, the clients and the files a meeting is about.
 The first version needs no new service, no new credential and no new variable. Events come from
 the invitations the mail service already stores (iCalendar over email, iMIP), and invitations Omni
 sends go out through the mail outbox. CalDAV, Google and Microsoft calendars come later, behind
-the mailbox's provider. Meeting recording and transcription are specified below and not built in
-this stack.
+the mailbox's provider. Meeting recording and transcription are their own module, `docs/spec/meetings.md`.
 
 ## Goals and non-goals
 
@@ -43,21 +42,21 @@ this stack.
 - Booking pages where a visitor picks a slot. The shared link shows free time only.
 - Reminders and notifications before a meeting, tasks on the calendar, travel time.
 - Rooms and resources, delegated calendars, a teammate's calendar beyond the inboxes you share.
-- Meeting recording and transcription (specified in "Recording, later").
+- Meeting recording and transcription (`docs/spec/meetings.md`).
 - The iOS app.
 
 ## What we take from Cron and Amie
 
-| Pattern                                   | In v1                                                          | Later                                        |
-| ----------------------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
-| Keyboard first                            | Create, open, move, delete, answer and navigate without a mouse | A command bar that parses "lunch with Ana fri 1pm" |
-| Several calendars at once                 | One per inbox you can open, overlaid, each toggled and colored  | CalDAV, Google and Microsoft calendars        |
-| Share availability                        | Copy free slots as text; a link that shows free and busy        | Booking: the visitor picks a slot            |
-| Join from the event                       | The video link pulled from the invitation, one key to join      | Joining from a notification                  |
-| Meeting context                           | People as CRM records, the email thread, the notes doc          | The last threads with each person            |
-| Time zones                                | The viewer's own; the event keeps its zone                      | A second zone in the gutter                  |
-| Notes (Amie)                              | One Omni doc per meeting in Drive                               | A template per kind of meeting               |
-| Recording (Amie, Granola)                 | Spec only                                                       | Botless capture, cheap transcription         |
+| Pattern                   | In v1                                                           | Later                                              |
+| ------------------------- | --------------------------------------------------------------- | -------------------------------------------------- |
+| Keyboard first            | Create, open, move, delete, answer and navigate without a mouse | A command bar that parses "lunch with Ana fri 1pm" |
+| Several calendars at once | One per inbox you can open, overlaid, each toggled and colored  | CalDAV, Google and Microsoft calendars             |
+| Share availability        | Copy free slots as text; a link that shows free and busy        | Booking: the visitor picks a slot                  |
+| Join from the event       | The video link pulled from the invitation, one key to join      | Joining from a notification                        |
+| Meeting context           | People as CRM records, the email thread, the notes doc          | The last threads with each person                  |
+| Time zones                | The viewer's own; the event keeps its zone                      | A second zone in the gutter                        |
+| Notes (Amie)              | One Omni doc per meeting in Drive                               | A template per kind of meeting                     |
+| Recording (Amie, Granola) | Its own module, `docs/spec/meetings.md`                         | A live transcript, the iPhone                      |
 
 No feature sprawl: no month view in v1 (Cron shipped without one for a year), no tasks on the
 calendar, no scheduling AI beyond the agent tools.
@@ -67,12 +66,12 @@ calendar, no scheduling AI beyond the agent tools.
 Omni runs on IMAP/SMTP at Purelymail or any host, and only `apps/mail` speaks to the host. Four
 sources were weighed.
 
-| Source                              | What it gives                                                   | Cost to us                                                                      | When  |
-| ----------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----- |
-| **Invitations in mail (iMIP)**      | Every meeting someone invites an inbox to, from any calendar app | None new. The mail service already stores each `text/calendar` part             | v1    |
-| **Events made in Omni**             | Your own events, and invitations you send                        | Postgres rows; invitations go out through the existing outbox                   | v1    |
-| CalDAV on the mail host             | The host's own calendars, synced both ways with Apple Calendar   | A DAV client in `apps/mail`, per-host quirks; Purelymail implements the basic RFC only | Later |
-| Google and Microsoft calendar APIs  | Full calendars of connected accounts                              | A new OAuth scope with Google's verification; a Microsoft connection mail lacks | Later |
+| Source                             | What it gives                                                    | Cost to us                                                                             | When  |
+| ---------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----- |
+| **Invitations in mail (iMIP)**     | Every meeting someone invites an inbox to, from any calendar app | None new. The mail service already stores each `text/calendar` part                    | v1    |
+| **Events made in Omni**            | Your own events, and invitations you send                        | Postgres rows; invitations go out through the existing outbox                          | v1    |
+| CalDAV on the mail host            | The host's own calendars, synced both ways with Apple Calendar   | A DAV client in `apps/mail`, per-host quirks; Purelymail implements the basic RFC only | Later |
+| Google and Microsoft calendar APIs | Full calendars of connected accounts                             | A new OAuth scope with Google's verification; a Microsoft connection mail lacks        | Later |
 
 **Why mail first.** iMIP (RFC 6047) is how every calendar app invites someone on another one: the
 invitation is an email with a `text/calendar` part (`METHOD:REQUEST`), an answer is an email back
@@ -162,22 +161,22 @@ tentative one hatched, an unanswered invitation outlined.
 **Keys.** Everything a mouse does, a key does too. The calendar takes no key while a field has
 focus.
 
-| Key                     | Does                                                                     |
-| ----------------------- | ------------------------------------------------------------------------ |
-| `c`                     | New event at the selected slot (or the next half hour), title focused    |
-| `←` `→`                 | Previous or next week (day in day view)                                  |
-| `t`                     | Today                                                                    |
-| `w` · `d`               | Week view · day view                                                     |
-| `↑` `↓`                 | Move the selected slot by 15 minutes; with an event selected, the event  |
-| `Shift` `↑` `↓`         | Make the selection or the selected event 15 minutes longer or shorter     |
-| `]` · `[`               | Select the next or previous event (`Tab` keeps moving focus)              |
-| `Enter`                 | Open the selected event                                                  |
-| `y` · `n` · `m`         | Answer the selected invitation Yes, No, Maybe                            |
-| `⌫`                     | Decline the selected invitation; delete your own event if it has no guests, else open it to "Delete and tell guests" |
-| `j`                     | Join the selected event's video link                                     |
-| `Esc`                   | Close the event panel, then clear the selection                          |
-| `Enter` · `Esc` in the dialog | Save · close                                                       |
-| `⌘K`                    | The command menu: jump to a day, find an event by title                  |
+| Key                           | Does                                                                                                                 |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `c`                           | New event at the selected slot (or the next half hour), title focused                                                |
+| `←` `→`                       | Previous or next week (day in day view)                                                                              |
+| `t`                           | Today                                                                                                                |
+| `w` · `d`                     | Week view · day view                                                                                                 |
+| `↑` `↓`                       | Move the selected slot by 15 minutes; with an event selected, the event                                              |
+| `Shift` `↑` `↓`               | Make the selection or the selected event 15 minutes longer or shorter                                                |
+| `]` · `[`                     | Select the next or previous event (`Tab` keeps moving focus)                                                         |
+| `Enter`                       | Open the selected event                                                                                              |
+| `y` · `n` · `m`               | Answer the selected invitation Yes, No, Maybe                                                                        |
+| `⌫`                           | Decline the selected invitation; delete your own event if it has no guests, else open it to "Delete and tell guests" |
+| `j`                           | Join the selected event's video link                                                                                 |
+| `Esc`                         | Close the event panel, then clear the selection                                                                      |
+| `Enter` · `Esc` in the dialog | Save · close                                                                                                         |
+| `⌘K`                          | The command menu: jump to a day, find an event by title                                                              |
 
 Dragging in the grid makes an event over the dragged time; dragging an event moves it, and its
 bottom edge changes its end.
@@ -259,17 +258,17 @@ The join keys are the address, the message and the meeting's iCalendar identity.
 copies another module's rows, and each link is read through the other module's door, so a person
 sees nothing they could not open on its own.
 
-| Link                | What a person sees                                                   | How                                                                                                   |
-| ------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Mail → Calendar     | Invitations land on the calendar by themselves                        | The calendar reads mail's `text/calendar` attachments through mail's surface                          |
-| Mail → Calendar     | An invitation card with Yes, No, Maybe in the thread                  | `GET /api/calendar/invites?thread=`; the card's answer goes through the calendar's route               |
-| Calendar → Mail     | An event links the thread it came in                                  | The event keeps its message id; the thread is returned only when mail's door opens it for the viewer   |
-| Calendar → Mail     | Invitations, updates and answers go out as mail                       | A `send` action in the outbox with a `calendar` part (see "Sending")                                   |
-| Calendar → CRM      | An event lists its attendees as CRM people, companies and deals        | The app calls `GET /api/crm/lookup?address=` with the attendees, as the conversation sidebar does      |
-| CRM → Calendar      | A person, company or deal shows its past and upcoming meetings         | Calendar's door gains `meetingsWith`, read through `forUser`, as mail's `threadsWith` is               |
-| Calendar → Drive    | "Notes" opens the meeting's Omni doc, made the first time              | Storage's door makes the doc; the deal's teamspace when the meeting is on one deal, else My files      |
-| Calendar → agents   | `calendar_events` and `calendar_find_times`                           | MCP tools through the calendar's door, scope `calendar:read`                                           |
-| CRM → Calendar      | A record's tasks; tasks put on, moved between and taken off records    | The CRM checks the member may open the record, then reads and writes the tasks through the calendar's surface (`tasksOn`, `linkTask`, `unlinkTask`) |
+| Link              | What a person sees                                                  | How                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mail → Calendar   | Invitations land on the calendar by themselves                      | The calendar reads mail's `text/calendar` attachments through mail's surface                                                                        |
+| Mail → Calendar   | An invitation card with Yes, No, Maybe in the thread                | `GET /api/calendar/invites?thread=`; the card's answer goes through the calendar's route                                                            |
+| Calendar → Mail   | An event links the thread it came in                                | The event keeps its message id; the thread is returned only when mail's door opens it for the viewer                                                |
+| Calendar → Mail   | Invitations, updates and answers go out as mail                     | A `send` action in the outbox with a `calendar` part (see "Sending")                                                                                |
+| Calendar → CRM    | An event lists its attendees as CRM people, companies and deals     | The app calls `GET /api/crm/lookup?address=` with the attendees, as the conversation sidebar does                                                   |
+| CRM → Calendar    | A person, company or deal shows its past and upcoming meetings      | Calendar's door gains `meetingsWith`, read through `forUser`, as mail's `threadsWith` is                                                            |
+| Calendar → Drive  | "Notes" opens the meeting's Omni doc, made the first time           | Storage's door makes the doc; the deal's teamspace when the meeting is on one deal, else My files                                                   |
+| Calendar → agents | `calendar_events` and `calendar_find_times`                         | MCP tools through the calendar's door, scope `calendar:read`                                                                                        |
+| CRM → Calendar    | A record's tasks; tasks put on, moved between and taken off records | The CRM checks the member may open the record, then reads and writes the tasks through the calendar's surface (`tasksOn`, `linkTask`, `unlinkTask`) |
 
 - **The calendar uses mail and storage.** It reads mail's attachments, threads and mailboxes,
   and asks Storage to make a doc. It never reads the CRM: the event panel asks the CRM itself,
@@ -301,7 +300,7 @@ sees nothing they could not open on its own.
 Omni sends calendar mail through the mail outbox, as every other send.
 
 - `sendPayloadSchema` gains an optional `calendar: { method: "REQUEST" | "REPLY" | "CANCEL",
-  ics }`. The mail service hands it to MailComposer's `icalEvent`, which writes the
+ics }`. The mail service hands it to MailComposer's `icalEvent`, which writes the
   `text/calendar; method=…` alternative part and an `invite.ics` attachment every calendar app
   recognizes. The text and HTML bodies say the same thing in words.
 - **Expand step.** A mail service from before the field drops it and sends the words alone: the
@@ -362,18 +361,18 @@ nothing and lives in Postgres alone, like a CRM record, under the same backups.
 
 Every table is `calendar_*` and carries `org_id`.
 
-| Table                     | Key fields                                                                                                                                                                                                                                                                 | Notes                                                                                     |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `calendar_calendars`      | id, org_id, mailbox_id (unique), created_at                                                                                                                                                                                                                                | One per inbox. Access is the inbox's.                                                     |
-| `calendar_events`         | id, org_id, calendar_id, uid, recurrence_id, sequence, dtstamp, source, status, busy, title, description, location, conference_url, starts_at, ends_at, all_day, start_day, end_day, time_zone, rrule, exdates, rdates, recurs_until, organizer_address, organizer_name, message_id, created_by_member_id | Unique on (calendar_id, uid, recurrence_id), nulls not distinct. Indexed on (calendar_id, starts_at) and, for series, (calendar_id, recurs_until). |
-| `calendar_attendees`      | event_id, org_id, address, name, role, response, responded_at                                                                                                                                                                                                              | Key (event_id, address). Indexed on (org_id, address) for `meetingsWith`.                  |
-| `calendar_answers`        | org_id, calendar_id, uid, recurrence_id, address, response, answered_at                                                                                                                                                                                                    | Each attendee's own answer, kept apart from the event; the later one wins.                |
-| `calendar_parts`          | attachment_id, org_id, calendar_id, method, uid, outcome, reason, processed_at                                                                                                                                                                                             | What each part did: `applied`, `stale`, `ignored`, `invalid`. Cascades with its attachment. |
-| `calendar_sweep`          | name, cursor_at, cursor_id                                                                                                                                                                                                                                                 | The sweep's place.                                                                        |
-| `calendar_member_prefs`   | member_id, calendar_id, color, hidden                                                                                                                                                                                                                                      | Per person.                                                                               |
-| `calendar_availability`   | id, org_id, member_id, token_hash, calendar_ids, time_zone, hours, days, enabled                                                                                                                                                                                           | One per member and workspace. The token is stored hashed.                                 |
-| `calendar_tasks`          | id, org_id, owner_member_id, title, body, subtasks, due_at, completed_at, completed_by_member_id, assignee_member_id, record_kind, record_id, created_by_member_id, created_at, updated_at                                                                                    | Private while `record_kind` is null: `owner_member_id` not null and the assignee is the owner (checks). Indexed on (owner_member_id, due_at) and (assignee_member_id, due_at) where open, and on (org_id, record_kind, record_id). |
-| `calendar_notes`          | org_id, uid, recurrence_id, node_id, created_by_member_id                                                                                                                                                                                                                  | Unique on (org_id, uid, recurrence_id). `node_id` cascades with the doc.                  |
+| Table                   | Key fields                                                                                                                                                                                                                                                                                                | Notes                                                                                                                                                                                                                              |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `calendar_calendars`    | id, org_id, mailbox_id (unique), created_at                                                                                                                                                                                                                                                               | One per inbox. Access is the inbox's.                                                                                                                                                                                              |
+| `calendar_events`       | id, org_id, calendar_id, uid, recurrence_id, sequence, dtstamp, source, status, busy, title, description, location, conference_url, starts_at, ends_at, all_day, start_day, end_day, time_zone, rrule, exdates, rdates, recurs_until, organizer_address, organizer_name, message_id, created_by_member_id | Unique on (calendar_id, uid, recurrence_id), nulls not distinct. Indexed on (calendar_id, starts_at) and, for series, (calendar_id, recurs_until).                                                                                 |
+| `calendar_attendees`    | event_id, org_id, address, name, role, response, responded_at                                                                                                                                                                                                                                             | Key (event_id, address). Indexed on (org_id, address) for `meetingsWith`.                                                                                                                                                          |
+| `calendar_answers`      | org_id, calendar_id, uid, recurrence_id, address, response, answered_at                                                                                                                                                                                                                                   | Each attendee's own answer, kept apart from the event; the later one wins.                                                                                                                                                         |
+| `calendar_parts`        | attachment_id, org_id, calendar_id, method, uid, outcome, reason, processed_at                                                                                                                                                                                                                            | What each part did: `applied`, `stale`, `ignored`, `invalid`. Cascades with its attachment.                                                                                                                                        |
+| `calendar_sweep`        | name, cursor_at, cursor_id                                                                                                                                                                                                                                                                                | The sweep's place.                                                                                                                                                                                                                 |
+| `calendar_member_prefs` | member_id, calendar_id, color, hidden                                                                                                                                                                                                                                                                     | Per person.                                                                                                                                                                                                                        |
+| `calendar_availability` | id, org_id, member_id, token_hash, calendar_ids, time_zone, hours, days, enabled                                                                                                                                                                                                                          | One per member and workspace. The token is stored hashed.                                                                                                                                                                          |
+| `calendar_tasks`        | id, org_id, owner_member_id, title, body, subtasks, due_at, completed_at, completed_by_member_id, assignee_member_id, record_kind, record_id, created_by_member_id, created_at, updated_at                                                                                                                | Private while `record_kind` is null: `owner_member_id` not null and the assignee is the owner (checks). Indexed on (owner_member_id, due_at) and (assignee_member_id, due_at) where open, and on (org_id, record_kind, record_id). |
+| `calendar_notes`        | org_id, uid, recurrence_id, node_id, created_by_member_id                                                                                                                                                                                                                                                 | Unique on (org_id, uid, recurrence_id). `node_id` cascades with the doc.                                                                                                                                                           |
 
 - `message_id` is the message that last set the event, `on delete set null`: a pruned message
   leaves the event, and a re-sync sets it again.
@@ -388,20 +387,20 @@ All under `/api/calendar` on the Worker, for the active workspace. Shapes live i
 `@omni/contracts/calendar.ts`, with the platform's conventions: ISO 8601 instants, `YYYY-MM-DD`
 days, errors as `{ error, code }`.
 
-| Route                                               | Does                                                                                                 |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `GET /calendars` · `PATCH /calendars/:id`           | The calendars the member can see, with their inbox, color and whether shown. Set color, hidden.     |
-| `GET /events?from=&to=&calendar=`                   | Events and expanded instances overlapping the window (at most 62 days), across shown calendars.     |
-| `GET /events/:id`                                   | One event with its attendees, its thread when the member can open it, and its notes doc id.          |
-| `POST /events` · `PATCH /events/:id` · `DELETE`     | Make, change, delete an event made in Omni on a calendar of an inbox the member may send from. Sends invitations, updates and cancellations. |
-| `POST /events/:id/answer`                           | `{ response: accepted \| declined \| tentative }`. Sends the reply.                                  |
-| `GET /invites?thread=`                              | The invitations in a thread the member can open, with their event and the member's answer.            |
-| `GET /free-busy?from=&to=&addresses=`               | Busy blocks for the member's own calendars and for teammates' inboxes the member can see.            |
-| `POST /events/:id/notes`                            | `{ teamspaceId? }`. Finds or makes the meeting's notes doc and returns its node id.                  |
-| `GET /availability` · `PUT /availability` · `POST /availability/reset` | The member's availability link, its settings, and a new token.                      |
-| `GET /tasks?status=&due=` · `POST /tasks`           | The member's tasks: owned or assigned, open soonest due first or `done` latest first. Make a private task. |
-| `GET /tasks/:id` · `PATCH /tasks/:id` · `DELETE`    | A task the member owns or is assigned. Change, complete or reopen (`done`), delete. A linked task's record and assignee change through the CRM's routes. |
-| `GET /api/availability/:token`                      | Public. Free and busy for the next 14 days, no titles. 404 when off or reset.                        |
+| Route                                                                  | Does                                                                                                                                                     |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /calendars` · `PATCH /calendars/:id`                              | The calendars the member can see, with their inbox, color and whether shown. Set color, hidden.                                                          |
+| `GET /events?from=&to=&calendar=`                                      | Events and expanded instances overlapping the window (at most 62 days), across shown calendars.                                                          |
+| `GET /events/:id`                                                      | One event with its attendees, its thread when the member can open it, and its notes doc id.                                                              |
+| `POST /events` · `PATCH /events/:id` · `DELETE`                        | Make, change, delete an event made in Omni on a calendar of an inbox the member may send from. Sends invitations, updates and cancellations.             |
+| `POST /events/:id/answer`                                              | `{ response: accepted \| declined \| tentative }`. Sends the reply.                                                                                      |
+| `GET /invites?thread=`                                                 | The invitations in a thread the member can open, with their event and the member's answer.                                                               |
+| `GET /free-busy?from=&to=&addresses=`                                  | Busy blocks for the member's own calendars and for teammates' inboxes the member can see.                                                                |
+| `POST /events/:id/notes`                                               | `{ teamspaceId? }`. Finds or makes the meeting's notes doc and returns its node id.                                                                      |
+| `GET /availability` · `PUT /availability` · `POST /availability/reset` | The member's availability link, its settings, and a new token.                                                                                           |
+| `GET /tasks?status=&due=` · `POST /tasks`                              | The member's tasks: owned or assigned, open soonest due first or `done` latest first. Make a private task.                                               |
+| `GET /tasks/:id` · `PATCH /tasks/:id` · `DELETE`                       | A task the member owns or is assigned. Change, complete or reopen (`done`), delete. A linked task's record and assignee change through the CRM's routes. |
+| `GET /api/availability/:token`                                         | Public. Free and busy for the next 14 days, no titles. 404 when off or reset.                                                                            |
 
 - Writes publish `{ type: "calendar.changed", calendarIds }` to the sockets of each calendar's
   inbox members.
@@ -414,71 +413,22 @@ days, errors as `{ error, code }`.
 
 Two read tools on the MCP server, scope `calendar:read`, through the same door:
 
-| Tool                  | Does                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `calendar_events`     | Events in a window (default the next 7 days, at most 62), optionally by words in the title or an attendee. Each with its people, answer, video link, thread id for `fetch`, and `url`. |
+| Tool                  | Does                                                                                                                                                                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `calendar_events`     | Events in a window (default the next 7 days, at most 62), optionally by words in the title or an attendee. Each with its people, answer, video link, thread id for `fetch`, and `url`.                                                       |
 | `calendar_find_times` | Free slots of a given length in a window for the person and any teammates whose inboxes they can see, inside working hours in a time zone it is given (Omni keeps none per person). Returns up to 10, soonest first, as text ready to paste. |
 
 Agents never send: making events, answering and cancelling reach people outside Omni, so they stay
 with a person in the app, as sending does for mail. Event titles and descriptions come from
 other people's invitations; the server's instructions keep telling agents to treat them as data.
 
-## Recording, later
+## Recording
 
-Not built in this stack. The goal: good, cheap transcripts of a meeting, saved as the meeting's
-notes doc, searchable by agents, with the people in it knowing.
-
-**Where the audio is captured**
-
-| Option                                        | How                                                                                                 | For                                          | Against                                                                 |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------- |
-| **Desktop app, no bot** (Granola, Amie)       | The Tauri shell records the microphone and the system's output (ScreenCaptureKit on macOS, WASAPI loopback on Windows) | Any meeting app, in person too; nobody joins the call | Only the person's own computer; speakers are "me" and "them" without diarization |
-| Browser tab                                   | `getDisplayMedia` with tab audio in the web app, plus the microphone                                 | No install                                   | Chrome only for tab audio, and the person must keep the tab shared      |
-| A bot joins the call (Recall.ai and others)   | A third party joins Zoom, Meet or Teams as a participant                                            | Per-speaker audio, works with no app open     | About $0.50 to $1 an hour on top (estimate; check), a vendor holding the audio, and a stranger in every call |
-| iPhone                                        | The app records the room                                                                           | In-person meetings                           | Waits for the iOS calendar                                               |
-
-The recommendation is the desktop app, with the browser tab as the fallback: no bot in anyone's
-call, no vendor holding audio, and it works for every meeting app.
-
-**Transcription** (list prices in November 2026, batch, per hour of audio)
-
-| Provider                                       | Per hour   | Speakers                     | Notes                                                                                   |
-| ---------------------------------------------- | ---------- | ---------------------------- | --------------------------------------------------------------------------------------- |
-| Cloudflare Workers AI, `whisper-large-v3-turbo` | ≈ $0.03    | No                           | Runs beside the Worker as a binding: no new vendor, no key. 99 languages.               |
-| Groq, `whisper-large-v3-turbo`                 | $0.04      | No                           | OpenAI-compatible API.                                                                  |
-| AssemblyAI Universal-2                         | $0.15      | +$0.02                       | Good diarization and Spanish.                                                           |
-| Deepgram Nova-3 (multilingual)                 | $0.26 to $0.31 | Included                  | The best-known for meetings; code-switching between English and Spanish.                |
-| OpenAI `gpt-transcribe`                        | $0.27      | No                           | `gpt-4o-transcribe-diarize` retires in Feb 2027.                                         |
-| Self-hosted Whisper (`faster-whisper`, WhisperX) | the machine | WhisperX, with pyannote    | Any OpenAI-compatible server (`speaches`); a CPU machine takes about real time.        |
-
-A team of ten with ten hours of meetings each a week records about 430 hours a month: about $13 on
-Workers AI, $73 on AssemblyAI with speakers, $130 on Deepgram. The desktop capture records the
-microphone and the call as two channels, so "me" and "them" come free; full diarization is only
-needed for in-person meetings.
-
-The recommendation: Workers AI Whisper by default (it fits `v1.md`'s budget and needs no
-configuration on Cloudflare), and any OpenAI-compatible transcription endpoint for self-hosters
-and for a better model (`TRANSCRIBE_URL`, `TRANSCRIBE_MODEL`, and the key as a secret), chosen
-by environment variable. A summary at the top of the notes doc comes from Claude Haiku through
-`@omni/ai`, under the daily AI cap (an hour's transcript is about 15k tokens in).
-
-**Storage.** The recording is a Drive file beside the notes doc: Opus at 24 kbit/s is about 11 MB
-an hour. The transcript goes into the doc, with times and speakers, and Drive's indexer makes it
-searchable. By default the audio is deleted once the transcript is saved; a workspace can keep it.
-It counts against the workspace's Drive quota like any file.
-
-**Consent.** Recording law differs by place: in several US states (California among them) everyone in
-the call must agree to being recorded, and in the EU the GDPR asks for notice and a lawful basis.
-Omni treats every meeting as the strictest case. So:
-
-- Recording starts only by a person's action, never on its own, and the app shows it while it runs.
-- Starting asks the person to confirm everyone was told; Omni keeps who started it and when.
-- An event made in Omni can say in its invitation that the meeting will be transcribed.
-- The notes doc says at its top that it holds a transcript, of which meeting, recorded by whom.
-- A workspace setting turns recording off for everyone.
-
-**Plan when it comes:** capture in the desktop shell; an upload into Drive through the existing
-multipart path; a queue job that transcribes and writes the doc; then speakers.
+Specified in `docs/spec/meetings.md`, its own module: the desktop app records the call with no
+bot, AssemblyAI transcribes it with speakers named from the event's attendees, and the notes are
+written into this meeting's notes doc. The calendar's panel offers Record and shows a recorded
+meeting; Meetings reads the event, its attendees and its notes doc through the calendar's
+surface, and makes tasks through it. The calendar reads nothing of Meetings.
 
 ## Plan
 
@@ -486,19 +436,19 @@ Each line is one PR. The spec goes on `main` alone. The build is one `gh stack`,
 first. Its migrations (0071 and 0072) sit on top of the teamspaces stack (`#704` to `#754`),
 per AGENTS.md "Migrations number in stack order"; K4's migration goes on top of Talk's (0073).
 
-| #   | Layer                                                                                                        | Depends on     |
-| --- | ------------------------------------------------------------------------------------------------------------ | -------------- |
-| K0  | This document                                                                                                | main           |
-| K1  | Parsing and expansion in `@omni/mail-core`; the schema; the door; the sweep that reads invitations from mail | `#754`         |
-| K2  | The Worker API: events, answering and sending through the outbox                                             | K1             |
-| K2b | Free/busy, availability links and the public page, the MCP tools                                             | K2             |
-| K3  | The web views: week and day, keys, calendars, the event panel, the invitation card in threads               | K2             |
-| K4  | Twined: `meetingsWith`, meetings on CRM records and deals, notes docs in Drive                              | K3             |
-| T0  | Tasks: this section, and `crm.md` and `modules.md` to match                                                    | main           |
-| T1  | `calendar_tasks` (migration 0075), the calendar's task door and surface, the copy job, the Worker writing both tables | T0         |
-| T2  | `/api/calendar/tasks`; the CRM's task routes read through the calendar's surface; reads switch to `calendar_tasks` | T1         |
-| T3  | Web: one task panel for calendar and CRM, "Add to CRM", the calendar's to-dos from `/api/calendar/tasks`, the CRM lists only linked tasks | T2 |
-| T4  | Contract: stop writing `crm_tasks`, drop it                                                                     | T3 in production |
+| #   | Layer                                                                                                                                     | Depends on       |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| K0  | This document                                                                                                                             | main             |
+| K1  | Parsing and expansion in `@omni/mail-core`; the schema; the door; the sweep that reads invitations from mail                              | `#754`           |
+| K2  | The Worker API: events, answering and sending through the outbox                                                                          | K1               |
+| K2b | Free/busy, availability links and the public page, the MCP tools                                                                          | K2               |
+| K3  | The web views: week and day, keys, calendars, the event panel, the invitation card in threads                                             | K2               |
+| K4  | Twined: `meetingsWith`, meetings on CRM records and deals, notes docs in Drive                                                            | K3               |
+| T0  | Tasks: this section, and `crm.md` and `modules.md` to match                                                                               | main             |
+| T1  | `calendar_tasks` (migration 0075), the calendar's task door and surface, the copy job, the Worker writing both tables                     | T0               |
+| T2  | `/api/calendar/tasks`; the CRM's task routes read through the calendar's surface; reads switch to `calendar_tasks`                        | T1               |
+| T3  | Web: one task panel for calendar and CRM, "Add to CRM", the calendar's to-dos from `/api/calendar/tasks`, the CRM lists only linked tasks | T2               |
+| T4  | Contract: stop writing `crm_tasks`, drop it                                                                                               | T3 in production |
 
 Each layer is done when its e2e tests pass against the local stack and it has been run by hand.
 Each test is named for the bug it catches.
@@ -576,7 +526,7 @@ Each test is named for the bug it catches.
       its assignee? v1: anyone on it, as anyone can reply.
 - [ ] Working hours: per availability link in v1. A workspace default later?
 - [ ] CalDAV spike against Purelymail: which of `sync-collection`, `ctag` and `ETag` it supports.
-- [ ] Recording: Workers AI Whisper as the default, or AssemblyAI for speakers from the start.
+- [x] Recording: AssemblyAI for speakers from the start (`docs/spec/meetings.md`).
 - [ ] A linked task's assignee who later loses access to its record: unassign it then, or keep it
       in their calendar? v1: it stays in their calendar until someone reassigns it.
 - [ ] Tasks for agents: a `calendar_tasks` MCP tool for the person's own tasks, beside the CRM's

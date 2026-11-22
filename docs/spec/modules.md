@@ -16,13 +16,14 @@ same address a person signs in with.
 
 ## Where each module is
 
-| Module           | What it is                                                | State (Nov 16, 2026)                                       |
-| ---------------- | --------------------------------------------------------- | ---------------------------------------------------------- |
-| Mail             | Inboxes, shared inboxes, helpdesk, AI triage, MCP         | In production                                              |
-| Storage          | My files, Shared, sharing by address and by link          | 5 of 6 layers merged (#296 to #304); the web screens left  |
-| CRM              | Companies, people, deals, contracts                       | Specified: `docs/spec/crm.md`                              |
-| Client dashboard | Clients sign in, get deliverables, sign contracts         | Direction set, not scheduled                               |
-| Calendar         | Month, week and day views, invitations from mail, tasks   | Specified: `docs/spec/calendar.md`                         |
+| Module           | What it is                                              | State (Nov 16, 2026)                                      |
+| ---------------- | ------------------------------------------------------- | --------------------------------------------------------- |
+| Mail             | Inboxes, shared inboxes, helpdesk, AI triage, MCP       | In production                                             |
+| Storage          | My files, Shared, sharing by address and by link        | 5 of 6 layers merged (#296 to #304); the web screens left |
+| CRM              | Companies, people, deals, contracts                     | Specified: `docs/spec/crm.md`                             |
+| Client dashboard | Clients sign in, get deliverables, sign contracts       | Direction set, not scheduled                              |
+| Calendar         | Month, week and day views, invitations from mail, tasks | Specified: `docs/spec/calendar.md`                        |
+| Meetings         | Recordings, transcripts with names, notes and actions   | Specified: `docs/spec/meetings.md`                        |
 
 ## Principles
 
@@ -85,21 +86,23 @@ not before.
 The join key is the email address, and for companies the domain. Nothing below needs a sync
 job, and each row is a reference, read through the far side's door.
 
-| Link                    | What a person sees                                                                                  | How                                                                                           | When           |
-| ----------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------- |
-| Mail → CRM              | Add a sender to the CRM in one action. The conversation shows who they are, their company and deals. | `POST /api/crm/people`, `GET /api/crm/lookup`                                                 | CRM v1         |
-| CRM → Mail              | A person, company or deal lists the emails with them that you can open.                             | Mail's door gains `threadsWith`                                                               | CRM v1         |
-| CRM → Storage           | A record's files are a folder in Shared. A signed contract's file is locked.                        | `folder_node_id`; Storage's lock                                                              | CRM v1         |
-| Helpdesk ↔ CRM          | A customer who is also a CRM person shows as one.                                                   | Address match at read time                                                                    | CRM v1         |
-| Every module → agents   | Your agent searches and updates records beside your mail.                                           | MCP tools per module                                                                          | With each      |
-| Mail → Storage          | Save an attachment to Storage.                                                                      | A Worker route calling both doors; the bytes are copied, since mail objects can be rebuilt     | After CRM v1   |
-| Storage → Mail          | Attach a file from Storage; send a large file as a link.                                            | Compose accepts a Storage node as an attachment source; Storage's share link                   | After CRM v1   |
-| Storage → CRM           | A file shared with a client's address shows on their record.                                        | Grantee address equals a person's address, at read time                                       | Later          |
-| CRM → client            | The client signs in and sees their project, deliverables and contracts.                             | A deal guest, by address, through `forUser`                                                                | Later          |
-| CRM → your phone        | The company's contacts in your own address book.                                                    | One-way CardDAV export by the mail service                                                    | Later          |
-| Calendar → CRM          | Meetings with a person, company or deal on their record.                                            | Calendar's door gains `meetingsWith`, by attendee address, at read time                       | With Calendar  |
-| Calendar → CRM          | Tasks on a person, company or deal: shown to whoever can open it, and assignable there.              | Tasks are the calendar's; the CRM reads and writes the ones on its records through the calendar's surface | With Tasks     |
-| Every module → search   | One search box over mail, files and records.                                                        | Each module's surface offers a search; the Worker merges them                                 | Later          |
+| Link                  | What a person sees                                                                                   | How                                                                                                       | When          |
+| --------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------- |
+| Mail → CRM            | Add a sender to the CRM in one action. The conversation shows who they are, their company and deals. | `POST /api/crm/people`, `GET /api/crm/lookup`                                                             | CRM v1        |
+| CRM → Mail            | A person, company or deal lists the emails with them that you can open.                              | Mail's door gains `threadsWith`                                                                           | CRM v1        |
+| CRM → Storage         | A record's files are a folder in Shared. A signed contract's file is locked.                         | `folder_node_id`; Storage's lock                                                                          | CRM v1        |
+| Helpdesk ↔ CRM        | A customer who is also a CRM person shows as one.                                                    | Address match at read time                                                                                | CRM v1        |
+| Every module → agents | Your agent searches and updates records beside your mail.                                            | MCP tools per module                                                                                      | With each     |
+| Mail → Storage        | Save an attachment to Storage.                                                                       | A Worker route calling both doors; the bytes are copied, since mail objects can be rebuilt                | After CRM v1  |
+| Storage → Mail        | Attach a file from Storage; send a large file as a link.                                             | Compose accepts a Storage node as an attachment source; Storage's share link                              | After CRM v1  |
+| Storage → CRM         | A file shared with a client's address shows on their record.                                         | Grantee address equals a person's address, at read time                                                   | Later         |
+| CRM → client          | The client signs in and sees their project, deliverables and contracts.                              | A deal guest, by address, through `forUser`                                                               | Later         |
+| CRM → your phone      | The company's contacts in your own address book.                                                     | One-way CardDAV export by the mail service                                                                | Later         |
+| Calendar → CRM        | Meetings with a person, company or deal on their record.                                             | Calendar's door gains `meetingsWith`, by attendee address, at read time                                   | With Calendar |
+| Calendar → CRM        | Tasks on a person, company or deal: shown to whoever can open it, and assignable there.              | Tasks are the calendar's; the CRM reads and writes the ones on its records through the calendar's surface | With Tasks    |
+| Calendar → Meetings   | Record a meeting from its event; its attendees name the speakers and its notes doc gets the notes.   | Meetings reads the event and the notes doc through the calendar's surface                                 | With Meetings |
+| Meetings → CRM        | A deal's Meetings tab; recorded meetings in a person's and a company's timeline.                     | The CRM checks the record, then reads Meetings' `meetingsOn`                                              | With Meetings |
+| Every module → search | One search box over mail, files and records.                                                         | Each module's surface offers a search; the Worker merges them                                             | Later         |
 
 ## DAV
 
@@ -125,18 +128,18 @@ of everything it touches.
 
 **Now**
 
-| #   | Layer                                                                                              | Module   | Depends on |
-| --- | -------------------------------------------------------------------------------------------------- | -------- | ---------- |
-| 0   | These documents                                                                                    |          |            |
-| P1  | `scripts/check-modules.mjs` and its unit test; the AGENTS.md text, once approved                   | platform | 0          |
-| P2  | The address and domain normaliser moves to `@omni/mail-core`                                       | platform | 0          |
-| M1  | Mail: `thread_participants`, `threadsWith`, the backfill                                           | mail     | P2         |
-| S1  | Storage: the file lock                                                                             | storage  | 0          |
-| C1  | CRM in `@omni/db`: schema, migration, the member door, stage transitions, events                   | crm      | P2         |
-| C2  | CRM in the Worker: records, stages, notes, search, lookup, timeline, `crm.changed`, `modules.ts`   | crm      | C1, M1     |
-| C3  | CRM: record folders and contracts                                                                  | crm      | C2, S1     |
-| C4  | CRM for agents: `crm_search`, `crm_fetch`, `crm_write`                                             | crm      | C2         |
-| C5  | Web: the CRM screens                                                                               | crm      | C2, C3     |
+| #   | Layer                                                                                            | Module   | Depends on |
+| --- | ------------------------------------------------------------------------------------------------ | -------- | ---------- |
+| 0   | These documents                                                                                  |          |            |
+| P1  | `scripts/check-modules.mjs` and its unit test; the AGENTS.md text, once approved                 | platform | 0          |
+| P2  | The address and domain normaliser moves to `@omni/mail-core`                                     | platform | 0          |
+| M1  | Mail: `thread_participants`, `threadsWith`, the backfill                                         | mail     | P2         |
+| S1  | Storage: the file lock                                                                           | storage  | 0          |
+| C1  | CRM in `@omni/db`: schema, migration, the member door, stage transitions, events                 | crm      | P2         |
+| C2  | CRM in the Worker: records, stages, notes, search, lookup, timeline, `crm.changed`, `modules.ts` | crm      | C1, M1     |
+| C3  | CRM: record folders and contracts                                                                | crm      | C2, S1     |
+| C4  | CRM for agents: `crm_search`, `crm_fetch`, `crm_write`                                           | crm      | C2         |
+| C5  | Web: the CRM screens                                                                             | crm      | C2, C3     |
 
 - M1 and S1 change modules that have other owners. Each is its own PR on `main`, small and
   useful alone, and is coordinated with whoever holds that module's open stack. Storage's
@@ -154,13 +157,13 @@ of everything it touches.
 
 ## Risks and open questions
 
-| Risk                                                       | Why it matters                                           | Answer                                                                                         |
-| ---------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Modules in one Worker grow it past a size or startup limit | A deploy fails for every module at once.                 | Watch the bundle in CI. A module's surface can move behind a service binding.       |
-| The boundary check is skipped "just this once"             | Access gets decided in two places.                       | It runs in `pnpm check`, and CI requires it. Debt is a list that only shrinks.                 |
-| Two module stacks both add a migration                     | Drizzle's journal conflicts.                             | The later layer regenerates. Never hand-merged.                          |
-| CRM and Storage rows are the truth                         | A lost row is lost work, unlike a lost mail index.       | Database backups are now a product requirement. Restore is tested before CRM holds real data.  |
-| Everyone sees every record                                 | Fine at five people, wrong at fifty.                     | Named as the first change a larger customer asks for.                               |
+| Risk                                                       | Why it matters                                     | Answer                                                                                        |
+| ---------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Modules in one Worker grow it past a size or startup limit | A deploy fails for every module at once.           | Watch the bundle in CI. A module's surface can move behind a service binding.                 |
+| The boundary check is skipped "just this once"             | Access gets decided in two places.                 | It runs in `pnpm check`, and CI requires it. Debt is a list that only shrinks.                |
+| Two module stacks both add a migration                     | Drizzle's journal conflicts.                       | The later layer regenerates. Never hand-merged.                                               |
+| CRM and Storage rows are the truth                         | A lost row is lost work, unlike a lost mail index. | Database backups are now a product requirement. Restore is tested before CRM holds real data. |
+| Everyone sees every record                                 | Fine at five people, wrong at fifty.               | Named as the first change a larger customer asks for.                                         |
 
 **Open questions**
 
