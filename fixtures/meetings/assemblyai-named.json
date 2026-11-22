@@ -1,0 +1,46 @@
+{
+  "id": "synthetic-named",
+  "status": "completed",
+  "language_code": "en_us",
+  "audio_duration": 61.0,
+  "speech_understanding": {
+    "response": { "speaker_identification": { "mapping": { "C": "Jose Ortega" } } }
+  },
+  "utterances": [
+    {
+      "speaker": "A",
+      "start": 500,
+      "end": 4000,
+      "confidence": 0.95,
+      "text": "Morning everyone, quick kickoff today."
+    },
+    {
+      "speaker": "Priya Nair",
+      "start": 4500,
+      "end": 9800,
+      "confidence": 0.93,
+      "text": "Signups are up seven and a half percent week over week."
+    },
+    {
+      "speaker": "C",
+      "start": 10400,
+      "end": 16000,
+      "confidence": 0.91,
+      "text": "Retention for AI notes users sits at sixty six percent."
+    },
+    {
+      "speaker": "A",
+      "start": 16900,
+      "end": 21000,
+      "confidence": 0.94,
+      "text": "Great. Jose, can you send the cohort chart by Thursday?"
+    },
+    {
+      "speaker": "C",
+      "start": 21500,
+      "end": 23800,
+      "confidence": 0.95,
+      "text": "Sure, Thursday works."
+    }
+  ]
+}

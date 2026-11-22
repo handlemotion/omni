@@ -88,3 +88,5 @@ export {
   type OcrSource,
   type Transcript,
 } from "./ocr.ts";
+
+export * from "./meetings/index.ts";

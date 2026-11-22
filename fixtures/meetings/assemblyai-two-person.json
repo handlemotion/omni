@@ -1,0 +1,52 @@
+{
+  "id": "synthetic-two-person",
+  "status": "completed",
+  "language_code": "es",
+  "audio_duration": 95.4,
+  "text": "Hola Marta, gracias por el tiempo. ...",
+  "utterances": [
+    {
+      "speaker": "A",
+      "start": 1200,
+      "end": 6800,
+      "confidence": 0.94,
+      "text": "Hola Marta, gracias por el tiempo. Quería revisar el calendario de entregas."
+    },
+    {
+      "speaker": "B",
+      "start": 7400,
+      "end": 15900,
+      "confidence": 0.92,
+      "text": "Claro. El diseño final está listo para el viernes, pero el deploy depende de que nos den acceso al servidor."
+    },
+    {
+      "speaker": "A",
+      "start": 16300,
+      "end": 19800,
+      "confidence": 0.95,
+      "text": "Ok, yo me encargo del acceso hoy."
+    },
+    {
+      "speaker": "A",
+      "start": 20600,
+      "end": 27100,
+      "confidence": 0.93,
+      "text": "And for the English copy, we keep the launch date on the twelfth?"
+    },
+    {
+      "speaker": "B",
+      "start": 27900,
+      "end": 41000,
+      "confidence": 0.9,
+      "text": "Yes, the twelfth. Si algo cambia te mando un correo el lunes con el presupuesto actualizado, unos cuarenta y dos mil pesos."
+    },
+    {
+      "speaker": "A",
+      "start": 41800,
+      "end": 47600,
+      "confidence": 0.96,
+      "text": "Perfecto. Entonces queda: acceso hoy, diseño el viernes, lanzamiento el doce."
+    },
+    { "speaker": "B", "start": 48300, "end": 50100, "confidence": 0.97, "text": "Exacto, gracias." }
+  ]
+}

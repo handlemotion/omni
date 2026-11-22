@@ -1,0 +1,36 @@
+{
+  "user": "Title: (none)\n\nWrite the notes in this language: English\n\nAttendees:\n- Dana Ruiz <dana@studio.test>\n- José Ortega <jose@studio.test>\n- Priya Nair <priya@studio.test>\n\nTranscript:\n[00:00] Dana Ruiz: Morning everyone, quick kickoff today.\n[00:04] Priya Nair: Signups are up seven and a half percent week over week.\n[00:10] Speaker 3: Retention for AI notes users sits at sixty six percent.\n[00:16] Dana Ruiz: Great. Jose, can you send the cohort chart by Thursday?\n[00:21] Speaker 3: Sure, Thursday works.",
+  "response": {
+    "model": "claude-haiku-5-5",
+    "id": "msg_011ChJMiLUsT5YmFLNEsnGBm",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"title\":\"Morning kickoff: signups and retention\",\"summary\":\"A quick kickoff meeting where Priya Nair reported signups up 7.5 percent week over week and a speaker reported 66 percent retention for AI notes users. Jose Ortega agreed to send the cohort chart by Thursday.\",\"highlights\":[{\"text\":\"Signups are up 7.5 percent week over week (Priya Nair).\",\"at\":\"00:04\"},{\"text\":\"Retention for AI notes users is at 66 percent.\",\"at\":\"00:10\"},{\"text\":\"Jose Ortega agreed to send the cohort chart by Thursday.\",\"at\":\"00:21\"}],\"actions\":[{\"kind\":\"task\",\"title\":\"Send the cohort chart\",\"owner\":\"José Ortega\",\"due\":\"Thursday\",\"to\":[],\"subject\":\"\",\"body\":\"\"},{\"kind\":\"email\",\"title\":\"\",\"owner\":\"\",\"due\":\"\",\"to\":[\"dana@studio.test\",\"jose@studio.test\",\"priya@studio.test\"],\"subject\":\"Kickoff recap: signups and retention\",\"body\":\"Hi all, recap of today's kickoff: signups are up 7.5 percent week over week, and retention for AI notes users sits at 66 percent. José Ortega will send the cohort chart by Thursday. This meeting was recorded and transcribed.\"}],\"topics\":[\"signups\",\"retention\",\"kickoff\",\"cohort analysis\"]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 1275,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 451,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "user": "Invited:\n- Dana Ruiz <dana@studio.test>\n- José Ortega <jose@studio.test>\n- Priya Nair <priya@studio.test>\n\nUnnamed labels: Label C\n\nTranscript:\n[00:00] Dana Ruiz: Morning everyone, quick kickoff today.\n[00:04] Priya Nair: Signups are up seven and a half percent week over week.\n[00:10] Label C: Retention for AI notes users sits at sixty six percent.\n[00:16] Dana Ruiz: Great. Jose, can you send the cohort chart by Thursday?\n[00:21] Label C: Sure, Thursday works.",
+  "response": {
+    "model": "claude-haiku-5-5",
+    "id": "msg_011ChJMiX95aBn8vXr5s7HtY",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "thinking",
+        "thinking": "",
+        "signature": "CAQS0QcKEAgUGAI4AUIIdGhpbmtpbmcSDJxeBGt55PeFKRAzTRoMimzntYaM07RGNQarIjCPRPzxTOT9LGSYdgM08F8pJWG9M4w8XRmYIw8KZqecb2KLDAj5uCf5dfP6JcX8bQUq7gZ/hC84AjV0LKX6aI6D7ifuJ4d1VA71XT+8zwLTz5Ad7tcN9SBs6ih0N/v6Dbm5jcnjZaC45Q1jsTHvju3VWXspUXnkdDCfG+6b3RygTMA3HAXTlzWriypXowvOTMKLpjq7MrBiLzQ8FE1MlLDPEInOIRUxF6zgMs6Xc4JRQ5M/Tv3t2MKYAjzOB/hfuRMd4mnJbNOZIIfhHuANIAEGRxN4eOaE8dEHHhKJ2gDAkpKgSQouawaLMlkO7c3oKlsh+SKgoWB/TCuNASxrxDJHIwggM3mIGVJl6mbnPHbDnWMBfkfjlXW+KEIJ5ncjXrNHRD+jSq8Fstq2SR+HfcGKTkdE7vMXKvqHUc9Siq9SoVJKN2EWY4tKaUeTwpp5KwZhxIlf87T/og/gyzEFJlx7w05L5WCW33oytvqd15tVJiLKFha97sxf3gGwdiN7dlnhNuV1TApsmFM00P32ZPkhejZ7CCUGJn24vvXMb1l3IqIXjQ+SXx8d7PSEzWrqpLt/gccf78LYVrUgbpzEACeuIi+y3rQ+9+KlshuwGJ5qVEXPVDaXt7W0PTyKlPVty6TwZAJoVeFMpIB3/Dyc97F1HPyrdCxj3zy6cTFaojtrxes7WofzoxSzEp1SeLcSE2a07ujBSnrmLJxjsy4NpuLRW33mfoM03OMjyFIcX2tVHb4hxVhSqCBBHPjg7W2DqPNV6g8jFwUGED863Z7OBvfMz3l57Vri9wOZWPZXwrMsuyy1A//sBNWkHhXRcE4nrUBMUNmuhrlkYVUiQRmbzbukou2AyESfGQN+ilwfe1/h1gV0wmSg7+ycH7p+l5hI175Yhm87H3P5AwT/DpU/k/9MB2lcHcQ3VPcMCOBXT2uiTZQLl769TkxcXEPVDqC7gqBX59ONt8p5syuljHT0aQpRBWgEe+hWzuINl3hc0fzMOe86BlFwSf1xljrKqs9hpwwdkf8bFL0ARtumwsRYuqwYgA+vtt9y4H64nFK+5R9oAi9mtlpeoR5jtt+1Fy6/7ic/W8bqW73DekxONdnTA+IHJw4kkX6K2G0cBX+waKRTOMxDrJ3GspnHQisPW+akCtz78HrGTIvRUfctxl7SAGQVm48IZ71wPOHC2N0kD8Mv4Qx+04aujtiw1CDTr0ddmpA9m6ZlkO5yyyzI+G38I36YyhgB"
+      },
+      {
+        "type": "text",
+        "text": "{\"speakers\":[{\"label\":\"Label C\",\"name\":\"José Ortega\",\"evidence\":\"Jose, can you send the cohort chart by Thursday?\"}]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 898,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 188,
+      "output_tokens_details": {
+        "thinking_tokens": 133
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}
