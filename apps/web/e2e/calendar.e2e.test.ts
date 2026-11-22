@@ -1094,6 +1094,67 @@ test("the sidebar month keeps one height whether its month spans four, five or s
   expect(new Set(heights).size).toBe(1);
 });
 
+test("a day picked in the sidebar right after scrolling into another month stays picked", async () => {
+  const { org, page, origin } = await invited();
+  await page.goto(new URL(`/${org.slug}/calendar?date=2026-11-24&view=month`, origin).toString());
+  await page.locator('[data-month-day="2026-11-24"]').waitFor();
+  const title = await page.evaluate(async () => {
+    const scroller = document.querySelector("[data-week]")?.parentElement as HTMLElement;
+    const frame = () => new Promise((done) => requestAnimationFrame(done));
+    scroller.scrollTop += (5 * scroller.clientHeight) / 6;
+    const titled = () =>
+      [...document.querySelectorAll("h1, h2, h3, [role=heading]")].some(
+        (el) => el.textContent?.trim() === "December 2026",
+      );
+    for (let n = 0; n < 10 && !titled(); n++) await frame();
+    const heading = titled() ? "December 2026" : "";
+    const cell = [
+      ...document.querySelectorAll('[role="grid"] [role="button"], [role="grid"] td span'),
+    ].find((el) => el.textContent?.trim() === "10" && !el.closest('[aria-disabled="true"]'));
+    (cell as HTMLElement | undefined)?.click();
+    return heading;
+  });
+  expect(title).toContain("December 2026");
+  await page.waitForTimeout(800);
+  expect(shownDate(page)).toBe("2026-11-10");
+});
+
+test("after scrolling a month and back, a month picked in the sidebar scrolls the page there", async () => {
+  const { org, page, origin } = await invited();
+  await page.goto(new URL(`/${org.slug}/calendar?date=2026-11-24&view=month`, origin).toString());
+  const day = page.locator('[data-month-day="2026-11-24"]');
+  await day.waitFor();
+  const box = await day.boundingBox();
+  const row = box?.height ?? 100;
+  await page.mouse.move((box?.x ?? 0) + 20, (box?.y ?? 0) + 20);
+  for (let i = 0; i < 10; i++) {
+    await page.mouse.wheel(0, row);
+  }
+  await page.getByRole("heading", { name: "January 2027" }).first().waitFor();
+  for (let i = 0; i < 5; i++) {
+    await page.mouse.wheel(0, -row);
+  }
+  await expect.poll(() => shownDate(page)).toBe("2026-12-01");
+  await page
+    .getByRole("application", { name: /Month/ })
+    .getByRole("button", { name: "Next month" })
+    .click();
+  await page.getByRole("grid", { name: /Month/ }).getByText("1", { exact: true }).first().click();
+  await expect.poll(() => shownDate(page)).toBe("2027-01-01");
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-week="2026-12-28"]')
+        .evaluate((week) =>
+          Math.abs(
+            week.getBoundingClientRect().top -
+              (week.parentElement?.getBoundingClientRect().top ?? 0),
+          ),
+        ),
+    )
+    .toBeLessThan(1);
+});
+
 test("one sideways swipe steps the week, and each gesture steps once", async () => {
   const { org, page, origin } = await invited();
   await page.goto(new URL(`/${org.slug}/calendar?date=2026-11-24&view=week`, origin).toString());

@@ -39,6 +39,8 @@ type MonthGridProps = WeekGridProps & {
   /** Counts the arrows' and Today's presses: each scrolls to the anchor's month, even unchanged. */
   aimed: { at: string; count: number };
   onDay: (day: Date) => void;
+  /** Whether the page itself wrote this date to the URL after a scroll; it is not scrolled to. */
+  ownWrite: (key: string) => boolean;
   /** The month most of the page shows changed, by scrolling. */
   onMonth: (first: Date) => void;
   /** The page came near the end of its weeks: lay out more months that way. */
@@ -97,7 +99,6 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
   latest.current = { props, weeks, first, last };
   const anchorKey = dayKey(props.anchor);
   const aimedAt = useRef(props.aimed.count);
-  const reported = useRef<string[]>([]);
   const handled = useRef<string | null>(null);
 
   useLayoutEffect(() => {
@@ -112,9 +113,8 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
     const aimedHere = props.aimed.at === anchorKey && aimedAt.current !== props.aimed.count;
     const fresh = handled.current !== anchorKey;
     handled.current = anchorKey;
-    const landed = reported.current.indexOf(anchorKey);
-    if (landed >= 0) reported.current.splice(0, landed + 1);
-    const settled = !fresh || shown.current === anchorKey || landed >= 0;
+    const own = fresh && props.ownWrite(anchorKey);
+    const settled = !fresh || shown.current === anchorKey || own;
     if (!element || (settled && !aimedHere)) return;
     if (props.aimed.at === anchorKey) aimedAt.current = props.aimed.count;
     const month = monthOf(props.anchor);
@@ -158,7 +158,6 @@ function useMonthScroll(props: MonthGridProps, weeks: readonly (readonly Date[])
       const month = monthInView(element, now.weeks);
       if (month === null || month === monthOf(parseDayKey(shown.current ?? ""))) return;
       shown.current = dayKey(firstOf(month));
-      reported.current.push(shown.current);
       now.props.onMonth(firstOf(month));
     };
     const onScroll = () => {

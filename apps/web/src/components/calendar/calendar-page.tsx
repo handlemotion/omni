@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconChevronLeft, IconChevronRight } from "@/components/icons/central";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { TaskPanel, useOpenTask } from "@/components/tasks/task-panel.tsx";
@@ -128,11 +128,27 @@ export function CalendarPage(props: {
       resetScroll: false,
     });
   };
+  const written = useRef<string[]>([]);
   const scrolledTo = (first: Date) => {
     setScrolled({ first, under: dayKey(anchor) });
     window.clearTimeout(sync.current);
-    sync.current = window.setTimeout(() => go({ date: first }), SYNC_MS);
+    sync.current = window.setTimeout(() => {
+      written.current.push(dayKey(first));
+      go({ date: first });
+    }, SYNC_MS);
   };
+  const ownWrite = useCallback((key: string) => {
+    const at = written.current.indexOf(key);
+    if (at < 0) return false;
+    written.current.splice(0, at + 1);
+    return true;
+  }, []);
+  const anchorKey = dayKey(anchor);
+  const lastAnchor = useRef(anchorKey);
+  if (lastAnchor.current !== anchorKey) {
+    lastAnchor.current = anchorKey;
+    if (!written.current.includes(anchorKey)) window.clearTimeout(sync.current);
+  }
   const [aimed, setAimed] = useState({ at: "", count: 0 });
   const step = (date: Date) => {
     setAimed((now) => ({ at: dayKey(date), count: now.count + 1 }));
@@ -232,6 +248,7 @@ export function CalendarPage(props: {
                 shown={here}
                 aimed={aimed}
                 onMonth={scrolledTo}
+                ownWrite={ownWrite}
                 onExtend={span.extend}
                 events={events}
                 calendars={calendars}
