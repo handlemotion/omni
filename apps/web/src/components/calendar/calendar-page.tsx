@@ -1,13 +1,16 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconChevronLeft, IconChevronRight } from "@/components/icons/central";
 import { StorageFrame } from "@/components/storage/storage-frame";
+import { TaskPanel, useOpenTask } from "@/components/crm/task-panel.tsx";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCalendarEvents, useCalendars } from "@/hooks/use-calendar.ts";
+import { useWheelStep } from "@/hooks/use-wheel-step.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { warmCalendarWindow, type CalendarEvent } from "@/lib/calendar.ts";
+import type { CrmTask } from "@/lib/crm-tasks.ts";
 import {
   dayKey,
   eventKey,
@@ -22,6 +25,7 @@ import { EventDialog } from "./event-dialog.tsx";
 import { CalendarCrumbs } from "./calendar-crumbs.tsx";
 import { useCalendarMenu } from "./calendar-menu.tsx";
 import { EventPanel } from "./event-panel.tsx";
+import { useCalendarDrop } from "./use-calendar-drop.ts";
 import { MonthGrid } from "./month-grid.tsx";
 import { useMyTodos, useToggleTodo } from "./todo-list.tsx";
 import { useCalendarKeys } from "./use-calendar-keys.ts";
@@ -66,7 +70,12 @@ function Hinted(props: { label: string; keyName: string; children: ReactNode }) 
 export type Editing = { event?: CalendarEvent; slot?: Slot } | null;
 
 /** The calendar: a week or a day of every shown calendar, driven by keys or the pointer. */
-export function CalendarPage(props: { date?: string; view?: CalendarView; calendar?: string }) {
+export function CalendarPage(props: {
+  date?: string;
+  view?: CalendarView;
+  calendar?: string;
+  task?: string;
+}) {
   const view = props.view ?? "week";
   const anchor = parseDayKey(props.date);
   const at = anchor.getTime();
@@ -95,6 +104,17 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
       search: (prev) => ({ ...prev, date: dayKey(next.date ?? anchor), view: next.view ?? view }),
       replace: true,
     });
+  const openTask = useOpenTask();
+  const router = useRouter();
+  const openTodo = (task: CrmTask) => void router.history.push(openTask.href(task.id));
+  const [taskShown, setTaskShown] = useState(props.task);
+  if (taskShown !== props.task) {
+    setTaskShown(props.task);
+    if (props.task) {
+      setPanel(null);
+      setSelection(null);
+    }
+  }
   const byKey = useMemo(() => new Map(events.map((e) => [eventKey(e), e])), [events]);
   const opened = panel ? byKey.get(panel) : undefined;
 
@@ -102,7 +122,10 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
     events,
     selection,
     setSelection,
-    open: (event) => setPanel(eventKey(event)),
+    open: (event) => {
+      if (props.task) openTask.close();
+      setPanel(eventKey(event));
+    },
     close: () => (panel ? setPanel(null) : setSelection(null)),
     create: (slot) => setEditing({ slot: slot ?? nextHalfHour(now) }),
     go: (delta) => go({ date: shiftView(view, anchor, delta) }),
@@ -110,6 +133,7 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
     view: (next) => go({ view: next }),
     paused: editing !== null,
   });
+  const dropOn = useCalendarDrop(move);
   const menu = useCalendarMenu({
     events,
     todos,
@@ -119,6 +143,10 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
     onDay: view === "day" ? undefined : (day) => go({ date: day, view: "day" }),
     onTodo: toggleTodo,
   });
+  const grid = useRef<HTMLDivElement>(null);
+  useWheelStep(grid, view === "month" ? "y" : "x", (delta) =>
+    go({ date: shiftView(view, anchor, delta) }),
+  );
 
   return (
     <div className="flex h-svh min-h-0 min-w-0">
@@ -159,7 +187,7 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
             </>
           }
         >
-          <div className="flex min-h-0 flex-1" {...menu}>
+          <div ref={grid} className="flex min-h-0 flex-1" {...menu}>
             {view === "month" ? (
               <MonthGrid
                 days={days}
@@ -174,6 +202,8 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
                 onMove={(event, minutes) => move(event, minutes)}
                 todos={todos}
                 onTodo={toggleTodo}
+                onDrop={dropOn}
+                onOpenTodo={openTodo}
                 onDay={(day) => go({ date: day, view: "day" })}
               />
             ) : (
@@ -189,6 +219,8 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
                 onMove={(event, minutes) => move(event, minutes)}
                 todos={todos}
                 onTodo={toggleTodo}
+                onDrop={dropOn}
+                onOpenTodo={openTodo}
                 onNew={() =>
                   setEditing({
                     slot: selection?.kind === "slot" ? selection.slot : nextHalfHour(now),
@@ -208,6 +240,11 @@ export function CalendarPage(props: { date?: string; view?: CalendarView; calend
           )}
         </StorageFrame>
       </div>
+      {props.task && !opened && (
+        <div data-calendar-keys="off" className="flex w-[25rem] shrink-0">
+          <TaskPanel id={props.task} onClose={openTask.close} />
+        </div>
+      )}
       {opened && (
         <EventPanel
           event={opened}

@@ -1,32 +1,32 @@
 import { cn } from "cn";
-import {
-  memo,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type MouseEvent,
-} from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { IconPlus } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { CanvasButton } from "@/components/ui/canvas-button";
-import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import type { CalendarEvent, CalendarItem } from "@/lib/calendar.ts";
 import { calendarTone } from "@/lib/calendar.ts";
-import { dayOf, type CrmTask } from "@/lib/crm-tasks.ts";
+import { endDrag, leadOf, startDrag, type Dragged, type Drop } from "@/lib/calendar-drag.ts";
+import type { CrmTask } from "@/lib/crm-tasks.ts";
+import { useDropZone } from "./drop-zone.ts";
+import { TodoBlock, TodoChip } from "./todo-block.tsx";
 import {
-  allDayOn,
+  chosenOn,
+  selectedKey,
+  useHandlers,
+  useLayout,
+  useTones,
+  type GridItem,
+  type Handlers,
+} from "./week-layout.ts";
+import {
   dayKey,
   eventKey,
   HOUR_PX,
   minutesInto,
-  placeDay,
   sameDay,
+  type Placed,
   SLOT_MINUTES,
   slotAt,
-  type Placed,
   type Slot,
 } from "@/lib/calendar-grid.ts";
 
@@ -52,6 +52,10 @@ export interface WeekGridProps {
   onTodo?: (task: CrmTask, done: boolean) => void;
   /** A new event at the selection, from the grid's corner. */
   onNew?: () => void;
+  /** Something the calendar dragged was let go on a day, or a time on it. */
+  onDrop?: (item: Dragged, drop: Drop) => void;
+  /** Opens a to-do beside the calendar. */
+  onOpenTodo?: (task: CrmTask) => void;
 }
 
 /** Whether the member may move it: an event made in Omni that their inbox organizes. */
@@ -59,59 +63,11 @@ export const ownEvent = (event: CalendarEvent) => event.source === "omni" && eve
 
 const snap = (minutes: number) => Math.round(minutes / SLOT_MINUTES) * SLOT_MINUTES;
 
-interface Handlers {
-  onSelect: WeekGridProps["onSelect"];
-  onOpen: WeekGridProps["onOpen"];
-  onCreate: WeekGridProps["onCreate"];
-  onMove: WeekGridProps["onMove"];
-}
-
-function useHandlers(props: WeekGridProps) {
-  const latest = useRef(props);
-  useLayoutEffect(() => {
-    latest.current = props;
-  });
-  return useMemo<Handlers>(
-    () => ({
-      onSelect: (selection) => latest.current.onSelect(selection),
-      onOpen: (event) => latest.current.onOpen(event),
-      onCreate: (slot) => latest.current.onCreate(slot),
-      onMove: (event, minutes) => latest.current.onMove(event, minutes),
-    }),
-    [],
-  );
-}
-
-function useLayout(days: readonly Date[], events: readonly CalendarEvent[]) {
-  return useMemo(
-    () =>
-      days.map((day) => ({
-        day,
-        placed: placeDay(day, events),
-        allDay: allDayOn(day, events),
-      })),
-    [days, events],
-  );
-}
-
-function useTones(calendars: readonly CalendarItem[], events: readonly CalendarEvent[]) {
-  return useMemo(() => {
-    const tones = new Map<string, string>();
-    for (const event of events) {
-      if (!tones.has(event.calendarId))
-        tones.set(event.calendarId, calendarTone(calendars, event.calendarId));
-    }
-    return tones;
-  }, [calendars, events]);
-}
-
-const selectedKey = (selection: Selection) => (selection?.kind === "event" ? selection.key : null);
-
 /** The week or the day: an all-day strip, then the hours with each day's events in place. */
 export function WeekGrid(props: WeekGridProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const handlers = useHandlers(props);
-  const layout = useLayout(props.days, props.events);
+  const layout = useLayout(props.days, props.events, props.todos);
   const tones = useTones(props.calendars, props.events);
   const picked = selectedKey(props.selection);
   useEffect(() => {
@@ -134,30 +90,16 @@ export function WeekGrid(props: WeekGridProps) {
       </div>
       <div className="grid border-b" style={columns}>
         <span className="pe-2 pt-1.5 text-end text-xs text-muted-foreground">All day</span>
-        {layout.map(({ day, allDay }) => (
-          <div
+        {layout.map(({ day, allDay, dayTodos }) => (
+          <AllDayCell
             key={day.getTime()}
-            data-all-day={dayKey(day)}
-            className={cn(
-              "flex min-h-8 flex-col gap-0.5 border-l border-calendar-line p-1",
-              weekend(day) && "bg-hover",
-            )}
-          >
-            {allDay.map((event) => (
-              <Chip
-                key={eventKey(event)}
-                event={event}
-                tone={tones.get(event.calendarId) ?? ""}
-                selected={picked === eventKey(event)}
-                handlers={handlers}
-              />
-            ))}
-            {props.todos
-              ?.filter((task) => task.dueAt && dayOf(task.dueAt) === dayKey(day))
-              .map((task) => (
-                <TodoChip key={task.id} task={task} onTodo={props.onTodo} />
-              ))}
-          </div>
+            day={day}
+            events={allDay}
+            todos={dayTodos}
+            tones={tones}
+            picked={picked}
+            handlers={handlers}
+          />
         ))}
       </div>
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
@@ -188,7 +130,11 @@ export function WeekGrid(props: WeekGridProps) {
               placed={placed}
               tones={tones}
               chosen={chosenOn(props.selection, day)}
-              picked={placed.some((p) => eventKey(p.event) === picked) ? picked : null}
+              picked={
+                placed.some((p) => p.event.kind === "event" && eventKey(p.event.event) === picked)
+                  ? picked
+                  : null
+              }
               now={props.now}
               handlers={handlers}
             />
@@ -223,12 +169,57 @@ function DayHeading({ day, today }: { day: Date; today: boolean }) {
   );
 }
 
-const chosenOn = (selection: Selection, day: Date) =>
-  selection?.kind === "slot" && sameDay(selection.slot.start, day) ? selection.slot : null;
+interface PieceProps {
+  tone: string;
+  selected: boolean;
+  handlers: Handlers;
+}
+
+const AllDayCell = memo(function AllDayCell(props: {
+  day: Date;
+  events: readonly CalendarEvent[];
+  todos: readonly CrmTask[];
+  tones: ReadonlyMap<string, string>;
+  picked: string | null;
+  handlers: Handlers;
+}) {
+  const { day, handlers } = props;
+  const zone = useDropZone(day, false, handlers.onDrop);
+  return (
+    <div
+      data-all-day={dayKey(day)}
+      {...zone.handlers}
+      className={cn(
+        "flex min-h-8 flex-col gap-0.5 border-l border-calendar-line p-1",
+        weekend(day) && "bg-hover",
+        zone.over && "bg-primary-subtle",
+      )}
+    >
+      {props.events.map((event) => (
+        <Chip
+          key={eventKey(event)}
+          event={event}
+          day={day}
+          tone={props.tones.get(event.calendarId) ?? ""}
+          selected={props.picked === eventKey(event)}
+          handlers={handlers}
+        />
+      ))}
+      {props.todos.map((task) => (
+        <TodoChip
+          key={task.id}
+          task={task}
+          onTodo={handlers.onTodo}
+          onOpenTodo={handlers.onOpenTodo}
+        />
+      ))}
+    </div>
+  );
+});
 
 interface DayColumnProps {
   day: Date;
-  placed: Placed[];
+  placed: Placed<GridItem>[];
   tones: ReadonlyMap<string, string>;
   chosen: Slot | null;
   picked: string | null;
@@ -238,6 +229,7 @@ interface DayColumnProps {
 
 const DayColumn = memo(function DayColumn(props: DayColumnProps) {
   const [sweep, setSweep] = useState<{ from: number; to: number } | null>(null);
+  const zone = useDropZone(props.day, true, props.handlers.onDrop);
   const minutesAt = (event: MouseEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
     return ((event.clientY - box.top) / HOUR_PX) * 60;
@@ -248,6 +240,7 @@ const DayColumn = memo(function DayColumn(props: DayColumnProps) {
       role="presentation"
       data-day={dayKey(props.day)}
       className={cn("relative border-l border-calendar-line", weekend(props.day) && "bg-hover")}
+      {...zone.handlers}
       onPointerDown={(event) => {
         if (event.button !== 0 || event.target !== event.currentTarget) return;
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -296,15 +289,35 @@ const DayColumn = memo(function DayColumn(props: DayColumnProps) {
           }
         />
       )}
-      {props.placed.map((placed) => (
-        <EventBlock
-          key={eventKey(placed.event)}
-          placed={placed}
-          tone={props.tones.get(placed.event.calendarId) ?? ""}
-          selected={props.picked === eventKey(placed.event)}
-          handlers={props.handlers}
+      {zone.hover && (
+        <div
+          className="pointer-events-none absolute inset-x-1 z-10 rounded-lg bg-primary-subtle ring-1 ring-primary ring-inset"
+          style={{
+            top: (zone.hover.from / 60) * HOUR_PX,
+            height: (zone.hover.length / 60) * HOUR_PX,
+          }}
         />
-      ))}
+      )}
+      {props.placed.map((placed) =>
+        placed.event.kind === "event" ? (
+          <EventBlock
+            key={eventKey(placed.event.event)}
+            day={props.day}
+            placed={{ ...placed, event: placed.event.event }}
+            tone={props.tones.get(placed.event.event.calendarId) ?? ""}
+            selected={props.picked === eventKey(placed.event.event)}
+            handlers={props.handlers}
+          />
+        ) : (
+          <TodoBlock
+            key={placed.event.task.id}
+            day={props.day}
+            placed={{ ...placed, event: placed.event }}
+            onTodo={props.handlers.onTodo}
+            onOpenTodo={props.handlers.onOpenTodo}
+          />
+        ),
+      )}
       <NowLine day={props.day} now={props.now} />
     </div>
   );
@@ -352,16 +365,11 @@ const answerLook = (event: CalendarEvent) =>
     event.myResponse === "needs_action" && "bg-background! ring-1 ring-(--tone) ring-inset",
   );
 
-interface PieceProps {
-  tone: string;
-  selected: boolean;
-  handlers: Handlers;
-}
-
-const EventBlock = memo(function EventBlock(props: PieceProps & { placed: Placed }) {
+const EventBlock = memo(function EventBlock(
+  props: PieceProps & { day: Date; placed: Placed<CalendarEvent> },
+) {
   const { event, from, to, column, columns } = props.placed;
-  const [drag, setDrag] = useState<{ y: number; moved: number } | null>(null);
-  const { selected } = props;
+  const { selected, handlers } = props;
   const movable = ownEvent(event);
   return (
     <CanvasButton
@@ -376,26 +384,25 @@ const EventBlock = memo(function EventBlock(props: PieceProps & { placed: Placed
       )}
       style={{
         ...toneStyle(props.tone, event),
-        top: ((from + (drag?.moved ?? 0)) / 60) * HOUR_PX,
+        top: (from / 60) * HOUR_PX,
         height: Math.max(((to - from) / 60) * HOUR_PX - 2, 18),
         left: `calc(${(column / columns) * 100}% + 2px)`,
         width: `calc(${100 / columns}% - 4px)`,
       }}
-      onClick={() => props.handlers.onSelect({ kind: "event", key: eventKey(event) })}
-      onFocus={() => !selected && props.handlers.onSelect({ kind: "event", key: eventKey(event) })}
-      onDoubleClick={() => props.handlers.onOpen(event)}
-      onPointerDown={(e) => {
-        if (!movable || e.button !== 0) return;
-        e.currentTarget.setPointerCapture(e.pointerId);
-        setDrag({ y: e.clientY, moved: 0 });
+      onClick={() => handlers.onSelect({ kind: "event", key: eventKey(event) })}
+      onFocus={() => !selected && handlers.onSelect({ kind: "event", key: eventKey(event) })}
+      onDoubleClick={() => handlers.onOpen(event)}
+      draggable={movable}
+      onDragStart={(e) => {
+        const box = e.currentTarget.getBoundingClientRect();
+        startDrag(
+          e,
+          { kind: "event", event, day: props.day },
+          ((e.clientY - box.top) / HOUR_PX) * 60,
+          leadOf(props.day, event.start, from),
+        );
       }}
-      onPointerMove={(e) =>
-        drag && setDrag({ ...drag, moved: snap(((e.clientY - drag.y) / HOUR_PX) * 60) })
-      }
-      onPointerUp={() => {
-        if (drag?.moved) props.handlers.onMove(event, drag.moved);
-        setDrag(null);
-      }}
+      onDragEnd={endDrag}
     >
       <AccentBar />
       <span className="truncate">
@@ -411,9 +418,10 @@ const EventBlock = memo(function EventBlock(props: PieceProps & { placed: Placed
   );
 });
 
-const Chip = memo(function Chip(props: PieceProps & { event: CalendarEvent; timed?: boolean }) {
-  const { event } = props;
-  const { selected } = props;
+const Chip = memo(function Chip(
+  props: PieceProps & { event: CalendarEvent; day?: Date; timed?: boolean },
+) {
+  const { event, selected, handlers } = props;
   return (
     <CanvasButton
       data-event={eventKey(event)}
@@ -424,9 +432,12 @@ const Chip = memo(function Chip(props: PieceProps & { event: CalendarEvent; time
         answerLook(event),
       )}
       style={toneStyle(props.tone, event)}
-      onClick={() => props.handlers.onSelect({ kind: "event", key: eventKey(event) })}
-      onFocus={() => !selected && props.handlers.onSelect({ kind: "event", key: eventKey(event) })}
-      onDoubleClick={() => props.handlers.onOpen(event)}
+      draggable={ownEvent(event)}
+      onDragStart={(e) => startDrag(e, { kind: "event", event, day: props.day })}
+      onDragEnd={endDrag}
+      onClick={() => handlers.onSelect({ kind: "event", key: eventKey(event) })}
+      onFocus={() => !selected && handlers.onSelect({ kind: "event", key: eventKey(event) })}
+      onDoubleClick={() => handlers.onOpen(event)}
     >
       <AccentBar />
       {props.timed && !event.allDay && (
@@ -440,39 +451,17 @@ const Chip = memo(function Chip(props: PieceProps & { event: CalendarEvent; time
 });
 
 /** An event as one line: all-day ones on the week's top row, every one in a month's day. */
-export function EventChip(props: WeekGridProps & { event: CalendarEvent; timed?: boolean }) {
+export function EventChip(
+  props: WeekGridProps & { event: CalendarEvent; day?: Date; timed?: boolean },
+) {
   return (
     <Chip
       event={props.event}
+      day={props.day}
       timed={props.timed}
       tone={calendarTone(props.calendars, props.event.calendarId)}
       selected={selectedKey(props.selection) === eventKey(props.event)}
       handlers={props}
     />
-  );
-}
-
-/** A dated to-do on its day: its check, then its title. */
-export function TodoChip({ task, onTodo }: { task: CrmTask; onTodo?: WeekGridProps["onTodo"] }) {
-  const done = !!task.completedAt;
-  return (
-    <CheckboxField
-      data-todo={task.id}
-      aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
-      isSelected={done}
-      onChange={(next: boolean) => onTodo?.(task, next)}
-      className="min-w-0 overflow-hidden rounded-md px-1.5 py-0.5 hover:bg-hover **:data-[slot=indicator]:rounded-full **:data-[slot=control-label]:min-w-0"
-    >
-      <Checkbox>
-        <span
-          className={cn(
-            "block min-w-0 truncate text-xs",
-            done && "text-muted-foreground line-through",
-          )}
-        >
-          {task.title}
-        </span>
-      </Checkbox>
-    </CheckboxField>
   );
 }

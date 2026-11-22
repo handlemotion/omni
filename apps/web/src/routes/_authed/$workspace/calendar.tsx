@@ -18,6 +18,6 @@ export const Route = createFileRoute("/_authed/$workspace/calendar")({
 });
 
 function Calendar() {
-  const { date, view, calendar } = Route.useSearch();
-  return <CalendarPage date={date} view={view} calendar={calendar} />;
+  const { date, view, calendar, task } = Route.useSearch();
+  return <CalendarPage date={date} view={view} calendar={calendar} task={task} />;
 }

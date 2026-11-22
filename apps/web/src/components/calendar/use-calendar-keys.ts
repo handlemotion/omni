@@ -14,7 +14,7 @@ import { ownEvent, type Selection } from "./week-grid.tsx";
 
 const MINUTE = 60_000;
 const EDITABLE =
-  "input, textarea, select, [contenteditable='true'], [role='dialog'], [role='menu']";
+  "input, textarea, select, [contenteditable='true'], [role='dialog'], [role='menu'], [data-calendar-keys='off']";
 const ANSWER_KEYS: Record<string, CalendarAnswer> = {
   y: "accepted",
   n: "declined",

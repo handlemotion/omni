@@ -48,7 +48,7 @@ export function CalendarCrumbs(props: {
     },
   ].slice(0, depth + 1);
   return (
-    <Heading className="flex min-w-0 items-center gap-0.5 text-md">
+    <Heading className="-ms-1.5 flex min-w-0 items-center gap-0.5 text-md">
       {crumbs.map((crumb, at) => {
         const last = at === crumbs.length - 1;
         return (

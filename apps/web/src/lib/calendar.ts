@@ -110,13 +110,32 @@ export const eventTimesNow = (client: QueryClient, id: string) => {
   return newest && { start: newest.start, end: newest.end };
 };
 
-/** Shows a one-off event at its new time at once, before the write lands. */
+const DAY_MS = 86_400_000;
+
+function shiftDay(key: string | null, days: number) {
+  if (!key) return key;
+  return new Date(Date.parse(`${key}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+function moved(event: CalendarEvent, start: string, end: string) {
+  if (!event.allDay) return { ...event, start, end } satisfies CalendarEvent;
+  const days = Math.round((Date.parse(start) - Date.parse(event.start)) / DAY_MS);
+  return {
+    ...event,
+    start,
+    end,
+    startDay: shiftDay(event.startDay, days),
+    endDay: shiftDay(event.endDay, days),
+  };
+}
+
+/** Shows a one-off event at its new time (and an all-day one on its new days) at once, before the write lands. */
 export function placeEvent(client: QueryClient, id: string, start: string, end: string) {
   client.setQueriesData<EventWindow>({ queryKey: windows() }, (data) =>
     data
       ? {
           events: data.events.map((event) =>
-            event.id === id && !event.recurrenceId ? { ...event, start, end } : event,
+            event.id === id && !event.recurrenceId ? moved(event, start, end) : event,
           ),
         }
       : data,

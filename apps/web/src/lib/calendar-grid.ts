@@ -87,9 +87,16 @@ export function minutesInto(day: Date, at: Date) {
   return at.getHours() * 60 + at.getMinutes() + at.getSeconds() / 60;
 }
 
-/** An event's piece on one day column, placed beside the events it overlaps. */
-export interface Placed {
-  event: CalendarEvent;
+/** Anything with a span on the grid: an event, or a timed to-do. */
+export interface Timed {
+  start: string;
+  end: string;
+  allDay: boolean;
+}
+
+/** A piece of one day column, placed beside the pieces it overlaps. */
+export interface Placed<T extends Timed = CalendarEvent> {
+  event: T;
   /** Minutes from the day's midnight, clipped to the day. */
   from: number;
   to: number;
@@ -105,7 +112,7 @@ export const eventKey = (event: Pick<CalendarEvent, "id" | "recurrenceId">) =>
  * The timed events of one day, each placed in a column of its overlap cluster, so overlapping
  * events share the width side by side and the rest take it all.
  */
-export function placeDay(day: Date, events: readonly CalendarEvent[]) {
+export function placeDay<T extends Timed>(day: Date, events: readonly T[]) {
   const dayStart = day.getTime();
   const dayEnd = addDays(day, 1).getTime();
   const pieces = events
@@ -116,8 +123,8 @@ export function placeDay(day: Date, events: readonly CalendarEvent[]) {
       return { event, from, to: Math.max(to, from + SLOT_MINUTES) };
     })
     .toSorted((a, b) => a.from - b.from || b.to - a.to);
-  const placed: Placed[] = [];
-  let cluster: Placed[] = [];
+  const placed: Placed<T>[] = [];
+  let cluster: Placed<T>[] = [];
   let clusterEnd = -1;
   const close = () => {
     const columns = Math.max(1, ...cluster.map((p) => p.column + 1));

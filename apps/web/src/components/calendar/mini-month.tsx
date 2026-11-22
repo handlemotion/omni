@@ -1,7 +1,7 @@
 import { CalendarDate, getLocalTimeZone, today } from "@internationalized/date";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Calendar,
   CalendarCell,
@@ -13,6 +13,7 @@ import {
 import { Heading } from "react-aria-components/Heading";
 import { IconChevronDown, IconChevronUp } from "@/components/icons/central";
 import { AriaButton } from "@/components/ui/aria-button";
+import { useWheelStep } from "@/hooks/use-wheel-step.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { dayKey, parseDayKey, startOfWeek, type CalendarView } from "@/lib/calendar-grid.ts";
 
@@ -43,88 +44,92 @@ export function MiniMonth() {
     setFocused(ofDate(anchor));
   }
   const now = today(getLocalTimeZone());
+  const box = useRef<HTMLDivElement>(null);
+  useWheelStep(box, "y", (delta) => setFocused((at) => at.add({ months: delta })));
   return (
-    <Calendar
-      aria-label="Month"
-      firstDayOfWeek="mon"
-      value={ofDate(anchor)}
-      focusedValue={focused}
-      onFocusChange={setFocused}
-      onChange={(value) =>
-        void navigate({
-          to: "/$workspace/calendar",
-          params: { workspace },
-          search: (prev) => ({ ...prev, date: dayKey(toDate(value)), view }),
-          replace: true,
-        })
-      }
-      className="px-2"
-    >
-      <header className="-mx-2.5 grid h-11 grid-cols-7 items-center">
-        <Heading className="col-span-5 ps-2.5 text-md" />
-        <AriaButton
-          slot="previous"
-          size="sq-xs"
-          intent="plain"
-          aria-label="Previous month"
-          className="justify-self-center"
-        >
-          <IconChevronUp />
-        </AriaButton>
-        <AriaButton
-          slot="next"
-          size="sq-xs"
-          intent="plain"
-          aria-label="Next month"
-          className="justify-self-center"
-        >
-          <IconChevronDown />
-        </AriaButton>
-      </header>
-      <CalendarGrid
-        weekdayStyle="narrow"
-        className="-mx-2.5 w-[calc(100%+--spacing(5))] border-collapse"
+    <div ref={box}>
+      <Calendar
+        aria-label="Month"
+        firstDayOfWeek="mon"
+        value={ofDate(anchor)}
+        focusedValue={focused}
+        onFocusChange={setFocused}
+        onChange={(value) =>
+          void navigate({
+            to: "/$workspace/calendar",
+            params: { workspace },
+            search: (prev) => ({ ...prev, date: dayKey(toDate(value)), view }),
+            replace: true,
+          })
+        }
+        className="px-2"
       >
-        <CalendarGridHeader>
-          {(day) => (
-            <CalendarHeaderCell className="h-7 text-xs font-normal text-muted-foreground">
-              {day}
-            </CalendarHeaderCell>
-          )}
-        </CalendarGridHeader>
-        <CalendarGridBody>
-          {(date) => {
-            const shown = inShown(date, from, view);
-            return (
-              <CalendarCell
-                date={date}
-                className={({ isOutsideMonth, isFocusVisible, isHovered }) =>
-                  cn(
-                    "flex h-7 cursor-default items-center justify-center text-xs tabular-nums outline-hidden",
-                    isOutsideMonth ? "text-subtle-foreground" : "text-foreground",
-                    shown && "bg-secondary",
-                    shown?.first && "rounded-s-md",
-                    shown?.last && "rounded-e-md",
-                    !shown && isHovered && "rounded-md bg-hover",
-                    isFocusVisible && "rounded-md ring-2 ring-ring",
-                  )
-                }
-              >
-                {({ formattedDate }) => (
-                  <span
-                    className={cn(
-                      "grid size-6 place-items-center rounded-md",
-                      date.compare(now) === 0 && "bg-module-calendar text-primary-foreground",
-                    )}
-                  >
-                    {formattedDate}
-                  </span>
-                )}
-              </CalendarCell>
-            );
-          }}
-        </CalendarGridBody>
-      </CalendarGrid>
-    </Calendar>
+        <header className="-mx-2.5 grid h-11 grid-cols-7 items-center">
+          <Heading className="col-span-5 ps-2.5 text-md" />
+          <AriaButton
+            slot="previous"
+            size="sq-xs"
+            intent="plain"
+            aria-label="Previous month"
+            className="justify-self-center"
+          >
+            <IconChevronUp />
+          </AriaButton>
+          <AriaButton
+            slot="next"
+            size="sq-xs"
+            intent="plain"
+            aria-label="Next month"
+            className="justify-self-center"
+          >
+            <IconChevronDown />
+          </AriaButton>
+        </header>
+        <CalendarGrid
+          weekdayStyle="narrow"
+          className="-mx-2.5 w-[calc(100%+--spacing(5))] border-collapse"
+        >
+          <CalendarGridHeader>
+            {(day) => (
+              <CalendarHeaderCell className="h-7 text-xs font-normal text-muted-foreground">
+                {day}
+              </CalendarHeaderCell>
+            )}
+          </CalendarGridHeader>
+          <CalendarGridBody>
+            {(date) => {
+              const shown = inShown(date, from, view);
+              return (
+                <CalendarCell
+                  date={date}
+                  className={({ isOutsideMonth, isFocusVisible, isHovered }) =>
+                    cn(
+                      "flex h-7 cursor-default items-center justify-center text-xs tabular-nums outline-hidden",
+                      isOutsideMonth ? "text-subtle-foreground" : "text-foreground",
+                      shown && "bg-secondary",
+                      shown?.first && "rounded-s-md",
+                      shown?.last && "rounded-e-md",
+                      !shown && isHovered && "rounded-md bg-hover",
+                      isFocusVisible && "rounded-md ring-2 ring-ring",
+                    )
+                  }
+                >
+                  {({ formattedDate }) => (
+                    <span
+                      className={cn(
+                        "grid size-6 place-items-center rounded-md",
+                        date.compare(now) === 0 && "bg-module-calendar text-primary-foreground",
+                      )}
+                    >
+                      {formattedDate}
+                    </span>
+                  )}
+                </CalendarCell>
+              );
+            }}
+          </CalendarGridBody>
+        </CalendarGrid>
+      </Calendar>
+    </div>
   );
 }

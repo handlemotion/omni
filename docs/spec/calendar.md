@@ -146,7 +146,14 @@ person, in fixed sections: Today, Upcoming and No date always, Overdue when some
 A section's title shows a `+` on hover that opens an empty row to type into; Enter adds the to-do
 with the section's due day (today, tomorrow, none) and opens the next row, Esc drops it. Each is
 checked off in place, where it stays, checked and struck through, until the page is reloaded. A dated one also sits on its day's all-day row, where checking it completes
-it. A Personal space has no tasks yet, so it shows none.
+it. A Personal space has no tasks yet, so it shows none. A to-do due at a time of day (anything
+but the end of a day, which is how a due day alone is stored) sits on the hours as a dashed block
+of half an hour. To-dos and the person's own events drag (the browser's native drag and drop, so
+it can't collide with Drive's): onto the hours, an event keeps its length and a to-do becomes due
+at that minute; onto a day's all-day row or a month day, an event keeps its time of day and a
+to-do is due that day. The to-do's due time is the one record, so moving it here or editing it
+in the CRM moves it in both. Pressing a to-do opens the CRM's task panel beside the calendar
+(`?task=`), not the CRM.
 
 Overlapping events share the column side by side. A declined event is drawn faint and struck through, a
 tentative one hatched, an unanswered invitation outlined.
