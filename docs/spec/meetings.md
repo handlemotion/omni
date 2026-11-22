@@ -106,7 +106,8 @@ over it.
 - **Highlights**: the moments that matter (decisions, numbers, commitments), each with its time;
   pressing one plays the audio from there while the audio is kept.
 - **Actions**: cards the person accepts or dismisses. A **task** goes to the calendar's tasks
-  (private, or on the deal when the meeting is on one). An **email** is a draft follow-up to the
+  (private, or on the deal when the meeting is on one; until T4, private always, see "Twined
+  with the other modules"). An **email** is a draft follow-up to the
   attendees; **Send email** opens it in Omni's composer, from the person's inbox, to send or
   change. Nothing is sent by the AI.
 - **Notes**: the doc, with what the person typed and the AI's notes above it.
@@ -594,12 +595,20 @@ and the CRM's `uses` gains `meetings`.
 | Link                 | What a person sees                                                     | How                                                                          |
 | -------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Calendar → Meetings  | Record on an event; its attendees and its notes doc                    | Meetings reads the event and the notes doc through the calendar's surface    |
-| Meetings → Calendar  | An accepted task                                                       | The calendar's task surface, on the meeting's deal when it has one           |
+| Meetings → Calendar  | An accepted task                                                       | The calendar's task surface: the accepter's private task, made once          |
 | Meetings → Storage   | The audio, the raw file and the AI's notes in the doc                  | Storage's door, as Talk and the calendar do                                  |
 | CRM → Meetings       | A deal's Meetings tab; meetings in a person's and a company's timeline | The CRM checks the record and the project, then reads `meetingsOn(record)`   |
 | Meetings → Mail      | Send the follow-up                                                     | Nothing on the server: the web opens the composer with the draft             |
 | The calendar's panel | A recorded event's summary, **Recording** (its page) and **Notes** (its doc), one row per part | The web asks `GET /api/meetings?event=<uid>&recurrence=`; the calendar does not read Meetings |
 | A task's panel       | **Meeting**: the meeting an accepted task came from, as a link         | The web asks `GET /api/meetings/tasks/:taskId`; the calendar does not read Meetings |
+
+An accepted task is the accepter's private task in the calendar, with a line naming its meeting.
+Accepting twice at once makes one: both requests make a task, only one decides the action, and
+the other deletes the task it made. A task on the meeting's deal waits for T4
+(`docs/spec/calendar.md`): until the CRM stops writing `crm_tasks`, a task on a record has to be
+made through the CRM, and Meetings cannot use the CRM, which uses Meetings. Once T4 lands, the
+calendar's surface makes the task on the deal, after checking the accepter can open the deal.
+Until then, the person moves the task onto the deal with the CRM's "Add to CRM".
 
 ## Agents
 
