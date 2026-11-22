@@ -89,6 +89,123 @@ version a moment after the typing stops.
   its connection), another tab on the doc saves it after 6–10 s of quiet. Closing a tab sends
   its last keystrokes at once instead of after the 60 ms batch.
 
+## Versions
+
+Every save is a new content version of the file, but not every save is a version people pick
+from. Versions follow editing sessions (#706):
+
+- **Sessions.** A member's saves in the app with at most 5 minutes between them, for up to 15
+  minutes from the first, are one session (`STORAGE_SESSION_IDLE_MS`, `STORAGE_SESSION_MS` in
+  `@omni/db`). Versions keeps the content each session started from; the autosaves in between are
+  kept as superseded (`storage_versions.superseded_at`), hidden, and purged by the daily job a day
+  later (`STORAGE_SUPERSEDED_MS`). Someone else's save ends the session, and so does a save that
+  changes the file's type (Convert to Omni doc keeps the Markdown as a version).
+- **Agents.** An agent's write (`drive_create_doc`, `drive_edit_doc`) is always a version of its
+  own and never continues a session. It names the agent: `writtenByAgent`, the MCP client's
+  registered name, beside `writtenByName`, the person it acted for. Before an agent changes a live
+  document it ends the session that wrote the content (`storage_contents.session_ended`), so the
+  content from before its change stays restorable whoever saves next.
+- Comments and signatures keep the `contentVersion` they were made on.
+
+This is what files of every type get. Omni's own types get History on top of it (next section).
+
+## History
+
+Direction from the owner: a file Omni edits (a doc, and sheets and canvases when they land) is one
+canonical document with an edit history, as in Notion's page history, not a pile of file
+versions. Files Omni cannot edit (PDFs, images, uploads) keep Versions as above.
+
+### What people see
+
+History replaces Versions for these files. It lists editing sessions, newest first: when, who
+wrote in it (people, agents and, once `live-sharing.md` lands, guests), and how much changed
+(blocks added, removed, changed). Picking one shows the page as it was at the end of that
+session, with what the session changed marked and each change's author named. Restore brings the
+page back to it. The look comes from the Figma pass (`DESIGN.md`); the panel has no explanatory
+text.
+
+### The change log
+
+- **Every record says who sent it.** The realtime object stamps each record it appends with `by`,
+  overwriting whatever the client sent: `m:<memberId>` (and the grantee and guest kinds of
+  `live-sharing.md` §7, the same field, whichever of the two ships first adds it). The Worker's
+  own appends say `a:<memberId>:<agent>` for an agent's edit and nothing for a fold.
+- **The journal is durable; the stream is not.** S2 keeps records until the basin's retention
+  drops them, so history cannot be read from it. After each save of a live document (a tab's,
+  the orphan save's, the Worker's), a job reads the stream from the last journaled record to the
+  save's `s` and writes it to `storage_doc_changes` (`org_id`, `node_id`, `epoch`, `first_seq`,
+  `last_seq`, `by`, the author's name and agent at the time, `started_at`, `ended_at`, `update`
+  bytea, `content_version` of the save). A row is a **run**: consecutive records by one author,
+  merged into one Yjs update, cut at a minute or at the first record by anyone else. Runs keep the
+  stream's order, so when two people take turns in one block each turn is a row of its own, and a
+  replay applies them in the order they were typed. Unique on `(node_id, epoch, first_seq)`, so a
+  job run twice writes nothing new. A write outside the live layer (an upload of a new version, an
+  agent edit with nobody editing, a restore) journals one row for its writer, with no update: the
+  versions around it already hold both sides.
+- **Baselines.** A run's update refers to the Yjs identities of the epoch it was typed in, and a
+  document rebuilt from Markdown has new ones, so runs replay only onto Yjs state. The job keeps
+  that state in `storage_doc_baselines` (`org_id`, `node_id`, `epoch`, `seq`, `state` bytea): the
+  epoch's `seed` when it first journals an epoch (or the `snap` it started from, if the seed is
+  gone), and a checkpoint of the merged state every 500 rows after it. A replay starts at the
+  latest baseline at or before the runs it needs.
+- **Sessions are the journal grouped** by the rule of "Versions" (one author kind, 5 minutes idle,
+  15 at most), except that a session in History may hold several people writing together: a
+  member's session absorbs the minutes in which others wrote alongside them, and names them all.
+  An agent's change is always a session of its own.
+- **The page at the end of a session** is the version #706 keeps for it, so History needs no
+  second store of whole documents: Versions' objects are its snapshots, and their purge is its
+  retention (30 days, `STORAGE_VERSION_DAYS`).
+
+### Diffs and attribution
+
+- `@omni/docs` gains `diffBlocks(before, after)`: the two documents' top-level blocks matched by
+  content (a block moved is one move, not a removal and an addition), then each changed block's
+  text diffed by word. Pure, in the shared package, so the panel and agents read the same diff.
+- **Who changed which block.** Replaying runs in stream order from the latest baseline before the
+  session, and diffing blocks before and after each run of the session, names the author of each
+  change. Two people typing in one block name both. A session that crosses an epoch (the file
+  changed outside the live layer) starts again from the new epoch's seed; the write that ended the
+  epoch journaled its own row.
+
+### Restore goes through the live document
+
+Today `POST /files/:id/versions/:versionId/restore` swaps the file's content under people who
+have the doc open: their live document still holds the old text, and the next save of anyone
+typing is refused, asks "Someone saved a newer version", and Keep mine undoes the restore. For a
+file with a live document, restore becomes an edit: the Worker rewrites the live document to the
+version's Markdown (`rewriteLive`, as `drive_edit_doc` does), passes it to everyone editing, and
+saves it, so open pages show the restored text at once and nobody sees a conflict. The restored
+content is a session of its own, by the member who restored it, and the content it replaced stays
+in History.
+
+### Agents
+
+`drive_versions` on a file with History lists its sessions (`authors`, block counts) and, with
+`version_id`, returns the block diff and its authors alongside the unified text diff. An agent
+restores by writing the version's text with `drive_edit_doc { markdown }`, which is already an
+edit through the live document.
+
+### Routes and contracts
+
+- `GET /files/:id/history`: `{ sessions: [{ id, startedAt, endedAt, authors: [{ kind, name,
+  agent? }], contentVersion, blocks: { added, removed, changed } }], keepDays }`. Editors only,
+  like Versions.
+- `GET /files/:id/history/:sessionId`: the session's page and its block diff with authors.
+- `POST /files/:id/history/:sessionId/restore`: restores through the live document as above.
+- Expand only: `by` is optional on records, old tabs ignore it, and Versions' routes stay for the
+  files that keep them.
+
+### In order
+
+1. Restore through the live document, and `by` on every record (no migration).
+2. `storage_doc_changes`, `storage_doc_baselines` and the journal job.
+3. `diffBlocks`, the History routes and `drive_versions` sessions.
+4. The History panel in `apps/web`, from its Figma frame.
+
+Sheets and canvases take this unchanged when they land; a sheet's diff compares cells by row and
+column id (`docs/spec/sheets.md`, "History").
+
+## Export
 
 A doc's header shows Export in place of Download: one menu, in sections.
 
