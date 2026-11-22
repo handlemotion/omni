@@ -11,11 +11,15 @@ import {
 import { makeOwnCalendars, type Ex } from "./core.ts";
 import { older, stored, syncAttendees, type Stored } from "./ingest.ts";
 
-/** A Gmail inbox's calendar, claimed for one Google sync pass, with where the last one stopped. */
+/**
+ * A Gmail inbox's calendar, claimed for one Google sync pass, with where the last one stopped.
+ * `googleId` is the Google calendar it shows; null for the inbox's own, which shows the primary.
+ */
 export interface GoogleSyncClaim {
   calendarId: string;
   orgId: string;
   mailboxId: string;
+  googleId: string | null;
   syncToken: string | null;
   pageToken: string | null;
   fullSyncStartedAt: Date | null;
@@ -57,6 +61,7 @@ export async function claimGoogleCalendars(
       calendarId: calendarCalendars.id,
       orgId: calendarCalendars.orgId,
       mailboxId: calendarCalendars.mailboxId,
+      googleId: calendarCalendars.googleId,
     })
     .from(calendarCalendars)
     .leftJoin(calendarGoogleSync, eq(calendarGoogleSync.calendarId, calendarCalendars.id))
@@ -82,14 +87,15 @@ export async function claimGoogleCalendars(
       setWhere: lte(calendarGoogleSync.nextSyncAt, now),
     })
     .returning();
-  const mailboxOf = new Map(due.map((d) => [d.calendarId, d.mailboxId]));
+  const dueOf = new Map(due.map((d) => [d.calendarId, d]));
   return claimed.flatMap((row) => {
-    const mailboxId = mailboxOf.get(row.calendarId);
-    if (!mailboxId) return [];
+    const calendar = dueOf.get(row.calendarId);
+    if (!calendar) return [];
     const claim: GoogleSyncClaim = {
       calendarId: row.calendarId,
       orgId: row.orgId,
-      mailboxId,
+      mailboxId: calendar.mailboxId,
+      googleId: calendar.googleId,
       syncToken: row.syncToken,
       pageToken: row.pageToken,
       fullSyncStartedAt: row.fullSyncStartedAt,

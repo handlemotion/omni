@@ -1,6 +1,8 @@
 import {
   GOOGLE_CALENDAR_EVENTS_PATH,
+  GOOGLE_CALENDAR_LIST_PATH,
   googleCalendarEventsResultSchema,
+  googleCalendarListResultSchema,
   type GoogleCalendarEventsResult,
 } from "@omni/contracts";
 import {
@@ -8,11 +10,16 @@ import {
   claimGoogleCalendars,
   finishGoogleFullSync,
   liveGmailMailboxes,
+  saveGoogleCalendarList,
   saveGoogleSync,
   type Db,
   type GoogleSyncClaim,
 } from "@omni/db";
-import { readGoogleEvent, type GoogleCalendarChange } from "@omni/mail-core/calendar";
+import {
+  readGoogleCalendars,
+  readGoogleEvent,
+  type GoogleCalendarChange,
+} from "@omni/mail-core/calendar";
 import type { Config } from "../env.ts";
 import type { Logger } from "../log.ts";
 import { callMailService } from "../mail-service.ts";
@@ -35,37 +42,95 @@ interface Pass {
 }
 
 /**
- * The calendar's Google sync (`docs/spec/calendar.md`, "Google calendars"): each due Gmail inbox's
- * calendar asks the mail service for what changed in its Google Calendar since the last pass,
- * and applies it. The first pass, and any after Google forgets the sync token, reads the whole
- * calendar and then drops the Google events it no longer has. Returns the calendars that changed.
+ * The calendar's Google sync (`docs/spec/calendar.md`, "Google calendars"). Each due Gmail inbox
+ * first reads its Google calendar list, adding the calendars it gained and retiring the ones it
+ * left; then each due calendar, the inbox's own (the primary) and every other one, asks the mail
+ * service for what changed in it since the last pass, and applies it. The first pass of a
+ * calendar, and any after Google forgets the sync token, reads all of it and then drops the
+ * Google events it no longer has. Returns the calendars that changed.
  */
 export async function syncGoogleCalendars(db: Db, config: Config, log: Logger, now = new Date()) {
   if (!config.auth.google) return [];
-  const claims = await claimGoogleCalendars(db, await liveGmailMailboxes(db), {
-    now,
-    limit: CALENDARS_PER_PASS,
-  });
-  const pass: Pass = { db, config, log, deadline: Date.now() + PASS_BUDGET_MS };
-  const changed: { calendarId: string; mailboxId: string }[] = [];
-  for (const claim of claims) {
-    if (Date.now() > pass.deadline) {
-      await saveGoogleSync(db, claim.calendarId, { ...stateOf(claim), nextSyncAt: new Date() });
-      continue;
-    }
-    try {
-      if (await syncOne(pass, claim)) {
-        changed.push({ calendarId: claim.calendarId, mailboxId: claim.mailboxId });
-      }
-    } catch (error) {
-      log.warn("calendar.google_failed", { calendarId: claim.calendarId, error });
-      await saveGoogleSync(db, claim.calendarId, {
-        ...stateOf(claim),
-        nextSyncAt: new Date(Date.now() + FAILED_RETRY_MS),
-      });
-    }
+  const mailboxes = await liveGmailMailboxes(db);
+  const claims = await claimGoogleCalendars(db, mailboxes, { now, limit: CALENDARS_PER_PASS });
+  const run: Run = {
+    pass: { db, config, log, deadline: Date.now() + PASS_BUDGET_MS },
+    changed: [],
+    grew: new Set(),
+    retired: new Set(),
+  };
+  for (const claim of claims) await visit(run, claim);
+  if (run.grew.size > 0 && Date.now() <= run.pass.deadline) {
+    const added = await claimGoogleCalendars(
+      db,
+      mailboxes.filter((m) => run.grew.has(m.id)),
+      { now, limit: Math.max(0, CALENDARS_PER_PASS - claims.length) },
+    );
+    for (const claim of added) await visit(run, claim);
   }
-  return changed;
+  return run.changed;
+}
+
+interface Run {
+  pass: Pass;
+  changed: { calendarId: string; mailboxId: string }[];
+  grew: Set<string>;
+  retired: Set<string>;
+}
+
+async function visit(run: Run, claim: GoogleSyncClaim) {
+  const { pass } = run;
+  if (run.retired.has(claim.calendarId)) return;
+  if (Date.now() > pass.deadline) {
+    await saveGoogleSync(pass.db, claim.calendarId, { ...stateOf(claim), nextSyncAt: new Date() });
+    return;
+  }
+  if (claim.googleId === null) await list(run, claim);
+  try {
+    if (await syncOne(pass, claim)) {
+      run.changed.push({ calendarId: claim.calendarId, mailboxId: claim.mailboxId });
+    }
+  } catch (error) {
+    pass.log.warn("calendar.google_failed", { calendarId: claim.calendarId, error });
+    await saveGoogleSync(pass.db, claim.calendarId, {
+      ...stateOf(claim),
+      nextSyncAt: new Date(Date.now() + FAILED_RETRY_MS),
+    });
+  }
+}
+
+async function list(run: Run, claim: GoogleSyncClaim) {
+  const listed = await refreshList(run.pass, claim);
+  if (listed.added > 0) run.grew.add(claim.mailboxId);
+  for (const calendarId of listed.retired) run.retired.add(calendarId);
+  if (listed.added > 0 || listed.retired.length > 0 || listed.updated) {
+    run.changed.push(
+      { calendarId: claim.calendarId, mailboxId: claim.mailboxId },
+      ...listed.retired.map((calendarId) => ({ calendarId, mailboxId: claim.mailboxId })),
+    );
+  }
+}
+
+const UNLISTED = { added: 0, retired: [] as string[], updated: false };
+
+async function refreshList(pass: Pass, claim: GoogleSyncClaim) {
+  try {
+    const answer = await callMailService(
+      { config: pass.config, requestId: crypto.randomUUID(), log: pass.log },
+      GOOGLE_CALENDAR_LIST_PATH,
+      { orgId: claim.orgId, mailboxId: claim.mailboxId },
+      googleCalendarListResultSchema,
+    );
+    if (answer.status !== "ok") return UNLISTED;
+    return await saveGoogleCalendarList(
+      pass.db,
+      { id: claim.mailboxId, orgId: claim.orgId },
+      readGoogleCalendars(answer.items),
+    );
+  } catch (error) {
+    pass.log.warn("calendar.google_list_failed", { mailboxId: claim.mailboxId, error });
+    return UNLISTED;
+  }
 }
 
 const stateOf = (claim: GoogleSyncClaim) => ({
@@ -143,6 +208,7 @@ function fetchPage(pass: Pass, claim: GoogleSyncClaim, state: ReturnType<typeof 
     {
       orgId: claim.orgId,
       mailboxId: claim.mailboxId,
+      ...(claim.googleId ? { calendarId: claim.googleId } : {}),
       ...(state.syncToken ? { syncToken: state.syncToken } : {}),
       ...(state.pageToken ? { pageToken: state.pageToken } : {}),
     },

@@ -1,0 +1,1 @@
+ALTER TABLE "calendar_calendars" DROP CONSTRAINT "calendar_calendars_mailbox_id_unique";

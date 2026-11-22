@@ -1,0 +1,68 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"p32o8v1g3atfoo0o\"",
+  "summary": "Studio team",
+  "description": "Shoots, reviews and time off",
+  "updated": "2026-11-21T16:40:02.118Z",
+  "timeZone": "Europe/Madrid",
+  "accessRole": "writer",
+  "defaultReminders": [],
+  "nextSyncToken": "CJDl0f7e55ADEJDl0f7e55ADGAUgpdbqqwI=",
+  "items": [
+    {
+      "kind": "calendar#event",
+      "etag": "\"3461261204236000\"",
+      "id": "5q1v0c7m2n8b4x6z9a3s",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=NXExdjBjN20ybjhiNHg2ejlhM3M",
+      "created": "2026-11-21T16:40:02.000Z",
+      "updated": "2026-11-21T16:40:02.118Z",
+      "summary": "Lookbook shoot",
+      "location": "Nave 3, Matadero",
+      "creator": { "email": "lee@studio.example", "displayName": "Lee Park" },
+      "organizer": {
+        "email": "c_0f3a9d2b7e41c6a8@group.calendar.google.com",
+        "displayName": "Studio team",
+        "self": true
+      },
+      "start": { "dateTime": "2026-11-25T10:00:00+01:00", "timeZone": "Europe/Madrid" },
+      "end": { "dateTime": "2026-11-25T14:00:00+01:00", "timeZone": "Europe/Madrid" },
+      "iCalUID": "5q1v0c7m2n8b4x6z9a3s@google.com",
+      "sequence": 0,
+      "reminders": { "useDefault": true },
+      "eventType": "default"
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3461261310412000\"",
+      "id": "3k9a7v1q2b5c8d0e4f6g",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=M2s5YTd2MXEyYjVjOGQwZTRmNmc",
+      "created": "2026-11-20T09:15:03.000Z",
+      "updated": "2026-11-21T16:41:55.206Z",
+      "summary": "Acme × Studio: kickoff",
+      "location": "Office, Calle Mayor 1",
+      "creator": { "email": "ana@acme.example" },
+      "organizer": { "email": "ana@acme.example", "displayName": "Ana Ruiz" },
+      "start": { "dateTime": "2026-11-24T16:30:00+01:00", "timeZone": "Europe/Madrid" },
+      "end": { "dateTime": "2026-11-24T17:15:00+01:00", "timeZone": "Europe/Madrid" },
+      "iCalUID": "3k9a7v1q2b5c8d0e4f6g@google.com",
+      "sequence": 2,
+      "attendees": [
+        {
+          "email": "ana@acme.example",
+          "displayName": "Ana Ruiz",
+          "organizer": true,
+          "responseStatus": "accepted"
+        },
+        {
+          "email": "c_0f3a9d2b7e41c6a8@group.calendar.google.com",
+          "displayName": "Studio team",
+          "self": true,
+          "responseStatus": "accepted"
+        }
+      ],
+      "eventType": "default"
+    }
+  ]
+}

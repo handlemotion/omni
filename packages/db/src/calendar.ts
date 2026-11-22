@@ -76,6 +76,7 @@ export {
   type GoogleSyncClaim,
   type GoogleWaiting,
 } from "./calendar/google.ts";
+export { saveGoogleCalendarList } from "./calendar/google-list.ts";
 export {
   advanceCalendarSweep,
   CALENDAR_SETTLE_MS,

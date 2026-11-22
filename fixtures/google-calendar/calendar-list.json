@@ -1,0 +1,65 @@
+{
+  "kind": "calendar#calendarList",
+  "etag": "\"p32kdb9qhsvjou0o\"",
+  "nextSyncToken": "CKiZ4tv-55ADEhZyb2RyaWdvQHN0dWRpby5leGFtcGxl",
+  "items": [
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1732181712104000\"",
+      "id": "rodrigo@studio.example",
+      "summary": "rodrigo@studio.example",
+      "timeZone": "Europe/Madrid",
+      "colorId": "14",
+      "backgroundColor": "#9fe1e7",
+      "foregroundColor": "#000000",
+      "selected": true,
+      "accessRole": "owner",
+      "defaultReminders": [{ "method": "popup", "minutes": 10 }],
+      "conferenceProperties": { "allowedConferenceSolutionTypes": ["hangoutsMeet"] },
+      "primary": true
+    },
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1732181713220000\"",
+      "id": "c_0f3a9d2b7e41c6a8@group.calendar.google.com",
+      "summary": "Studio team",
+      "description": "Shoots, reviews and time off",
+      "timeZone": "Europe/Madrid",
+      "colorId": "4",
+      "backgroundColor": "#FA573C",
+      "foregroundColor": "#000000",
+      "selected": true,
+      "accessRole": "writer",
+      "defaultReminders": [],
+      "conferenceProperties": { "allowedConferenceSolutionTypes": ["hangoutsMeet"] }
+    },
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1732181714310000\"",
+      "id": "es.mexican#holiday@group.v.calendar.google.com",
+      "summary": "Holidays in Mexico",
+      "description": "Holidays and Observances in Mexico",
+      "timeZone": "Europe/Madrid",
+      "colorId": "8",
+      "backgroundColor": "#16a765",
+      "foregroundColor": "#000000",
+      "selected": true,
+      "accessRole": "reader",
+      "defaultReminders": [],
+      "conferenceProperties": { "allowedConferenceSolutionTypes": ["hangoutsMeet"] }
+    },
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1732181715420000\"",
+      "id": "ruiz.family.4x2@gmail.example",
+      "summary": "ruiz.family.4x2@gmail.example",
+      "summaryOverride": "Family",
+      "timeZone": "Europe/Madrid",
+      "colorId": "1",
+      "backgroundColor": "#ac725e",
+      "foregroundColor": "#1d1d1d",
+      "accessRole": "freeBusyReader",
+      "defaultReminders": []
+    }
+  ]
+}

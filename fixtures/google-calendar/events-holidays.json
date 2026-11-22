@@ -1,0 +1,69 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"p33gc5ctvttfoo0o\"",
+  "summary": "Holidays in Mexico",
+  "description": "Holidays and Observances in Mexico",
+  "updated": "2026-11-02T06:11:24.000Z",
+  "timeZone": "Europe/Madrid",
+  "accessRole": "reader",
+  "defaultReminders": [],
+  "nextSyncToken": "CMDmyKmZ5JADEMDmyKmZ5JADGAUg4pG6ugE=",
+  "items": [
+    {
+      "kind": "calendar#event",
+      "etag": "\"3459832168000000\"",
+      "id": "20261116_ge2kmrd5ggpeg5ddfiv6uqb4ec",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=MjAyNjExMTZfZ2Uya21yZDVnZ3BlZzVkZGZpdjZ1cWI0ZWM",
+      "created": "2026-11-02T06:11:24.000Z",
+      "updated": "2026-11-02T06:11:24.000Z",
+      "summary": "Revolution Day Holiday",
+      "description": "Public holiday",
+      "creator": {
+        "email": "es.mexican#holiday@group.v.calendar.google.com",
+        "displayName": "Holidays in Mexico",
+        "self": true
+      },
+      "organizer": {
+        "email": "es.mexican#holiday@group.v.calendar.google.com",
+        "displayName": "Holidays in Mexico",
+        "self": true
+      },
+      "start": { "date": "2026-11-16" },
+      "end": { "date": "2026-11-17" },
+      "transparency": "transparent",
+      "visibility": "public",
+      "iCalUID": "20261116_ge2kmrd5ggpeg5ddfiv6uqb4ec@google.com",
+      "sequence": 0,
+      "eventType": "default"
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3459832168000000\"",
+      "id": "20261102_ge2kmrd5ggpeg5ddfiv6uqb4ec",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=MjAyNjExMDJfZ2Uya21yZDVnZ3BlZzVkZGZpdjZ1cWI0ZWM",
+      "created": "2026-11-02T06:11:24.000Z",
+      "updated": "2026-11-02T06:11:24.000Z",
+      "summary": "All Souls' Day",
+      "description": "Observance\nTo hide observances, go to Google Calendar Settings > Holidays in Mexico",
+      "creator": {
+        "email": "es.mexican#holiday@group.v.calendar.google.com",
+        "displayName": "Holidays in Mexico",
+        "self": true
+      },
+      "organizer": {
+        "email": "es.mexican#holiday@group.v.calendar.google.com",
+        "displayName": "Holidays in Mexico",
+        "self": true
+      },
+      "start": { "date": "2026-11-02" },
+      "end": { "date": "2026-11-03" },
+      "transparency": "transparent",
+      "visibility": "public",
+      "iCalUID": "20261102_ge2kmrd5ggpeg5ddfiv6uqb4ec@google.com",
+      "sequence": 0,
+      "eventType": "default"
+    }
+  ]
+}

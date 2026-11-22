@@ -71,7 +71,6 @@ export const calendarCalendars = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    unique("calendar_calendars_mailbox_id_unique").on(t.mailboxId),
     unique("calendar_calendars_mailbox_google_unique")
       .on(t.mailboxId, t.googleId)
       .nullsNotDistinct(),

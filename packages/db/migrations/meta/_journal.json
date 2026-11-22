@@ -596,6 +596,13 @@
       "when": 1795384943215,
       "tag": "0084_typical_mastermind",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1795384951634,
+      "tag": "0085_wild_doctor_spectrum",
+      "breakpoints": true
     }
   ]
 }
