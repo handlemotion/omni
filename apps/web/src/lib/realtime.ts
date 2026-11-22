@@ -22,7 +22,9 @@ import { actionQuery } from "./mail-queries.ts";
 import { crmChangedElsewhere } from "./crm-cache.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
+import { setOnline } from "./talk.ts";
 
+const TITLE_BAR_MIN = 768;
 const FLUSH_MS = 150;
 const MAX_HOLD_MS = 3_000;
 
@@ -44,6 +46,8 @@ type DocEvent = Extract<
   }
 >;
 const docListeners = new Set<(event: DocEvent) => void>();
+type TalkMessageEvent = Extract<RealtimeEvent, { type: "talk.message" }>;
+const talkListeners = new Set<(event: TalkMessageEvent) => void>();
 const listeners = new Set<() => void>();
 
 type DriveEvent = Extract<RealtimeEvent, { type: "storage.changed" }>;
@@ -53,6 +57,9 @@ const isStorageEvent = (event: RealtimeEvent): event is StorageEvent =>
   event.type === "file.presence" ||
   event.type === "storage.changed" ||
   event.type.startsWith("doc.");
+
+type TalkEvent = Extract<RealtimeEvent, { type: `talk.${string}` }>;
+const isTalkEvent = (event: RealtimeEvent): event is TalkEvent => event.type.startsWith("talk.");
 
 function onFileEvent(orgId: string, event: FileEvent) {
   if (event.type === "file.presence") return applyFilePresence(orgId, event);
@@ -155,8 +162,15 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     timer ??= setTimeout(flush, FLUSH_MS);
   };
 
+  const handledBeside = (orgId: string, event: RealtimeEvent) => {
+    if (isStorageEvent(event)) onStorage(orgId, event);
+    else if (!isTalkEvent(event)) return false;
+    else if (orgId === activeOrgId) onTalk(event);
+    return true;
+  };
+
   const onEvent = (orgId: string, event: RealtimeEvent) => {
-    if (isStorageEvent(event)) return onStorage(orgId, event);
+    if (handledBeside(orgId, event)) return;
     switch (event.type) {
       case "changed":
       case "thread.changed":
@@ -192,10 +206,18 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     }
   };
 
+  const onTalk = (event: TalkEvent) => {
+    if (event.type === "talk.online") return setOnline(client, event.memberId, event.online);
+    void client.invalidateQueries({ queryKey: keys.talkPeople() });
+    void client.invalidateQueries({ queryKey: keys.talkMessages(event.threadId) });
+    if (event.type === "talk.message") for (const listener of talkListeners) listener(event);
+  };
+
   const connect = (orgId: string) =>
     connectRealtime({
       baseUrl: window.location.origin,
       orgId,
+      talk: orgId === activeOrgId && wide.matches,
       onEvent: (event) => onEvent(orgId, event),
       onStatus: (next, { reconnected }) => onStatus(orgId, next, reconnected),
     });
@@ -214,12 +236,19 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       void client.invalidateQueries({ queryKey: keys.crm() }, { cancelRefetch: false });
       if (orgId === activeOrgId) {
         void client.invalidateQueries({ queryKey: keys.storage() }, { cancelRefetch: false });
+        void client.invalidateQueries({ queryKey: keys.talk() }, { cancelRefetch: false });
       }
       void recheckPendingSends(client);
     }
   };
+  const wide = window.matchMedia(`(min-width: ${TITLE_BAR_MIN}px)`);
   const connections = new Map([[activeOrgId, connect(activeOrgId)]]);
   sockets = connections;
+  const reconnectActive = () => {
+    connections.get(activeOrgId)?.close();
+    connections.set(activeOrgId, connect(activeOrgId));
+  };
+  wide.addEventListener("change", reconnectActive);
   const stopWaking = onWake(() => {
     for (const connection of connections.values()) connection.wake();
   });
@@ -240,6 +269,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       clearTimeout(timer);
       clearTimeout(driveTimer);
       stopWaking();
+      wide.removeEventListener("change", reconnectActive);
       if (sockets === connections) sockets = new Map();
       for (const connection of connections.values()) connection.close();
       clearPresence();
@@ -280,6 +310,14 @@ export const onThreadsMerged: (listener: (event: MergedEvent) => void) => () => 
 export const onDocEvent: (listener: (event: DocEvent) => void) => () => void = (listener) => {
   docListeners.add(listener);
   return () => docListeners.delete(listener);
+};
+
+/** Calls `listener(event)` for each Talk note in the active workspace, the member's own included. */
+export const onTalkMessage: (listener: (event: TalkMessageEvent) => void) => () => void = (
+  listener,
+) => {
+  talkListeners.add(listener);
+  return () => talkListeners.delete(listener);
 };
 
 /** Calls `listener(orgId)` whenever a workspace's socket opens, including after a reconnect. */

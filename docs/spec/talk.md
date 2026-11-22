@@ -22,16 +22,21 @@ and rules (`docs/spec/modules.md`), because it owns tables and reads Storage thr
   else is online, there is no stack.
 - **Everyone.** `+n` opens the full list: online teammates first, then the others, each with
   their unread count. Any of them opens a conversation; an offline teammate reads it next time.
-- **The window.** A floating card above the page, anchored under the title bar at the right:
-  - a header with their picture, name, a green dot and `Active now` while they are online, an
-    expand control and close;
-  - the conversation: a centred time line wherever an hour passes between notes, your notes on
-    the right and theirs on the left, a file as a card (an image as a large rounded picture,
-    anything else as its file tile and name), and reactions as small chips under a note;
-  - a composer at the bottom, `Note to <first name>…`, with attach (+) and a `Drop ↵` send
-    button. Dropping files anywhere on the window sends them.
-  - Expand makes the same window taller and wider, still floating, so you never leave the page
-    you were on. One window is open at a time; opening another teammate replaces it.
+- **The window.** A small white island just under the face it belongs to (or `+n`), its top
+  right corner under the face, kept on screen, 288px wide. It behaves like a tooltip: resting on
+  a face a beat peeks at that thread; moving to another face slides the same window to it and
+  swaps the thread in place; leaving both closes it. A press on a face, or a touch inside the
+  window, pins it open until it is closed. Only a pinned window takes the keyboard.
+  - One fixed height, empty or full, so moving between faces never resizes it.
+  - A one-line header: their name and a green dot while they are online; close shows on hover.
+  - The notes as bubbles: yours on the right in primary, theirs on the left in secondary. A time
+    line wherever an hour passes. An image is a rounded picture; any other file a chip with its
+    glyph, name and `PNG • 5 KB`. Reactions are white chips overlapping the bubble's lower edge, wrapping when there are many, in
+    the platform's emoji (Apple's first); four quick ones float above a bubble on hover.
+  - The composer inside the island at its foot: `Note to <first name>…`, attach (+) and a round
+    send button with an up arrow. Dropping files on the island sends them.
+  - No expanded mode: it stays small. One window is open at a time; opening another teammate
+    replaces it.
 - **Unread and notifying.** A teammate's picture carries a dot while you have unread notes from
   them. A note that arrives while its window is not open (or Omni is in the background) shows a
   system notification, when desktop notifications are on for this device, and opens the window
@@ -98,6 +103,10 @@ threads, then Storage's own doors decide. The sender is sent to the file's conte
 member door, the recipient through the share link their grant opens (read fresh each time, since
 a link can be reset).
 
+The folder drops go into is shared with nobody else: if the sender shares their `Talk` folder in
+Drive, the next drop makes a new one, so a later file is never visible to that folder's
+grantees. Each drop also tells the sender's open Drive listings that the folder changed.
+
 Upload is one request: `POST /api/talk/threads/:id/files?name=…` with the bytes as the body and
 its `content-length`, up to `STORAGE_MAX_FILE_BYTES` and the workspace's storage limit, like
 saving a mail attachment to Drive. A failed grant or message aborts the upload, so no orphan
@@ -123,7 +132,8 @@ not leak.
 ## Realtime
 
 Online is the existing per-workspace realtime Durable Object, not a new service. An app that
-shows Talk opens its socket with `?talk=1`; the Worker then tags it `team` when the member is a
+shows Talk opens its socket with `?talk=1` (the web app only while its title bar, and so the
+stack, is on screen: a narrow window that hides it is not a way to reach you, so push still does); the Worker then tags it `team` when the member is a
 teammate (never on a sync or watch socket, never for a freelancer). Only those sockets count and
 hear Talk, so a client that has no Talk (iOS today, an older web build, the desktop's watch
 sockets) never shows its member as online, never swallows a push, and gets no event it does not

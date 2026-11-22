@@ -51,7 +51,10 @@ export const setDesktopNotifications: (on: boolean) => Promise<DesktopNotificati
   return currentState();
 };
 
-const inBackground = () =>
+/** Notifications are on for this device. */
+export const desktopNotificationsOn = () => currentState() === "on";
+
+export const inBackground = () =>
   desktop.isDesktop ? !document.hasFocus() : document.visibilityState !== "visible";
 
 /**

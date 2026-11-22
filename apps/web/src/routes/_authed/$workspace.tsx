@@ -14,6 +14,8 @@ import { SettingsNav } from "../../components/settings/settings-nav.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { DriveDragProvider } from "../../components/storage/drive-drag.tsx";
 import { TitleBar } from "../../components/shell/title-bar.tsx";
+import { TalkWindow } from "../../components/talk/talk-window.tsx";
+import { useTalkNotifications } from "../../components/talk/use-talk-notifications.ts";
 import { CommandMenu } from "../../components/search/command-menu.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { NotificationsPanel } from "../../components/shell/notifications.tsx";
@@ -98,6 +100,7 @@ function Shell() {
   const { member } = Route.useRouteContext();
   useThreadInItsWorkspace();
   useRealtimeConnection(member.orgId, { memberId: member.id });
+  useTalkNotifications(member.id);
   useDesktopNotifications();
   useDockBadge();
   useDesktopSyncSetup();
@@ -121,6 +124,7 @@ function Shell() {
         </DriveDragProvider>
       </ListSweepProvider>
       <TitleBar />
+      <TalkWindow />
       <KeyboardShortcuts />
       <OfflineNotice />
       <ComposeDialog />
