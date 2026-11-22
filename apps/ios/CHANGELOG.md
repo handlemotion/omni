@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/wokshop/omni/compare/ios-v0.2.1...ios-v0.3.0) (2026-11-22)
+
+
+### Features
+
+* **drive:** cards preview their files; personal workspaces show their saved name ([#775](https://github.com/wokshop/omni/issues/775)) ([5d9f15d](https://github.com/wokshop/omni/commit/5d9f15ddfb649a032c0bdda53d490262ddba0365))
+* **drive:** teamspaces: members, open or private, through the member door and the API ([#736](https://github.com/wokshop/omni/issues/736)) ([88b3bc3](https://github.com/wokshop/omni/commit/88b3bc37d8c9ae98cdf08d9e413205922751293d))
+
 ## [0.2.1](https://github.com/wokshop/omni/compare/ios-v0.2.0...ios-v0.2.1) (2026-11-21)
 
 

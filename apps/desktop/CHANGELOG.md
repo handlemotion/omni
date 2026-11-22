@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/wokshop/omni/compare/desktop-v0.3.0...desktop-v0.4.0) (2026-11-22)
+
+
+### Features
+
+* **desktop:** a module rail down the window's left edge replaces the sidebar's module switcher ([#691](https://github.com/wokshop/omni/issues/691)) ([d32996d](https://github.com/wokshop/omni/commit/d32996db4da66995cfd08632c6d75795aad29269))
+* **desktop:** Windows 10 and 11 release, with its own update feed and taskbar badge ([#697](https://github.com/wokshop/omni/issues/697)) ([2cf8e63](https://github.com/wokshop/omni/commit/2cf8e63b5a9144bf250de7cfed5ced084ceed7ef))
+* **drive:** teamspaces: members, open or private, through the member door and the API ([#736](https://github.com/wokshop/omni/issues/736)) ([88b3bc3](https://github.com/wokshop/omni/commit/88b3bc37d8c9ae98cdf08d9e413205922751293d))
+
 ## [0.3.0](https://github.com/wokshop/omni/compare/desktop-v0.2.1...desktop-v0.3.0) (2026-11-21)
 
 
