@@ -126,7 +126,8 @@ export const meetings = new Hono<AppEnv>()
     if (
       file.status !== "ok" ||
       file.file.space !== "personal" ||
-      file.file.ownerMemberId !== c.var.member.id
+      file.file.ownerMemberId !== c.var.member.id ||
+      !file.file.mimeType?.startsWith("audio/")
     ) {
       return refused(c, { status: "not_a_recording" });
     }

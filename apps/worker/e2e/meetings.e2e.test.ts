@@ -364,3 +364,56 @@ test("stopping again while the meeting waits for the pipeline sends it on instea
   expect(again.status).toBe(204);
   expect((await settled(dana, meetingId)).body.meeting.status).toBe("ready");
 });
+
+test("a recording must be an audio file: a document from My files is refused", async () => {
+  const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  const { meetingId, folderId } = (await api(dana, "POST", "/", { attendees: [], consent: true }))
+    .body;
+  const doc = await stack.upload(
+    dana.jar,
+    { parentId: folderId },
+    "plan.html",
+    new TextEncoder().encode("<p>plan</p>"),
+    "text/html",
+  );
+  const refused = await api(dana, "POST", `/${meetingId}/stop`, {
+    audioNodeId: doc.id,
+    durationMs: 1000,
+    micSpans: null,
+  });
+  expect(refused).toMatchObject({ status: 400, body: { code: "BAD_REQUEST" } });
+  expect((await api(dana, "GET", `/${meetingId}`)).body.meeting.hasAudio).toBe(false);
+});
+
+test("a range the recording cannot satisfy answers 416 with its size, not a server error", async () => {
+  const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  const { meetingId, folderId } = (await api(dana, "POST", "/", { attendees: [], consent: true }))
+    .body;
+  const node = await stack.upload(
+    dana.jar,
+    { parentId: folderId },
+    "c.ogg",
+    new Uint8Array(64),
+    "audio/ogg",
+  );
+  const stop = { audioNodeId: node.id, durationMs: 1000, micSpans: null };
+  expect((await api(dana, "POST", `/${meetingId}/stop`, stop)).status).toBe(204);
+  const get = (range: string) =>
+    fetch(new URL(`/api/meetings/${meetingId}/audio`, stack.worker.url), {
+      headers: { cookie: dana.jar.header, range },
+    });
+  for (const range of ["bytes=64-", "bytes=1000-2000", "bytes=50-10", "bytes=-0"]) {
+    const answer = await get(range);
+    expect([range, answer.status, answer.headers.get("content-range")]).toEqual([
+      range,
+      416,
+      "bytes */64",
+    ]);
+  }
+  const last = await get("bytes=60-1000");
+  expect([last.status, last.headers.get("content-range")]).toEqual([206, "bytes 60-63/64"]);
+  expect((await last.arrayBuffer()).byteLength).toBe(4);
+  await settled(dana, meetingId);
+});

@@ -431,8 +431,8 @@ the status before it.
    and answers with the recorder's private `Recordings` folder, made on first use. The app
    uploads the audio there through Drive's own resumable upload (`/api/storage/uploads`), part
    by part as it records, so the upload, its limits and its checks are Drive's.
-2. **Stop.** `POST /api/meetings/:id/stop` names the uploaded file (it must be the recorder's own,
-   in their My files), the mic intervals and the dropped silences, sets `uploaded` and enqueues
+2. **Stop.** `POST /api/meetings/:id/stop` names the uploaded file (it must be an audio file of the
+   recorder's own, in their My files), the mic intervals and the dropped silences, sets `uploaded` and enqueues
    `transcribe`.
 3. **Transcribe.** Streams the audio from R2 to the engine's upload (no buffering, no public
    URL), submits the job and stores its id; a retry that finds the id skips to polling. Then
