@@ -101,8 +101,8 @@ export class LiveFile {
    * their own, then catches up with what others appended meanwhile. Answers the records to pass
    * on and the last one the document now holds.
    */
-  rewrite(markdown: string) {
-    return this.append(rewriteLive(this.doc, markdown));
+  rewrite(markdown: string, by?: string) {
+    return this.append(rewriteLive(this.doc, markdown), by);
   }
 
   /**
@@ -110,8 +110,13 @@ export class LiveFile {
    * their own, then catches up with what others appended meanwhile. Answers the record to pass on
    * and the last one the document now holds.
    */
-  async append(update: Uint8Array) {
-    const record: StorageLiveRecord = { t: "update", e: this.epoch, u: toBase64(update) };
+  async append(update: Uint8Array, by?: string) {
+    const record: StorageLiveRecord = {
+      t: "update",
+      e: this.epoch,
+      u: toBase64(update),
+      ...(by ? { by } : {}),
+    };
     const seqNum = await this.basin.append(docStream(this.nodeId), JSON.stringify(record));
     if (seqNum === null) throw new Error("storage: the live document refused a change");
     this.take(await readLive(this.basin, this.nodeId, this.next));

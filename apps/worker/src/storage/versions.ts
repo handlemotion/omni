@@ -13,6 +13,7 @@ import { zValidator } from "../validator.ts";
 import { announceDrives } from "./announce.ts";
 import { partCount, storageLimit, wireNode, wireUpload } from "./core.ts";
 import { download, refused, staleSave, writeDoor } from "./http.ts";
+import { restoreLive } from "./restore-live.ts";
 import { uploadCaps } from "./uploads.ts";
 
 const wireContent = (content: StorageContent) => ({
@@ -79,6 +80,8 @@ export const storageVersions = new Hono<AppEnv>()
 
   .post("/files/:id/versions/:versionId/restore", async (c) => {
     const { id, versionId } = c.req.param();
+    const live = await restoreLive(c, id, versionId);
+    if (live) return live;
     const restored = await writeDoor(c).files.restoreVersion(id, versionId);
     if (restored.status !== "ok") return refused(c, restored.status);
     announceDrives(c, [restored.node]);

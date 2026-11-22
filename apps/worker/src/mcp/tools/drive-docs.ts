@@ -118,7 +118,9 @@ async function edit(context: ToolContext, input: z.infer<typeof editInput>) {
     input.edits
       ? applyEdits(current, input.edits)
       : ({ ok: true, markdown: input.markdown ?? "" } satisfies EditResult);
-  const edited = await editDoc(await deps(context), writer.files, input.id, change);
+  const writing = await deps(context);
+  const by = `a:${writer.memberId}:${writing.agent}`;
+  const edited = await editDoc(writing, writer.files, input.id, change, by);
   if (edited.status === "invalid") {
     const shown = edited.markdown.slice(0, SHOWN_ON_MISS);
     const more = edited.markdown.length > shown.length ? "\n[…]" : "";

@@ -134,7 +134,7 @@ test("a doc edited past its stream's retention opens from its snap, and an agent
   expect(opened.body).toEqual({
     enabled: true,
     entries: [
-      { seqNum: snapAt, record: snap },
+      { seqNum: snapAt, record: { ...snap, by: `m:${ana.id}` } },
       { seqNum: snapAt + 1, record: { ...after, by: `m:${ana.id}` } },
     ],
     more: false,
@@ -266,4 +266,51 @@ test("versions too different to diff answer with the version's text instead of r
   });
   expect(read).toMatchObject({ diff: "", diff_too_large: true, truncated: false });
   expect((read as { text: string }).text).toBe(lines("a"));
+});
+
+test("a version restored while people edit is an edit of their live document: they see it, and their next save is not refused", async () => {
+  const org = await stack.company(`restore-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const first = "# Plan\n\nFirst draft";
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "plan.md", bytes(first));
+  const second = "# Plan\n\nSecond draft";
+  expect(await call(agent, "drive_edit_doc", { id: doc.id, markdown: second })).not.toHaveProperty(
+    "error",
+  );
+  const listed = await stack.api(ana.jar, "GET", `/files/${doc.id}/versions`);
+  const [kept] = listed.body.versions as { id: string; size: number }[];
+  expect(kept!.size).toBe(first.length);
+
+  const tab = await editor(ana.jar, doc.id);
+  const typing = new Y.Doc();
+  const epoch = await tab.append({ t: "seed", cv: 2, u: base64(rewriteLive(typing, second)) }, 0);
+  await tab.append({ t: "update", e: epoch, u: base64(rewriteLive(typing, `${second}, typed`)) });
+
+  const restored = await stack.api(
+    ana.jar,
+    "POST",
+    `/files/${doc.id}/versions/${kept!.id}/restore`,
+  );
+  expect(restored.status).toBe(200);
+  expect(restored.body.node.contentVersion).toBe(3);
+  expect(await (await stack.download(ana.jar, doc.id)).text()).toBe(first);
+  const heard = (await tab.waitFor(
+    (e) =>
+      e.type === "doc.record" &&
+      (e.record as Event).t === "update" &&
+      (e.record as Event).by === `m:${ana.id}`,
+  )) as { record: { u: string } };
+  Y.applyUpdate(typing, Buffer.from(heard.record.u, "base64"));
+  await tab.waitFor((e) => e.type === "doc.record" && (e.record as Event).t === "fold");
+
+  const after = `${first}, and more`;
+  await tab.append({ t: "update", e: epoch, u: base64(rewriteLive(typing, after)) });
+  const saved = await stack.api(ana.jar, "POST", `/files/${doc.id}/versions`, {
+    size: bytes(after).length,
+    mimeType: "text/markdown",
+    ifContentVersion: 3,
+  });
+  expect(saved.status).toBe(201);
+  tab.socket.close();
 });

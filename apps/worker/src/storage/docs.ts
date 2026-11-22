@@ -57,6 +57,7 @@ export async function editDoc(
   files: MemberStorage,
   nodeId: string,
   change: (markdown: string) => EditResult,
+  by?: string,
 ) {
   const found = await files.file(nodeId);
   if (found.status !== "ok") return found;
@@ -95,7 +96,7 @@ export async function editDoc(
   );
   if (refused) return refused;
   await files.endSession(nodeId);
-  const { entry, through } = await live.rewrite(changed.markdown);
+  const { entry, through } = await live.rewrite(changed.markdown, by);
   passOn(deps, node.orgId, nodeId, [entry]);
   return saveLive(
     deps,
