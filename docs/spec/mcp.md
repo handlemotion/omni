@@ -375,6 +375,27 @@ for the agent). A canvas is an Omni board (`docs/spec/canvas.md`), type `text/vn
   rate limit; refused in a workspace whose plan is unpaid. Every write is audited as
   `mcp.drive_canvas`.
 
+### Sheets: `drive_create_sheet`, `drive_edit_sheet`
+
+Scope `drive:write`, like the doc tools: not read-only, not destructive, every write a version of
+its own named for the agent. An Omni sheet is `text/vnd.omni.sheet` (`docs/spec/sheets.md`).
+
+- **Read.** `drive_fetch` on a sheet in the person's workspaces renders it from the sheet itself
+  (from its live document when that holds unsaved typing, `unsaved_edits: true`): each tab's rows
+  by number under a line of column letters, then its formulas as runs (`C2:C120 =B2*1.16`), its
+  column types and its views, with `layout`, a hash of the order of every row and column.
+- **Create.** `drive_create_sheet { name, tabs? | csv?, folder_id? | workspace?, space? }`.
+- **Edit.** `drive_edit_sheet { id, layout?, edits }`, edits in A1 (`set`, `clear`, `append`,
+  `insert_rows`, `delete_rows`, `insert_columns`, `delete_columns`, `column`, `fill_down`,
+  `sort`, `add_tab`, `rename_tab`, `delete_tab`, `freeze`, `view`), all or none. With `layout`,
+  it is refused when rows or columns moved since the read, answering the sheet as it is. It
+  answers the ranges it wrote, their values with formulas evaluated, and the new `layout`.
+- **Live merge.** As `drive_edit_doc`: the edits are one Yjs transaction on the live document
+  (`@omni/sheets` `applySheetEdits`, `LiveFile.apply`), passed to everyone editing, then saved.
+- **Versions.** `drive_versions` on a sheet answers a cell diff by row and column id.
+- **Limits.** `SHEET_LIMITS` in `@omni/sheets`: 100,000 cells, 20,000 rows a tab, 200 columns,
+  20 tabs, 5 MB; 100 edits and 10,000 cells a call. Audited as `mcp.drive_sheet`.
+
 ## Authorization
 
 OAuth 2.1, per the MCP 2026-07-28 authorization spec, with Omni's own Better Auth as the

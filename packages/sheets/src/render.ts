@@ -1,6 +1,6 @@
-import { columnLetters } from "./a1.ts";
+import { columnLetters, parseArea } from "./a1.ts";
 import { gridLayout, type GridTab } from "./doc.ts";
-import { isFormula } from "./format.ts";
+import { isFormula, type SheetFile } from "./format.ts";
 import { cellKey } from "./formula/evaluate.ts";
 import { shiftA1, toA1, type Layout } from "./formula/translate.ts";
 import { isError, numberText, type Value } from "./formula/values.ts";
@@ -123,4 +123,46 @@ export function agentText({ grid, values }: Evaluated) {
     out.push("");
   }
   return out.join("\n");
+}
+
+/** What search indexes, read from a sheet's file: formulas by the values the file saved. */
+export function fileIndexText(file: SheetFile) {
+  const out: string[] = [];
+  for (const tab of file.tabs) {
+    out.push(`--- Sheet: ${tab.name} ---`);
+    for (const row of tab.rows) {
+      const line = tab.columns
+        .map(({ id }) => {
+          const cell = row.cells[id];
+          if (!isFormula(cell)) return shown(cell);
+          return cell.e ?? shown(cell.v ?? null);
+        })
+        .join("\t")
+        .trimEnd();
+      if (line) out.push(line);
+    }
+    out.push("");
+  }
+  return out.join("\n");
+}
+
+/** The values in `ranges` (`Tab!A1:C3`, as edits answer them), one `Tab!C2 = 1392` per cell. */
+export function rangeValues({ grid, values }: Evaluated, ranges: string[], max = 200) {
+  const lines: string[] = [];
+  for (const range of ranges) {
+    const bang = range.lastIndexOf("!");
+    const tab = grid.tabs.find((t) => t.name === range.slice(0, bang));
+    const area = parseArea(range.slice(bang + 1));
+    if (!tab || !area || area.row0 === null || area.col0 === null) continue;
+    for (let r = area.row0; r <= Math.min(area.row1!, tab.rows.length - 1); r++) {
+      for (let c = area.col0; c <= Math.min(area.col1!, tab.columns.length - 1); c++) {
+        if (lines.length >= max) return [...lines, `… and more in ${range}`].join("\n");
+        const row = tab.rows[r]!;
+        const cell = row.cells.get(tab.columns[c]!.id);
+        const value = isFormula(cell) ? values.get(cellKey(row.id, tab.columns[c]!.id)) : cell;
+        lines.push(`${tab.name}!${columnLetters(c)}${r + 1} = ${shown(value) || "(empty)"}`);
+      }
+    }
+  }
+  return lines.join("\n");
 }

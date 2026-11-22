@@ -1,5 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { forMember, STORAGE_VERSION_DAYS, type StorageContent } from "@omni/db";
+import {
+  agentText,
+  diffSheets,
+  isOmniSheet,
+  parseSheet,
+  savedEvaluated,
+  SHEET_LIMITS,
+} from "@omni/sheets";
 import { createTwoFilesPatch } from "diff";
 import { z } from "zod";
 import { driveFor, item, itemSchema } from "../drive.ts";
@@ -84,14 +92,39 @@ const wire = (id: string, content: StorageContent & { replacedAt?: Date }) => ({
   ...(content.replacedAt ? { replaced_at: content.replacedAt.toISOString() } : {}),
 });
 
-async function textOf(bucket: R2Bucket, r2Key: string, size: number) {
-  if (size > MAX_TEXT_BYTES) return null;
+async function textOf(bucket: R2Bucket, r2Key: string, size: number, max = MAX_TEXT_BYTES) {
+  if (size > max) return null;
   const object = await bucket.get(r2Key);
   if (!object) return null;
   try {
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(
       await object.arrayBuffer(),
     );
+  } catch {
+    return null;
+  }
+}
+
+function compareText(before: string, after: string) {
+  const patch =
+    before === after
+      ? ""
+      : createTwoFilesPatch("version", "current", before, after, undefined, undefined, {
+          context: 3,
+          maxEditLength: DIFF_MAX_EDITS,
+          timeout: DIFF_TIMEOUT_MS,
+        });
+  return { text: before, diff: patch?.replace(/^=+\n/, "") ?? "", tooLarge: patch === undefined };
+}
+
+function compareSheets(before: string, after: string) {
+  try {
+    const then = parseSheet(before);
+    return {
+      text: agentText(savedEvaluated(then)),
+      diff: diffSheets(then, parseSheet(after)),
+      tooLarge: false,
+    };
   } catch {
     return null;
   }
@@ -156,22 +189,18 @@ async function versionsOf(context: ToolContext, input: z.infer<typeof inputSchem
   }
   if (now.status !== "ok") return toolError("The file could not be opened.");
   const bucket = context.env.STORAGE_BUCKET;
-  const [before, after] = await Promise.all([
-    textOf(bucket, then.r2Key, version.size),
-    textOf(bucket, now.r2Key, now.file.size),
+  const sheet = isOmniSheet(now.file.mimeType);
+  const max = sheet ? SHEET_LIMITS.bytes : MAX_TEXT_BYTES;
+  const [raw, after] = await Promise.all([
+    textOf(bucket, then.r2Key, version.size, max),
+    textOf(bucket, now.r2Key, now.file.size, max),
   ]);
-  if (before === null || after === null) {
+  if (raw === null || after === null) {
     return toolError("That file is not text Omni can compare. Open it with its `url`.");
   }
-  const patch =
-    before === after
-      ? ""
-      : createTwoFilesPatch("version", "current", before, after, undefined, undefined, {
-          context: 3,
-          maxEditLength: DIFF_MAX_EDITS,
-          timeout: DIFF_TIMEOUT_MS,
-        });
-  const diff = patch?.replace(/^=+\n/, "") ?? "";
+  const compared = sheet ? compareSheets(raw, after) : compareText(raw, after);
+  if (!compared) return toolError("That version is not a sheet Omni can read.");
+  const { text: before, diff, tooLarge } = compared;
   const half = Math.floor(input.max_chars / 2);
   const shownDiff = cut(diff, half);
   const shownText = cut(before, input.max_chars - shownDiff.text.length);
@@ -181,7 +210,7 @@ async function versionsOf(context: ToolContext, input: z.infer<typeof inputSchem
     version: wire(version.id, version),
     text: shownText.text,
     diff: shownDiff.text,
-    ...(patch === undefined ? { diff_too_large: true } : {}),
+    ...(tooLarge ? { diff_too_large: true } : {}),
     truncated: shownText.cut || shownDiff.cut,
   });
 }

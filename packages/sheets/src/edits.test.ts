@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { applySheetEdits } from "./edits.ts";
 import { diffSheets } from "./diff.ts";
+import { rangeValues } from "./render.ts";
+import { evaluateDoc } from "./save.ts";
 import { docOf, edit, firstTab, NOW, saved, text, values } from "./test-helpers.ts";
 
 describe("edits", () => {
@@ -28,6 +30,9 @@ describe("edits", () => {
       ],
     });
     expect(outcome.changed).toEqual(["Leads!A2:C3"]);
+    expect(rangeValues(evaluateDoc(doc, NOW), ["Leads!C2:C3"])).toBe(
+      "Leads!C2 = 1800\nLeads!C3 = 800",
+    );
     expect(firstTab(doc)).toEqual([
       ["Company", "Amount", null],
       ["Beta", 900, 1800],

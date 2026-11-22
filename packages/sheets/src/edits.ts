@@ -246,7 +246,10 @@ function applyOne(session: EditSession, edit: SheetEdit, now: number) {
  */
 export function applySheetEdits(doc: Y.Doc, edits: SheetEdit[], now: number) {
   if (edits.length > SHEET_LIMITS.editsPerCall) {
-    return { ok: false, error: `at most ${SHEET_LIMITS.editsPerCall} edits a call` };
+    return {
+      ok: false,
+      error: `at most ${SHEET_LIMITS.editsPerCall} edits a call`,
+    } satisfies EditOutcome;
   }
   const copy = new Y.Doc();
   Y.applyUpdate(copy, Y.encodeStateAsUpdate(doc));
@@ -260,13 +263,14 @@ export function applySheetEdits(doc: Y.Doc, edits: SheetEdit[], now: number) {
       });
     } catch (error) {
       if (error instanceof EditError)
-        return { ok: false, error: `Edit ${index + 1}: ${error.message}` };
+        return { ok: false, error: `Edit ${index + 1}: ${error.message}` } satisfies EditOutcome;
       throw error;
     }
   }
   const problem = limitProblem(saveSheet(copy, now).file);
-  if (problem) return { ok: false, error: `The sheet would have ${problem}.` };
+  if (problem)
+    return { ok: false, error: `The sheet would have ${problem}.` } satisfies EditOutcome;
   const update = Y.encodeStateAsUpdate(copy, before);
   Y.applyUpdate(doc, update);
-  return { ok: true, changed: session.changed(), update };
+  return { ok: true, changed: session.changed(), update } satisfies EditOutcome;
 }

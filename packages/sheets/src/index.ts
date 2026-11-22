@@ -27,5 +27,7 @@ export {
 } from "./format.ts";
 export { cellKey, evaluateGrid } from "./formula/evaluate.ts";
 export { FUNCTIONS } from "./formula/functions.ts";
-export { agentText, indexText, shown } from "./render.ts";
-export { evaluateDoc, nowSerial, saveSheet, type Evaluated } from "./save.ts";
+export { agentText, fileIndexText, indexText, rangeValues, shown } from "./render.ts";
+export { evaluateDoc, nowSerial, savedEvaluated, saveSheet, type Evaluated } from "./save.ts";
+export { SheetError, type Value } from "./formula/values.ts";
+export type { Computed, GridColumn, GridRow, GridView } from "./doc.ts";

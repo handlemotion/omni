@@ -328,6 +328,7 @@ would bypass validation and formulas. Next, as for docs: Export from the desktop
 ## Plan
 
 Each line is one PR, stacked with `gh stack` on top of #705–#707. No migration in any of them.
+SH1 to SH3 are built; SH4 and SH5 wait for the Figma frames and a Mac.
 
 | #   | Layer                                                                                                                         | Depends on |
 | --- | ----------------------------------------------------------------------------------------------------------------------------- | ---------- |

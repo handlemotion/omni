@@ -1,6 +1,7 @@
 import { canvasText, sceneFromJson } from "@omni/canvas";
 import { CANVAS_TYPE } from "@omni/canvas/file";
 import { unzipSync, type UnzipFileInfo } from "fflate";
+import { fileIndexText, parseSheet, SHEET_TYPE } from "@omni/sheets";
 import { extractText } from "unpdf";
 
 /** The most text kept from one file; past it the text is cut and marked truncated. */
@@ -9,7 +10,7 @@ const PLAIN_MAX_BYTES = 10 * 1024 * 1024;
 const PARSED_MAX_BYTES = 25 * 1024 * 1024;
 const ZIP_ENTRY_MAX_BYTES = 64 * 1024 * 1024;
 
-export type Reader = "plain" | "html" | "pdf" | "docx" | "pptx" | "xlsx" | "canvas";
+export type Reader = "plain" | "html" | "pdf" | "docx" | "pptx" | "xlsx" | "canvas" | "sheet";
 
 const PLAIN_EXTENSIONS = new Set([
   "txt",
@@ -83,6 +84,7 @@ export const readerFor: (name: string, mimeType: string | null) => Reader | null
 ) => {
   const type = mimeType?.split(";")[0]!.trim().toLowerCase() ?? "";
   if (type === CANVAS_TYPE) return "canvas";
+  if (type === SHEET_TYPE) return "sheet";
   const dot = name.lastIndexOf(".");
   const extension = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
   if (BY_EXTENSION[extension]) return BY_EXTENSION[extension];
@@ -321,9 +323,11 @@ export async function extract(reader: Reader, bytes: Uint8Array) {
         ? pptx(bytes)
         : reader === "xlsx"
           ? xlsx(bytes)
-          : reader === "html"
-            ? html(new TextDecoder().decode(bytes))
-            : new TextDecoder().decode(bytes);
+          : reader === "sheet"
+            ? fileIndexText(parseSheet(new TextDecoder().decode(bytes)))
+            : reader === "html"
+              ? html(new TextDecoder().decode(bytes))
+              : new TextDecoder().decode(bytes);
   return { ...finish(raw), pages: null };
 }
 

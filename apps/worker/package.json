@@ -25,6 +25,7 @@
     "@omni/db": "workspace:*",
     "@omni/docs": "workspace:*",
     "@omni/mail-core": "workspace:*",
+    "@omni/sheets": "workspace:*",
     "@sentry/cloudflare": "^11.14.0",
     "diff": "^9.0.0",
     "drizzle-orm": "^0.45.4",

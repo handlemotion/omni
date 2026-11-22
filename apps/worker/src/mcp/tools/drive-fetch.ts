@@ -2,10 +2,12 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { canvasOutline, isOmniCanvas } from "@omni/canvas";
 import { isDocFile } from "@omni/docs";
 import type { ContextRead, ContextText, StorageContext } from "@omni/db";
+import { agentText, evaluateDoc, isOmniSheet, layoutToken, readGrid } from "@omni/sheets";
 import { z } from "zod";
 import { s2Basin } from "../../s2.ts";
 import { currentScene } from "../../storage/canvases.ts";
 import { LiveFile } from "../../storage/doc-live.ts";
+import { openSheet } from "../../storage/sheets.ts";
 import { writerIn } from "../drive-write.ts";
 import { driveFor, item, itemSchema } from "../drive.ts";
 import { result, toolError } from "../format.ts";
@@ -51,8 +53,12 @@ const documentSchema = z.object({
       .boolean()
       .optional()
       .describe(
-        "A doc or canvas open in Omni: the text is what people see now, with changes the file has not saved yet.",
+        "A doc, sheet or canvas open in Omni: the text is what people see now, with changes the file has not saved yet.",
       ),
+    layout: z
+      .string()
+      .optional()
+      .describe("A sheet's layout now: pass it to `drive_edit_sheet` so its addresses still hold."),
   }),
 });
 
@@ -71,10 +77,10 @@ const NO_TEXT: Record<Exclude<ContextText["status"], "ok">, string> = {
 
 function document(
   webAppURL: string,
-  read: { found: ContextRead; unsaved: boolean },
+  read: { found: ContextRead; unsaved: boolean; layout?: string },
   budget: number,
 ) {
-  const { found, unsaved } = read;
+  const { found, unsaved, layout } = read;
   const { id, title, url, ...metadata } = item(webAppURL, found);
   const content = found.content!;
   const whole = content.status === "ok" ? content.text : NO_TEXT[content.status];
@@ -91,6 +97,7 @@ function document(
       truncated: cut || content.truncated,
       role: found.role,
       ...(unsaved ? { unsaved_edits: true } : {}),
+      ...(layout ? { layout } : {}),
     },
   };
 }
@@ -125,7 +132,32 @@ async function withOutline(context: ToolContext, drive: StorageContext, found: C
   return { found: { ...found, content }, unsaved: live?.unsaved ?? false };
 }
 
+async function sheetText(context: ToolContext, drive: StorageContext, found: ContextRead) {
+  const saved = { found, unsaved: false };
+  const writer = await writerIn(context, drive, found.workspace.id);
+  if (!writer) return saved;
+  const opened = await openSheet(context, writer.files, found.node.id, true);
+  if (opened.status !== "ok") return saved;
+  const { doc, live } = opened.sheet;
+  const content: ContextText = {
+    status: "ok",
+    text: agentText(evaluateDoc(doc)),
+    truncated: false,
+  };
+  return {
+    found: { ...found, content },
+    unsaved: !!live?.unsaved,
+    layout: layoutToken(readGrid(doc)),
+  };
+}
+
 function asSeen(context: ToolContext, drive: StorageContext, found: ContextRead) {
+  if (found.via === "member" && isOmniSheet(found.node.mimeType)) {
+    return sheetText(context, drive, found).catch((error: unknown) => {
+      context.log.warn("mcp.drive_fetch_sheet_failed", { error });
+      return { found, unsaved: false };
+    });
+  }
   if (found.via === "member" && isOmniCanvas(found.node.mimeType)) {
     return withOutline(context, drive, found).catch((error: unknown) => {
       context.log.warn("mcp.drive_fetch_canvas_failed", { error });

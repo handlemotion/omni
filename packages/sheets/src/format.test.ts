@@ -5,7 +5,9 @@ import { createSheetFile } from "./create.ts";
 import { parseCsv, toCsv } from "./csv.ts";
 import { csvTab } from "./create.ts";
 import { NOW, saved } from "./test-helpers.ts";
-import { saveSheet } from "./save.ts";
+import { savedEvaluated, saveSheet } from "./save.ts";
+import { agentText } from "./render.ts";
+import { fileIndexText } from "./render.ts";
 
 const FILE = [
   '{"omni":"sheet","v":1,"tabs":[{"id":"t7Qk","name":"Leads","frozen":{"rows":1,"cols":0},"columns":[{"id":"c1aZ","width":180},{"id":"c9Pm","type":"number","format":{"kind":"currency","currency":"MXN","decimals":2}},{"id":"c3Lx","type":"select","options":["Lead","Won","Lost"]},{"id":"c0Rt","type":"number"}],"views":[{"id":"vB2e","name":"Won","filter":[{"col":"c3Lx","op":"is","value":["Won"]}],"sort":[{"col":"c9Pm","dir":"desc"}]}]}]}',
@@ -26,6 +28,20 @@ describe("the file", () => {
     const lines = saved(doc).text.split("\n");
     expect(lines[1]).toContain('{"f":"=A1*21","v":42}');
     expect(lines[2]).toContain('{"f":"=1/0","e":"#DIV/0!"}');
+  });
+
+  test("search reads a sheet's values from its file, formulas by what they saved", () => {
+    expect(fileIndexText(parseSheet(FILE))).toBe(
+      "--- Sheet: Leads ---\nCompany\tAmount\tStage\tWith tax\nAcme\t1200\tWon\t1392\n",
+    );
+  });
+
+  test("an earlier version reads as it was saved, not recomputed today", () => {
+    const then = saveSheet(
+      sheetDoc(createSheetFile([{ name: "T", rows: [["=TODAY()"]] }])),
+      NOW - 30,
+    ).file;
+    expect(agentText(savedEvaluated(then))).toContain(`1\t${NOW - 30}`);
   });
 
   test("a file that is not a sheet is refused", () => {
