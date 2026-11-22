@@ -54,3 +54,18 @@ export async function latestLiveStart(basin: S2Basin, nodeId: string) {
   const all = latestEpochStart(await readLive(basin, nodeId, 0));
   return all ? liveStartOf(all) : 0;
 }
+
+/** Every record of the document from `from`, with when S2 appended it (`at`, in ms). */
+export async function readLiveTimed(basin: S2Basin, nodeId: string, from: number) {
+  const entries: (StorageLiveEntry & { at: number })[] = [];
+  for (let at = from; ;) {
+    const page = await basin.read(docStream(nodeId), at);
+    const times = new Map(page.records.map((r) => [r.seqNum, r.timestamp]));
+    for (const entry of liveEntries(page.records)) {
+      entries.push({ ...entry, at: times.get(entry.seqNum) ?? 0 });
+    }
+    const last = page.records.at(-1);
+    if (!page.more || !last) return entries;
+    at = last.seqNum + 1;
+  }
+}

@@ -647,3 +647,4 @@ export * from "./storage/comments.ts";
 export * from "./storage/signing.ts";
 export * from "./storage/texts.ts";
 export * from "./storage/teamspaces.ts";
+export * from "./storage/history.ts";

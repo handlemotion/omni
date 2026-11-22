@@ -4,6 +4,7 @@ import type { MemberStorage, StoragePlace } from "@omni/db";
 import { s2Basin } from "../s2.ts";
 import { docRecordEvents, LiveFile } from "./doc-live.ts";
 import { refusalFor, writeText, type WriteDeps, type WriteResult } from "./doc-write.ts";
+import { journalLater } from "./journal.ts";
 
 /** The largest doc an agent may change: what the editor opens whole. */
 export const DOC_MAX_BYTES = 1_000_000;
@@ -133,6 +134,7 @@ export async function saveLive(
     );
     if (written.status === "ok") {
       passOn(deps, at.orgId, at.nodeId, [await live.folded(written.node.contentVersion, through)]);
+      journalLater(deps, written.node);
       return written;
     }
     if (written.status !== "version_conflict" || tries >= SAVE_TRIES) return written;

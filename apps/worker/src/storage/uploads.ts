@@ -23,6 +23,7 @@ import {
 } from "./core.ts";
 import { zValidator } from "../validator.ts";
 import { announceDrives } from "./announce.ts";
+import { journalSaved } from "./journal.ts";
 import { placeOf, refused, staleSave, writeDoor } from "./http.ts";
 
 const live = (upload: StorageUpload) => upload.expiresAt > new Date();
@@ -223,6 +224,7 @@ export const storageUploads = new Hono<AppEnv>()
     const done = await files.completeUpload(upload.id, { limitBytes, ifContentVersion });
     if (done.status === "ok") {
       announceDrives(c, [done.node]);
+      journalSaved(c, done.node);
       return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
     }
     if (done.status === "not_found") {

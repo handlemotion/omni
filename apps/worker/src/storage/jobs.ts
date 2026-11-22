@@ -10,6 +10,7 @@ import {
   STORAGE_TOMBSTONE_DAYS,
   STORAGE_TRASH_DAYS,
   STORAGE_VERSION_DAYS,
+  purgeDocHistory,
   sweepStorageTombstones,
   type Db,
 } from "@omni/db";
@@ -233,13 +234,15 @@ export function storageDaily(env: Env, now = new Date()) {
   return runJob(
     Effect.gen(function* () {
       const db = yield* scopedDb(env);
-      const [purged, versions, recounted, swept, tombstones] = yield* Effect.all(
+      const history = new Date(now.getTime() - STORAGE_VERSION_DAYS * DAY_MS);
+      const [purged, versions, recounted, swept, tombstones, changes] = yield* Effect.all(
         [
           Effect.result(purgeTrash(db, bucket, log, now, billed)),
           Effect.result(purgeVersions(db, bucket, log, now, billed)),
           Effect.result(retried("recompute_usage", () => recomputeStorageUsage(db))),
           Effect.result(sweepDeletedWorkspaces(db, bucket, log)),
           Effect.result(sweepTombstones(db, now)),
+          Effect.result(retried("purge_doc_history", () => purgeDocHistory(db, history))),
         ],
         { concurrency: "unbounded" },
       );
@@ -249,13 +252,15 @@ export function storageDaily(env: Env, now = new Date()) {
         usageRepaired: valueOf(recounted),
         swept: valueOf(swept),
         tombstonesSwept: valueOf(tombstones),
+        docChangesPurged: valueOf(changes),
       });
       const failed =
         failureOf(purged) ??
         failureOf(versions) ??
         failureOf(recounted) ??
         failureOf(swept) ??
-        failureOf(tombstones);
+        failureOf(tombstones) ??
+        failureOf(changes);
       if (failed) return yield* Effect.fail(failed);
     }),
   );

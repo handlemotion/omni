@@ -3,6 +3,8 @@ import type { Config } from "./env.ts";
 export interface S2Record {
   seqNum: number;
   body: string;
+  /** When S2 appended it, in milliseconds since the epoch. */
+  timestamp: number;
 }
 
 export class S2Error extends Error {
@@ -37,11 +39,18 @@ export function s2Basin(config: Config) {
   };
   const readAt = async (stream: string, start: string, count: number) => {
     try {
-      const { records: batch } = await call<{ records: { seq_num: number; body?: string }[] }>(
-        `${records(stream)}?${start}&count=${count}`,
-      );
+      const { records: batch } = await call<{
+        records: { seq_num: number; body?: string; timestamp?: number }[];
+      }>(`${records(stream)}?${start}&count=${count}`);
       return {
-        records: batch.map((r) => ({ seqNum: r.seq_num, body: r.body ?? "" }) satisfies S2Record),
+        records: batch.map(
+          (r) =>
+            ({
+              seqNum: r.seq_num,
+              body: r.body ?? "",
+              timestamp: r.timestamp ?? 0,
+            }) satisfies S2Record,
+        ),
         more: batch.length === count,
       };
     } catch (error) {

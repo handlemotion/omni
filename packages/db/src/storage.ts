@@ -372,6 +372,15 @@ export interface SharedAccess {
   /** Where its comments are read and written: the writer's door, or the link's for its guest. */
   comments: CommentDoor | null;
 }
+export {
+  docJournalOf,
+  docReplayFrom,
+  docsOwedJournal,
+  memberNames,
+  purgeDocHistory,
+  writeDocJournal,
+  type DocRun,
+} from "./storage/history.ts";
 
 /** A door's comment operations. */
 export type CommentDoor = Pick<
