@@ -54,7 +54,7 @@ export const memberPreferences = pgTable("member_preferences", {
     .notNull()
     .default({}),
   theme: theme("theme").notNull().default("system"),
-  /** How long a send can be undone (Rodrigo, Nov 12: 5 seconds by default). 0 sends at once. */
+  /** How long a send can be undone, 5 seconds by default. 0 sends at once. */
   undoSendSeconds: integer("undo_send_seconds").notNull().default(5),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

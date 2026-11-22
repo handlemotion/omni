@@ -15,7 +15,7 @@ import {
 } from "../schema/index.ts";
 import type { MailActionRequest } from "./writers.ts";
 
-/** The member's undo-send window in seconds: their preference, else 5 (Rodrigo, Nov 12). */
+/** The member's undo-send window in seconds: their preference, else 5. */
 export async function undoSendSeconds(db: Db, memberId: string) {
   const [row] = await db
     .select({ seconds: memberPreferences.undoSendSeconds })

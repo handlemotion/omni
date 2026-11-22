@@ -1,7 +1,7 @@
 # CI runners
 
-Every job in `.github/workflows` runs on GitHub-hosted runners, paid from the GitHub Enterprise
-Cloud plan's included usage. No job depends on a machine of ours being on, and no job reads a
+Every job in `.github/workflows` runs on standard GitHub-hosted runners, which are free for a
+public repository. No job depends on a machine of ours being on, and no job reads a
 `RUNNER_*` repository variable any more.
 
 | Job                                                        | Runner                     | When it runs                                  |
@@ -11,7 +11,7 @@ Cloud plan's included usage. No job depends on a machine of ours being on, and n
 | `Full` (full.yml)                                          | `ubuntu-latest`            | Nightly if main moved, by hand, `full-e2e`    |
 | `Migrate database`, `Sync Worker secrets` (production.yml) | `ubuntu-latest`            | A merge to main that needs them               |
 | `Rust (Linux)` (desktop.yml)                               | `ubuntu-latest`            | Changes to the desktop app or contracts       |
-| Desktop builds (desktop.yml)                               | `macos-26`, `windows-2025` | By hand; Windows also on a `desktop-v*` tag   |
+| Desktop builds (desktop.yml)                               | `macos-26`, `windows-2025` | By hand                                       |
 | `Release PR` (release.yml)                                 | `ubuntu-latest`            | Every push to main (seconds)                  |
 | `Desktop release` (desktop-release.yml)                    | `macos-26`                 | A merged release PR that raises desktop       |
 | `iOS release` (ios-release.yml)                            | `macos-26`                 | A merged release PR that raises iOS           |
@@ -20,13 +20,13 @@ Cloud plan's included usage. No job depends on a machine of ours being on, and n
 
 ## Cost
 
-The plan's included usage is billed in dollars: Linux $0.006, Windows $0.010 and macOS $0.062 a
-minute, so a macOS minute costs about ten Linux ones. Builds for macOS and Windows therefore run
-only for a release (docs/operations/releases.md). Everything else is Linux.
+Standard runners cost nothing on a public repository. Larger runners would be billed, so no job
+uses one. Builds for macOS and Windows still run only for a release or by hand
+(docs/operations/releases.md), because they are the slowest jobs.
 
 ## Keeping `Checks` fast
 
-`ubuntu-latest` for a private repository has 2 vCPU and 8 GB. `Checks` stays near two minutes
+`ubuntu-latest` for a public repository has 4 vCPU and 16 GB. `Checks` stays near two minutes
 because:
 
 - `setup-node` restores the pnpm store, keyed on `pnpm-lock.yaml`. Caches saved on a pull request
@@ -46,13 +46,13 @@ tearing down an old one first, and nothing persists between jobs except the Acti
 
 ## Self-hosted runners
 
-None are used. Any runner registered for this repository or its organization (the old `boat`
-runners, a Windows PC, its WSL2 Ubuntu, a Mac) can be removed under Settings, Actions, Runners,
-and the old `RUNNER_LIGHT`, `RUNNER_HEAVY`, `RUNNER_PRODUCTION`, `RUNNER_WINDOWS` and
-`RUNNER_MACOS` variables deleted under Settings, Secrets and variables, Actions. Nothing reads
+None are used, and none should be: on a public repository a fork's pull request could run code on
 them.
 
 ## Security
 
-The repository is private, so only collaborators' pull requests run. Keep "Run workflows from fork
-pull requests" off (Settings, Actions, General).
+The repository is public. Fork pull requests run `Checks` with no secrets and a read-only token,
+and only after a maintainer approves them: keep "Require approval for all external contributors"
+on and "Send secrets to workflows from fork pull requests" off (Settings, Actions, General).
+Secrets live only in the `production` environment, whose jobs never run on a pull request; limit
+its deployment branches to `main` and the `desktop-v*` and `ios-v*` tags.

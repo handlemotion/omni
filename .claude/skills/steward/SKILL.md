@@ -21,5 +21,5 @@ agent harness gives for PR activity.
 
 ## Before each push
 
-Run what `AGENTS.md` asks ("Branching and shipping"): `pnpm check`, `pnpm check-types`, and the
+Run what `AGENTS.md` asks ("Shipping"): `pnpm check`, `pnpm check-types`, and the
 tests and e2e files the change touches.

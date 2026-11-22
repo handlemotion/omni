@@ -294,7 +294,7 @@
   }
 }
 
-/* Setup's toasts (dorks' onboarding): a brand-blue fill with white text, 8px corners, 12px padding
+/* Setup's toasts: a brand-blue fill with white text, 8px corners, 12px padding
    around a 16px icon and a 20px line, a small bare close at the right, no shadow. Only on the
    setup toaster (`setupToast`); the app's own toasts keep their card. */
 html .setup-toaster [data-sonner-toast][data-styled="true"] {

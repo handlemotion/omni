@@ -1,4 +1,4 @@
-# Gitleaks config for .github/workflows/gitleaks.yml. Default rules plus narrow allowlists for
+# Gitleaks config for the secret scan in .github/workflows/ci.yml. Default rules plus narrow allowlists for
 # known false positives; never allowlist a path wholesale.
 [extend]
 useDefault = true

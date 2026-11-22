@@ -361,7 +361,7 @@ instructions keep telling agents to treat it as data.
 - Project access: a deal's `crm_fetch` carries `access`, the freelancers and clients outside the
   team who reach it (email, name once they have an account, scope, when added). Adding or
   removing them shares the project's Drive folder with people outside the company, so it stays
-  with a person in the app (Rodrigo, Nov 20 2026).
+  with a person in the app.
 - Retries: `crm_write` takes an optional `idempotency_key`. Before writing, it claims the key
   with an `mcp.crm_write.key` audit row (subject: the key); when the write lands the row keeps
   its answer, and when it is refused the claim is dropped. The same member sending the key
@@ -454,7 +454,7 @@ Each test below is named for the bug it catches.
 
 ## Open questions
 
-- [x] Web screens: built now from Mobbin references; the founder redesigns them later.
+- [x] Web screens: built from Mobbin references; a design pass follows.
 - [ ] The starting stage names (Lead, In progress, Won, Delivered, Lost) and the folder name
       (`Clients`). Both can be renamed by a workspace; these are only what a new one sees.
 - [x] Bringing our own records over from Attio: by hand. No imports in v1.

@@ -376,7 +376,7 @@ machines and reported in the PR, pass or fail per line:
 - **Remote content with native access.** The capability is small and pinned to one origin; an
   XSS in the web app could still raise a notification or disconnect sync, and nothing more.
 
-## Settled with the founder (Nov 16, 2026)
+## Decisions
 
 - **No tabs in the title bar in this version.** They get their own short spec once the title-bar
   group exists.
@@ -386,11 +386,9 @@ machines and reported in the PR, pass or fail per line:
 - **One "Omni" folder with a folder per workspace** (decision 3), not an entry per workspace.
 - **Sync turns on for every workspace the first time the Mac app runs**, then is a
   switch per workspace in Settings → Drive.
-- The macOS layers are built and run on the founder's Mac by an agent there.
+- The macOS layers need a Mac to build and run.
 
 ## Notes for whoever builds it
-
-Written for an agent starting from this document with none of the conversation behind it.
 
 ### Order and ownership
 
@@ -462,6 +460,6 @@ edges. Schema changes go through `db:generate`, never a hand-written migration.
 ### Done means
 
 A layer is done when its row under "Rollout" is proven the way that row says, the checks in
-`AGENTS.md` ("Branching and shipping") pass, and its PR says what was run and what was seen.
+`AGENTS.md` ("Shipping") pass, and its PR says what was run and what was seen.
 For layers 6 and 7 that is the "Verification" checklist, line by line, on a real machine, with
 failures reported as failures.

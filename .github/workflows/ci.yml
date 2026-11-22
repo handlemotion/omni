@@ -7,8 +7,8 @@ name: CI
 #
 # Only pull requests into main run. A stacked layer (base is another branch) runs once it is
 # retargeted to main and pushed; `Run workflow` on its branch reports `Checks` too. `merge_group`
-# reports `Checks` for a merge queue, once main's ruleset turns one on (it needs Enterprise Cloud
-# for a private repository); until then GitHub never sends it. A push to main that changes the
+# reports `Checks` for a merge queue, once main's ruleset turns one on; until then GitHub never
+# sends it. A push to main that changes the
 # lockfile only warms the pnpm cache (`warm-cache`).
 on:
   pull_request:

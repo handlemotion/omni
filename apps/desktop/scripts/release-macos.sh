@@ -81,15 +81,16 @@ export OMNI_DESKTOP_VERSION="$version"
 export TAURI_SIGNING_PRIVATE_KEY="$TAURI_SIGNING_PRIVATE_KEY_PATH"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
 config="$(node -e '
-  const [pubkey, profile] = process.argv.slice(1);
+  const [pubkey, profile, identifier] = process.argv.slice(1);
   console.log(JSON.stringify({
+    identifier,
     bundle: {
       createUpdaterArtifacts: true,
       macOS: { files: { "embedded.provisionprofile": profile } },
     },
     plugins: { updater: { pubkey } },
   }));
-' "$OMNI_DESKTOP_UPDATER_PUBKEY" "$OMNI_APP_PROFILE")"
+' "$OMNI_DESKTOP_UPDATER_PUBKEY" "$OMNI_APP_PROFILE" "${OMNI_DESKTOP_BUNDLE_ID:-app.omnidirectional.desktop}")"
 
 (cd "$desktop" && pnpm tauri build --target universal-apple-darwin --bundles app,dmg --config "$config")
 

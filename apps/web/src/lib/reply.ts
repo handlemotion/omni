@@ -1,7 +1,7 @@
 /**
- * A chat reply to part of the conversation: a passage of a message or a note. Copied from
- * handlemotion/dorks (`lib/reply.ts`). It travels inside the note itself, as a quote above what
- * was written, so nothing changes on the server and any client reads it:
+ * A chat reply to part of the conversation: a passage of a message or a note. It travels inside
+ * the note itself, as a quote above what was written, so nothing changes on the server and any
+ * client reads it:
  *
  *     > Replying to Carla:
  *     > I was charged twice for order 4411.

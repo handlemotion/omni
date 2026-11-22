@@ -1,6 +1,6 @@
 # Adding a mail domain (Purelymail)
 
-People's mail is sent and received through the mail host (Purelymail for us), never through
+People's mail is sent and received through the mail host (Purelymail by default), never through
 Cloudflare: replies must leave from the person's own mailbox, signed with the domain's DKIM key,
 with a copy in Sent. Source for every value below: https://purelymail.com/docs/domainDocs.
 
@@ -26,7 +26,7 @@ The web app's `/onboarding` does steps 1, 3 and 5 through the Purelymail API and
 lists the records with their checks; the manual path below is the same work by hand.
 
 1. Purelymail → Domains → add the domain. Copy the ownership TXT value.
-2. Cloudflare (account Handle) → the zone → add the records above (`cf dns records create`).
+2. Your DNS host → the zone → add the records above (`cf dns records create`).
 3. Purelymail → Domains → verify. Propagation is usually minutes.
 4. Check from outside: `dig +short MX <domain>`, `dig +short TXT <domain>`,
    `dig +short CNAME purelymail1._domainkey.<domain>`.
@@ -45,16 +45,6 @@ Copy the history first, switch DNS second:
 3. Lower the MX TTL a day ahead, then switch MX, SPF, DKIM, and DMARC in one change.
 4. Run a final incremental import to catch mail that arrived during the switch.
 5. Keep the old provider active for a week before cancelling it.
-
-## Status
-
-| Domain              | Today            | State                                                                                                  |
-| ------------------- | ---------------- | ------------------------------------------------------------------------------------------------------ |
-| omnidirectional.app | no mail          | Added and verified in Purelymail 2026-10-31 (all records, plus autoconfig/autodiscover). No users yet. |
-| handlemotion.com    | Google Workspace | not started                                                                                            |
-| chowmein.tv         | Google Workspace | not started                                                                                            |
-| ortizortega.com     | iCloud           | not started                                                                                            |
-| ladmetraje.com      | iCloud           | not started                                                                                            |
 
 ## Limits to remember
 

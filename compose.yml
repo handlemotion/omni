@@ -74,7 +74,7 @@ services:
       - source: s2-init
         target: /s2-init.json
     ports:
-      - "54380:80" # not 8090: the boat CI runners already listen there
+      - "54380:80" # not 8090, which other local tools often take
     # The image has no shell: its own CLI asks whether the basin is there yet.
     environment:
       S2_ACCOUNT_ENDPOINT: http://localhost:80

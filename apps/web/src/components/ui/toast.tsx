@@ -44,7 +44,7 @@ interface PromptOptions extends ToastTarget {
 }
 
 /**
- * Setup's toast (dorks' onboarding): Sonner's own toast, painted brand blue by `.setup-toaster` in
+ * Setup's toast: Sonner's own toast, painted brand blue by `.setup-toaster` in
  * styles.css, instead of `ToastCard`. The same message twice replaces itself.
  */
 export function setupToast(message: string, description?: string) {

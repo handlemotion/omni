@@ -1,6 +1,6 @@
 name: PR title
 
-# Pull request titles are Conventional Commits (AGENTS.md, "Branching and shipping"): squash merge
+# Pull request titles are Conventional Commits (AGENTS.md, "Shipping"): squash merge
 # makes the title the commit on main, and release-please (release.yml) reads those commits to pick
 # each app's next version and write its changelog. `feat` raises the minor version, `fix` and
 # `perf` the patch, `!` before the colon (or a `BREAKING CHANGE:` footer) the major.

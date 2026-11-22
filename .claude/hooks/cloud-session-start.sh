@@ -60,7 +60,7 @@ write_env() {
   )
 }
 
-# One read-only service token per Doppler config, like deploy.yml: DOPPLER_TOKEN (`dev`),
+# One read-only service token per Doppler config: DOPPLER_TOKEN (`dev`),
 # DOPPLER_TOKEN_MAIL (`dev_mail`), DOPPLER_TOKEN_WORKER (`dev_worker`).
 write_env "${DOPPLER_TOKEN:-}" packages/db/.env packages/db/.env.example ||
   [ -e packages/db/.env ] || cp packages/db/.env.example packages/db/.env

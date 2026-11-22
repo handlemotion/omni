@@ -499,7 +499,7 @@ The agent eval runs at the end of layer 2 (reads) and again at the end of layer 
 
 1. **SQL is in this version**, as layer 4.
 2. **Writes: triage and drafts.** No sending.
-3. **We build the consent screen** from Rodrigo's reference: an empty page with one centered
+3. **We build the consent screen** as an empty page with one centered
    block. It has the title "<Client> access request", the line "<Client> is requesting access to
    your Omni workspace", a "Select workspace" picker, the requested scopes as a list with icons,
    and Cancel and Confirm. Connected apps in Settings waits for its own design; the API for it

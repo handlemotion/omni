@@ -34,7 +34,6 @@ jobs:
       (github.event.action == 'labeled' && github.event.label.name == 'full-e2e') ||
       (github.event.action == 'synchronize' &&
         contains(github.event.pull_request.labels.*.name, 'full-e2e'))
-    # GitHub-hosted, 2 vCPU / 8 GB for a private repository: about twice the old 4-vCPU time.
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:

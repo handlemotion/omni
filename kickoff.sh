@@ -62,7 +62,7 @@ if [ "$(doppler --version 2>/dev/null)" != "v$doppler_version" ]; then
     "$doppler_sha256" -z -C /usr/local/bin doppler
 fi
 
-# flyctl, pinned to the version .github/workflows/deploy.yml uses.
+# flyctl, pinned.
 flyctl_version=0.5.1
 flyctl_sha256=47803bc5dc3eb7c7a45626ff76f0082e8c5b5fb8b805efbe00469d04757e1b1b
 if ! flyctl version 2>/dev/null | grep -q "v$flyctl_version "; then
