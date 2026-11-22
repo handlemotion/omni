@@ -35,6 +35,22 @@ export function s2Basin(config: Config) {
     }
     return body as T;
   };
+  const readAt = async (stream: string, start: string, count: number) => {
+    try {
+      const { records: batch } = await call<{ records: { seq_num: number; body?: string }[] }>(
+        `${records(stream)}?${start}&count=${count}`,
+      );
+      return {
+        records: batch.map((r) => ({ seqNum: r.seq_num, body: r.body ?? "" }) satisfies S2Record),
+        more: batch.length === count,
+      };
+    } catch (error) {
+      if (error instanceof S2Error && error.status === 416) {
+        return { records: [] as S2Record[], more: false };
+      }
+      throw error;
+    }
+  };
   return {
     async append(stream: string, body: string, matchSeqNum?: number) {
       try {
@@ -54,19 +70,11 @@ export function s2Basin(config: Config) {
         throw error;
       }
     },
-    async read(stream: string, from: number, count = 1000) {
-      try {
-        const { records: batch } = await call<{ records: { seq_num: number; body?: string }[] }>(
-          `${records(stream)}?seq_num=${from}&count=${count}`,
-        );
-        return {
-          records: batch.map((r) => ({ seqNum: r.seq_num, body: r.body ?? "" }) satisfies S2Record),
-          more: batch.length === count,
-        };
-      } catch (error) {
-        if (error instanceof S2Error && error.status === 416) return { records: [], more: false };
-        throw error;
-      }
+    read(stream: string, from: number, count = 1000) {
+      return readAt(stream, `seq_num=${from}`, count);
+    },
+    async readTail(stream: string, count: number) {
+      return (await readAt(stream, `tail_offset=${count}`, count)).records;
     },
   };
 }

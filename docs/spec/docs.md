@@ -71,7 +71,24 @@ shared schema in `@omni/docs`, live through Yjs. This spec adds:
 - The bubble bar over selected text (bold, italic, strikethrough, code, comment), the `/` menu
   (which gains Dropdown) and the block handle stay.
 
-## Export
+## The live document
+
+Everyone editing a doc types into one live document: a Yjs document kept as an S2 stream of
+records (`docs/<nodeId>`, `@omni/contracts` `storage-live.ts`), saved to the file as its next
+version a moment after the typing stops.
+
+- **Snaps.** Each record is a change of a few keystrokes, so a doc edited for weeks has a long
+  stream. Every `STORAGE_LIVE_SNAP_EVERY` (200) records, the editor whose change crossed the mark
+  appends a `snap`: the document's whole state through a record, and its latest save. Readers
+  (the web editor, and the Worker's doc tools) start at the latest `seed` or `snap`, found in one
+  read of the stream's tail (`GET /files/:id/live?from=latest`), not at the stream's first
+  record. A doc opens in a few hundred records however long it has been edited, and the basin's
+  retention dropping old records no longer takes the epoch with it.
+- **Nothing typed is left unsaved.** A change is in the stream about 60 ms after it is typed. Its
+  tab saves it as the file's next version 2 s later; when that tab is gone first (closed, lost
+  its connection), another tab on the doc saves it after 6–10 s of quiet. Closing a tab sends
+  its last keystrokes at once instead of after the 60 ms batch.
+
 
 A doc's header shows Export in place of Download: one menu, in sections.
 

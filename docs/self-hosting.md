@@ -430,8 +430,10 @@ appends for it.
   `https://<basin>.b.aws.s2.dev/v1` and `S2_BASIN`, and store an access token scoped to that
   basin as the `S2_ACCESS_TOKEN` secret.
 
-A file's stream holds its live edits until the basin's retention drops them; the Markdown file
-stays the truth, and a stream lost early costs at most the edits since the last save.
+A file's stream holds its live edits until the basin's retention drops them; editors write a
+checkpoint (a `snap`) every 200 records and read from the latest one, so retention trims only
+records nothing needs. The Markdown file stays the truth, and a stream lost early costs at most
+the edits since the last save.
 
 #### Rate limits
 

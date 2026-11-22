@@ -123,7 +123,7 @@ async function saveLive(
     if (written.status !== "version_conflict" || tries >= SAVE_TRIES) return written;
     const [fold, now] = await Promise.all([live.lastFold(), files.file(at.nodeId)]);
     if (now.status !== "ok") return { status: "refused", reason: now.status } satisfies WriteResult;
-    if (!fold || fold.cv !== now.file.contentVersion) return written;
+    if (fold.cv !== now.file.contentVersion) return written;
     if (fold.s >= through) return { status: "ok", node: now.file } satisfies WriteResult;
     base = now.file.contentVersion;
   }

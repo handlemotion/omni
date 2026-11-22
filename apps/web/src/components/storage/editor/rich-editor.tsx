@@ -164,6 +164,7 @@ function LivePage(props: EditorProps) {
       onReplaced: live.onReplaced,
       onFolded: live.onFolded,
       onAcked: live.onAcked,
+      onOrphaned: live.onOrphaned,
     })
       .catch(() => null)
       .then((doc) => {

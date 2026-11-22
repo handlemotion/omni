@@ -1,4 +1,9 @@
-import { DOC_PRESENCE_MAX, type RealtimeClientMessage, type RealtimeEvent } from "@omni/client";
+import {
+  DOC_PRESENCE_MAX,
+  LIVE_SNAP_EVERY,
+  type RealtimeClientMessage,
+  type RealtimeEvent,
+} from "@omni/client";
 import {
   applyAwarenessUpdate,
   Awareness,
@@ -27,6 +32,10 @@ const RETRY_MS = 400;
 const UNAVAILABLE_MS = 1000;
 const UNAVAILABLE_MAX_MS = 15_000;
 const SETTLE_MS = 5000;
+const ORPHAN_MS = 6000;
+const ORPHAN_JITTER_MS = 4000;
+const ORPHAN_RETRY_MAX_MS = 120_000;
+const MAX_SNAP_CHARS = 850_000;
 
 const toBase64 = (bytes: Uint8Array) => {
   let text = "";
@@ -37,10 +46,10 @@ const toBase64 = (bytes: Uint8Array) => {
 };
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
-const readAll: (nodeId: string, from?: number) => Promise<StorageLiveEntry[] | null> = async (
-  nodeId,
-  from = 0,
-) => {
+const readAll: (
+  nodeId: string,
+  from?: number | "latest",
+) => Promise<StorageLiveEntry[] | null> = async (nodeId, from = "latest") => {
   const entries: StorageLiveEntry[] = [];
   for (let at = from; ;) {
     const page = await call(
@@ -70,6 +79,11 @@ export interface LiveDocOptions {
   onFolded: (contentVersion: number) => void;
   /** The stream took a change this tab made: whether to save is worth asking again. */
   onAcked: () => void;
+  /**
+   * The document holds changes nobody saved, and whoever made them has gone quiet (a closed tab,
+   * a lost connection): save them, so the file does not lag behind its live document.
+   */
+  onOrphaned?: () => void;
 }
 
 /**
@@ -104,6 +118,11 @@ export class LiveDoc {
   private next = 0;
   private last = { seqNum: -1, mine: false };
   private lastFold = -1;
+  private foldCv = -1;
+  private startAt = -1;
+  private snapping = false;
+  private orphanTimer: ReturnType<typeof setTimeout> | undefined;
+  private orphanTries = 0;
   private folds = new Set<number>();
   private pending = new Map<number, { record: StorageLiveRecord; matchSeqNum?: number }>();
   private answers = new Map<number, (event: StorageDocEvent) => void>();
@@ -130,6 +149,7 @@ export class LiveDoc {
         for (const [ref, item] of this.pending) this.transmit(ref, item);
         if (this.started) void this.catchUp();
         if (this.started) this.announce();
+        if (this.started) this.watchOrphans();
       }),
     );
   }
@@ -140,18 +160,36 @@ export class LiveDoc {
    * epoch was saved as when that is newer than the file this tab read.
    */
   join(entries: StorageLiveEntry[]) {
-    const start = entries.findLastIndex((entry) => entry.record.t === "seed");
-    const seed = entries[start];
-    if (!seed || seed.record.t !== "seed") return false;
-    let cv = seed.record.cv;
-    for (const entry of entries.slice(start + 1)) {
-      if (entry.record.t === "fold" && entry.record.e === seed.seqNum) cv = entry.record.cv;
+    let epoch = -1;
+    for (const { seqNum, record: each } of entries) {
+      epoch = Math.max(epoch, each.t === "seed" ? seqNum : each.e);
+    }
+    const first = entries.findLast(
+      ({ seqNum, record: each }) =>
+        (each.t === "seed" && seqNum === epoch) || (each.t === "snap" && each.e === epoch),
+    );
+    if (!first || (first.record.t !== "seed" && first.record.t !== "snap")) return false;
+    const { record } = first;
+    let cv = record.cv;
+    for (const { record: each } of entries) {
+      if (each.t === "fold" && each.e === epoch) cv = Math.max(cv, each.cv);
     }
     if (cv > this.options.contentVersion) return cv;
     if (cv !== this.options.contentVersion) return false;
-    this.epoch = seed.seqNum;
-    this.next = seed.seqNum;
-    for (const entry of entries.slice(start)) this.apply(entry, false);
+    this.epoch = epoch;
+    this.next = epoch;
+    this.startAt = first.seqNum;
+    this.foldCv = record.cv;
+    this.lastFold = epoch;
+    if (record.t === "snap") {
+      Y.applyUpdate(this.doc, fromBase64(record.u), REMOTE);
+      this.next = record.s + 1;
+      this.lastFold = record.f;
+      this.last = { seqNum: record.s, mine: false };
+    }
+    for (const entry of entries) {
+      if (entry.seqNum >= this.next) this.apply(entry, false);
+    }
     return true;
   }
 
@@ -167,6 +205,9 @@ export class LiveDoc {
     if (answer.type !== "doc.appended") return false;
     this.epoch = answer.seqNum;
     this.next = answer.seqNum;
+    this.startAt = answer.seqNum;
+    this.foldCv = this.options.contentVersion;
+    this.lastFold = answer.seqNum;
     this.markKnown(answer.seqNum, true);
     this.last = { seqNum: answer.seqNum, mine: false };
     return true;
@@ -186,6 +227,8 @@ export class LiveDoc {
     });
     let away: Record<string, unknown> | null = null;
     const leave = () => {
+      clearTimeout(this.timer);
+      this.flush();
       away = this.awareness.getLocalState();
       removeAwarenessStates(this.awareness, [this.doc.clientID], "close");
     };
@@ -201,6 +244,7 @@ export class LiveDoc {
     this.started = true;
     void this.catchUp();
     this.announce();
+    this.watchOrphans();
     return this;
   }
 
@@ -220,7 +264,9 @@ export class LiveDoc {
   /** Records that the epoch up to `boundary` was saved as `contentVersion`. */
   async folded(contentVersion: number, boundary: number) {
     const answer = await this.send({ t: "fold", e: this.epoch, cv: contentVersion, s: boundary });
-    if (answer.type === "doc.appended") this.lastFold = Math.max(this.lastFold, boundary);
+    if (answer.type !== "doc.appended") return;
+    this.lastFold = Math.max(this.lastFold, boundary);
+    this.foldCv = Math.max(this.foldCv, contentVersion);
   }
 
   /**
@@ -256,6 +302,7 @@ export class LiveDoc {
     this.awareness.destroy();
     this.closed = true;
     clearTimeout(this.timer);
+    clearTimeout(this.orphanTimer);
     for (const stop of this.stops) stop();
     for (const resolve of this.answers.values()) {
       resolve({ type: "doc.refused", nodeId: this.options.nodeId, ref: 0, reason: "unavailable" });
@@ -289,7 +336,58 @@ export class LiveDoc {
       if (answer.type !== "doc.appended") return;
       this.last = { seqNum: answer.seqNum, mine: true };
       this.options.onAcked();
+      this.snapIfDue(answer.seqNum);
     });
+  }
+
+  private snapIfDue(seqNum: number) {
+    if (this.snapping || this.closed || seqNum - this.startAt < LIVE_SNAP_EVERY) return;
+    const s = this.boundary;
+    if (s <= this.startAt) return;
+    const u = toBase64(Y.encodeStateAsUpdate(this.doc));
+    if (u.length > MAX_SNAP_CHARS) return;
+    const f = Math.max(this.lastFold, this.epoch);
+    this.snapping = true;
+    void this.sendOnce({ t: "snap", e: this.epoch, s, cv: this.foldCv, f, u })
+      .then((answer) => {
+        if (answer?.type === "doc.appended") this.startAt = Math.max(this.startAt, answer.seqNum);
+      })
+      .finally(() => {
+        this.snapping = false;
+      });
+  }
+
+  private sendOnce(record: StorageLiveRecord) {
+    const ref = nextRef++;
+    return new Promise<StorageDocEvent | null>((resolve) => {
+      const timer = setTimeout(() => {
+        this.answers.delete(ref);
+        resolve(null);
+      }, SETTLE_MS);
+      this.answers.set(ref, (event) => {
+        clearTimeout(timer);
+        this.answers.delete(ref);
+        if (event.type === "doc.appended") this.markKnown(event.seqNum, false);
+        resolve(event);
+      });
+      this.transmit(ref, { record });
+    });
+  }
+
+  private watchOrphans(retry = false) {
+    clearTimeout(this.orphanTimer);
+    if (this.closed || !this.options.onOrphaned) return;
+    this.orphanTries = retry ? this.orphanTries + 1 : 0;
+    const wait = Math.min(ORPHAN_MS * 2 ** this.orphanTries, ORPHAN_RETRY_MAX_MS);
+    this.orphanTimer = setTimeout(
+      () => {
+        const orphaned = this.last.seqNum > this.lastFold && !this.last.mine;
+        if (this.closed || !orphaned) return;
+        if (this.pending.size === 0) this.options.onOrphaned?.();
+        this.watchOrphans(true);
+      },
+      wait + Math.random() * ORPHAN_JITTER_MS,
+    );
   }
 
   private send(record: StorageLiveRecord, matchSeqNum?: number) {
@@ -346,13 +444,16 @@ export class LiveDoc {
     if (record.t !== "seed" && record.e !== this.epoch) return this.markKnown(seqNum, false);
     if (record.t === "fold") {
       this.lastFold = Math.max(this.lastFold, record.s);
+      this.foldCv = Math.max(this.foldCv, record.cv);
       this.folds.add(record.cv);
       this.options.onFolded(record.cv);
     } else {
       Y.applyUpdate(this.doc, fromBase64(record.u), REMOTE);
       if (record.t === "update" && seqNum > this.last.seqNum) this.last = { seqNum, mine };
+      if (record.t === "snap") this.startAt = Math.max(this.startAt, seqNum);
     }
     this.markKnown(seqNum, false);
+    if (this.started) this.watchOrphans();
   }
 
   private markKnown(seqNum: number, mine: boolean) {

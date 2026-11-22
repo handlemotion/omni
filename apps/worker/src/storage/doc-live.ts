@@ -1,5 +1,5 @@
 import {
-  storageLiveRecordSchema,
+  latestEpochStart,
   type StorageDocEvent,
   type StorageLiveEntry,
   type StorageLiveRecord,
@@ -8,6 +8,7 @@ import { liveMarkdown, rewriteLive } from "@omni/docs";
 import * as Y from "yjs";
 import { docStream } from "../realtime-docs.ts";
 import type { S2Basin } from "../s2.ts";
+import { latestLiveStart, readLive } from "./live-read.ts";
 
 const toBase64 = (bytes: Uint8Array) => {
   let text = "";
@@ -17,25 +18,6 @@ const toBase64 = (bytes: Uint8Array) => {
   return btoa(text);
 };
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
-
-async function readFrom(basin: S2Basin, nodeId: string, from: number) {
-  const entries: StorageLiveEntry[] = [];
-  for (let at = from; ;) {
-    const page = await basin.read(docStream(nodeId), at);
-    for (const { seqNum, body } of page.records) {
-      let parsed;
-      try {
-        parsed = storageLiveRecordSchema.safeParse(JSON.parse(body));
-      } catch {
-        continue;
-      }
-      if (parsed.success) entries.push({ seqNum, record: parsed.data });
-    }
-    const last = page.records.at(-1);
-    if (!page.more || !last) return entries;
-    at = last.seqNum + 1;
-  }
-}
 
 /**
  * A file's open live document, when its latest epoch holds the file's content now (the same rule
@@ -48,27 +30,38 @@ export class LiveFile {
   private readonly nodeId: string;
   readonly epoch: number;
 
-  private constructor(basin: S2Basin, nodeId: string, epoch: number) {
+  private fold: { cv: number; s: number };
+
+  private constructor(
+    basin: S2Basin,
+    nodeId: string,
+    epoch: number,
+    fold: { cv: number; s: number },
+  ) {
     this.basin = basin;
     this.nodeId = nodeId;
     this.epoch = epoch;
     this.next = epoch;
+    this.fold = fold;
   }
 
   /** The live document of `nodeId` at `contentVersion`; null when nobody is editing it live. */
   static async open(basin: S2Basin, nodeId: string, contentVersion: number) {
-    const entries = await readFrom(basin, nodeId, 0);
-    const start = entries.findLastIndex((entry) => entry.record.t === "seed");
-    const seed = entries[start];
-    if (!seed || seed.record.t !== "seed") return null;
-    let cv = seed.record.cv;
-    for (const entry of entries.slice(start + 1)) {
-      if (entry.record.t === "fold" && entry.record.e === seed.seqNum) cv = entry.record.cv;
+    const entries = await readLive(basin, nodeId, await latestLiveStart(basin, nodeId));
+    const first = latestEpochStart(entries);
+    if (!first) return null;
+    const { record } = first;
+    const epoch = record.t === "snap" ? record.e : first.seqNum;
+    const live = new LiveFile(basin, nodeId, epoch, {
+      cv: record.cv,
+      s: record.t === "snap" ? record.f : epoch,
+    });
+    if (record.t === "snap") {
+      Y.applyUpdate(live.doc, fromBase64(record.u));
+      live.next = record.s + 1;
     }
-    if (cv !== contentVersion) return null;
-    const live = new LiveFile(basin, nodeId, seed.seqNum);
-    live.take(entries.slice(start));
-    return live;
+    live.take(entries);
+    return live.fold.cv === contentVersion ? live : null;
   }
 
   /** The Markdown it holds now. */
@@ -86,7 +79,7 @@ export class LiveFile {
     const record: StorageLiveRecord = { t: "update", e: this.epoch, u: toBase64(update) };
     const seqNum = await this.basin.append(docStream(this.nodeId), JSON.stringify(record));
     if (seqNum === null) throw new Error("storage: the live document refused a change");
-    this.take(await readFrom(this.basin, this.nodeId, this.next));
+    this.take(await readLive(this.basin, this.nodeId, this.next));
     return { entry: { seqNum, record } satisfies StorageLiveEntry, through: this.next - 1 };
   }
 
@@ -95,29 +88,26 @@ export class LiveFile {
     const record: StorageLiveRecord = { t: "fold", e: this.epoch, cv: contentVersion, s: through };
     const seqNum = await this.basin.append(docStream(this.nodeId), JSON.stringify(record));
     if (seqNum === null) throw new Error("storage: the live document refused a save");
+    if (contentVersion > this.fold.cv) this.fold = { cv: contentVersion, s: through };
     return { seqNum, record } satisfies StorageLiveEntry;
   }
 
-  /** The latest save recorded in the epoch since this opened, and the record it holds through. */
+  /** The latest save recorded in the epoch, and the record it holds through. */
   async lastFold() {
-    const entries = await readFrom(this.basin, this.nodeId, this.epoch);
-    let found: { cv: number; s: number } | null = null;
-    for (const { record } of entries) {
-      if (record.t === "fold" && record.e === this.epoch) found = { cv: record.cv, s: record.s };
-    }
-    return found;
+    this.take(await readLive(this.basin, this.nodeId, this.next));
+    return this.fold;
   }
 
   private take(entries: StorageLiveEntry[]) {
     for (const { seqNum, record } of entries) {
       if (seqNum < this.next) continue;
-      if (
-        record.t !== "fold" &&
-        (record.t === "seed" ? seqNum === this.epoch : record.e === this.epoch)
-      ) {
-        Y.applyUpdate(this.doc, fromBase64(record.u));
-      }
       this.next = seqNum + 1;
+      if (record.t === "seed" ? seqNum !== this.epoch : record.e !== this.epoch) continue;
+      if (record.t === "fold") {
+        if (record.cv > this.fold.cv) this.fold = { cv: record.cv, s: record.s };
+        continue;
+      }
+      Y.applyUpdate(this.doc, fromBase64(record.u));
     }
   }
 }

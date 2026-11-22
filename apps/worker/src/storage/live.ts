@@ -1,15 +1,10 @@
-import {
-  storageLiveReadQuerySchema,
-  storageLiveRecordSchema,
-  type StorageLiveEntry,
-  type StorageLiveReadResponse,
-} from "@omni/contracts";
+import { storageLiveReadQuerySchema, type StorageLiveReadResponse } from "@omni/contracts";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
-import { docStream } from "../realtime-docs.ts";
 import { s2Basin } from "../s2.ts";
 import { zValidator } from "../validator.ts";
 import { memberStorage, refused } from "./http.ts";
+import { latestLiveStart, readLivePage } from "./live-read.ts";
 
 export const storageLive = new Hono<AppEnv>().get(
   "/files/:id/live",
@@ -19,17 +14,10 @@ export const storageLive = new Hono<AppEnv>().get(
     if (!basin) return c.json({ enabled: false } satisfies StorageLiveReadResponse);
     const found = await memberStorage(c).file(c.req.param("id"));
     if (found.status !== "ok") return refused(c, found.status);
-    const read = await basin.read(docStream(found.file.id), c.req.valid("query").from ?? 0);
-    const entries: StorageLiveEntry[] = [];
-    for (const { seqNum, body } of read.records) {
-      let parsed;
-      try {
-        parsed = storageLiveRecordSchema.safeParse(JSON.parse(body));
-      } catch {
-        continue;
-      }
-      if (parsed.success) entries.push({ seqNum, record: parsed.data });
-    }
-    return c.json({ enabled: true, entries, more: read.more } satisfies StorageLiveReadResponse);
+    const nodeId = found.file.id;
+    const asked = c.req.valid("query").from ?? 0;
+    const from = asked === "latest" ? await latestLiveStart(basin, nodeId) : asked;
+    const { entries, more } = await readLivePage(basin, nodeId, from);
+    return c.json({ enabled: true, entries, more } satisfies StorageLiveReadResponse);
   },
 );

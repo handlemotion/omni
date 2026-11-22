@@ -65,6 +65,8 @@ export interface LiveSetup {
   onFolded: (contentVersion: number) => void;
   /** The stream took one of this page's changes. */
   onAcked: () => void;
+  /** The document holds changes their writer left unsaved: save them. */
+  onOrphaned: () => void;
 }
 
 const FOLD_MS = 2000;
@@ -286,6 +288,9 @@ export function useEditSession(
               },
               onReplaced: reopen,
               onAcked: () => latestFold.current(),
+              onOrphaned: () => {
+                if (writable && !inFlight.current) void saveRef.current();
+              },
               onFolded: (contentVersion: number) => {
                 base.current = contentVersion;
                 if (!live.current?.needsFold) setDirty(false);

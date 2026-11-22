@@ -218,6 +218,9 @@ export function connectRealtime(options: RealtimeOptions) {
 /** `STORAGE_DOC_PRESENCE_MAX` in `@omni/contracts`, without pulling its schemas in. */
 export const DOC_PRESENCE_MAX = 4096;
 
+/** `STORAGE_LIVE_SNAP_EVERY` in `@omni/contracts`, without pulling its schemas in. */
+export const LIVE_SNAP_EVERY = 200;
+
 const parseEvent: (data: string) => RealtimeEvent | undefined = (data) => {
   let value: unknown;
   try {
