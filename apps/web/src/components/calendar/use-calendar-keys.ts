@@ -1,10 +1,12 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { appToast } from "@/components/ui/toast";
 import { useCalendarWrites } from "@/hooks/use-calendar.ts";
 import {
+  calendarChanged,
   eventTimesNow,
   placeEvent,
+  updateEventMutation,
   type CalendarAnswer,
   type CalendarEvent,
 } from "@/lib/calendar.ts";
@@ -46,8 +48,9 @@ const shifted = (slot: Slot, start: number, end: number) =>
  * shortcut table because `Shift` changes what an arrow does, which the table cannot tell apart.
  */
 export function useCalendarKeys(keys: Keys) {
-  const { answer, update, remove } = useCalendarWrites();
+  const { answer, remove } = useCalendarWrites();
   const client = useQueryClient();
+  const save = useMutation({ mutationFn: updateEventMutation(client).mutationFn });
   const moving = useRef(new Map<string, Moving>());
   const move = (event: CalendarEvent, start: number, end = start) => {
     const queued = moving.current.get(event.id);
@@ -61,11 +64,13 @@ export function useCalendarKeys(keys: Keys) {
     entry.at = change;
     entry.count += 1;
     entry.last = entry.last
-      .then(() => update.mutateAsync({ id: event.id, change }))
+      .then(() => save.mutateAsync({ id: event.id, change }))
       .catch(() => appToast.error("The event was not moved"))
       .finally(() => {
         entry.count -= 1;
-        if (entry.count === 0) moving.current.delete(event.id);
+        if (entry.count > 0) return;
+        moving.current.delete(event.id);
+        void calendarChanged(client);
       });
     moving.current.set(event.id, entry);
   };

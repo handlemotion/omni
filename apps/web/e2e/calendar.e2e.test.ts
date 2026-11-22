@@ -973,6 +973,35 @@ test("an event dropped on the second pass of the hour the clocks go back stays o
     .toEqual([["2026-10-25T01:30:00.000Z", "2026-10-25T02:00:00.000Z"]]);
 });
 
+test("an event moved again while earlier moves are still saving lands where it was dropped", async () => {
+  const { org, page, origin } = await invited();
+  await madeEvent(org.id, page, origin, "Retro", [
+    "2026-11-23T09:00:00.000Z",
+    "2026-11-23T10:00:00.000Z",
+  ]);
+  await openWeek(page, origin, org.slug);
+  let patches = 0;
+  await page.route("**/api/calendar/events/*", async (route) => {
+    if (route.request().method() === "PATCH") {
+      const delay = patches++ === 0 ? 1500 : 3000;
+      await new Promise((r) => setTimeout(r, delay));
+    }
+    await route.continue();
+  });
+  const drop = (day: string) =>
+    page.getByRole("button", { name: /Retro/ }).dragTo(page.locator(`[data-day="${day}"]`), {
+      sourcePosition: { x: 10, y: 4 },
+      targetPosition: { x: 20, y: 10 * 48 + 4 },
+    });
+  await drop("2026-11-24");
+  await drop("2026-11-25");
+  await page.waitForTimeout(2500);
+  await drop("2026-11-26");
+  await expect
+    .poll(() => spanOf(org.id, "Retro"), { timeout: 15_000 })
+    .toEqual([["2026-11-26T09:00:00.000Z", "2026-11-26T10:00:00.000Z"]]);
+});
+
 test("Delete pressed in an open to-do leaves the selected event alone", async () => {
   const { org, member, page, origin } = await invited();
   await madeEvent(org.id, page, origin, "Focus time", [
