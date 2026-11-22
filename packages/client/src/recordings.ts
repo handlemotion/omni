@@ -97,12 +97,22 @@ export const recordingsToFinish = (recordings: DesktopRecording[], memberId: str
 
 type Call = ReturnType<typeof request>;
 
+async function fileTheExpiredUploadBecame(call: Call, uploadId: string, size: number) {
+  const found = await call("GET", `/storage/nodes/${uploadId}`);
+  if (found.status === 404) return null;
+  if (!found.ok) throw fail(found, "reading the uploaded file");
+  const { node } = found.json as StorageNodeResponse;
+  return node.size === size ? node.id : null;
+}
+
 async function openUpload(call: Call, spool: RecordingSpool, recording: DesktopRecording) {
   if (recording.uploadId) {
     const found = await call("GET", `/storage/uploads/${recording.uploadId}`);
     const upload = found.ok ? (found.json as StorageUploadResponse).upload : null;
-    if (upload && upload.size === recording.size) return upload;
+    if (upload && upload.size === recording.size) return { kind: "upload" as const, upload };
     if (!found.ok && found.status !== 404) throw fail(found, "reading the upload");
+    const nodeId = await fileTheExpiredUploadBecame(call, recording.uploadId, recording.size);
+    if (nodeId) return { kind: "file" as const, nodeId };
   }
   const opened = await call("POST", "/storage/uploads", {
     name: recordingFileName(recording),
@@ -113,7 +123,7 @@ async function openUpload(call: Call, spool: RecordingSpool, recording: DesktopR
   if (!opened.ok) throw fail(opened, "opening the upload");
   const { upload } = opened.json as StorageUploadResponse;
   await spool.mark(recording.id, { uploadId: upload.id });
-  return upload;
+  return { kind: "upload" as const, upload };
 }
 
 async function sendParts(call: Call, spool: RecordingSpool, id: string, upload: StorageUpload) {
@@ -127,7 +137,9 @@ async function sendParts(call: Call, spool: RecordingSpool, id: string, upload: 
 }
 
 async function uploadFile(call: Call, spool: RecordingSpool, recording: DesktopRecording) {
-  let upload = await openUpload(call, spool, recording);
+  const opened = await openUpload(call, spool, recording);
+  if (opened.kind === "file") return opened.nodeId;
+  let { upload } = opened;
   if (upload.nodeId) return upload.nodeId;
   for (let attempt = 0; ; attempt++) {
     await sendParts(call, spool, recording.id, upload);
@@ -141,6 +153,13 @@ async function uploadFile(call: Call, spool: RecordingSpool, recording: DesktopR
     if (!again.ok) throw fail(again, "reading the upload");
     upload = (again.json as StorageUploadResponse).upload;
   }
+}
+
+async function meetingAlreadyPastStop(call: Call, meetingId: string) {
+  const found = await call("GET", `/meetings/${meetingId}`);
+  if (!found.ok) return false;
+  const { meeting } = found.json as { meeting: { status: string; hasAudio: boolean } };
+  return meeting.status !== "recording" && meeting.hasAudio;
 }
 
 /**
@@ -167,8 +186,11 @@ export async function finishRecording(
     cuts: recording.cuts,
   };
   const stopped = await call("POST", `/meetings/${recording.meetingId}/stop`, stop);
-  const pipelineAlreadyPastStop = toApiError(stopped.json, "").code === "not_stoppable";
-  if (!stopped.ok && !pipelineAlreadyPastStop && stopped.status !== 404) {
+  if (
+    !stopped.ok &&
+    stopped.status !== 404 &&
+    !(await meetingAlreadyPastStop(call, recording.meetingId))
+  ) {
     throw fail(stopped, "stopping the meeting");
   }
   await spool.discard(recording.id);

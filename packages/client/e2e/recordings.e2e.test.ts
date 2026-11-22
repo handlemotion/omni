@@ -323,9 +323,11 @@ test("a large recording resumes at the part it stopped at, and a finish repeated
     "PUT /api/storage/uploads/:id/parts/3",
   ]);
 
+  expect(await untilSentToEngine(meetingId)).toMatchObject({ providerJobId: expect.any(String) });
+  expect((await meetingRow(meetingId))?.status).toBe("transcribing");
   const last = transportCountingCalls(dana);
   expect(await finishRecording(last.transport, spool, open()[0]!)).toBe("finished");
-  expect(last.calls).toEqual(["POST /api/meetings/:id/stop"]);
+  expect(last.calls).toEqual(["POST /api/meetings/:id/stop", "GET /api/meetings/:id"]);
   expect(open()).toEqual([]);
 
   const files = await recordingsFiles(dana, folderId);
@@ -333,7 +335,6 @@ test("a large recording resumes at the part it stopped at, and a finish repeated
   const stored = new Uint8Array(await (await stack.download(dana.jar, files[0].id)).arrayBuffer());
   expect(sha256(stored)).toBe(sha256(bytes));
 
-  expect(await untilSentToEngine(meetingId)).toMatchObject({ providerJobId: expect.any(String) });
   await sleep(2000);
   expect(engine.submittedAudioSizes.filter((size) => size === bytes.length)).toHaveLength(1);
 });
@@ -366,4 +367,58 @@ test("a recording whose meeting was deleted while it waited keeps its file and l
   expect(open()).toEqual([]);
   expect(readdirSync(root)).toEqual([]);
   expect(await recordingsFiles(dana, folderId)).toHaveLength(1);
+});
+
+test("a crash between completing the upload and noting its file, found after the upload expired, makes no second file", async () => {
+  const org = await stack.company(`rec-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  const root = mkdtempSync(join(tmpdir(), "omni-spool-"));
+  const { spool, open, audio } = spoolThroughOmniRecord(root);
+  const { meetingId, folderId } = (await startMeeting(dana, null)).body;
+  execFileSync(recorder, [
+    "record",
+    root,
+    meetingId,
+    dana.id,
+    folderId,
+    "--synthetic",
+    "--seconds",
+    "1",
+  ]);
+  const bytes = audio(open()[0]!.id);
+
+  const killedBeforeNotingTheFile: RecordingSpool = {
+    ...spool,
+    mark: async (id, progress) => {
+      if (progress.nodeId) throw new Error("killed");
+      return spool.mark(id, progress);
+    },
+  };
+  await expect(
+    finishRecording(transportCountingCalls(dana).transport, killedBeforeNotingTheFile, open()[0]!),
+  ).rejects.toThrow("killed");
+  const [left] = open();
+  expect(left!.uploadId).toEqual(expect.any(String));
+  expect(left!.nodeId ?? null).toBeNull();
+
+  await stack.db
+    .update(schema.storageUploads)
+    .set({ expiresAt: new Date(Date.now() - 60_000) })
+    .where(eq(schema.storageUploads.id, left!.uploadId!));
+  await stack.cron("* * * * *");
+  expect((await stack.api(dana.jar, "GET", `/uploads/${left!.uploadId}`)).status).toBe(404);
+
+  const resumed = transportCountingCalls(dana);
+  expect(await finishRecording(resumed.transport, spool, left!)).toBe("finished");
+  expect(resumed.calls).toEqual([
+    "GET /api/storage/uploads/:id",
+    "GET /api/storage/nodes/:id",
+    "POST /api/meetings/:id/stop",
+  ]);
+  const files = await recordingsFiles(dana, folderId);
+  expect(files).toHaveLength(1);
+  expect(files[0].id).toBe(left!.uploadId);
+  const stored = new Uint8Array(await (await stack.download(dana.jar, files[0].id)).arrayBuffer());
+  expect(sha256(stored)).toBe(sha256(bytes));
+  expect(await meetingRow(meetingId)).toMatchObject({ audioNodeId: left!.uploadId });
 });

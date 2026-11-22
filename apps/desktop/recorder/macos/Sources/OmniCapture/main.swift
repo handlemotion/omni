@@ -20,13 +20,19 @@ import ScreenCaptureKit
 
 let rate = 48_000.0
 
-/// Writes chunks to stdout, one at a time, from any thread.
+/// Writes chunks to stdout, one at a time, from any thread. Nothing goes out before the ready
+/// byte: the mic starts before the computer's sound, and the recorder reads the first byte as
+/// "both streams run" (a chunk there would read as a failed start).
 final class Output {
     private let lock = NSLock()
     private let out = FileHandle.standardOutput
+    private var isReady = false
 
     func ready() {
+        lock.lock()
+        defer { lock.unlock() }
         write(Data([UInt8(ascii: "R")]))
+        isReady = true
     }
 
     func send(_ tag: Character, _ samples: [Float]) {
@@ -37,12 +43,14 @@ final class Output {
         withUnsafeBytes(of: &count) { data.append(contentsOf: $0) }
         // Float32 is little-endian on both Mac architectures (arm64, x86_64).
         samples.withUnsafeBytes { data.append(contentsOf: $0) }
+        lock.lock()
+        defer { lock.unlock() }
+        guard isReady else { return }
         write(data)
     }
 
+    /// Called with the lock held.
     private func write(_ data: Data) {
-        lock.lock()
-        defer { lock.unlock() }
         do {
             try out.write(contentsOf: data)
         } catch {
@@ -229,13 +237,15 @@ final class ScreenAudio: NSObject, SCStreamOutput, SCStreamDelegate {
         self.output = output
     }
 
+    /// Returns once capture has started, or throws why it could not: `startCapture` reports
+    /// asynchronously, so this waits for its answer before the helper says it is ready.
     func start() throws {
         let done = DispatchSemaphore(value: 0)
         var failure: Error?
         SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
-            defer { done.signal() }
             guard let display = content?.displays.first else {
                 failure = error ?? CoreAudioError(what: "finding a display", status: -1)
+                done.signal()
                 return
             }
             let filter = SCContentFilter(display: display, excludingWindows: [])
@@ -251,10 +261,15 @@ final class ScreenAudio: NSObject, SCStreamOutput, SCStreamDelegate {
             let stream = SCStream(filter: filter, configuration: config, delegate: self)
             do {
                 try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: self.queue)
-                stream.startCapture { error in failure = error }
-                self.stream = stream
             } catch {
                 failure = error
+                done.signal()
+                return
+            }
+            self.stream = stream
+            stream.startCapture { error in
+                failure = error
+                done.signal()
             }
         }
         done.wait()
