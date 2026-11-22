@@ -88,6 +88,7 @@
   --module-calendar: #ef4444;
   /* The calendar grid's hour and day lines, quieter than a pane's edge. */
   --calendar-line: color-mix(in oklab, var(--border) 55%, transparent);
+  --calendar-weekend: color-mix(in oklab, var(--foreground) 1.5%, transparent);
   --module-foreground: #ffffff;
   --primary-subtle-foreground: var(--primary);
   /* A folder card's pocket (`folder-art.tsx`), in a quiet grey: a back panel with a tab, a
@@ -161,7 +162,7 @@
   --radius-xl: 8px;
 
   --spacing-icon: 15px;
-  --spacing-sidebar: 275px;
+  --spacing-sidebar: 300px;
 
   --color-background: var(--background);
   --color-scrim: var(--scrim);
@@ -207,6 +208,7 @@
   --color-module-crm: var(--module-crm);
   --color-module-calendar: var(--module-calendar);
   --color-calendar-line: var(--calendar-line);
+  --color-calendar-weekend: var(--calendar-weekend);
   --color-module-foreground: var(--module-foreground);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

@@ -22,6 +22,7 @@ const ofDate = (date: Date) =>
   new CalendarDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
 
 function inShown(date: CalendarDate, from: Date, view: CalendarView) {
+  if (view === "month") return null;
   const day = toDate(date).getTime();
   const start = from.getTime();
   const last = view === "day" ? start : new Date(from).setDate(from.getDate() + 6);
@@ -29,7 +30,7 @@ function inShown(date: CalendarDate, from: Date, view: CalendarView) {
   return { first: day === start, last: day === last };
 }
 
-/** The month around the shown day; a day picks it, the week it falls in stays tinted. */
+/** The month around the shown day; a day picks it, and the shown week or day stays tinted. */
 export function MiniMonth() {
   const search = useSearch({ strict: false }) as { date?: string; view?: CalendarView };
   const view = search.view ?? "week";

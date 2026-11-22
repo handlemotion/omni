@@ -131,21 +131,26 @@ sent to both is stored once per mailbox. They share one notes doc, found by `(or
 
 **Open the calendar.** `/calendar` opens the week, from Monday, in the browser's time zone, at the
 current hour. Every calendar the person can see in the active workspace is overlaid. The sidebar has
-no module title: the month leads it (the shown week tinted, a day picks it), the person's to-dos
+no module title: the month leads it (the shown week or day tinted, nothing in month view; a day
+picks it), the person's to-dos
 follow, and at its foot a switcher shows all calendars or one inbox's alone (`?calendar=`), like
 the workspace switcher. All-day events sit in a strip above the hours.
 
 **Views and where you are.** Month, week and day. The page's title is crumbs that deepen with the
 view, as Amie's do: the month; then its week (`W48`); then the day (`Tue 24`). An earlier crumb
-zooms out to it, the last one picks the view, and a day's number in the month opens that day.
-The arrows and Today beside them step the view, each with its key on hover.
+zooms out to it, `M`, `W` and `D` pick the view, and a day's number in the month opens that day.
+The arrows and Today beside them, all outlined buttons, step the view, each with its key on hover.
+The month view is one long page of weeks that scrolls freely, months running into each other (the
+1st of each labelled with its month); the title follows the month that fills most of the view, and
+the arrows and Today scroll it smoothly to a month's first week. Weekends are tinted lighter than
+a hover.
 
 **To-dos.** The sidebar's to-dos are the person's tasks (see "Tasks"): the ones they own and the
 ones assigned to them, in fixed sections: Today, Upcoming and No date always, Overdue when
 something is late. A section's title shows a `+` on hover that opens an empty row to type into;
 Enter adds a private to-do with the section's due day (today, tomorrow, none) and opens the next
-row, Esc drops it. Each is checked off in place, where it stays, checked and struck through,
-until the page is reloaded. A dated one also sits on its day's all-day row, where checking it
+row, Esc drops it. A to-do checked off leaves the sidebar at once; on the
+calendar it stays, checked and struck through, until the page is reloaded. A dated one also sits on its day's all-day row, where checking it
 completes it. A to-do due at a time of day (anything but the end of a day, which is how a due day
 alone is stored) sits on the hours as a dashed block of half an hour. To-dos and the person's own
 events drag (the browser's native drag and drop, so it can't collide with Drive's): onto the
@@ -164,9 +169,9 @@ focus.
 | Key                           | Does                                                                                                                 |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `c`                           | New event at the selected slot (or the next half hour), title focused                                                |
-| `←` `→`                       | Previous or next week (day in day view)                                                                              |
+| `←` `→`                       | Previous or next week (day in day view, month in month view)                                                         |
 | `t`                           | Today                                                                                                                |
-| `w` · `d`                     | Week view · day view                                                                                                 |
+| `m` · `w` · `d`               | Month view (Maybe while an invitation is selected) · week view · day view                                            |
 | `↑` `↓`                       | Move the selected slot by 15 minutes; with an event selected, the event                                              |
 | `Shift` `↑` `↓`               | Make the selection or the selected event 15 minutes longer or shorter                                                |
 | `]` · `[`                     | Select the next or previous event (`Tab` keeps moving focus)                                                         |

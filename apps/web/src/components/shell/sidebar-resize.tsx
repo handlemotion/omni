@@ -4,7 +4,7 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
 const RAIL_WIDTH = 58;
 
-const SIDEBAR_WIDTH = 275;
+const SIDEBAR_WIDTH = 300;
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 420;
 

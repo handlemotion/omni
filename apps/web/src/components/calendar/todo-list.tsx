@@ -82,11 +82,13 @@ export function TodoList() {
   return (
     <div className="flex flex-col">
       {SECTIONS.map((section) => {
-        const inSection = tasks.filter((task) => dueGroup(task, now) === section.id);
+        const inSection = tasks.filter(
+          (task) => !task.completedAt && dueGroup(task, now) === section.id,
+        );
         if (!section.fixed && inSection.length === 0) return null;
         return (
           <section key={section.id} aria-label={section.label} className="flex flex-col pb-3">
-            <div className="group/section flex h-7 items-center gap-1.5 ps-2 pe-1">
+            <div className="group/section flex h-8 items-center gap-1.5 ps-2.25 pe-1">
               <span className="text-label text-subtle-foreground">{section.label}</span>
               {inSection.length > 0 && (
                 <span className="text-label text-subtle-foreground tabular-nums">

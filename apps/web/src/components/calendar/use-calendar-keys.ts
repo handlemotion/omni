@@ -128,7 +128,8 @@ function handle(key: string, shift: boolean, latest: Latest) {
     "]": () => step(keys, 1),
     "[": () => step(keys, -1),
   };
-  const run = navigation[key];
+  const run =
+    navigation[key] ?? (key === "m" && !maybeable(keys) ? () => keys.view("month") : undefined);
   if (run) {
     run();
     return true;
@@ -136,6 +137,11 @@ function handle(key: string, shift: boolean, latest: Latest) {
   if (key === "ArrowUp" || key === "ArrowDown")
     return nudge(key === "ArrowUp" ? -1 : 1, shift, latest);
   return onEvent(key, latest);
+}
+
+function maybeable(keys: Keys) {
+  const event = selectedEvent(keys);
+  return event !== undefined && answerable(event);
 }
 
 function step(keys: Keys, direction: 1 | -1) {

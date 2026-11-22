@@ -1,24 +1,12 @@
 import { cn } from "cn";
-import {
-  IconCalendarDay,
-  IconCalendarMonth,
-  IconCalendarWeek,
-  IconChevronDown,
-  IconChevronRight,
-} from "@/components/icons/central";
+import { IconChevronRight } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
-import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { startOfWeek, type CalendarView } from "@/lib/calendar-grid.ts";
 
 const monthYear = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
 const weekdayName = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 
-const VIEWS = [
-  { id: "month", name: "Month", icon: IconCalendarMonth },
-  { id: "week", name: "Week", icon: IconCalendarWeek },
-  { id: "day", name: "Day", icon: IconCalendarDay },
-] as const;
 const DEPTH = { month: 0, week: 1, day: 2 } as const;
 
 /** The ISO week number of `date`. */
@@ -31,7 +19,7 @@ export function isoWeek(date: Date) {
 
 /**
  * Where the calendar is, as crumbs that deepen with the view: the month, then its week, then the
- * day. An earlier crumb zooms out to it; the last one picks the view.
+ * day. An earlier crumb zooms out to it; `M`, `W` and `D` pick the view.
  */
 export function CalendarCrumbs(props: {
   view: CalendarView;
@@ -57,25 +45,7 @@ export function CalendarCrumbs(props: {
               <IconChevronRight aria-hidden className="size-3.5 shrink-0 text-subtle-foreground" />
             )}
             {last ? (
-              <MenuTrigger>
-                <Button
-                  intent="plain"
-                  size="sm"
-                  aria-label={`${crumb.label}, change view`}
-                  className="px-1.5 text-md tabular-nums"
-                >
-                  {crumb.label}
-                  <IconChevronDown className="text-muted-foreground" />
-                </Button>
-                <Menu placement="bottom start">
-                  {VIEWS.map((item) => (
-                    <MenuItem key={item.id} id={item.id} onAction={() => props.onView(item.id)}>
-                      <item.icon data-slot="icon" />
-                      <MenuLabel>{item.name}</MenuLabel>
-                    </MenuItem>
-                  ))}
-                </Menu>
-              </MenuTrigger>
+              <span className="px-1.5 tabular-nums">{crumb.label}</span>
             ) : (
               <Button
                 intent="plain"

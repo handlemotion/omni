@@ -191,7 +191,7 @@ const AllDayCell = memo(function AllDayCell(props: {
       {...zone.handlers}
       className={cn(
         "flex min-h-8 flex-col gap-0.5 border-l border-calendar-line p-1",
-        weekend(day) && "bg-hover",
+        weekend(day) && "bg-calendar-weekend",
         zone.over && "bg-primary-subtle",
       )}
     >
@@ -239,7 +239,10 @@ const DayColumn = memo(function DayColumn(props: DayColumnProps) {
     <div
       role="presentation"
       data-day={dayKey(props.day)}
-      className={cn("relative border-l border-calendar-line", weekend(props.day) && "bg-hover")}
+      className={cn(
+        "relative border-l border-calendar-line",
+        weekend(props.day) && "bg-calendar-weekend",
+      )}
       {...zone.handlers}
       onPointerDown={(event) => {
         if (event.button !== 0 || event.target !== event.currentTarget) return;
