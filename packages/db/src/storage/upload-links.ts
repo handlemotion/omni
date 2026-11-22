@@ -190,6 +190,7 @@ const sharedThing = (upload: UploadRow, link: LinkRow | null) =>
     linkExpiresAt: link?.linkExpiresAt ?? null,
     linkPasswordHash: link?.linkPasswordHash ?? null,
     linkDownloads: link?.linkDownloads ?? true,
+    linkRole: link?.linkRole ?? "viewer",
   }) satisfies SharedThing;
 
 /**
@@ -210,6 +211,7 @@ export async function moveUploadLink(tx: Db, uploadId: string, node: NodeRow) {
       linkExpiresAt: link.linkExpiresAt,
       linkPasswordHash: link.linkPasswordHash,
       linkDownloads: link.linkDownloads,
+      linkRole: link.linkRole,
     })
     .where(eq(storageNodes.id, node.id))
     .returning();
@@ -264,9 +266,9 @@ export function uploadLinkOperations(db: Db, door: Door) {
         if (found.status !== "ok") return found;
         const { upload, above } = found;
         const set = change(await linkRow(tx, uploadId));
-        if (set.linkAccess === "anyone" && !(await storagePolicyOf(tx, upload.orgId)).publicLinks) {
-          return POLICY;
-        }
+        const policy = await storagePolicyOf(tx, upload.orgId);
+        if (set.linkAccess === "anyone" && !policy.publicLinks) return POLICY;
+        if (set.linkRole === "editor" && !policy.linkEditing) return POLICY;
         const [link] = await tx
           .insert(storageUploadLinks)
           .values({ uploadId, orgId: upload.orgId, ...set })
@@ -318,6 +320,7 @@ export function uploadLinkOperations(db: Db, door: Door) {
             ? { linkPasswordHash: settings.passwordHash }
             : {}),
           ...(settings.downloads !== undefined ? { linkDownloads: settings.downloads } : {}),
+          ...(settings.role !== undefined ? { linkRole: settings.role } : {}),
         }),
         () => files.setLinkSettings(uploadId, settings),
       );

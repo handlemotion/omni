@@ -1,9 +1,17 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
-import { storageContents, storageNodes, storageVersions } from "../schema/storage.ts";
+import {
+  storageContents,
+  storageNodes,
+  storageVersions,
+  type StorageCoauthor,
+  type StorageGuest,
+} from "../schema/storage.ts";
 import { editsContent, type Door } from "./access.ts";
 import {
+  addUsage,
+  chainOf,
   inTrash,
   lockTree,
   lockUsage,
@@ -40,6 +48,10 @@ export interface StorageContent {
   writtenAt: Date;
   writtenByName: string | null;
   writtenByAgent: string | null;
+  /** Written by a guest through a link (`writtenByName` is their name), not by a member. */
+  writtenByGuest: boolean;
+  /** Outsiders whose typing it holds, beside its writer. */
+  coauthors: StorageCoauthor[];
   /** The file's `contentVersion` while this was (or is) its content; null for old versions. */
   contentVersion: number | null;
 }
@@ -75,6 +87,8 @@ async function currentWriter(ex: Db, node: NodeRow) {
       writtenByMemberId: storageContents.writtenByMemberId,
       writtenAt: storageContents.writtenAt,
       writtenByAgent: storageContents.writtenByAgent,
+      writtenByGuest: storageContents.writtenByGuest,
+      coauthors: storageContents.coauthors,
       sessionEnded: storageContents.sessionEnded,
     })
     .from(storageContents)
@@ -86,27 +100,54 @@ async function currentWriter(ex: Db, node: NodeRow) {
           writtenByMemberId: row.writtenByMemberId,
           writtenAt: row.writtenAt,
           writtenByAgent: row.writtenByAgent,
+          writtenByGuest: row.writtenByGuest,
+          coauthors: row.coauthors,
         }
       : {
           writtenByMemberId: node.createdByMemberId,
           writtenAt: node.createdAt,
           writtenByAgent: null,
+          writtenByGuest: null,
+          coauthors: null,
         },
     replaced: !!row,
   };
+}
+
+/** Who a save is from: a member, or a guest through a link (with no member). */
+export type StorageWriter =
+  | { memberId: string; guest?: null }
+  | { memberId: null; guest: StorageGuest };
+
+const sameWriter = (
+  writer: { writtenByMemberId: string | null; writtenByGuest: StorageGuest | null },
+  save: StorageWriter,
+) =>
+  save.guest
+    ? !writer.writtenByMemberId && writer.writtenByGuest?.id === save.guest.id
+    : !writer.writtenByGuest && writer.writtenByMemberId === save.memberId;
+
+/** Both lists, each outsider once (the later name wins); null when both are empty. */
+export function mergeCoauthors(
+  a: StorageCoauthor[] | null | undefined,
+  b: StorageCoauthor[] | null | undefined,
+) {
+  const byKey = new Map<string, StorageCoauthor>();
+  for (const one of [...(a ?? []), ...(b ?? [])]) byKey.set(`${one.kind}:${one.id}`, one);
+  return byKey.size > 0 ? [...byKey.values()] : null;
 }
 
 async function continuesSession(
   ex: Db,
   node: NodeRow,
   current: Awaited<ReturnType<typeof currentWriter>>,
-  save: { memberId: string; agent: string | null; at: Date; mimeType: string | null },
+  save: { writer: StorageWriter; agent: string | null; at: Date; mimeType: string | null },
 ) {
   const { writer } = current;
   if (!current.replaced || current.sessionEnded || save.agent || writer.writtenByAgent)
     return false;
   if (save.mimeType !== node.mimeType) return false;
-  if (writer.writtenByMemberId !== save.memberId) return false;
+  if (!sameWriter(writer, save.writer)) return false;
   if (save.at.getTime() - writer.writtenAt.getTime() > STORAGE_SESSION_IDLE_MS) return false;
   const [kept] = await ex
     .select({ replacedAt: storageVersions.replacedAt })
@@ -128,15 +169,20 @@ async function setContent(
     writtenByMemberId: string | null;
     writtenAt: Date;
     writtenByAgent: string | null;
+    writtenByGuest?: StorageGuest | null;
+    coauthors?: StorageCoauthor[] | null;
   },
 ) {
   const { writtenByMemberId, writtenAt, writtenByAgent } = content;
+  const writtenByGuest = content.writtenByGuest ?? null;
+  const coauthors = content.coauthors ?? null;
+  const written = { writtenByMemberId, writtenAt, writtenByAgent, writtenByGuest, coauthors };
   await tx
     .insert(storageContents)
-    .values({ nodeId: node.id, orgId: node.orgId, writtenByMemberId, writtenAt, writtenByAgent })
+    .values({ nodeId: node.id, orgId: node.orgId, ...written })
     .onConflictDoUpdate({
       target: storageContents.nodeId,
-      set: { writtenByMemberId, writtenAt, writtenByAgent, sessionEnded: false },
+      set: { ...written, sessionEnded: false },
     });
   const revision = await nextRevision(tx, node.orgId);
   const [row] = await tx
@@ -225,7 +271,8 @@ export const replaceContent: (
   const at = new Date();
   const agent = content.agent ?? null;
   const current = await currentWriter(tx, found.node);
-  const save = { memberId: content.memberId, agent, at, mimeType: content.mimeType };
+  const writer: StorageWriter = { memberId: content.memberId };
+  const save = { writer, agent, at, mimeType: content.mimeType };
   const superseded = (await continuesSession(tx, found.node, current, save)) ? at : null;
   await keepCurrent(tx, found.node, found.r2Key, current, superseded);
   return setContent(tx, found.node, {
@@ -233,8 +280,98 @@ export const replaceContent: (
     writtenByMemberId: content.memberId,
     writtenAt: at,
     writtenByAgent: agent,
+    coauthors: superseded ? current.writer.coauthors : null,
   });
 };
+
+export type FoldContentResult =
+  | NodeResult
+  | Locked
+  | StaleContent
+  | { status: "full"; usedBytes: number; limitBytes: number };
+
+/**
+ * The Worker's save of a doc's live document that outsiders typed in (`docs/spec/live-sharing.md`):
+ * `r2Key` already holds the text. Not through a door: the realtime object checked each record's
+ * sender as it took it, and this saves the document they wrote. Keeps what it replaces as
+ * uploads do, sessions included, and counts the bytes. Idempotent with `base`: a second run
+ * finds the file moved on and is refused `version_conflict`.
+ */
+export function foldContent(
+  db: Db,
+  input: {
+    orgId: string;
+    nodeId: string;
+    base: number;
+    size: number;
+    mimeType: string | null;
+    r2Key: string;
+    writer: StorageWriter;
+    coauthors: StorageCoauthor[] | null;
+    limitBytes: number | null;
+  },
+) {
+  return db.transaction<FoldContentResult>(async (tx) => {
+    await lockTree(tx, input.orgId);
+    const usedBytes = await lockUsage(tx, input.orgId);
+    const chain = await chainOf(tx, input.nodeId);
+    const node = chain?.[0];
+    if (!chain || !node || node.orgId !== input.orgId || node.kind !== "file" || !node.r2Key) {
+      return NOT_FOUND;
+    }
+    if (inTrash(chain)) return NOT_FOUND;
+    if (node.lockedAt) return LOCKED;
+    const stale = staleFor(node, input.base);
+    if (stale) return stale;
+    if (input.limitBytes !== null && usedBytes + input.size > input.limitBytes) {
+      return { status: "full", usedBytes, limitBytes: input.limitBytes };
+    }
+    const at = new Date();
+    const current = await currentWriter(tx, node);
+    const save = { writer: input.writer, agent: null, at, mimeType: input.mimeType };
+    const superseded = (await continuesSession(tx, node, current, save)) ? at : null;
+    await keepCurrent(tx, node, node.r2Key, current, superseded);
+    const done = await setContent(tx, node, {
+      size: input.size,
+      mimeType: input.mimeType,
+      r2Key: input.r2Key,
+      sha256: null,
+      writtenByMemberId: input.writer.memberId,
+      writtenAt: at,
+      writtenByAgent: null,
+      writtenByGuest: input.writer.guest ?? null,
+      coauthors: mergeCoauthors(superseded ? current.writer.coauthors : null, input.coauthors),
+    });
+    if (done.status === "ok") await addUsage(tx, input.orgId, input.size);
+    return done;
+  });
+}
+
+/**
+ * Names outsiders whose typing the file's content at `contentVersion` holds, when a member's
+ * tab saved it (their fold says so). Does nothing once the file has moved past that version.
+ */
+export async function addCoauthors(
+  db: Db,
+  input: { nodeId: string; contentVersion: number; coauthors: StorageCoauthor[] },
+) {
+  if (input.coauthors.length === 0) return;
+  await db.transaction(async (tx) => {
+    const orgId = await orgOfNode(tx, input.nodeId);
+    if (!orgId) return;
+    await lockTree(tx, orgId);
+    const [row] = await tx
+      .select({ coauthors: storageContents.coauthors, contentVersion: storageNodes.contentVersion })
+      .from(storageContents)
+      .innerJoin(storageNodes, eq(storageNodes.id, storageContents.nodeId))
+      .where(eq(storageContents.nodeId, input.nodeId));
+    if (!row || row.contentVersion !== input.contentVersion) return;
+    await tx
+      .update(storageContents)
+      .set({ coauthors: mergeCoauthors(row.coauthors, input.coauthors) })
+      .where(eq(storageContents.nodeId, input.nodeId));
+  });
+}
 
 /** Whether the door's holder may write a new version of the file: what an upload to it needs. */
 export async function mayReplace(ex: Db, door: Door, nodeId: string) {
@@ -269,6 +406,8 @@ export function versionOperations(db: Db, door: Door) {
           replacedAt: storageVersions.replacedAt,
           writtenByName: users.name,
           writtenByAgent: storageVersions.writtenByAgent,
+          guest: storageVersions.writtenByGuest,
+          coauthors: storageVersions.coauthors,
           contentVersion: storageVersions.contentVersion,
         })
         .from(storageVersions)
@@ -284,11 +423,19 @@ export function versionOperations(db: Db, door: Door) {
           size: found.node.size,
           mimeType: found.node.mimeType,
           writtenAt: writer.writtenAt,
-          writtenByName: await nameOf(db, writer.writtenByMemberId),
+          writtenByName:
+            (await nameOf(db, writer.writtenByMemberId)) ?? writer.writtenByGuest?.name ?? null,
           writtenByAgent: writer.writtenByAgent,
+          writtenByGuest: !!writer.writtenByGuest,
+          coauthors: writer.coauthors ?? [],
           contentVersion: found.node.contentVersion,
         },
-        versions: rows,
+        versions: rows.map(({ guest, coauthors, ...row }) => ({
+          ...row,
+          writtenByName: row.writtenByName ?? guest?.name ?? null,
+          writtenByGuest: !!guest,
+          coauthors: coauthors ?? [],
+        })),
       } satisfies VersionsResult;
     },
 

@@ -25,6 +25,8 @@ export interface StorageComment {
   authorImage: string | null;
   /** Written by the person asking: only they edit or delete it. */
   mine: boolean;
+  /** Written by a guest through a link, not by a member or a person with a grant. */
+  authorGuest: boolean;
   createdAt: Date;
   editedAt: Date | null;
   /** A root only: when the thread was resolved, and by whom. */
@@ -86,6 +88,7 @@ async function readComments(ex: Db, door: Door, node: NodeRow, ids?: string[]) {
   for (const memberId of authors) {
     if (await door.ownsUpload(ex, memberId)) mine.add(memberId);
   }
+  const guest = door.guest?.id;
   return rows.map(
     ({ comment, authorName, authorImage, resolvedByName }) =>
       ({
@@ -94,9 +97,13 @@ async function readComments(ex: Db, door: Door, node: NodeRow, ids?: string[]) {
         contentVersion: comment.contentVersion,
         anchor: comment.anchor,
         body: comment.body,
-        authorName,
+        authorName: authorName ?? comment.authorGuest?.name ?? null,
         authorImage,
-        mine: comment.authorMemberId !== null && mine.has(comment.authorMemberId),
+        mine:
+          comment.authorMemberId !== null
+            ? mine.has(comment.authorMemberId)
+            : !!guest && comment.authorGuest?.id === guest,
+        authorGuest: !!comment.authorGuest,
         createdAt: comment.createdAt,
         editedAt: comment.editedAt,
         resolvedAt: comment.resolvedAt,
@@ -129,7 +136,9 @@ export function commentOperations(db: Db, door: Door) {
     if (found.status !== "ok") return found;
     const comment = await findComment(ex, nodeId, id);
     if (!comment) return NOT_FOUND;
-    const own = comment.authorMemberId && (await door.ownsUpload(ex, comment.authorMemberId));
+    const own = comment.authorMemberId
+      ? await door.ownsUpload(ex, comment.authorMemberId)
+      : !!door.guest && comment.authorGuest?.id === door.guest.id;
     return own ? ({ status: "ok", node: found.node, comment } as const) : FORBIDDEN;
   }
 
@@ -160,7 +169,8 @@ export function commentOperations(db: Db, door: Door) {
         const viewed = input.parentId ? current : (input.contentVersion ?? current);
         if (viewed > current) return { status: "version_conflict" } satisfies AddCommentResult;
         const authorMemberId = await door.actor(tx, found.node.orgId);
-        if (!authorMemberId) return FORBIDDEN satisfies AddCommentResult;
+        const authorGuest = authorMemberId ? null : (door.guest ?? null);
+        if (!authorMemberId && !authorGuest) return FORBIDDEN satisfies AddCommentResult;
         let rootId: string | null = null;
         if (input.parentId) {
           const parent = await findComment(tx, nodeId, input.parentId);
@@ -181,18 +191,21 @@ export function commentOperations(db: Db, door: Door) {
             anchor: rootId ? null : (input.anchor ?? { kind: "file" }),
             body: input.body,
             authorMemberId,
+            authorGuest,
             createdAt: new Date(),
           })
           .returning({ id: storageComments.id });
         const added = await one(tx, door, found.node, row!.id);
         if (added.status !== "ok") return added satisfies AddCommentResult;
-        const memberIds = await notifyComment(tx, {
-          node: found.node,
-          commentId: row!.id,
-          rootId,
-          authorMemberId,
-          body: input.body,
-        });
+        const memberIds = authorMemberId
+          ? await notifyComment(tx, {
+              node: found.node,
+              commentId: row!.id,
+              rootId,
+              authorMemberId,
+              body: input.body,
+            })
+          : [];
         return {
           ...added,
           notified: { orgId: found.node.orgId, memberIds },

@@ -68,6 +68,8 @@ export const storageCommentSchema = z.object({
   authorName: z.string().nullable(),
   /** The author's picture; absent from an older Worker. */
   authorImage: z.string().nullable().optional(),
+  /** Written by a guest through a link: `authorName` is the name they were given. */
+  authorGuest: z.boolean().optional(),
   /** Written by the reader: only they edit or delete it. */
   mine: z.boolean(),
   createdAt: isoDate,

@@ -13,6 +13,11 @@ export const storageLinkSchema = z.object({
   hasPassword: z.boolean(),
   /** False: view only. A visitor through the link sees the item and downloads nothing. */
   downloads: z.boolean(),
+  /**
+   * What anyone holding the link may do: view, or for a doc comment, or edit it live with
+   * everyone in it (`docs/spec/live-sharing.md`). Absent from a Worker older than link roles.
+   */
+  role: z.enum(["viewer", "commenter", "editor"]).optional(),
 });
 
 /**
@@ -24,6 +29,11 @@ export const storageLinkSchema = z.object({
 export const storagePolicySchema = z.object({
   publicLinks: z.boolean(),
   outsideSharing: z.boolean(),
+  /**
+   * False: no link is made Editor, and one that was opens as Commenter. Absent from a Worker
+   * older than link roles.
+   */
+  linkEditing: z.boolean().optional(),
 });
 export const storagePolicyResponseSchema = z.object({ policy: storagePolicySchema });
 export const storageSetPolicyBodySchema = storagePolicySchema

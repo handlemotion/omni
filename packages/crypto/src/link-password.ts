@@ -47,7 +47,7 @@ export async function linkPasswordMatches(password: string, stored: string) {
   return equalBytes(await derive(password, salt, iterations), hash);
 }
 
-async function hmac(secret: string, message: string) {
+async function hmac(secret: string, message: string, domain = "omni-link-key") {
   const key = await crypto.subtle.importKey(
     "raw",
     utf8(secret),
@@ -55,7 +55,7 @@ async function hmac(secret: string, message: string) {
     false,
     ["sign"],
   );
-  return new Uint8Array(await crypto.subtle.sign("HMAC", key, utf8(`omni-link-key:${message}`)));
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, utf8(`${domain}:${message}`)));
 }
 
 /**
@@ -83,4 +83,37 @@ export async function linkKeyMatches(
   const mac = macText ? fromBase64(macText) : null;
   if (!until || !/^\d+$/.test(until) || !mac || Number(until) <= now.getTime()) return false;
   return equalBytes(await hmac(secret, `${link.shareId}.${link.passwordHash}.${until}`), mac);
+}
+
+const GUEST = "omni-guest-key";
+const GUEST_ID = /^[A-Za-z0-9_-]{22}$/;
+
+/**
+ * Who a guest is on one link (`docs/spec/live-sharing.md`): a random id, kept by the browser in a
+ * cookie scoped to the link, so the same browser is the same guest there across reloads and two
+ * links never share one. `<guestId>.<ms>.<mac>`, bound to the link; good until `expiresAt`.
+ */
+export async function signGuestKey(
+  secret: string,
+  shareId: string,
+  expiresAt: Date,
+  guestId = newGuestId(),
+) {
+  const until = String(expiresAt.getTime());
+  const mac = await hmac(secret, `${shareId}.${guestId}.${until}`, GUEST);
+  return { guestId, key: `${guestId}.${until}.${toBase64Url(mac)}` };
+}
+
+/** The guest id `key` holds when `signGuestKey` made it for this link and it has not expired. */
+export async function guestOfKey(secret: string, shareId: string, key: string, now = new Date()) {
+  const [guestId, until, macText, extra] = key.split(".");
+  if (extra !== undefined || !guestId || !GUEST_ID.test(guestId)) return null;
+  const mac = macText ? fromBase64(macText) : null;
+  if (!until || !/^\d+$/.test(until) || !mac || Number(until) <= now.getTime()) return null;
+  const ok = equalBytes(await hmac(secret, `${shareId}.${guestId}.${until}`, GUEST), mac);
+  return ok ? guestId : null;
+}
+
+function newGuestId() {
+  return toBase64Url(crypto.getRandomValues(new Uint8Array(16)));
 }

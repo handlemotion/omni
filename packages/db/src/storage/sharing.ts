@@ -32,6 +32,11 @@ export interface StorageLink {
   hasPassword: boolean;
   /** False: view only, nothing downloads through the link. */
   downloads: boolean;
+  /**
+   * What anyone holding the link may do: view, or for a doc comment or edit it live. The
+   * workspace's `linkEditing` policy caps what it opens as at Commenter.
+   */
+  role: StorageGrantRole;
 }
 
 export interface StorageSharing {
@@ -53,6 +58,7 @@ export interface StorageLinkSettings {
   /** An `@omni/crypto` link password hash, or null to remove the password. */
   passwordHash?: string | null;
   downloads?: boolean;
+  role?: StorageGrantRole;
 }
 
 type Refused = { status: "policy" };
@@ -123,6 +129,7 @@ export type SharedThing = Pick<
   | "linkExpiresAt"
   | "linkPasswordHash"
   | "linkDownloads"
+  | "linkRole"
 >;
 
 /** `chain` runs from the shared thing up through the folders above it. */
@@ -148,6 +155,7 @@ export async function readSharing(ex: Db, chain: [SharedThing, ...NodeRow[]] | N
       expiresAt: node.linkExpiresAt,
       hasPassword: node.linkPasswordHash !== null,
       downloads: node.linkDownloads,
+      role: node.linkRole,
     },
     policy: await storagePolicyOf(ex, node.orgId),
     people: grants.filter((grant) => grant.nodeId === node.id).map(person),
@@ -171,6 +179,7 @@ export function linkDetail(change: Partial<NodeRow>, reset: boolean) {
       ? { password: change.linkPasswordHash !== null }
       : {}),
     ...(change.linkDownloads !== undefined ? { downloads: change.linkDownloads } : {}),
+    ...(change.linkRole !== undefined ? { role: change.linkRole } : {}),
     ...(reset ? { reset: true } : {}),
   };
 }
@@ -198,7 +207,11 @@ export function sharingOperations(db: Db, door: Door) {
         .for("update");
       if (!node) return NOT_FOUND satisfies ChangeLinkResult;
       const set = change(node);
-      if (set.linkAccess === "anyone" && !(await storagePolicyOf(tx, node.orgId)).publicLinks) {
+      const policy = await storagePolicyOf(tx, node.orgId);
+      if (set.linkAccess === "anyone" && !policy.publicLinks) {
+        return POLICY satisfies ChangeLinkResult;
+      }
+      if (set.linkRole === "editor" && !policy.linkEditing) {
         return POLICY satisfies ChangeLinkResult;
       }
       const [row] = await tx
@@ -241,6 +254,7 @@ export function sharingOperations(db: Db, door: Door) {
         ...(settings.expiresAt !== undefined ? { linkExpiresAt: settings.expiresAt } : {}),
         ...(settings.passwordHash !== undefined ? { linkPasswordHash: settings.passwordHash } : {}),
         ...(settings.downloads !== undefined ? { linkDownloads: settings.downloads } : {}),
+        ...(settings.role !== undefined ? { linkRole: settings.role } : {}),
       })) satisfies Promise<ChangeLinkResult>;
     },
 
@@ -370,6 +384,7 @@ export function policyOperations(db: Db, memberId: string) {
         .returning({
           publicLinks: storagePolicies.publicLinks,
           outsideSharing: storagePolicies.outsideSharing,
+          linkEditing: storagePolicies.linkEditing,
         });
       return { status: "ok", policy: row! } satisfies PolicyResult;
     },

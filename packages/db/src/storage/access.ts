@@ -2,7 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
 import { personalSpaces } from "../schema/identity.ts";
-import { storageGrants, storagePolicies } from "../schema/storage.ts";
+import { storageGrants, storagePolicies, type StorageGuest } from "../schema/storage.ts";
 import { ensurePersonalSpace } from "../personal-space.ts";
 import { companyForAddress } from "../session-scopes.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
@@ -33,6 +33,11 @@ export interface Access {
   remove: boolean;
   /** May see and change who it is shared with. */
   share: boolean;
+  /**
+   * Opened by a link alone: its role (`link_role`) lets a guest comment, or edit a doc's live
+   * document, and never write anything over HTTP.
+   */
+  viaLink?: boolean;
 }
 
 /**
@@ -42,7 +47,7 @@ export interface Access {
  * given: writing a document they were handed is what editing it means.
  */
 export const editsContent = (access: Access) =>
-  access.role === "member" || access.role === "editor";
+  !access.viaLink && (access.role === "member" || access.role === "editor");
 
 /**
  * Whether the holder may read a file's comments and write their own: a
@@ -73,6 +78,8 @@ export interface Door {
   actor(ex: Db, orgId: string): Promise<string | null>;
   /** Whether an upload opened by `memberId` is the holder's. */
   ownsUpload(ex: Db, memberId: string): Promise<boolean>;
+  /** The guest holding a link, who writes comments with no member; absent for other doors. */
+  guest?: StorageGuest | null;
 }
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
@@ -342,6 +349,8 @@ export interface StoragePolicy {
   publicLinks: boolean;
   /** People outside the company may be invited by address. */
   outsideSharing: boolean;
+  /** Links may be Editor; when false they open no wider than Commenter. */
+  linkEditing: boolean;
 }
 
 export async function storagePolicyOf(ex: Db, orgId: string) {
@@ -349,10 +358,15 @@ export async function storagePolicyOf(ex: Db, orgId: string) {
     .select({
       publicLinks: storagePolicies.publicLinks,
       outsideSharing: storagePolicies.outsideSharing,
+      linkEditing: storagePolicies.linkEditing,
     })
     .from(storagePolicies)
     .where(eq(storagePolicies.orgId, orgId));
-  return (row ?? { publicLinks: true, outsideSharing: true }) satisfies StoragePolicy;
+  return (row ?? {
+    publicLinks: true,
+    outsideSharing: true,
+    linkEditing: true,
+  }) satisfies StoragePolicy;
 }
 
 /** Who is opening a link: what the link door needs beyond the link itself. */
@@ -363,6 +377,8 @@ export interface LinkVisitor {
   scopeOrgId?: string | null;
   /** Whether the visitor unlocked this password-protected link (see `@omni/crypto` link keys). */
   unlocked?: (link: { shareId: string; passwordHash: string }) => Promise<boolean>;
+  /** The guest the visitor is on this link (their guest key), who may comment as themselves. */
+  guest?: StorageGuest | null;
   now?: Date;
 }
 
@@ -405,8 +421,11 @@ export type LinkState = Awaited<ReturnType<typeof linkState>>;
 
 /**
  * Anyone holding the link, while `linkState` says it is open for them: the node or a folder
- * above it has this `share_id`. Read only, always: an anonymous editor would be an open upload
- * endpoint.
+ * above it has this `share_id`. Its role is the link's (`link_role`, capped at Commenter while the
+ * workspace's policy forbids link editing). Nothing is written through it over HTTP, whatever
+ * the role: an anonymous editor would be an open upload endpoint. An Editor or Commenter link
+ * reaches a doc's live document through the realtime socket instead, and a Commenter's comments
+ * are the guest's.
  */
 export const linkDoor: (shareId: string, visitor?: LinkVisitor) => Door = (
   shareId,
@@ -417,8 +436,21 @@ export const linkDoor: (shareId: string, visitor?: LinkVisitor) => Door = (
     async access(ex, chain) {
       if (chain.length === 0 || inTrash(chain)) return null;
       const top = shareableChain(chain).findIndex((row) => row.shareId === shareId);
-      if (top < 0 || (await linkState(ex, chain[top]!, visitor)) !== "open") return null;
-      return { role: "viewer", top, inside: false, change: false, remove: false, share: false };
+      const carrier = chain[top];
+      if (!carrier || (await linkState(ex, carrier, visitor)) !== "open") return null;
+      const role =
+        carrier.linkRole === "editor" && !(await storagePolicyOf(ex, carrier.orgId)).linkEditing
+          ? "commenter"
+          : carrier.linkRole;
+      return {
+        role,
+        top,
+        inside: false,
+        change: false,
+        remove: false,
+        share: false,
+        viaLink: true,
+      };
     },
     removesWhole: async () => false,
     root: async () => null,
@@ -426,5 +458,6 @@ export const linkDoor: (shareId: string, visitor?: LinkVisitor) => Door = (
     drives: async () => [],
     actor: async () => null,
     ownsUpload: async () => false,
+    guest: visitor.guest ?? null,
   };
 };

@@ -283,6 +283,10 @@ const storageContentSchema = z.object({
   writtenAt: isoDate,
   writtenByName: z.string().nullable(),
   writtenByAgent: z.string().nullable().optional(),
+  writtenByGuest: z.boolean().optional(),
+  coauthors: z
+    .array(z.object({ kind: z.enum(["guest", "grantee"]), id, name: z.string() }))
+    .optional(),
 });
 export const storageVersionSchema = storageContentSchema.extend({ id, replacedAt: isoDate });
 
@@ -345,7 +349,7 @@ export const storageSharingResponseSchema = z.object({ sharing: storageSharingSc
 /**
  * `PUT /nodes/:id/sharing/link`: set who it opens for, `reset` for a new link (the old one stops
  * working, settings stay), or change its settings: `expiresAt` (null: never), `password` (null
- * removes it) and `downloads`. `403 sharing_policy` when the workspace's policy refuses it.
+ * removes it), `downloads` and `role`. `403 sharing_policy` when the workspace's policy refuses it.
  *
  * `GET /uploads/:id/sharing` and `PUT /uploads/:id/sharing/link` do the same for a new file
  * before it finishes uploading, for its uploader: `/s/<shareId>` opens from the start and shows
@@ -361,6 +365,8 @@ export const storageSetLinkBodySchema = z.union([
       expiresAt: isoDate.nullable().optional(),
       password: storageLinkPasswordSchema.nullable().optional(),
       downloads: z.boolean().optional(),
+      /** Commenter and Editor are for docs; `403 sharing_policy` for Editor when not allowed. */
+      role: storageGrantRoleSchema.optional(),
     })
     .refine((body) => Object.keys(body).length > 0, { message: "change at least one setting" }),
 ]);
@@ -424,6 +430,12 @@ export const storageSharedResponseSchema = z.object({
    * those uploading into the folder, on its first page. Absent from a Worker older than this.
    */
   uploading: z.array(storageSharedUploadSchema).optional(),
+  /**
+   * The item is a doc this reader joins live, through `GET /shared/:shareId/realtime?node=`:
+   * they edit or comment on it (not as a member), it is not locked, and the live layer is on.
+   * Absent from a Worker older than live sharing.
+   */
+  live: z.boolean().optional(),
 });
 
 /**

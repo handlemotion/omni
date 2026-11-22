@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./file": "./src/file.ts"
+    "./file": "./src/file.ts",
+    "./presence": "./src/presence.ts"
   },
   "dependencies": {
     "@tiptap/core": "3.34.0",

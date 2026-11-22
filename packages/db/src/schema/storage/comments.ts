@@ -1,7 +1,7 @@
 import { foreignKey, index, integer, jsonb, pgTable, text, unique } from "drizzle-orm/pg-core";
 import { members } from "../auth.ts";
 import { createdAt, id, orgId, timestamptz } from "../columns.ts";
-import { storageNodes } from "../storage.ts";
+import { storageNodes, type StorageGuest } from "../storage.ts";
 
 /**
  * Where a comment points. Coordinates on a PDF page or an image are fractions of it (0 to 1), so they
@@ -40,6 +40,8 @@ export const storageComments = pgTable(
     authorMemberId: text("author_member_id").references(() => members.id, {
       onDelete: "set null",
     }),
+    /** The author when a guest wrote it through a link, with no member; null otherwise. */
+    authorGuest: jsonb("author_guest").$type<StorageGuest>(),
     createdAt: createdAt(),
     /** Set when the author last changed the body; null if never. */
     editedAt: timestamptz("edited_at"),

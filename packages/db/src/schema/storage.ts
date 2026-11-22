@@ -53,6 +53,26 @@ export const storageLinkAccess = pgEnum("storage_link_access", [
  */
 export const storageGrantRole = pgEnum("storage_grant_role", ["viewer", "commenter", "editor"]);
 
+/**
+ * Someone outside the workspace who edits or comments through a link, signed in to nothing: the
+ * guest id from their per-link guest key (`@omni/crypto`) and the name the server gave them.
+ */
+export interface StorageGuest {
+  id: string;
+  name: string;
+}
+
+/**
+ * An outsider whose typing a save holds (`docs/spec/live-sharing.md`): a guest, or a person with
+ * a grant (their user id). Members are not listed: their own saves name them.
+ */
+export interface StorageCoauthor {
+  kind: "guest" | "grantee";
+  /** The guest id, or the grantee's user id. */
+  id: string;
+  name: string;
+}
+
 /** One part of a multipart upload, as the bucket acknowledged it. */
 export interface StorageUploadPart {
   partNumber: number;
@@ -95,6 +115,11 @@ export const storageNodes = pgTable(
     linkPasswordHash: text("link_password_hash"),
     /** False: a visitor through the link sees the item and cannot download it (view only). */
     linkDownloads: boolean("link_downloads").notNull().default(true),
+    /**
+     * What anyone holding the link may do: view, or for a doc comment or edit it live
+     * (`docs/spec/live-sharing.md`). Grants carry their own role.
+     */
+    linkRole: storageGrantRole("link_role").notNull().default("viewer"),
     /** The uploader. May be a member of another workspace when an editor grant made the node. */
     createdByMemberId: text("created_by_member_id").references(() => members.id, {
       onDelete: "set null",
@@ -264,6 +289,10 @@ export const storageVersions = pgTable(
     contentVersion: integer("content_version"),
     /** The agent that wrote it for `written_by_member_id`; null when they wrote it in the app. */
     writtenByAgent: text("written_by_agent"),
+    /** The guest who wrote it through a link, with no member; null otherwise. */
+    writtenByGuest: jsonb("written_by_guest").$type<StorageGuest>(),
+    /** Outsiders whose typing it holds, beside its writer; null when none or kept before. */
+    coauthors: jsonb("coauthors").$type<StorageCoauthor[]>(),
     /**
      * Set when a later save in the same editing session replaced it: an autosave between the
      * session's first and last, hidden from the file's versions and purged a day later.
@@ -303,6 +332,10 @@ export const storageContents = pgTable(
     writtenAt: timestamptz("written_at").notNull(),
     /** The agent that wrote it for `written_by_member_id`; null when they wrote it in the app. */
     writtenByAgent: text("written_by_agent"),
+    /** The guest who wrote it through a link, with no member; null otherwise. */
+    writtenByGuest: jsonb("written_by_guest").$type<StorageGuest>(),
+    /** Outsiders whose typing it holds, beside its writer; null when none. */
+    coauthors: jsonb("coauthors").$type<StorageCoauthor[]>(),
     /**
      * Set when an agent changes the file's live document: the next save, whoever makes it, keeps
      * this content as a version instead of continuing the editing session that wrote it.
@@ -406,6 +439,8 @@ export const storagePolicies = pgTable("storage_policies", {
     .references(() => organizations.id, { onDelete: "cascade" }),
   publicLinks: boolean("public_links").notNull().default(true),
   outsideSharing: boolean("outside_sharing").notNull().default(true),
+  /** Links may be Editor; when false, an Editor link opens as Commenter and no new one is made. */
+  linkEditing: boolean("link_editing").notNull().default(true),
   updatedByMemberId: text("updated_by_member_id").references(() => members.id, {
     onDelete: "set null",
   }),
@@ -419,6 +454,7 @@ export const storageShareEventKind = pgEnum("storage_share_event_kind", [
   "grant_removed",
   "viewed",
   "downloaded",
+  "edited",
 ]);
 
 /**
@@ -565,6 +601,7 @@ export const storageUploadLinks = pgTable(
     linkExpiresAt: timestamptz("link_expires_at"),
     linkPasswordHash: text("link_password_hash"),
     linkDownloads: boolean("link_downloads").notNull().default(true),
+    linkRole: storageGrantRole("link_role").notNull().default("viewer"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (t) => [unique("storage_upload_links_share_id_unique").on(t.shareId)],

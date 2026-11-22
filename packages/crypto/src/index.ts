@@ -24,8 +24,10 @@ export {
 export { signDomainConnectQuery } from "./domain-connect.ts";
 export { sha256Hex } from "./encoding.ts";
 export {
+  guestOfKey,
   hashLinkPassword,
   linkKeyMatches,
   linkPasswordMatches,
+  signGuestKey,
   signLinkKey,
 } from "./link-password.ts";

@@ -96,6 +96,11 @@ export {
   STORAGE_SESSION_IDLE_MS,
   STORAGE_SESSION_MS,
   STORAGE_SUPERSEDED_MS,
+  addCoauthors,
+  foldContent,
+  mergeCoauthors,
+  type FoldContentResult,
+  type StorageWriter,
   type RestoreVersionResult,
   type StorageContent,
   type StorageVersion,
@@ -232,7 +237,7 @@ export {
   storagePeakOf,
   type StorageBilledWorkspace,
 } from "./storage/billing.ts";
-export type { StorageUploadPart } from "./schema/storage.ts";
+export type { StorageCoauthor, StorageGuest, StorageUploadPart } from "./schema/storage.ts";
 
 /**
  * The member door. Everything a member does in their workspace's Storage: browse and change
@@ -311,13 +316,15 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
 
 /**
  * The link door. What anyone holding `/s/<shareId>` may read while the link is open to anyone:
- * the shared node and, for a folder, everything inside it. Read only.
+ * the shared node and, for a folder, everything inside it. No file changes through it; a link
+ * whose role is Commenter or Editor lets its guest (`visitor.guest`) comment as themselves.
  */
 export function publicStorage(db: Db, shareId: string, visitor?: LinkVisitor) {
   const door = linkDoor(shareId, visitor);
   const { node, nodeByShareId, list, file } = treeOperations(db, door);
   return {
     ...archiveOperations(db, door),
+    ...commentOperations(db, door),
     node: (nodeId?: string) => (nodeId ? node(nodeId) : nodeByShareId(shareId)),
     async list(page: { parentId?: string; cursor?: StorageListCursor | null; limit?: number }) {
       const parentId = page.parentId ?? (await nodeByShareId(shareId))?.node.id;

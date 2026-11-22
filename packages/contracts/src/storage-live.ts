@@ -19,7 +19,17 @@ const id = z.string().min(1);
  */
 export const storageLiveRecordSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("seed"), cv: z.number().int().nonnegative(), u: z.base64() }),
-  z.object({ t: z.literal("update"), e: z.number().int().nonnegative(), u: z.base64() }),
+  z.object({
+    t: z.literal("update"),
+    e: z.number().int().nonnegative(),
+    u: z.base64(),
+    /**
+     * Who sent it, set by the realtime object whatever the sender wrote: `m:<memberId>`,
+     * `u:<userId>` for a person with a grant, `g:<guestId>` for a guest through a link. Absent
+     * from records written before this, by the Worker itself, and in what an outsider is sent.
+     */
+    by: z.string().max(80).optional(),
+  }),
   z.object({
     t: z.literal("fold"),
     e: z.number().int().nonnegative(),
@@ -102,13 +112,23 @@ export const STORAGE_DOC_PRESENCE_MAX = 4096;
  * own number for it. The sender hears `doc.appended` with its sequence number, or `doc.refused`
  * with why: `tail` (a `matchSeqNum` that was no longer the tail: read the stream again),
  * `editing` (the socket's `editing` has not been checked yet, or it is not editing the file: try
- * again after it), `denied` (the member no longer reaches the file), `locked`, or `unavailable` (the live layer is off or failed). The others
- * editing the file hear `doc.record`. Records can arrive out of
- * order and a dropped socket misses some: read the gap with `GET /files/:id/live`.
+ * again after it), `denied` (the member no longer reaches the file), `locked`, `unavailable`
+ * (the live layer is off or failed), `read_only` (an outsider whose role does not edit, or a
+ * record an outsider may not write: only `update`s) or `rate` (an outsider over their limits).
+ * The others editing the file hear `doc.record`. Records can arrive out of order and a dropped
+ * socket misses some: read the gap with `GET /files/:id/live` (an outsider:
+ * `GET /shared/:shareId/files/:id/live`).
  *
  * `{"type":"doc.presence","nodeId","u"}` is where someone's cursor is, and who they are: a Yjs
- * awareness update, base64. The Worker passes it on, as it is, to the others editing the file
- * and keeps nothing; an app that hears someone new answers with its own.
+ * awareness update, base64. The Worker passes it on to the others editing the file and keeps
+ * nothing; an app that hears someone new answers with its own. While someone outside the
+ * workspace is on the doc, the Worker rewrites each state's `user` as `{ name, slot, kind }`
+ * (`kind` member, grantee or guest; `slot` 1-6 picks their colour) and keeps only `user`, `cursor`
+ * and `comments`: nobody names themselves, and outsiders hear no member's picture or address.
+ *
+ * `doc.access` tells an outsider's socket its role changed (`null`: it no longer reaches the
+ * file, and the socket closes with `4403`). `doc.comments` tells everyone on the doc that its
+ * comments changed: fetch them again.
  */
 export const storageDocEventSchema = z.discriminatedUnion("type", [
   z.object({
@@ -121,7 +141,7 @@ export const storageDocEventSchema = z.discriminatedUnion("type", [
     type: z.literal("doc.refused"),
     nodeId: id,
     ref: z.number().int(),
-    reason: z.enum(["tail", "editing", "denied", "locked", "unavailable"]),
+    reason: z.enum(["tail", "editing", "denied", "locked", "unavailable", "read_only", "rate"]),
   }),
   z.object({
     type: z.literal("doc.record"),
@@ -134,6 +154,12 @@ export const storageDocEventSchema = z.discriminatedUnion("type", [
     nodeId: id,
     u: z.base64().max(STORAGE_DOC_PRESENCE_MAX),
   }),
+  z.object({
+    type: z.literal("doc.access"),
+    nodeId: id,
+    role: z.enum(["editor", "commenter"]).nullable(),
+  }),
+  z.object({ type: z.literal("doc.comments"), nodeId: id }),
 ]);
 
 export type StorageLiveRecord = z.infer<typeof storageLiveRecordSchema>;
