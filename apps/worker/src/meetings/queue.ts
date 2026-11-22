@@ -6,6 +6,7 @@ import {
   MEETING_STEPS,
   retryable,
   runMeetingStep,
+  StepError,
   type MeetingJob,
   type MeetingRun,
 } from "./jobs.ts";
@@ -74,8 +75,9 @@ export async function consumeMeetingMessage(
     }
     const reason = error instanceof Error ? error.message : "the step failed";
     log.error("meetings.failed", { error, attempts: message.attempts });
-    await meetingsPipeline(run.db).fail(job.meetingId, reason);
-    await announceMeeting(meetingRun, job.orgId, job.meetingId, "failed");
+    const from = error instanceof StepError ? error.from : null;
+    const failed = from ? await meetingsPipeline(run.db).fail(job.meetingId, reason, from) : false;
+    if (failed) await announceMeeting(meetingRun, job.orgId, job.meetingId, "failed");
     message.ack();
   }
 }

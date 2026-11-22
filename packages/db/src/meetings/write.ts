@@ -247,7 +247,7 @@ export async function decideAction(
   if (!action) return NOT_FOUND;
   return withMeeting(ex, actor, action.meetingId, "editor", async () => {
     if (action.state !== "open") return { status: "decided", state: action.state } as const;
-    await ex
+    const won = await ex
       .update(meetingsActions)
       .set({
         state: decision.accept ? "done" : "dismissed",
@@ -255,7 +255,9 @@ export async function decideAction(
         decidedByMemberId: actor?.member?.id ?? null,
         decidedAt: new Date(),
       })
-      .where(and(eq(meetingsActions.id, actionId), eq(meetingsActions.state, "open")));
+      .where(and(eq(meetingsActions.id, actionId), eq(meetingsActions.state, "open")))
+      .returning({ id: meetingsActions.id });
+    if (won.length === 0) return { status: "decided", state: "done" } as const;
     return {
       status: "ok",
       action: { ...action, state: decision.accept ? "done" : "dismissed" },

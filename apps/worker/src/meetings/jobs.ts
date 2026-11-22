@@ -11,7 +11,7 @@ import {
   type ResolvedSpeaker,
   type Usage,
 } from "@omni/ai";
-import { meetingsPipeline, storageWorkspaceFile, type Db } from "@omni/db";
+import { meetingsPipeline, storageWorkspaceFile, type Db, type MeetingStatus } from "@omni/db";
 import type { Config } from "../env.ts";
 import type { Logger } from "../log.ts";
 import { engineFor, EngineError, type Engine, type EngineConfig } from "./engines.ts";
@@ -93,12 +93,30 @@ export async function runMeetingStep(run: MeetingRun, job: MeetingJob) {
   if (!found || found.meeting.orgId !== job.orgId) return outcome(null, null);
   const step = stepFor(found);
   if (!step) return outcome(null, null);
-  const engine = meetingEngine(run.config, run.env);
-  if (!engine) throw new MeetingStepFailed("no transcription engine is configured");
-  if (step === "transcribe") return transcribe(run, engine, found);
-  if (step === "poll") return poll(run, engine, found);
-  if (step === "name") return name(run, found);
-  return write(run, found);
+  try {
+    const engine = meetingEngine(run.config, run.env);
+    if (!engine) throw new MeetingStepFailed("no transcription engine is configured");
+    if (step === "transcribe") return await transcribe(run, engine, found);
+    if (step === "poll") return await poll(run, engine, found);
+    if (step === "name") return await name(run, found);
+    return await write(run, found);
+  } catch (error) {
+    throw new StepError(
+      error,
+      found.meeting.status === "uploaded" ? ["uploaded", "transcribing"] : [found.meeting.status],
+    );
+  }
+}
+
+/** A step's failure, with the status the meeting was at when the step began. */
+export class StepError extends Error {
+  override readonly cause: unknown;
+  readonly from: MeetingStatus[];
+  constructor(cause: unknown, from: MeetingStatus[]) {
+    super(cause instanceof Error ? cause.message : "the step failed");
+    this.cause = cause;
+    this.from = from;
+  }
 }
 
 /**
@@ -127,6 +145,20 @@ async function transcribe(run: MeetingRun, engine: Engine, found: Found) {
     await pipeline.advance(meeting.id, ["uploaded"], "transcribing");
   else if (meeting.status !== "transcribing") return outcome(null, null);
   if (job.providerJobId) return outcome({ step: "poll", delaySeconds: 0 }, "transcribing");
+  if (!(await pipeline.claimSubmission(meeting.id))) {
+    return outcome({ step: "transcribe", delaySeconds: POLL_SECONDS }, null);
+  }
+  try {
+    return await submit(run, engine, found);
+  } catch (error) {
+    await pipeline.releaseSubmission(meeting.id);
+    throw error;
+  }
+}
+
+async function submit(run: MeetingRun, engine: Engine, found: Found) {
+  const { meeting } = found;
+  const pipeline = meetingsPipeline(run.db);
   if (!meeting.audioNodeId) throw new MeetingStepFailed("the recording is missing");
   const file = await storageWorkspaceFile(run.db, meeting.orgId, meeting.audioNodeId);
   const object = file ? await run.env.STORAGE_BUCKET.get(file.r2Key) : null;
@@ -279,7 +311,8 @@ async function write(run: MeetingRun, found: Found) {
 }
 
 /** Whether a thrown error is worth a retry: transient engine and model failures are. */
-export function retryable(error: unknown) {
+export function retryable(thrown: unknown) {
+  const error = thrown instanceof StepError ? thrown.cause : thrown;
   if (error instanceof MeetingStepFailed) return false;
   if (error instanceof EngineError) return error.retryable;
   return true;

@@ -240,11 +240,17 @@ export const meetings = new Hono<AppEnv>()
   })
   .delete("/:id", async (c) => {
     const id = c.req.param("id");
-    const removed = await memberMeetings(c).remove(id);
-    if (removed.status !== "ok") return refused(c, removed);
+    const found = await memberMeetings(c).get(id);
+    if (found.status !== "ok") return refused(c, found);
+    if (found.role !== "owner") return refused(c, { status: "forbidden" });
+    const row = (await meetingsPipeline(c.var.db).meeting(id))?.meeting;
     await deleteMeetingObjects(c.env, c.var.member.orgId, id);
     const files = memberFiles(c);
-    for (const nodeId of removed.files) await files.trash(nodeId);
+    for (const nodeId of [row?.audioNodeId, row?.rawNodeId]) {
+      if (nodeId) await files.trash(nodeId);
+    }
+    const removed = await memberMeetings(c).remove(id);
+    if (removed.status !== "ok") return refused(c, removed);
     return c.body(null, 204);
   });
 
