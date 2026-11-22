@@ -152,6 +152,7 @@ test("a recorded meeting reads as its client's group, its notes, actions and nam
   await sidebar.waitFor();
   await page.getByText("Diseño final listo el viernes").waitFor();
   await page.getByRole("link", { name: /Llamada sin notas/ }).waitFor();
+  await page.getByRole("heading", { name: "client.test" }).waitFor();
   if (shots) await page.screenshot({ path: join(shots, "group.png") });
 
   await page.getByRole("link", { name: /Entregas sitio web/ }).click();
