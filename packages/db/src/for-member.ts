@@ -1,6 +1,7 @@
 import type { Db } from "./client.ts";
 import { memberMail, userMail } from "./mail.ts";
 import { memberCrm, userCrm } from "./crm.ts";
+import { memberCalendar, userCalendar } from "./calendar.ts";
 import { memberStorage, userStorage } from "./storage.ts";
 
 /** Everything a member of one workspace may read and change, module by module. */
@@ -9,6 +10,7 @@ export function forMember(db: Db, memberId: string) {
     ...memberMail(db, memberId),
     storage: memberStorage(db, memberId),
     crm: memberCrm(db, memberId),
+    calendar: memberCalendar(db, memberId),
   };
 }
 
@@ -21,5 +23,6 @@ export function forUser(db: Db, userId: string, scopeOrgId?: string | null) {
     ...userMail(db, userId, scopeOrgId),
     storage: userStorage(db, userId, scopeOrgId),
     crm: userCrm(db, userId, scopeOrgId),
+    calendar: userCalendar(db, userId, scopeOrgId),
   };
 }

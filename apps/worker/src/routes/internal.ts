@@ -12,6 +12,7 @@ import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { openDb } from "../db.ts";
 import { loadConfig } from "../env.ts";
+import { modules } from "../modules.ts";
 import { pingMailService } from "../mail-service.ts";
 import type { AiJob } from "../queue.ts";
 import { announceMerges, fanOut, notifyFailedActions, notifyMembers } from "../realtime.ts";
@@ -76,6 +77,23 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   const { db, close } = openDb(c.env);
   try {
     const created = events.filter((e) => e.type === "message.created");
+    if (created.length) {
+      const messageIds = created.map((event) => event.messageId);
+      const arrived = openDb(c.env);
+      c.executionCtx.waitUntil(
+        Promise.allSettled(
+          modules.map((module) => module.mailArrived?.(c.env, arrived.db, messageIds, log)),
+        )
+          .then((results) => {
+            for (const result of results) {
+              if (result.status === "rejected") {
+                log.warn("module.mail_arrived_failed", { error: result.reason });
+              }
+            }
+          })
+          .finally(() => arrived.close()),
+      );
+    }
     for (const event of created) await recordCustomer(db, event);
     let queuedActions = 0;
     const fresh = new Set<string>();

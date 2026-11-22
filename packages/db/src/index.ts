@@ -20,3 +20,4 @@ export * from "./preferences.ts";
 export * from "./notifications.ts";
 export * from "./storage.ts";
 export * from "./crm.ts";
+export * from "./calendar.ts";

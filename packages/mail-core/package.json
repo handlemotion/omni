@@ -22,7 +22,8 @@
     "./templates": "./src/templates.ts",
     "./business-hours": "./src/business-hours.ts",
     "./folder-sync": "./src/folder-sync.ts",
-    "./mailbox-provisioning": "./src/mailbox-provisioning.ts"
+    "./mailbox-provisioning": "./src/mailbox-provisioning.ts",
+    "./calendar": "./src/calendar/index.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",
@@ -31,9 +32,11 @@
   "dependencies": {
     "dompurify": "^3.4.18",
     "html-to-text": "^10.0.1",
+    "ical.js": "2.2.1",
     "jsdom": "^31.0.1",
     "mailparser": "^3.14.5",
-    "parse5": "^8.1.1"
+    "parse5": "^8.1.1",
+    "windows-iana": "5.1.0"
   },
   "devDependencies": {
     "@types/html-to-text": "^9.0.4",

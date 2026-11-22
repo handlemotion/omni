@@ -312,6 +312,14 @@ export const messageLocations = pgTable(
   ],
 );
 
+/**
+ * Which attachments are iCalendar (`text/calendar`, `application/ics` or a `.ics` name). The
+ * calendar's sweep filters with this same expression, so its partial index serves the read.
+ */
+export const CALENDAR_ATTACHMENT = sql.raw(
+  "(lower(mime_type) in ('text/calendar', 'application/ics') or lower(filename) like '%.ics')",
+);
+
 export const attachments = pgTable(
   "attachments",
   {
@@ -333,6 +341,9 @@ export const attachments = pgTable(
   (t) => [
     index("attachments_message_id_idx").on(t.messageId),
     index("attachments_content_hash_idx").on(sql`split_part(${t.r2Key}, '/att/', 2)`),
+    index("attachments_calendar_idx")
+      .on(t.createdAt, t.id)
+      .where(sql`${CALENDAR_ATTACHMENT}`),
   ],
 );
 

@@ -130,6 +130,12 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "crm_settings",
       "crm_stages",
       "crm_tasks",
+      "calendar_answers",
+      "calendar_attendees",
+      "calendar_calendars",
+      "calendar_events",
+      "calendar_parts",
+      "calendar_sweep",
     ].toSorted(),
   );
 });

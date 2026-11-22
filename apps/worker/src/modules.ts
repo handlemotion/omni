@@ -1,7 +1,9 @@
 import type { BillingConfig, ModuleLifecycle } from "@omni/auth";
 import { deleteWorkspaceStorage, handOverMemberStorage, type Db } from "@omni/db";
 import type Stripe from "stripe";
+import { calendarArrived, calendarMinute } from "./calendar/jobs.ts";
 import { crmDaily, crmMinute } from "./crm/jobs.ts";
+import type { Logger } from "./log.ts";
 import { mailMinute } from "./mail/jobs.ts";
 import { notePaymentMethod } from "./storage/billing.ts";
 import { abortExpiredStorageUploads, storageDaily } from "./storage/jobs.ts";
@@ -32,6 +34,11 @@ export interface Module extends ModuleLifecycle {
       unrecorded?: { cv: number; through: number } | undefined;
     },
   ) => Promise<FoldOutcome>;
+  /**
+   * Right after the mail service reported new messages. Best effort, after the answer: a module
+   * whose minute job reaches the same work uses this only to be faster.
+   */
+  mailArrived?: (env: Env, db: Db, messageIds: readonly string[], log: Logger) => Promise<unknown>;
 }
 
 const mail: Module = {
@@ -63,4 +70,10 @@ const crm: Module = {
   daily: crmDaily,
 };
 
-export const modules: readonly Module[] = [mail, storage, crm];
+const calendar: Module = {
+  name: "calendar",
+  minute: calendarMinute,
+  mailArrived: calendarArrived,
+};
+
+export const modules: readonly Module[] = [mail, storage, crm, calendar];

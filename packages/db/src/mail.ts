@@ -62,3 +62,9 @@ export {
   type SharedActivity,
   type SharedActivityOptions,
 } from "./mail/crm-sharing.ts";
+export {
+  CALENDAR_ATTACHMENTS_MAX,
+  calendarAttachments,
+  calendarAttachmentsOf,
+  type CalendarAttachment,
+} from "./mail/calendar-attachments.ts";

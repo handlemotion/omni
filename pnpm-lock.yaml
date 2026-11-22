@@ -987,6 +987,9 @@ importers:
       html-to-text:
         specifier: ^10.0.1
         version: 10.0.1
+      ical.js:
+        specifier: 2.2.1
+        version: 2.2.1
       jsdom:
         specifier: ^31.0.1
         version: 31.0.1(@napi-rs/canvas@1.1.1)(@noble/hashes@2.4.0)
@@ -996,6 +999,9 @@ importers:
       parse5:
         specifier: ^8.1.1
         version: 8.1.1
+      windows-iana:
+        specifier: 5.1.0
+        version: 5.1.0
     devDependencies:
       '@types/html-to-text':
         specifier: ^9.0.4
@@ -6479,6 +6485,9 @@ packages:
   hyphenate-style-name@1.1.0:
     resolution: {integrity: sha512-WDC/ui2VVRrz3jOVi+XtjqkDjiVjTtFaAGiW37k6b+ohyQ5wYDOGkvCZa8+H0nx3gyvv0+BST9xuOgIyGQ00gw==}
 
+  ical.js@2.2.1:
+    resolution: {integrity: sha512-yK/UlPbEs316igb/tjRgbFA8ZV75rCsBJp/hWOatpyaPNlgw0dGDmU+FoicOcwX4xXkeXOkYiOmCqNPFpNPkQg==}
+
   iconv-lite@0.7.3:
     resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
     engines: {node: '>=0.10.0'}
@@ -8612,6 +8621,10 @@ packages:
     resolution: {integrity: sha512-Tb2FUhB4vUsGQlfSquQLYkApkuPAFQXGFzxWKHHumVz2dK+X1RUm/HnID4+TfIGYJ1kTcwOaCk/buYCEJr6YjQ==}
     engines: {node: '>=20.11'}
     hasBin: true
+
+  windows-iana@5.1.0:
+    resolution: {integrity: sha512-WS7dbeBltaq8JcazH7hVCi17lqZBdQdKppMLk8rUQwz+My6dSRW8dFoQqzSi+UjPrsh7TV5AEnboRKneWy8b/A==}
+    engines: {node: '>=12'}
 
   wordwrap@1.0.0:
     resolution: {integrity: sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==}
@@ -14273,6 +14286,8 @@ snapshots:
 
   hyphenate-style-name@1.1.0: {}
 
+  ical.js@2.2.1: {}
+
   iconv-lite@0.7.3:
     dependencies:
       safer-buffer: 2.1.2
@@ -16678,6 +16693,8 @@ snapshots:
       isexe: 2.0.0
 
   why-is-node-running@3.2.1: {}
+
+  windows-iana@5.1.0: {}
 
   wordwrap@1.0.0: {}
 
