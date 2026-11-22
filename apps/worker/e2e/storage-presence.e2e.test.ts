@@ -258,3 +258,49 @@ test("only a socket editing the file appends to its live document, and the other
   });
   for (const hears of [anaSocket, boSocket, cySocket]) hears.socket.close();
 });
+
+test("a save's fold sent after its page left the file still lands, for a member who may edit it", async () => {
+  const org = await stack.company(`fold-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const bo = await stack.member(org.id);
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "doc.md", bytes("# Doc"));
+  const next = await stack.upload(ana.jar, { space: "shared" }, "next.md", bytes("# Next"));
+  const bos = await stack.upload(bo.jar, { space: "personal" }, "bo.md", bytes("mine"));
+  const [anaSocket, boSocket] = await Promise.all([connect(ana.jar), connect(bo.jar)]);
+  const editingDoc = (memberId: string) => (e: Record<string, unknown>) =>
+    e.type === "file.presence" && e.nodeId === doc.id && e.memberId === memberId;
+
+  anaSocket.editing(doc.id, "editing");
+  boSocket.editing(doc.id, "editing");
+  await Promise.all([anaSocket.waitFor(editingDoc(bo.id)), boSocket.waitFor(editingDoc(ana.id))]);
+  anaSocket.append(doc.id, 1, { t: "seed", cv: 1, u: "AA==" }, 0);
+  expect((await anaSocket.answer(doc.id, 1)).type).toBe("doc.appended");
+
+  anaSocket.editing(doc.id, "left");
+  anaSocket.editing(next.id, "editing");
+  const fold = { t: "fold", e: 0, cv: 2, s: 0 };
+  anaSocket.append(doc.id, 2, fold);
+  expect(await anaSocket.answer(doc.id, 2)).toEqual({
+    type: "doc.appended",
+    nodeId: doc.id,
+    ref: 2,
+    seqNum: 1,
+  });
+  expect(await boSocket.waitFor((e) => e.type === "doc.record" && e.seqNum === 1)).toEqual({
+    type: "doc.record",
+    nodeId: doc.id,
+    seqNum: 1,
+    record: fold,
+  });
+
+  anaSocket.append(doc.id, 3, { t: "update", e: 0, u: "AQ==" });
+  expect((await anaSocket.answer(doc.id, 3)).reason).toBe("editing");
+  anaSocket.append(bos.id, 4, { t: "fold", e: 0, cv: 2, s: 0 });
+  expect((await anaSocket.answer(bos.id, 4)).reason).toBe("denied");
+  expect((await stack.api(bo.jar, "GET", `/files/${bos.id}/live`)).body).toEqual({
+    enabled: true,
+    entries: [],
+    more: false,
+  });
+  for (const hears of [anaSocket, boSocket]) hears.socket.close();
+});

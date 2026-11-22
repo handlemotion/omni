@@ -561,6 +561,60 @@ test("leaving a doc with unsaved typing goes at once, to the last place picked, 
   await expect.poll(content, { timeout: 15_000 }).toContain("First line typed");
 });
 
+test("switching docs while the first is still saving saves both, each to its own file", async () => {
+  const page = await signedIn(`edit-switch-${Date.now()}@gmail.test`, "/files/my");
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles([
+      { name: "a-doc.md", mimeType: "text/markdown", buffer: Buffer.from("# A\n\nAlpha line\n") },
+      { name: "b-doc.md", mimeType: "text/markdown", buffer: Buffer.from("# B\n\nBeta line\n") },
+    ]);
+  const uploaded = () =>
+    db
+      .select({ id: schema.storageNodes.id, name: schema.storageNodes.name })
+      .from(schema.storageNodes)
+      .where(inArray(schema.storageNodes.name, ["a-doc.md", "b-doc.md"]));
+  await expect.poll(async () => (await uploaded()).length, { timeout: 15_000 }).toBe(2);
+  const files = await uploaded();
+  const idOf = (name: string) => files.find((file) => file.name === name)?.id ?? "";
+  const editor = page.locator("[contenteditable=true]");
+  await page.goto(`${page.url().split("?")[0]}?file=${idOf("a-doc.md")}`);
+  await editor.getByText("Alpha line").click();
+  await page.keyboard.press("End");
+  await page.route(/\/api\/storage\/uploads\/[^/]+\/complete/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    await route.continue();
+  });
+  await page.keyboard.type(" one");
+  await page.waitForRequest(/\/api\/storage\/files\/[^/]+\/versions/, { timeout: 10_000 });
+  await page.keyboard.type(" two");
+
+  await page.evaluate((id) => {
+    const url = new URL(location.href);
+    url.searchParams.set("file", id);
+    history.pushState(history.state, "", url);
+    dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+  }, idOf("b-doc.md"));
+  await editor.getByText("Beta line").click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" three");
+
+  const content = (name: string) => () =>
+    page.evaluate(
+      async (at) => (await fetch(at)).text(),
+      `/api/storage/files/${idOf(name)}/content`,
+    );
+  await expect.poll(content("a-doc.md"), { timeout: 20_000 }).toContain("Alpha line one two");
+  await expect.poll(content("b-doc.md"), { timeout: 20_000 }).toContain("Beta line three");
+  expect(await content("a-doc.md")()).not.toContain("Beta");
+  expect(await content("b-doc.md")()).not.toContain("Alpha");
+});
+
 test("closing a doc returns to the folder where it was scrolled", async () => {
   const page = await signedIn(`scroll-${Date.now()}@gmail.test`, "/files/my");
   await page

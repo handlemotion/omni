@@ -74,6 +74,32 @@ const send = (socket: WebSocket, event: StorageDocEvent) => {
   } catch {}
 };
 
+async function appendingAs(
+  ctx: DurableObjectState,
+  env: Env,
+  socket: WebSocket,
+  memberId: string,
+  message: DocAppendMessage,
+) {
+  const { nodeId } = message;
+  const at = editingOf(socket);
+  if (at?.nodeId !== nodeId) {
+    if (message.record.t !== "fold") return "editing";
+    const may = await checkEditing(env, memberId, nodeId);
+    if (!may) return "denied";
+    return may.locked ? "locked" : may;
+  }
+  if (Date.now() - (at.checkedAt ?? 0) <= RECHECK_MS) return at.locked ? "locked" : at;
+  const now = await checkEditing(env, memberId, nodeId);
+  if (editingOf(socket)?.nodeId !== nodeId) return "editing";
+  if (!now) {
+    leaveFile(ctx, socket, memberId);
+    return "denied";
+  }
+  setEditing(socket, now);
+  return now.locked ? "locked" : now;
+}
+
 export async function onDocAppend(
   ctx: DurableObjectState,
   env: Env,
@@ -82,23 +108,12 @@ export async function onDocAppend(
   message: DocAppendMessage,
 ) {
   const { nodeId, ref } = message;
-  let at = editingOf(socket);
   const basin = s2Basin(loadConfig(env));
   const refuse = (reason: StorageDocRefusal) =>
     send(socket, { type: "doc.refused", nodeId, ref, reason });
   if (!basin) return refuse("unavailable");
-  if (at?.nodeId !== nodeId) return refuse("editing");
-  if (Date.now() - (at.checkedAt ?? 0) > RECHECK_MS) {
-    const now = await checkEditing(env, memberId, nodeId);
-    if (editingOf(socket)?.nodeId !== nodeId) return refuse("editing");
-    if (!now) {
-      leaveFile(ctx, socket, memberId);
-      return refuse("denied");
-    }
-    setEditing(socket, now);
-    at = now;
-  }
-  if (at.locked) return refuse("locked");
+  const at = await appendingAs(ctx, env, socket, memberId, message);
+  if (typeof at === "string") return refuse(at);
   const sent = message.record;
   const record = sent.t === "update" ? { ...sent, by: `m:${memberId}` } : sent;
   let seqNum: number | null;

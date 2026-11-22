@@ -84,6 +84,9 @@ interface SaveFrom {
   text: string | undefined;
   base: number | undefined;
   doc: LiveDoc | null;
+  boundary: number | undefined;
+  session: number;
+  changes: number;
 }
 
 const foldUpTo = async (doc: LiveDoc | null, contentVersion?: number, boundary?: number) => {
@@ -154,20 +157,29 @@ export function useEditSession(
   const saveRef = useRef<() => Promise<boolean>>(async () => false);
   const running = useRef<Promise<boolean>>(Promise.resolve(true));
   const saved = useRef<{ nodeId: string; text: string; contentVersion?: number } | null>(null);
-  const pageNow = () => ({ text: read.current?.(), base: base.current });
+  const refused = useRef(false);
+  const pageNow = () =>
+    ({
+      text: read.current?.(),
+      base: base.current,
+      doc: live.current,
+      boundary: live.current?.boundary,
+      session: session.current,
+      changes: changes.current,
+    }) satisfies SaveFrom;
   const saveOnLeave = () => {
     clearTimeout(foldTimer.current);
-    const doc = live.current;
-    const { text } = pageNow();
+    const from = pageNow();
+    const { doc, text } = from;
     const before = saved.current;
-    const from = { nodeId: node.id, base: base.current };
+    const nodeId = node.id;
     const work = (async () => {
       while (inFlight.current) await running.current;
       if (doc?.outsider) return settleOutside(doc);
-      const fresh = saved.current !== before && saved.current?.nodeId === from.nodeId;
+      const fresh = saved.current !== before && saved.current?.nodeId === nodeId;
       const last = fresh ? saved.current : null;
       if (text === undefined || (last?.text === text && !doc?.needsFold)) return true;
-      running.current = saveNow({ text, base: last ? last.contentVersion : from.base, doc });
+      running.current = saveNow({ ...from, base: last ? last.contentVersion : from.base });
       return running.current;
     })();
     doc?.holdOpen(work);
@@ -186,7 +198,10 @@ export function useEditSession(
   useReportEditing(editing && !shareId ? node : undefined);
 
   const save = () => {
-    if (inFlight.current) return Promise.resolve(false);
+    if (inFlight.current) {
+      refused.current = true;
+      return Promise.resolve(false);
+    }
     running.current = live.current?.outsider ? settleOutside(live.current) : saveNow();
     return running.current;
   };
@@ -207,12 +222,11 @@ export function useEditSession(
     else storageErrorToast(error, `“${node.name}” was not saved`);
   };
 
-  const saveNow = async (from: SaveFrom = { ...pageNow(), doc: live.current }) => {
-    const { text, base: ifContentVersion, doc } = from;
-    const boundary = doc?.boundary;
+  const saveNow = async (from: SaveFrom = pageNow()) => {
+    const { text, base: ifContentVersion, doc, boundary } = from;
     if (!writable || text === undefined || inFlight.current) return false;
-    const at = changes.current;
-    const mine = session.current;
+    const at = from.changes;
+    const mine = from.session;
     inFlight.current = true;
     setSaving(true);
     let started: string | undefined;
@@ -248,6 +262,10 @@ export function useEditSession(
     } finally {
       inFlight.current = false;
       setSaving(false);
+      if (refused.current) {
+        refused.current = false;
+        latestFold.current();
+      }
     }
   };
 
