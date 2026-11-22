@@ -135,6 +135,8 @@ export class LiveDoc {
   private startAt = -1;
   private snapping = false;
   private orphanTimer: ReturnType<typeof setTimeout> | undefined;
+  private held: Promise<unknown> | null = null;
+  private leaving = false;
   private orphanTries = 0;
   private folds = new Set<number>();
   private readonly parts = new LiveParts();
@@ -353,8 +355,26 @@ export class LiveDoc {
     return [...this.pending.values()].some((item) => item.record.t === "update");
   }
 
+  /**
+   * Keeps the connection open until `work` settles, through a `close` meanwhile: the save that
+   * runs as someone leaves the page records its fold here after the page is gone.
+   */
+  holdOpen(work: Promise<unknown>) {
+    const held = Promise.allSettled([this.held, work]);
+    this.held = held;
+    void held.finally(() => {
+      if (this.held === held) this.held = null;
+    });
+  }
+
   close() {
     if (this.started) removeAwarenessStates(this.awareness, [this.doc.clientID], "close");
+    clearTimeout(this.orphanTimer);
+    this.leaving = true;
+    if (this.held) {
+      void this.held.then(() => this.close());
+      return;
+    }
     this.awareness.destroy();
     this.closed = true;
     clearTimeout(this.timer);
@@ -434,7 +454,7 @@ export class LiveDoc {
 
   private watchOrphans(retry = false) {
     clearTimeout(this.orphanTimer);
-    if (this.closed || !this.options.onOrphaned) return;
+    if (this.closed || this.leaving || !this.options.onOrphaned) return;
     this.orphanTries = retry ? this.orphanTries + 1 : 0;
     const wait = Math.min(ORPHAN_MS * 2 ** this.orphanTries, ORPHAN_RETRY_MAX_MS);
     this.orphanTimer = setTimeout(

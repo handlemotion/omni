@@ -519,6 +519,48 @@ test("picking another file while a text file has unsaved edits asks first and ke
   expect(await page.getByRole("region", { name: "a-notes.txt" }).count()).toBe(1);
 });
 
+test("leaving a doc with unsaved typing goes at once, to the last place picked, and the typing is saved", async () => {
+  const page = await signedIn(`edit-away-${Date.now()}@gmail.test`, "/files/my");
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles([
+      { name: "away.md", mimeType: "text/markdown", buffer: Buffer.from("# Away\n\nFirst line\n") },
+      { name: "zz.txt", mimeType: "text/plain", buffer: Buffer.from("next") },
+    ]);
+  await page.getByRole("row", { name: /away\.md/ }).click();
+  const editor = page.locator("[contenteditable=true]");
+  await editor.getByText("First line").click();
+  await page.keyboard.press("End");
+  await page.route(/\/api\/storage\/uploads\/[^/]+\/complete/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await route.continue();
+  });
+  await page.keyboard.type(" typed");
+
+  const path = () => new URL(page.url()).pathname;
+  const pressed = Date.now();
+  await page.getByRole("link", { name: "Recents", exact: true }).first().click();
+  await page.getByRole("link", { name: "Trash", exact: true }).first().click();
+  await expect.poll(path, { timeout: 1500 }).toMatch(/\/files\/trash$/);
+  expect(Date.now() - pressed).toBeLessThan(1500);
+  await page.waitForTimeout(4000);
+  expect(path()).toMatch(/\/files\/trash$/);
+  expect(await page.getByRole("alertdialog", { name: "Save your changes?" }).count()).toBe(0);
+
+  const [file] = await db
+    .select({ id: schema.storageNodes.id })
+    .from(schema.storageNodes)
+    .where(eq(schema.storageNodes.name, "away.md"));
+  const content = () =>
+    page.evaluate(async (at) => (await fetch(at)).text(), `/api/storage/files/${file?.id}/content`);
+  await expect.poll(content, { timeout: 15_000 }).toContain("First line typed");
+});
+
 test("closing a doc returns to the folder where it was scrolled", async () => {
   const page = await signedIn(`scroll-${Date.now()}@gmail.test`, "/files/my");
   await page

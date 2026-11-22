@@ -80,6 +80,18 @@ const savedLive = async (live: LiveDoc | null, contentVersion: number) =>
   !!live && (await live.savedAs(contentVersion));
 const FOLD_WAIT_MS = 5000;
 
+interface SaveFrom {
+  text: string | undefined;
+  base: number | undefined;
+  doc: LiveDoc | null;
+}
+
+const foldUpTo = async (doc: LiveDoc | null, contentVersion?: number, boundary?: number) => {
+  if (!doc || contentVersion === undefined || boundary === undefined) return;
+  const folded = doc.folded(contentVersion, boundary);
+  await Promise.race([folded, new Promise((resolve) => setTimeout(resolve, FOLD_WAIT_MS))]);
+};
+
 const isMarkdown = (node: StorageNode) =>
   fileType(node.name, node.mimeType).language === "markdown";
 
@@ -114,6 +126,13 @@ export function useEditSession(
   const foldTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inFlight = useRef(false);
   const autosaves = isDoc(node);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     session.current += 1;
@@ -134,12 +153,30 @@ export function useEditSession(
   const [isLive, setIsLive] = useState(false);
   const saveRef = useRef<() => Promise<boolean>>(async () => false);
   const running = useRef<Promise<boolean>>(Promise.resolve(true));
-  const leaving = useBlocker({
-    shouldBlockFn: async () => {
-      if (!dirty || !(live.current || autosaves)) return dirty;
-      clearTimeout(foldTimer.current);
+  const saved = useRef<{ nodeId: string; text: string; contentVersion?: number } | null>(null);
+  const pageNow = () => ({ text: read.current?.(), base: base.current });
+  const saveOnLeave = () => {
+    clearTimeout(foldTimer.current);
+    const doc = live.current;
+    const { text } = pageNow();
+    const before = saved.current;
+    const from = { nodeId: node.id, base: base.current };
+    const work = (async () => {
       while (inFlight.current) await running.current;
-      return !(await saveRef.current());
+      if (doc?.outsider) return settleOutside(doc);
+      const fresh = saved.current !== before && saved.current?.nodeId === from.nodeId;
+      const last = fresh ? saved.current : null;
+      if (text === undefined || (last?.text === text && !doc?.needsFold)) return true;
+      running.current = saveNow({ text, base: last ? last.contentVersion : from.base, doc });
+      return running.current;
+    })();
+    doc?.holdOpen(work);
+  };
+  const leaving = useBlocker({
+    shouldBlockFn: () => {
+      if (!dirty || !(live.current || autosaves)) return dirty;
+      saveOnLeave();
+      return false;
     },
     enableBeforeUnload: false,
     withResolver: true,
@@ -160,36 +197,44 @@ export function useEditSession(
     return taken;
   };
 
-  const saveNow = async () => {
-    const text = read.current?.();
-    const boundary = live.current?.boundary;
+  const failed = async (error: unknown, doc: LiveDoc | null, here: boolean) => {
+    const now = conflictOf(error);
+    if (now !== undefined && (await savedLive(doc, now))) {
+      if (!here) return;
+      base.current = now;
+      latestFold.current();
+    } else if (now !== undefined && here) setConflict(now);
+    else storageErrorToast(error, `“${node.name}” was not saved`);
+  };
+
+  const saveNow = async (from: SaveFrom = { ...pageNow(), doc: live.current }) => {
+    const { text, base: ifContentVersion, doc } = from;
+    const boundary = doc?.boundary;
     if (!writable || text === undefined || inFlight.current) return false;
     const at = changes.current;
     const mine = session.current;
     inFlight.current = true;
     setSaving(true);
-    let opened: string | undefined;
+    let started: string | undefined;
     try {
-      const saved = await uploadFile({
+      const put = await uploadFile({
         file: new File([text], node.name, { type: node.mimeType ?? "text/plain" }),
         place: placeOf(node),
         replaces: node.id,
-        ifContentVersion: base.current,
+        ifContentVersion,
         shareId,
         signal: new AbortController().signal,
         onOpened: (uploadId) => {
-          opened = uploadId;
+          started = uploadId;
         },
         onProgress: () => {},
         ...identityChecks(client, shareId, identity.current, new AbortController().signal),
       });
       void storageChanged(client);
+      saved.current = { nodeId: node.id, text, contentVersion: put.contentVersion };
+      await foldUpTo(doc, put.contentVersion, boundary);
       if (session.current !== mine) return false;
-      base.current = saved.contentVersion;
-      if (saved.contentVersion !== undefined && boundary !== undefined) {
-        const folded = live.current?.folded(saved.contentVersion, boundary);
-        await Promise.race([folded, new Promise((resolve) => setTimeout(resolve, FOLD_WAIT_MS))]);
-      }
+      base.current = put.contentVersion;
       if (changes.current !== at) {
         if (live.current || autosaves) latestFold.current();
         return false;
@@ -197,13 +242,8 @@ export function useEditSession(
       setDirty(false);
       return true;
     } catch (error) {
-      if (opened) void abortUpload(opened, shareId);
-      const now = session.current === mine ? conflictOf(error) : undefined;
-      if (now === undefined) storageErrorToast(error, `“${node.name}” was not saved`);
-      else if (await savedLive(live.current, now)) {
-        base.current = now;
-        latestFold.current();
-      } else setConflict(now);
+      if (started) void abortUpload(started, shareId);
+      await failed(error, doc, session.current === mine && mounted.current);
       return false;
     } finally {
       inFlight.current = false;
