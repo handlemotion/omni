@@ -1,12 +1,12 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
-import { copyTasksToCalendar } from "../src/crm.ts";
+import { copyTasksToCalendar, releaseCrmTasks } from "../src/crm.ts";
 import { forMember } from "../src/for-member.ts";
 import { releaseCalendarTasks } from "../src/calendar.ts";
 import { ensurePersonalSpace } from "../src/personal-space.ts";
 import { calendarTasks, crmTasks, members } from "../src/schema/index.ts";
 import { createPerson, setRole } from "./storage-support.ts";
-import { createMember, createOrg, createTestDatabase } from "./support.ts";
+import { createMember, createOrg, createTestDatabase, untilLockWaiters } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
@@ -176,10 +176,10 @@ test("the copy job copies what the calendar lacks, twice to the same rows, and a
     .returning();
   const [onEd, handed, anas, nobodys] = rows;
 
-  const first = await copyTasksToCalendar(db, 2);
+  const first = await copyTasksToCalendar(db, { batch: 2 });
   expect(first.copied).toBeGreaterThanOrEqual(4);
   const snapshot = await db.select().from(calendarTasks).where(eq(calendarTasks.orgId, org.id));
-  expect((await copyTasksToCalendar(db, 2)).copied).toBe(0);
+  expect((await copyTasksToCalendar(db, { batch: 2 })).copied).toBe(0);
   expect(await db.select().from(calendarTasks).where(eq(calendarTasks.orgId, org.id))).toEqual(
     snapshot,
   );
@@ -229,4 +229,116 @@ test("a task deleted in the calendar stays deleted though crm_tasks still held i
   ok(await cal.deleteTask(old!.id));
   await copyTasksToCalendar(db);
   expect(await calendarRow(old!.id)).toBeUndefined();
+});
+
+async function leave(orgId: string, memberId: string) {
+  await releaseCrmTasks(db, { orgId, memberId });
+  await releaseCalendarTasks(db, { orgId, memberId });
+  await db.delete(members).where(eq(members.id, memberId));
+}
+
+test("a removed member's private task copied from crm_tasks does not come back for someone else", async () => {
+  const { org, owner, ana } = await workspace("tasks-gone-for-good");
+  const [old] = await db
+    .insert(crmTasks)
+    .values({
+      orgId: org.id,
+      title: "Ana's errand",
+      assigneeMemberId: ana.id,
+      createdByMemberId: owner.id,
+    })
+    .returning();
+  await copyTasksToCalendar(db);
+  expect(await calendarRow(old!.id)).toMatchObject({ ownerMemberId: ana.id });
+
+  await leave(org.id, ana.id);
+  await copyTasksToCalendar(db);
+  expect(await calendarRow(old!.id)).toBeUndefined();
+  expect(titles(ok(await forMember(db, owner.id).calendar.tasks()))).toEqual([]);
+});
+
+test("a workspace's only owner keeps their tasks when a leave Better Auth will refuse runs the hooks", async () => {
+  const { org, owner } = await workspace("tasks-sole-owner");
+  const own = ok(await forMember(db, owner.id).calendar.createTask({ title: "Payroll" })).task;
+  await releaseCrmTasks(db, { orgId: org.id, memberId: owner.id });
+  await releaseCalendarTasks(db, { orgId: org.id, memberId: owner.id });
+  expect(await calendarRow(own.id)).toMatchObject({ ownerMemberId: owner.id });
+});
+
+test("the copy job reaches every row in turns when the table is longer than one run reads", async () => {
+  const { org, ana } = await workspace("tasks-copy-turns");
+  const made = await db
+    .insert(crmTasks)
+    .values(
+      Array.from({ length: 4 }, (_, i) => ({
+        orgId: org.id,
+        title: `Turn ${i}`,
+        assigneeMemberId: ana.id,
+      })),
+    )
+    .returning();
+  const [{ total } = { total: 0 }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(crmTasks);
+  for (let minute = 0; minute < total; minute++) {
+    await copyTasksToCalendar(db, { batch: 1, pages: 1, now: new Date(minute * 60_000) });
+  }
+  for (const row of made) expect(await calendarRow(row.id)).toMatchObject({ title: row.title });
+});
+
+test("a change waiting on another to the same task builds on it, not on what it read before", async () => {
+  const { ana, ben } = await workspace("tasks-race");
+  const crm = forMember(db, ana.id).crm;
+  const deal = ok(await crm.createDeal({ name: "Launch" })).deal;
+  const task = ok(await crm.createTask({ title: "Ship", record: { dealId: deal.id } })).task;
+
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const first = db.transaction(async (tx) => {
+    await tx.select().from(calendarTasks).where(eq(calendarTasks.id, task.id)).for("update");
+    await held;
+    await tx
+      .update(calendarTasks)
+      .set({ completedAt: new Date(), completedByMemberId: ben.id })
+      .where(eq(calendarTasks.id, task.id));
+  });
+  let finished = false;
+  const second = crm.updateTask(task.id, { title: "Ship it" }).finally(() => (finished = true));
+  await untilLockWaiters(db, 1, () => finished);
+  release();
+  await first;
+  ok(await second);
+  expect(await calendarRow(task.id)).toMatchObject({
+    title: "Ship it",
+    completedByMemberId: ben.id,
+  });
+});
+
+test("a freelancer puts their own private task on their project, and on no other", async () => {
+  const { org, owner } = await workspace("tasks-freelancer-link");
+  const fran = await createPerson(db, `fran-${crypto.randomUUID()}@freelance.test`);
+  const [member] = await db
+    .insert(members)
+    .values({
+      id: crypto.randomUUID(),
+      organizationId: org.id,
+      userId: fran.id,
+      role: "freelancer",
+      createdAt: new Date(),
+    })
+    .returning();
+  const crm = forMember(db, owner.id).crm;
+  const website = ok(await crm.createDeal({ name: "Website" })).deal;
+  const app = ok(await crm.createDeal({ name: "App" })).deal;
+  ok(await crm.grantProjectAccess(website.id, { email: fran.email, scope: "freelancer" }));
+
+  const own = ok(
+    await forMember(db, member!.id).calendar.createTask({ title: "Draft wireframes" }),
+  ).task;
+  const theirs = forMember(db, member!.id).crm;
+  expect((await theirs.updateTask(own.id, { record: { dealId: app.id } })).status).toBe(
+    "not_found",
+  );
+  const linked = ok(await theirs.updateTask(own.id, { record: { dealId: website.id } })).task;
+  expect(linked.dealId).toBe(website.id);
 });

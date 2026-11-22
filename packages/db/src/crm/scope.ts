@@ -46,11 +46,22 @@ export const taskOnProject = (id: string) =>
     return task.record.kind === "deal" && member.projects.includes(task.record.id);
   }) satisfies Gate;
 
-/** Changing a task: theirs to see, and moved, if at all, only onto one of their projects. */
+const ownTaskOntoProject = (id: string, patch: TaskPatch) =>
+  (async (member: Freelancer, ex: Ex) => {
+    if (!patch.record || !onProjectRecord(patch.record)(member)) return false;
+    const task = await calendarTask(ex, member.orgId, id);
+    return Boolean(task && !task.record && task.ownerMemberId === member.id);
+  }) satisfies Gate;
+
+/**
+ * Changing a task: theirs to see, and moved, if at all, only onto one of their projects; or their
+ * own private task, put on one of their projects.
+ */
 export const taskChangeOnProject = (id: string, patch: TaskPatch) =>
   (async (member: Freelancer, ex: Ex) =>
-    (await taskOnProject(id)(member, ex)) &&
-    (patch.record === undefined || onProjectRecord(patch.record)(member))) satisfies Gate;
+    ((await taskOnProject(id)(member, ex)) &&
+      (patch.record === undefined || onProjectRecord(patch.record)(member))) ||
+    (await ownTaskOntoProject(id, patch)(member, ex))) satisfies Gate;
 
 /** A freelancer's tasks: one project's, or else those assigned to them. */
 export function freelancerTasks(ex: Ex, member: Freelancer, input: ListTasksInput) {

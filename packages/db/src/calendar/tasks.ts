@@ -109,6 +109,19 @@ export async function readTask(ex: Ex, orgId: string, id: string) {
   return row ? toTask(row as Row) : null;
 }
 
+/**
+ * The task, locked until the transaction ends, so two changes to it run one after the other and
+ * the second builds on the first.
+ */
+export async function lockTask(tx: Ex, orgId: string, id: string) {
+  const [row] = await tx
+    .select(columns)
+    .from(calendarTasks)
+    .where(and(eq(calendarTasks.orgId, orgId), eq(calendarTasks.id, id)))
+    .for("update");
+  return row ? toTask(row as Row) : null;
+}
+
 /** The workspace's member, or null when they are gone. */
 export async function taskMember(ex: Ex, memberId: string) {
   const [row] = await ex
@@ -282,7 +295,7 @@ export async function changeTask(
 ) {
   const title = patch.title === undefined ? undefined : cleanTitle(patch.title);
   if (title === null) return { status: "invalid_title" } as InvalidTitle;
-  const current = await readTask(tx, orgId, id);
+  const current = await lockTask(tx, orgId, id);
   if (!current) return NOT_FOUND;
   const set = setFor(memberId, current, patch, title);
   if (Object.keys(set).length > 0) {
@@ -423,10 +436,24 @@ export async function dropTasksOn(tx: Ex, orgId: string, kind: TaskRecordKind, i
 }
 
 /**
+ * Whether the member is the workspace's only owner. Better Auth refuses to let them leave or be
+ * removed, but the member-removed hooks run before it decides, so nothing may be let go for them.
+ */
+export async function isSoleOwner(ex: Ex, orgId: string, memberId: string) {
+  const rows = await ex
+    .select({ id: members.id, role: members.role })
+    .from(members)
+    .where(eq(members.organizationId, orgId));
+  const owners = rows.filter((row) => row.role.split(",").some((role) => role.trim() === "owner"));
+  return owners.length === 1 && owners[0]!.id === memberId;
+}
+
+/**
  * A member is leaving the workspace: their private tasks go, and their linked ones stay on their
  * records, owned by nobody and assigned to nobody. Safe to run twice.
  */
 export async function releaseMemberTasks(tx: Ex, orgId: string, memberId: string) {
+  if (await isSoleOwner(tx, orgId, memberId)) return;
   const inOrg = eq(calendarTasks.orgId, orgId);
   await tx
     .delete(calendarTasks)

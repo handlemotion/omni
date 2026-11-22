@@ -3,6 +3,7 @@ import {
   deleteWorkspaceStorage,
   handOverMemberStorage,
   releaseCalendarTasks,
+  releaseCrmTasks,
   type Db,
 } from "@omni/db";
 import type Stripe from "stripe";
@@ -73,6 +74,7 @@ const crm: Module = {
   name: "crm",
   minute: crmMinute,
   daily: crmDaily,
+  memberRemoved: (db, { orgId, memberId }) => releaseCrmTasks(db, { orgId, memberId }),
 };
 
 const calendar: Module = {

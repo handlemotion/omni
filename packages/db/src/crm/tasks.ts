@@ -4,6 +4,7 @@ import {
   calendarTask,
   countLinkedTasks,
   linkedTasks,
+  lockTask,
   putTask,
   removeTask,
   type CalendarTask,
@@ -359,7 +360,7 @@ export const updateTask: (
 ) => Promise<TaskResult> = async (tx, member, id, patch) => {
   const title = patch.title === undefined ? undefined : cleanTitle(patch.title);
   if (title === null) return { status: "invalid_title" };
-  const current = await calendarTask(tx, member.orgId, id);
+  const current = await lockTask(tx, member.orgId, id);
   const owns = current?.ownerMemberId === member.id;
   if (!current || !(owns || (await reaches(tx, member, current)))) return NOT_FOUND;
   if (patch.record && !(await recordExists(tx, member.orgId, patch.record))) return NOT_FOUND;

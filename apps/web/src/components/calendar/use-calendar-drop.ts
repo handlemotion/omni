@@ -36,10 +36,11 @@ function shiftOf(event: CalendarEvent, drop: Drop, shownOn?: Date) {
 export function useCalendarDrop(move: (event: CalendarEvent, minutes: number) => void) {
   const update = useUpdateCalendarTask();
   const saving = useRef(new Map<string, { last: Promise<unknown>; to: string | null }>());
-  const save = (id: string, dueAt: string | null) => {
+  const save = (task: Todo, dueAt: string | null) => {
+    const { id } = task;
     const queue = saving.current;
     const last = (queue.get(id)?.last ?? Promise.resolve())
-      .then(() => update.mutateAsync({ id, dueAt }))
+      .then(() => update.mutateAsync({ id, dueAt, linked: !!task.record }))
       .catch((error: unknown) => crmErrorToast(error, "The to-do was not moved"));
     queue.set(id, { last, to: dueAt });
     void last.finally(() => queue.get(id)?.last === last && queue.delete(id));
@@ -57,7 +58,7 @@ export function useCalendarDrop(move: (event: CalendarEvent, minutes: number) =>
               { ...drop, minutes: drop.minutes },
               new Date(item.task.dueAt ?? Date.now()),
             ).toISOString();
-      if (dueAt !== queuedDue(item.task)) save(item.task.id, dueAt);
+      if (dueAt !== queuedDue(item.task)) save(item.task, dueAt);
       return;
     }
     if (!ownEvent(item.event)) return;

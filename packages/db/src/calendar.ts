@@ -167,8 +167,10 @@ export {
 export {
   countLinkedTasks,
   dropTasksOn,
+  isSoleOwner,
   linkedTasks,
   putTask,
+  lockTask,
   readTask as calendarTask,
   removeTask,
   taskVersions,

@@ -57,7 +57,7 @@ export function useToggleTodo() {
   const update = useUpdateCalendarTask();
   return (task: Todo, done: boolean) =>
     update.mutate(
-      { id: task.id, done },
+      { id: task.id, done, linked: !!task.record },
       { onError: (error) => crmErrorToast(error, "The to-do was not changed") },
     );
 }

@@ -1208,3 +1208,37 @@ test("a Personal space keeps its to-dos beside the calendar, with no CRM to add 
   await panel.getByText("Due").waitFor();
   expect(await panel.getByText("Add to CRM").count()).toBe(0);
 });
+
+test("a linked to-do checked off in the calendar leaves a teammate's open CRM list without a reload", async () => {
+  const { org, member, page, origin } = await invited();
+  const deal = await forMember(db, member.id).crm.createDeal({ name: "Harbor launch" });
+  if (deal.status !== "ok") throw new Error("seed");
+  const made = await forMember(db, member.id).crm.createTask({
+    title: "Book the barge",
+    record: { dealId: deal.deal.id },
+  });
+  if (made.status !== "ok") throw new Error("seed");
+
+  const email = `teammate-${Date.now()}@studio.example`;
+  await createMember(db, org.id, email);
+  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const teammate = await context.newPage();
+  await teammate.goto(new URL(`/${org.slug}/crm/tasks?assignee=anyone`, origin).toString());
+  const list = teammate.getByRole("region", { name: "No due date" });
+  await list.getByText("Book the barge").waitFor();
+
+  await openWeek(page, origin, org.slug);
+  await page
+    .getByRole("region", { name: "No date" })
+    .getByRole("checkbox", { name: "Complete Book the barge" })
+    .click({ force: true });
+  await expect.poll(() => list.getByText("Book the barge").count(), { timeout: 10_000 }).toBe(0);
+  await context.close();
+});

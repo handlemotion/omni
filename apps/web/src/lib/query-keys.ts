@@ -170,6 +170,11 @@ export const keys = {
   crm: () => crm(),
   /** Everything the calendar caches, in the current workspace. */
   calendar: () => calendar(),
+  /** The member's own and assigned tasks: every list, open or done, and one task. */
+  calendarTasks: () => [...calendar(), "tasks"] as const,
+  calendarTaskLists: () => [...calendar(), "tasks", "list"] as const,
+  calendarTaskList: (status: "open" | "done") => [...calendar(), "tasks", "list", status] as const,
+  calendarTask: (id: string) => [...calendar(), "tasks", "one", id] as const,
   /** A list by every filter, sort and search it is asked with, so each view caches apart. */
   crmCompanies: (filter: object) => [...crm(), "companies", filter] as const,
   crmPeople: (filter: object) => [...crm(), "people", filter] as const,

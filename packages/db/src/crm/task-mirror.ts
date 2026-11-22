@@ -1,6 +1,7 @@
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import {
+  isSoleOwner,
   putTask,
   taskVersions,
   type CalendarTask,
@@ -102,16 +103,38 @@ export const crmTaskMirror: TaskMirror = {
 };
 
 export const TASK_COPY_BATCH = 500;
-const TASK_COPY_PAGES = 40;
+export const TASK_COPY_PAGES = 40;
+
+async function firstIdOfRun(db: Db, batch: number, pages: number, now: Date) {
+  const [{ total } = { total: 0 }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(crmTasks);
+  const pagesInAll = Math.ceil(total / batch);
+  if (pagesInAll <= pages) return "";
+  const runs = Math.ceil(pagesInAll / pages);
+  const run = Math.floor(now.getTime() / 60_000) % runs;
+  if (run === 0) return "";
+  const [before] = await db
+    .select({ id: crmTasks.id })
+    .from(crmTasks)
+    .orderBy(asc(crmTasks.id))
+    .offset(run * pages * batch - 1)
+    .limit(1);
+  return before?.id ?? "";
+}
 
 /**
  * Copies the `crm_tasks` rows the calendar lacks or holds older, a page at a time in id order.
- * Idempotent: a second pass copies nothing. Returns how many it copied.
+ * Each run reads at most `pages` pages; a table longer than that is read in turns, one stretch a
+ * minute, so every row is reached. Idempotent: a second pass copies nothing.
  */
-export async function copyTasksToCalendar(db: Db, batch = TASK_COPY_BATCH) {
+export async function copyTasksToCalendar(
+  db: Db,
+  { batch = TASK_COPY_BATCH, pages = TASK_COPY_PAGES, now = new Date() } = {},
+) {
   let copied = 0;
-  let after = "";
-  for (let page = 0; page < TASK_COPY_PAGES; page++) {
+  let after = await firstIdOfRun(db, batch, pages, now);
+  for (let page = 0; page < pages; page++) {
     const rows = await db
       .select()
       .from(crmTasks)
@@ -144,4 +167,26 @@ export async function copyTasksToCalendar(db: Db, batch = TASK_COPY_BATCH) {
     if (rows.length < batch) break;
   }
   return { copied };
+}
+
+/**
+ * A member is leaving: the `crm_tasks` rows that became their private tasks go too, so the copy
+ * job does not bring back, for someone else, what left with them. Safe to run twice.
+ */
+export async function releaseCrmTasks(db: Db, input: { orgId: string; memberId: string }) {
+  if (await isSoleOwner(db, input.orgId, input.memberId)) return;
+  await db
+    .delete(crmTasks)
+    .where(
+      and(
+        eq(crmTasks.orgId, input.orgId),
+        isNull(crmTasks.companyId),
+        isNull(crmTasks.personId),
+        isNull(crmTasks.dealId),
+        or(
+          eq(crmTasks.assigneeMemberId, input.memberId),
+          and(isNull(crmTasks.assigneeMemberId), eq(crmTasks.createdByMemberId, input.memberId)),
+        ),
+      ),
+    );
 }

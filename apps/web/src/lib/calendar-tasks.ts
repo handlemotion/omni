@@ -21,16 +21,16 @@ export type CalendarTask = CalendarTaskPage["tasks"][number];
 export type NewCalendarTask = Json<InferRequestType<Tasks["$post"]>>;
 export type CalendarTaskChange = Json<InferRequestType<Tasks[":id"]["$patch"]>>;
 /** What the calendar draws of a to-do, whichever list it came from. */
-export type Todo = Pick<CalendarTask, "id" | "title" | "dueAt" | "completedAt">;
+export type Todo = Pick<CalendarTask, "id" | "title" | "dueAt" | "completedAt" | "record">;
 
 type Status = "open" | "done";
 
 /** Query keys for the member's own tasks, under the calendar's. */
 export const calendarTaskKeys = {
-  all: () => [...keys.calendar(), "tasks"] as const,
-  lists: () => [...keys.calendar(), "tasks", "list"] as const,
-  list: (status: Status) => [...keys.calendar(), "tasks", "list", status] as const,
-  one: (id: string) => [...keys.calendar(), "tasks", "one", id] as const,
+  all: keys.calendarTasks,
+  lists: keys.calendarTaskLists,
+  list: keys.calendarTaskList,
+  one: keys.calendarTask,
 };
 
 const fetchTasks = (status: Status, cursor: string | null, signal?: AbortSignal) =>
@@ -178,6 +178,7 @@ export const createCalendarTaskMutation = (client: QueryClient, self: string) =>
     onError: (error, { pendingId }) => {
       pendingFailed(pendingId, error);
       dropTask(client, pendingId);
+      client.removeQueries({ queryKey: calendarTaskKeys.one(pendingId) });
     },
     ...settle(client),
   });
@@ -189,9 +190,16 @@ export const createCalendarTaskMutation = (client: QueryClient, self: string) =>
 export const updateCalendarTaskMutation = (client: QueryClient, self: string) =>
   mutationOptions({
     meta: { handlesError: true },
-    mutationFn: async ({ id, ...json }: CalendarTaskChange & { id: string }) =>
-      call(api.calendar.tasks[":id"].$patch({ param: { id: await settledId(id) }, json })),
-    onMutate: async ({ id, done, ...change }) => {
+    mutationFn: async ({
+      id,
+      linked,
+      ...json
+    }: CalendarTaskChange & { id: string; linked?: boolean }) => {
+      const param = { id: await settledId(id) };
+      if (linked) await call(api.crm.tasks[":id"].$patch({ param, json }));
+      else await call(api.calendar.tasks[":id"].$patch({ param, json }));
+    },
+    onMutate: async ({ id, done, linked: _linked, ...change }) => {
       const snapshot = await hold(client);
       const defined = Object.fromEntries(
         Object.entries(change).filter(([, value]) => value !== undefined),
