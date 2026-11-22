@@ -1,4 +1,5 @@
 import { IconLink, IconPencil, IconTrash, IconVideo, IconX } from "@/components/icons/central";
+import { EventRecording } from "@/components/meetings/event-recording";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { appToast } from "@/components/ui/toast";
@@ -115,6 +116,7 @@ export function EventPanel(props: {
             Join
           </Button>
         )}
+        <EventRecording event={event} />
         <People event={event} />
         {event.description && (
           <p className="text-sm whitespace-pre-wrap break-words text-muted-foreground">

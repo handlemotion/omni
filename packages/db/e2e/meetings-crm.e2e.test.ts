@@ -113,6 +113,7 @@ test("a meeting's record is changed only by its editors, and the deal's tab show
   });
 
   const pipeline = meetingsPipeline(db);
+  await pipeline.advance(meetingId, ["recording"], "writing");
   await pipeline.saveNotes(meetingId, s.org.id, {
     title: null,
     summary: "Agreed the scope.",

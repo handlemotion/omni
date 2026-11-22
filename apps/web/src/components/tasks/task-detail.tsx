@@ -27,6 +27,7 @@ import { DayValue, FieldRow, LinkValue, PlainValue } from "@/components/crm/reco
 import { DAY } from "@/components/crm/record-list.tsx";
 import { AssigneePicker, RecordPicker, useMemberNames } from "@/components/crm/task-dialog.tsx";
 import { CHECK_CELL, Subtasks } from "@/components/crm/task-subtasks.tsx";
+import { TaskMeeting } from "@/components/meetings/event-recording.tsx";
 
 const TITLE_MAX = 500;
 const BODY_MAX = 20_000;
@@ -291,6 +292,7 @@ export function TaskDetails(props: {
           </div>
         </FieldRow>
       )}
+      <TaskMeeting taskId={task.id} />
       <PlainValue label="Created by">{nameOf(task.createdByMemberId)}</PlainValue>
       <PlainValue label="Created">{DAY.format(new Date(task.createdAt))}</PlainValue>
     </>

@@ -542,7 +542,8 @@ and the CRM's `uses` gains `meetings`.
 | Meetings → Storage   | The audio, the raw file and the AI's notes in the doc                  | Storage's door, as Talk and the calendar do                                  |
 | CRM → Meetings       | A deal's Meetings tab; meetings in a person's and a company's timeline | The CRM checks the record and the project, then reads `meetingsOn(record)`   |
 | Meetings → Mail      | Send the follow-up                                                     | Nothing on the server: the web opens the composer with the draft             |
-| The calendar's panel | "Recorded" and a link on a past event                                  | The web asks `GET /api/meetings?event=`; the calendar does not read Meetings |
+| The calendar's panel | A recorded event's summary, **Recording** (its page) and **Notes** (its doc), one row per part | The web asks `GET /api/meetings?event=<uid>&recurrence=`; the calendar does not read Meetings |
+| A task's panel       | **Meeting**: the meeting an accepted task came from, as a link         | The web asks `GET /api/meetings/tasks/:taskId`; the calendar does not read Meetings |
 
 ## Agents
 

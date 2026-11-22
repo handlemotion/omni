@@ -34,6 +34,9 @@ export const meetingKeys = {
   list: (group: string) => [...meetingKeys.all(), "list", group] as const,
   meeting: (id: string) => [...meetingKeys.all(), "meeting", id] as const,
   transcript: (id: string) => [...meetingKeys.all(), "transcript", id] as const,
+  event: (uid: string, recurrenceId: string | null) =>
+    [...meetingKeys.all(), "event", uid, recurrenceId] as const,
+  task: (taskId: string) => [...meetingKeys.all(), "task", taskId] as const,
   writes: () => [...meetingKeys.all(), "write"] as const,
 };
 
@@ -112,6 +115,42 @@ export const meetingTranscriptQuery = (id: string) =>
     queryFn: ({ signal }) =>
       call(api.meetings[":id"].transcript.$get({ param: { id } }, { init: { signal } })),
     select: (body) => body.segments,
+  });
+
+/** One calendar meeting's recordings the member can open, its parts in order. */
+export const eventMeetingsQuery = (event: { uid: string; recurrenceId: string | null }) =>
+  queryOptions({
+    queryKey: meetingKeys.event(event.uid, event.recurrenceId),
+    queryFn: ({ signal }) =>
+      call(
+        api.meetings.$get(
+          {
+            query: {
+              event: event.uid,
+              ...(event.recurrenceId ? { recurrence: event.recurrenceId } : {}),
+            },
+          },
+          { init: { signal } },
+        ),
+      ),
+    select: (body) => body.meetings.toSorted((a, b) => a.part - b.part),
+  });
+
+/** The meeting a calendar task was accepted from; null when there is none the member can open. */
+export const taskMeetingQuery = (taskId: string) =>
+  queryOptions({
+    queryKey: meetingKeys.task(taskId),
+    queryFn: async ({ signal }) => {
+      try {
+        return await call(
+          api.meetings.tasks[":taskId"].$get({ param: { taskId } }, { init: { signal } }),
+        );
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    staleTime: 5 * 60_000,
   });
 
 /** Where the meeting's recording plays from; the Worker checks the meeting's grants. */

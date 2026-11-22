@@ -481,7 +481,9 @@ other people's invitations; the server's instructions keep telling agents to tre
 Specified in `docs/spec/meetings.md`, its own module: the desktop app records the call with no
 bot, AssemblyAI transcribes it with speakers named from the event's attendees, and the notes are
 written into this meeting's notes doc. The calendar's panel offers Record and shows a recorded
-meeting; Meetings reads the event, its attendees and its notes doc through the calendar's
+meeting: its summary, **Recording** (the meeting's page) and **Notes** (its doc), one row per
+part, found by the event's `UID` and instance so it holds through moves and re-syncs; a task
+accepted from a meeting shows **Meeting**, a link back to it. The web asks Meetings for both; Meetings reads the event, its attendees and its notes doc through the calendar's
 surface, and makes tasks through it. The calendar reads nothing of Meetings.
 
 The door gives Meetings two reads, both as the person sees their calendars:

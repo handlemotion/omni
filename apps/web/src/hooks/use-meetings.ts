@@ -8,6 +8,8 @@ import {
   changeMeetingMutation,
   decideActionMutation,
   deleteMeetingMutation,
+  eventMeetingsQuery,
+  taskMeetingQuery,
   grantMeetingMutation,
   meetingGroupQuery,
   meetingGroupsQuery,
@@ -26,6 +28,12 @@ export const useMeetingGroup = (key: string) => useQuery(meetingGroupQuery(key))
 export const useMeetingList = (group: string) => useInfiniteQuery(meetingListQuery(group));
 export const useMeeting = (id: string) => useQuery(meetingQuery(id));
 export const useMeetingTranscript = (id: string) => useQuery(meetingTranscriptQuery(id));
+export const useEventMeetings = (
+  event: { uid: string; recurrenceId: string | null },
+  enabled = true,
+) => useQuery({ ...eventMeetingsQuery(event), enabled });
+export const useTaskMeeting = (taskId: string, enabled = true) =>
+  useQuery({ ...taskMeetingQuery(taskId), enabled });
 
 /** Every write on a meeting, each refreshing what it changed when it settles. */
 export function useMeetingWrites() {
