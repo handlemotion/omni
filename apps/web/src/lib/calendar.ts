@@ -21,6 +21,8 @@ export const calendarKeys = {
   window: (from: string, to: string) => [...calendarKeys.all(), "events", from, to] as const,
   event: (id: string) => [...calendarKeys.all(), "event", id] as const,
   invites: (threadId: string) => [...calendarKeys.all(), "invites", threadId] as const,
+  /** Every write's mutation: while one is in flight, a refetch could show what it replaces. */
+  writes: () => [...calendarKeys.all(), "write"] as const,
 };
 
 export const calendarsQuery = () =>
@@ -78,6 +80,7 @@ export const calendarChanged = (client: QueryClient) =>
 
 export const answerMutation = (client: QueryClient) =>
   mutationOptions({
+    mutationKey: calendarKeys.writes(),
     mutationFn: (input: { id: string; response: CalendarAnswer }) =>
       call(
         api.calendar.events[":id"].answer.$post({
@@ -90,6 +93,7 @@ export const answerMutation = (client: QueryClient) =>
 
 export const createEventMutation = (client: QueryClient) =>
   mutationOptions({
+    mutationKey: calendarKeys.writes(),
     mutationFn: (json: NewCalendarEvent) => call(api.calendar.events.$post({ json })),
     onSettled: () => calendarChanged(client),
   });
@@ -144,6 +148,7 @@ export function placeEvent(client: QueryClient, id: string, start: string, end: 
 
 export const updateEventMutation = (client: QueryClient) =>
   mutationOptions({
+    mutationKey: calendarKeys.writes(),
     mutationFn: (input: { id: string; change: CalendarEventChange }) =>
       call(api.calendar.events[":id"].$patch({ param: { id: input.id }, json: input.change })),
     onSettled: () => calendarChanged(client),
@@ -151,12 +156,14 @@ export const updateEventMutation = (client: QueryClient) =>
 
 export const deleteEventMutation = (client: QueryClient) =>
   mutationOptions({
+    mutationKey: calendarKeys.writes(),
     mutationFn: (id: string) => call(api.calendar.events[":id"].$delete({ param: { id } })),
     onSettled: () => calendarChanged(client),
   });
 
 export const calendarPrefsMutation = (client: QueryClient) =>
   mutationOptions({
+    mutationKey: calendarKeys.writes(),
     mutationFn: (input: { id: string; hidden?: boolean; color?: string | null }) =>
       call(
         api.calendar.calendars[":id"].$patch({

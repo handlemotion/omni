@@ -59,3 +59,14 @@ export function announceTo(
     );
   }
 }
+
+/** Tells the workspace's open apps, after the response, that its teamspaces changed. */
+export function announceTeamspaces(c: Context<AppEnv>) {
+  const { orgId } = c.var.member;
+  const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
+  c.executionCtx.waitUntil(
+    stub
+      .teamspacesChanged()
+      .catch((error: unknown) => c.var.log.warn("storage.announce_failed", { error })),
+  );
+}

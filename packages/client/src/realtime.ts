@@ -1,4 +1,5 @@
 import type {
+  CalendarChangedEvent,
   CrmChangedEvent,
   CrmChangedKind,
   HelpdeskRealtimeEvent,
@@ -7,6 +8,7 @@ import type {
   StorageDocEvent,
   StorageFilePresenceEvent,
   StorageLiveRecord,
+  StorageTeamspacesChangedEvent,
   TalkEvent,
   TalkFile,
   TalkMessage,
@@ -40,6 +42,7 @@ export type RealtimeEvent =
   | StorageFilePresenceEvent
   | StorageDocEvent
   | StorageChangedEvent
+  | StorageTeamspacesChangedEvent
   | TalkEvent;
 export type RealtimeStatus = "connecting" | "open" | "closed";
 
@@ -313,6 +316,7 @@ const parseEvent: (data: string) => RealtimeEvent | undefined = (data) => {
   const record = value as Record<string, unknown>;
   return (
     parseCrmEvent(record) ??
+    parseCalendarEvent(record) ??
     parseTalkEvent(record) ??
     parseHelpdeskEvent(record) ??
     parseStorageEvent(record)
@@ -427,6 +431,17 @@ const parseCrmEvent: (event: Record<string, unknown>) => CrmChangedEvent | undef
   return { type: "crm.changed", kind: kind as CrmChangedKind, ids };
 };
 
+const parseCalendarEvent: (event: Record<string, unknown>) => CalendarChangedEvent | undefined = (
+  event,
+) => {
+  if (event.type !== "calendar.changed") return undefined;
+  const { calendarIds } = event;
+  if (!Array.isArray(calendarIds) || calendarIds.length === 0 || !calendarIds.every(isId)) {
+    return undefined;
+  }
+  return { type: "calendar.changed", calendarIds };
+};
+
 const isSeqNum = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;
 const DOC_REFUSALS = new Set([
@@ -460,17 +475,35 @@ const parseLiveRecord: (value: unknown) => StorageLiveRecord | undefined = (valu
   return undefined;
 };
 
+const parseDriveChanged: (event: Record<string, unknown>) => StorageChangedEvent | undefined = (
+  event,
+) => {
+  const { space, teamspaceId, parentIds } = event;
+  const drive: Pick<StorageChangedEvent, "space" | "teamspaceId"> | undefined =
+    space === "teamspace"
+      ? isId(teamspaceId)
+        ? { space: "teamspace", teamspaceId }
+        : undefined
+      : space === "personal" || space === "shared"
+        ? { space }
+        : undefined;
+  if (!drive) return undefined;
+  if (!Array.isArray(parentIds)) return { type: "storage.changed", ...drive };
+  const named = parentIds.filter((p): p is string | null => p === null || isId(p));
+  return { type: "storage.changed", ...drive, parentIds: named };
+};
+
 const parseStorageEvent: (
   event: Record<string, unknown>,
-) => StorageFilePresenceEvent | StorageDocEvent | StorageChangedEvent | undefined = (event) => {
+) =>
+  | StorageFilePresenceEvent
+  | StorageDocEvent
+  | StorageChangedEvent
+  | StorageTeamspacesChangedEvent
+  | undefined = (event) => {
   const { nodeId, ref, seqNum } = event;
-  if (event.type === "storage.changed") {
-    const { space, parentIds } = event;
-    if (space !== "personal" && space !== "shared") return undefined;
-    if (!Array.isArray(parentIds)) return { type: "storage.changed", space };
-    const named = parentIds.filter((p): p is string | null => p === null || isId(p));
-    return { type: "storage.changed", space, parentIds: named };
-  }
+  if (event.type === "storage.changed") return parseDriveChanged(event);
+  if (event.type === "storage.teamspaces") return { type: "storage.teamspaces" };
   if (!isId(nodeId)) return undefined;
   switch (event.type) {
     case "file.presence": {

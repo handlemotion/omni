@@ -244,6 +244,28 @@ test("a day picked in the month shows its week", async () => {
   await page.getByRole("heading", { name: /W45/ }).waitFor();
 });
 
+test("an event made elsewhere shows on the open week without a reload", async () => {
+  const { org, page, origin } = await invited();
+  const [calendar] = await db
+    .select({ id: schema.calendarCalendars.id })
+    .from(schema.calendarCalendars)
+    .where(eq(schema.calendarCalendars.orgId, org.id));
+  await openWeek(page, origin, org.slug);
+  const made = await page.request.post(new URL("/api/calendar/events", origin).toString(), {
+    data: {
+      calendarId: calendar?.id,
+      title: "Live standup",
+      start: "2026-11-24T09:00:00.000Z",
+      end: "2026-11-24T09:30:00.000Z",
+      allDay: false,
+      timeZone: "Europe/Madrid",
+      guests: [],
+    },
+  });
+  expect(made.status()).toBe(201);
+  await page.getByRole("button", { name: /Live standup/ }).waitFor({ timeout: 10_000 });
+});
+
 test("editing an overnight event keeps its end on the next day", async () => {
   const { org, page, origin } = await invited();
   const [calendar] = await db

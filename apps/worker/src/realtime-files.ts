@@ -1,4 +1,8 @@
-import type { StorageFilePresenceEvent, StorageNodeSpace } from "@omni/contracts";
+import type {
+  StorageFilePresenceEvent,
+  StorageNodeSpace,
+  StorageTeamspacesChangedEvent,
+} from "@omni/contracts";
 import { forMember, teamspaceFileAudience } from "@omni/db";
 import { z } from "zod";
 import { openDb } from "./db.ts";
@@ -103,6 +107,20 @@ export function audience(ctx: DurableObjectState, at: Editing) {
     if (!tag || tag.startsWith("sync:") || tag.startsWith("watch:")) return false;
     return !only || only.has(tag);
   });
+}
+
+/** Tells every app socket in the workspace, not sync, watch or outsider ones, `storage.teamspaces`. */
+export function sendTeamspacesChanged(ctx: DurableObjectState) {
+  const message = JSON.stringify({
+    type: "storage.teamspaces",
+  } satisfies StorageTeamspacesChangedEvent);
+  for (const socket of insiders(ctx)) {
+    const tag = ctx.getTags(socket)[0];
+    if (!tag || tag.startsWith("sync:") || tag.startsWith("watch:")) continue;
+    try {
+      socket.send(message);
+    } catch {}
+  }
 }
 
 function sendAll(sockets: WebSocket[], message: string) {

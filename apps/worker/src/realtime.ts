@@ -44,6 +44,7 @@ import {
   driveAudience,
   filePresenceMessage,
   insiders,
+  sendTeamspacesChanged,
   leaveFile,
   onFilePresence,
   setConversation,
@@ -242,6 +243,11 @@ export class Realtime extends DurableObject<Env> {
       } catch {}
     }
     if (allOutsiders(this.ctx).length > 0) await recheckOutsiders(this.ctx, this.env, "all");
+  }
+
+  /** Tells every app open in the workspace that its teamspaces changed (`storage.teamspaces`). */
+  async teamspacesChanged() {
+    sendTeamspacesChanged(this.ctx);
   }
 
   /**

@@ -11,6 +11,7 @@ import type { StorageTeamspace } from "@omni/db";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
+import { announceTeamspaces } from "./announce.ts";
 import { deleteStorageObjects } from "./core.ts";
 import { memberStorage, refused } from "./http.ts";
 
@@ -29,6 +30,7 @@ export const storageTeamspaces = new Hono<AppEnv>()
   .post("/teamspaces", zValidator("json", storageCreateTeamspaceBodySchema), async (c) => {
     const made = await memberStorage(c).createTeamspace(c.req.valid("json"));
     if (made.status !== "ok") return refused(c, made.status);
+    announceTeamspaces(c);
     return c.json(
       { teamspace: wireTeamspace(made.teamspace) } satisfies StorageTeamspaceResponse,
       201,
@@ -44,6 +46,7 @@ export const storageTeamspaces = new Hono<AppEnv>()
   .patch("/teamspaces/:id", zValidator("json", storageUpdateTeamspaceBodySchema), async (c) => {
     const changed = await memberStorage(c).updateTeamspace(c.req.param("id"), c.req.valid("json"));
     if (changed.status !== "ok") return refused(c, changed.status);
+    announceTeamspaces(c);
     return c.json({
       teamspace: wireTeamspace(changed.teamspace),
     } satisfies StorageTeamspaceResponse);
@@ -52,6 +55,7 @@ export const storageTeamspaces = new Hono<AppEnv>()
   .delete("/teamspaces/:id", async (c) => {
     const deleted = await memberStorage(c).deleteTeamspace(c.req.param("id"));
     if (deleted.status !== "ok") return refused(c, deleted.status);
+    announceTeamspaces(c);
     await deleteStorageObjects(c.env.STORAGE_BUCKET, deleted.r2Keys, c.var.log);
     return c.body(null, 204);
   })
@@ -65,6 +69,7 @@ export const storageTeamspaces = new Hono<AppEnv>()
   .post("/teamspaces/:id/join", async (c) => {
     const joined = await memberStorage(c).joinTeamspace(c.req.param("id"));
     if (joined.status !== "ok") return refused(c, joined.status);
+    announceTeamspaces(c);
     return c.json({ members: joined.members } satisfies StorageTeamspaceMembersResponse);
   })
 
@@ -78,6 +83,7 @@ export const storageTeamspaces = new Hono<AppEnv>()
         c.req.valid("json").role,
       );
       if (put.status !== "ok") return refused(c, put.status);
+      announceTeamspaces(c);
       return c.json({ members: put.members } satisfies StorageTeamspaceMembersResponse);
     },
   )
@@ -88,5 +94,6 @@ export const storageTeamspaces = new Hono<AppEnv>()
       c.req.param("memberId"),
     );
     if (removed.status !== "ok") return refused(c, removed.status);
+    announceTeamspaces(c);
     return c.json({ members: removed.members } satisfies StorageTeamspaceMembersResponse);
   });

@@ -50,7 +50,8 @@ const shifted = (slot: Slot, start: number, end: number) =>
 export function useCalendarKeys(keys: Keys) {
   const { answer, remove } = useCalendarWrites();
   const client = useQueryClient();
-  const save = useMutation({ mutationFn: updateEventMutation(client).mutationFn });
+  const { mutationKey, mutationFn } = updateEventMutation(client);
+  const save = useMutation({ mutationKey, mutationFn });
   const moving = useRef(new Map<string, Moving>());
   const move = (event: CalendarEvent, start: number, end = start) => {
     const queued = moving.current.get(event.id);

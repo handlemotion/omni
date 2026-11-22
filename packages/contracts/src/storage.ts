@@ -638,6 +638,14 @@ export const storageChangedEventSchema = z.object({
 });
 
 /**
+ * On the workspace's realtime socket for the web app: a teamspace was made, renamed, opened or
+ * closed, given an icon or deleted, or someone joined or left one. Read `GET /teamspaces` again.
+ */
+export const storageTeamspacesChangedEventSchema = z.object({
+  type: z.literal("storage.teamspaces"),
+});
+
+/**
  * Where Drive sync stands for one workspace on this computer, as Settings → Drive shows it: `off`
  * (the default, since it puts a folder in Finder), `synced`, `syncing`, `paused` from the tray,
  * or `needs_attention` (sign in again, storage full).
@@ -770,6 +778,7 @@ export const storageZipQuerySchema = z.object({
 export type StorageSpace = z.infer<typeof storageSpaceSchema>;
 export type StorageNodeSpace = z.infer<typeof storageNodeSpaceSchema>;
 export type StorageChangedEvent = z.infer<typeof storageChangedEventSchema>;
+export type StorageTeamspacesChangedEvent = z.infer<typeof storageTeamspacesChangedEventSchema>;
 export type StorageFilePresenceEvent = z.infer<typeof storageFilePresenceEventSchema>;
 export type StorageNodeKind = z.infer<typeof storageNodeKindSchema>;
 export type StorageRole = z.infer<typeof storageRoleSchema>;
