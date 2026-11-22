@@ -1,3 +1,5 @@
+import { canvasText, sceneFromJson } from "@omni/canvas";
+import { CANVAS_TYPE } from "@omni/canvas/file";
 import { unzipSync, type UnzipFileInfo } from "fflate";
 import { extractText } from "unpdf";
 
@@ -7,7 +9,7 @@ const PLAIN_MAX_BYTES = 10 * 1024 * 1024;
 const PARSED_MAX_BYTES = 25 * 1024 * 1024;
 const ZIP_ENTRY_MAX_BYTES = 64 * 1024 * 1024;
 
-export type Reader = "plain" | "html" | "pdf" | "docx" | "pptx" | "xlsx";
+export type Reader = "plain" | "html" | "pdf" | "docx" | "pptx" | "xlsx" | "canvas";
 
 const PLAIN_EXTENSIONS = new Set([
   "txt",
@@ -79,18 +81,21 @@ export const readerFor: (name: string, mimeType: string | null) => Reader | null
   name,
   mimeType,
 ) => {
+  const type = mimeType?.split(";")[0]!.trim().toLowerCase() ?? "";
+  if (type === CANVAS_TYPE) return "canvas";
   const dot = name.lastIndexOf(".");
   const extension = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
   if (BY_EXTENSION[extension]) return BY_EXTENSION[extension];
   if (PLAIN_EXTENSIONS.has(extension)) return "plain";
-  const type = mimeType?.split(";")[0]!.trim().toLowerCase() ?? "";
   if (BY_MIME[type]) return BY_MIME[type];
   return type.startsWith("text/") ? "plain" : null;
 };
 
 /** The largest file `reader` reads. */
 export const maxBytesFor = (reader: Reader) =>
-  reader === "plain" || reader === "html" ? PLAIN_MAX_BYTES : PARSED_MAX_BYTES;
+  reader === "plain" || reader === "html" || reader === "canvas"
+    ? PLAIN_MAX_BYTES
+    : PARSED_MAX_BYTES;
 
 const ENTITIES: Record<string, string> = {
   amp: "&",
@@ -293,6 +298,12 @@ export const finish = (text: string) => {
   return { text: truncated ? tidied.slice(0, TEXT_MAX_CHARS) : tidied, truncated };
 };
 
+function canvasWords(bytes: Uint8Array) {
+  const read = sceneFromJson(new TextDecoder().decode(bytes));
+  if (!read.ok) throw new Error(read.error);
+  return canvasText(read.scene);
+}
+
 /**
  * The file's text, tidied and cut at `TEXT_MAX_CHARS`, and a PDF's page count. Throws when the
  * file is not what it says.
@@ -302,6 +313,7 @@ export async function extract(reader: Reader, bytes: Uint8Array) {
     const { text, pages } = await pdf(bytes);
     return { ...finish(text), pages };
   }
+  if (reader === "canvas") return { ...finish(canvasWords(bytes)), pages: null };
   const raw =
     reader === "docx"
       ? docx(bytes)

@@ -19,6 +19,7 @@
     "@modelcontextprotocol/server": "2.4.0",
     "@omni/ai": "workspace:*",
     "@omni/auth": "workspace:*",
+    "@omni/canvas": "workspace:*",
     "@omni/contracts": "workspace:*",
     "@omni/crypto": "workspace:*",
     "@omni/db": "workspace:*",

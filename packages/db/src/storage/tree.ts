@@ -175,22 +175,23 @@ export async function resolvePlace(ex: Db, door: Door, place: StoragePlace) {
   };
 }
 
-const isOmniDocOrMarkdown = (node: { name: string; mimeType: string | null }) =>
-  node.mimeType?.split(";")[0]?.trim().toLowerCase() === "text/vnd.omni.doc" ||
+const PAGE_TYPES = new Set(["text/vnd.omni.doc", "text/vnd.omni.canvas"]);
+const holdsImages = (node: { name: string; mimeType: string | null }) =>
+  PAGE_TYPES.has(node.mimeType?.split(";")[0]?.trim().toLowerCase() ?? "") ||
   /\.(md|markdown)$/i.test(node.name);
 const isImageName = (name: string) => /\.(png|jpe?g|gif|webp)$/i.test(name);
 
 /**
  * Where an upload named `name` goes: `place`, as for anything else, or, for an image whose place
- * is a doc, into that doc. Such an image belongs to the doc (`attached`): whoever may edit the doc
- * may add one, and whoever reaches the doc reaches its images.
+ * is a doc or a canvas, into it. Such an image belongs to it (`attached`): whoever may edit the
+ * doc or canvas may add one, and whoever reaches it reaches its images.
  */
 export async function resolveUploadPlace(ex: Db, door: Door, place: StoragePlace, name: string) {
   if (!("parentId" in place)) return resolvePlace(ex, door, place);
   const found = await reach(ex, door, place.parentId);
   if (!found || inTrash(found.chain)) return null;
   if (found.node.kind === "folder") return placeIn(found, found.access.inside, false);
-  if (found.node.attached || !isOmniDocOrMarkdown(found.node) || !isImageName(name)) return null;
+  if (found.node.attached || !holdsImages(found.node) || !isImageName(name)) return null;
   return placeIn(found, editsContent(found.access) && !found.node.lockedAt, true);
 }
 

@@ -483,7 +483,7 @@ K3 and K4 are independent of each other. K4 waits for Figma; K1 to K3 do not.
     the tile as `no access`, and neither the outline nor the search text holds the file's name.
   - An image pasted into the canvas is attached to it and opens for whoever opens the canvas.
   - A link viewer reads the canvas and cannot write it, and its file tiles do not open the files.
-  - The thumbnail is `image/svg+xml` with `default-src 'none'`, and a sticky reading
+  - With K4: the thumbnail is `image/svg+xml` with `default-src 'none'`, and a sticky reading
     `<script>alert(1)</script>` comes out escaped.
 - On the stack (`pnpm stack:serve`, two browsers as two members): stickies, shapes and connectors
   made in one appear in the other as they are made. A drag shows live and lands as one record.

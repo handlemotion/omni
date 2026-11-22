@@ -706,6 +706,9 @@ importers:
       '@omni/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@omni/canvas':
+        specifier: workspace:*
+        version: link:../../packages/canvas
       '@omni/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

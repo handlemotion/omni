@@ -47,15 +47,19 @@ import {
   type SharedAccess,
 } from "./http.ts";
 import { thumbnail } from "./thumbnails.ts";
+import { isOmniCanvas } from "@omni/canvas/file";
 import { isDocFile } from "@omni/docs/file";
 
 const IMAGE_NAME = /\.(png|jpe?g|gif|webp)$/i;
 
+const opensAsPage = (file: StorageNode) =>
+  isDocFile(file.name, file.mimeType) || isOmniCanvas(file.mimeType);
+
 async function readsOnPage(shared: Pick<SharedStorage, "file">, file: StorageNode) {
-  if (isDocFile(file.name, file.mimeType)) return true;
+  if (opensAsPage(file)) return true;
   if (!IMAGE_NAME.test(file.name) || !file.parentId) return false;
   const parent = await shared.file(file.parentId);
-  return parent.status === "ok" && isDocFile(parent.file.name, parent.file.mimeType);
+  return parent.status === "ok" && opensAsPage(parent.file);
 }
 import { zip } from "./zip.ts";
 import { liveOnPage, storageSharedLive } from "./shared-live.ts";
@@ -387,7 +391,7 @@ export const storageShared = new Hono<AppEnv>()
     const shared = c.var.shared!;
     const found = await shared.file(c.req.param("id"));
     if (found.status === "ok" && !shared.downloads && !(await readsOnPage(shared, found.file))) {
-      return apiError(c, "forbidden", "only a doc and its images read here");
+      return apiError(c, "forbidden", "only a doc or canvas and its images read here");
     }
     return download(c, found);
   })
