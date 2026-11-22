@@ -346,6 +346,32 @@ describe("forMember isolation", () => {
     expect(await forMember(db, "no-such-member").storage.peak(month)).toBeNull();
   });
 
+  test("talk: a pair's thread reaches those two alone, not an admin and not another org", async () => {
+    const org = await createOrg(db, "iso-talk");
+    const other = await createOrg(db, "iso-talk-other");
+    const [ana, ben, admin] = await Promise.all(
+      ["ana", "ben", "admin"].map((name) => createMember(db, org.id, name)),
+    );
+    const outsider = await createMember(db, other.id, "outsider");
+    await db.update(members).set({ role: "admin" }).where(eq(members.id, admin!.id));
+    const opened = await forMember(db, ana!.id).talk.openThread(ben!.id);
+    if (opened.status !== "ok") throw new Error(opened.status);
+    const threadId = opened.thread.id;
+    const sent = await forMember(db, ana!.id).talk.sendNote(threadId, "between us");
+    if (sent.status !== "ok") throw new Error(sent.status);
+
+    for (const id of [admin!.id, outsider.id, "no-such-member"]) {
+      const talk = forMember(db, id).talk;
+      expect((await talk.thread(threadId)).status).not.toBe("ok");
+      expect((await talk.messages(threadId)).status).not.toBe("ok");
+      expect((await talk.react(sent.message.id, "👍", true)).status).not.toBe("ok");
+      const people = await talk.people();
+      const threads = people.status === "ok" ? people.people.map((p) => p.threadId) : [];
+      expect(threads).not.toContain(threadId);
+    }
+    expect((await forMember(db, outsider.id).talk.openThread(ana!.id)).status).toBe("not_found");
+  });
+
   test("a grant that crosses orgs opens nothing", async () => {
     const asCarol = forMember(db, carol);
     expect((await asCarol.listThreads()).map((t) => t.id)).toEqual([ops.threadId]);

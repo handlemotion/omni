@@ -3,6 +3,7 @@ import { memberMail, userMail } from "./mail.ts";
 import { memberCrm, userCrm } from "./crm.ts";
 import { memberCalendar, userCalendar } from "./calendar.ts";
 import { memberStorage, userStorage } from "./storage.ts";
+import { memberTalk } from "./talk.ts";
 
 /** Everything a member of one workspace may read and change, module by module. */
 export function forMember(db: Db, memberId: string) {
@@ -11,6 +12,7 @@ export function forMember(db: Db, memberId: string) {
     storage: memberStorage(db, memberId),
     crm: memberCrm(db, memberId),
     calendar: memberCalendar(db, memberId),
+    talk: memberTalk(db, memberId),
   };
 }
 

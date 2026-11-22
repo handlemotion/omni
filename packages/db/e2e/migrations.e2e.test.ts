@@ -137,6 +137,10 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "calendar_member_prefs",
       "calendar_parts",
       "calendar_sweep",
+      "talk_threads",
+      "talk_messages",
+      "talk_reactions",
+      "talk_reads",
     ].toSorted(),
   );
 });
