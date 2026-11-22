@@ -182,3 +182,23 @@ test("a reload mid-recording, with chunks still on the computer, finishes the me
   expect(job?.chunkCount).toBe(chunks.length);
   await expect.poll(() => keptOnComputer(page)).toBe(0);
 });
+
+test("a second Omni tab leaves a recording that is still going alone", async () => {
+  const { page, member } = await signedIn();
+  await record(page);
+  await expect.poll(() => meetingOf(member.id)).toBeTruthy();
+  const meeting = await meetingOf(member.id);
+  await expect
+    .poll(async () => (await chunksOf(meeting!.id)).length, { timeout: 20_000 })
+    .toBeGreaterThanOrEqual(1);
+
+  const second = await page.context().newPage();
+  await second.goto(page.url());
+  await second.getByRole("button", { name: "Record" }).waitFor();
+  const before = (await chunksOf(meeting!.id)).length;
+  await expect
+    .poll(async () => (await chunksOf(meeting!.id)).length, { timeout: 20_000 })
+    .toBeGreaterThan(before);
+  expect((await meetingOf(member.id))?.status).toBe("recording");
+  await page.getByRole("button", { name: "Stop" }).waitFor();
+});

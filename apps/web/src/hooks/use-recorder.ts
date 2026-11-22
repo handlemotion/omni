@@ -69,6 +69,28 @@ function waitOrOnline(ms: number) {
   });
 }
 
+const lockName = (meetingId: string) => `omni-recorder:${meetingId}`;
+
+async function holdRecording(meetingId: string) {
+  if (!navigator.locks) return () => {};
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await new Promise<void>((acquired) => {
+    void navigator.locks.request(lockName(meetingId), () => {
+      acquired();
+      return held;
+    });
+  });
+  return release;
+}
+
+function unlessHeld(meetingId: string, act: () => Promise<boolean>) {
+  if (!navigator.locks) return act();
+  return navigator.locks.request(lockName(meetingId), { ifAvailable: true }, (lock) =>
+    lock ? act() : false,
+  );
+}
+
 async function stopLeftBehind(meetingId: string) {
   const last = await lastChunk(meetingId);
   if (!last) {
@@ -135,31 +157,45 @@ async function openMeeting() {
 export function useRecorderState(memberId: string) {
   const [state, setState] = useState<RecorderState>(IDLE);
   const capture = useRef<Capture | null>(null);
+  const active = useRef<{ meetingId: string; release: () => void } | null>(null);
   const sending = useSendingStates();
   const drain = useDrains(sending.onState);
 
   useEffect(() => {
     void heldRecordings(memberId).then(async (held) => {
       for (const recording of held) {
-        if (recording.meetingId === state.meetingId) continue;
-        if (recording.stop || (await stopLeftBehind(recording.meetingId))) {
-          drain(recording.meetingId);
-        }
+        const { meetingId } = recording;
+        if (meetingId === active.current?.meetingId) continue;
+        const finishing = await unlessHeld(meetingId, async () =>
+          recording.stop ? true : stopLeftBehind(meetingId),
+        );
+        if (finishing) drain(meetingId);
       }
     });
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- once per member, at load
   }, [memberId, drain]);
 
-  const stop = useCallback(async () => {
+  const finish = useCallback(async () => {
     const running = capture.current;
-    const meetingId = state.meetingId;
-    if (!running || !meetingId) return;
+    const held = active.current;
+    if (!running || !held) return;
     capture.current = null;
+    active.current = null;
+    try {
+      await keepStop(held.meetingId, await running.stop());
+    } finally {
+      held.release();
+    }
+  }, []);
+
+  const stop = useCallback(async () => {
+    if (!capture.current) return;
     setState((s) => ({ ...s, phase: "stopping" }));
-    const result = await running.stop();
-    await keepStop(meetingId, result);
+    await finish();
     setState(IDLE);
-  }, [state.meetingId]);
+  }, [finish]);
+
+  useEffect(() => () => void finish(), [finish]);
 
   const start = useCallback(async () => {
     if (capture.current) return;
@@ -167,6 +203,8 @@ export function useRecorderState(memberId: string) {
     const opened = await openMeeting();
     if (!opened) return setState(IDLE);
     const { meetingId } = opened;
+    const release = await holdRecording(meetingId);
+    active.current = { meetingId, release };
     await keepRecording({ meetingId, memberId, startedAt: Date.now(), stop: null });
     try {
       capture.current = await startCapture(
@@ -174,6 +212,8 @@ export function useRecorderState(memberId: string) {
         () => void stopRef.current(),
       );
     } catch (error) {
+      active.current = null;
+      release();
       await browserSpool.discard(meetingId);
       await call(api.meetings[":id"].$delete({ param: { id: meetingId } })).catch(() => {});
       if (!(error instanceof CaptureRefused)) console.error("recorder: capture failed", error);
