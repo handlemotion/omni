@@ -15,10 +15,11 @@ use std::path::PathBuf;
 use std::sync::{Mutex, PoisonError};
 
 use omni_recorder::capture::{CaptureError, Source};
+use omni_recorder::spool::{self, State as SpoolState};
 use omni_recorder::{NewRecording, Recorder, StartError, find, recover_left};
 use omni_sync_types::desktop_recorder::{
     Code, DesktopRecorderError, DesktopRecording, DesktopRecordingRequest,
-    DesktopRecordingSchedule, EventElement,
+    DesktopRecordingSchedule, DesktopRecordingStart, DesktopRecordingState, EventElement,
 };
 use tauri::ipc::Response;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
@@ -36,9 +37,12 @@ pub const OFFERED_EVENT: &str = "recording-offered";
 enum Slot {
     #[default]
     Idle,
-    /// Capture is starting (on macOS, possibly waiting on a permission prompt).
+    /// Capture is starting (on macOS, possibly waiting on a permission prompt). Its spool may
+    /// already be on disk, so nothing is recovered meanwhile.
     Starting,
     Live(Recorder),
+    /// The recording with this id is closing its file.
+    Stopping(String),
 }
 
 #[derive(Default)]
@@ -79,9 +83,11 @@ impl Recording {
         self.slot.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// The spool the shell is writing to, which no command may read, recover or delete.
     fn live_id(&self) -> Option<String> {
         match &*self.slot() {
             Slot::Live(recorder) => Some(recorder.snapshot().id),
+            Slot::Stopping(id) => Some(id.clone()),
             _ => None,
         }
     }
@@ -91,21 +97,11 @@ impl Recording {
     }
 }
 
-/// What the page sends to start capturing: the meeting `POST /api/meetings` answered.
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StartRecording {
-    meeting_id: String,
-    member_id: String,
-    folder_id: String,
-    title: Option<String>,
-}
-
 #[tauri::command]
 pub async fn recording_start<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, Recording>,
-    recording: StartRecording,
+    recording: DesktopRecordingStart,
 ) -> Result<DesktopRecording, DesktopRecorderError> {
     {
         let mut slot = state.slot();
@@ -130,7 +126,20 @@ pub async fn recording_start<R: Runtime>(
             &root,
             new,
             Source::Device,
-            Box::new(move |now| changed(&notify, now)),
+            Box::new(move |now| {
+                let ended = now.state == DesktopRecordingState::Stopped;
+                let now_id = now.id.clone();
+                changed(&notify, now);
+                // Capture that ended by itself (a device went away) retires its slot, pill and
+                // tray item as Stop would. Only this recording: after a Stop, a newer recording
+                // may already be live, and it must not be stopped.
+                if ended {
+                    let (app, id) = (notify.clone(), now_id);
+                    tauri::async_runtime::spawn(async move {
+                        let _ = stop_only(&app, Some(id)).await;
+                    });
+                }
+            }),
         )
         .map_err(|e| match e {
             StartError::AlreadySpooled => error(
@@ -166,6 +175,12 @@ pub async fn recording_start<R: Runtime>(
     }
 }
 
+/// Whether leftovers may be recovered now. While a capture starts or stops, its spool is open
+/// but not yet (or no longer) the live one, and recovering it would cut the file being written.
+fn may_recover(slot: &Slot) -> bool {
+    matches!(slot, Slot::Idle | Slot::Live(_))
+}
+
 #[tauri::command]
 pub fn recording_pause(state: State<'_, Recording>) {
     if let Slot::Live(recorder) = &*state.slot() {
@@ -184,16 +199,39 @@ pub fn recording_resume(state: State<'_, Recording>) {
 pub async fn stop<R: Runtime>(
     app: &AppHandle<R>,
 ) -> Result<Option<DesktopRecording>, DesktopRecorderError> {
+    stop_only(app, None).await
+}
+
+/// Whether a stop meant for `only` (any recording when `None`) applies to the live one.
+fn applies_to(only: Option<&str>, live: &str) -> bool {
+    only.is_none_or(|id| id == live)
+}
+
+/// Stops the live recording if it is `only` (or any, for `None`), checked and taken in one
+/// hold of the slot.
+async fn stop_only<R: Runtime>(
+    app: &AppHandle<R>,
+    only: Option<String>,
+) -> Result<Option<DesktopRecording>, DesktopRecorderError> {
     let state = app.state::<Recording>();
-    let taken = std::mem::take(&mut *state.slot());
-    let Slot::Live(recorder) = taken else {
-        *state.slot() = taken;
-        return Ok(None);
+    let recorder = {
+        let mut slot = state.slot();
+        match std::mem::take(&mut *slot) {
+            Slot::Live(recorder) if applies_to(only.as_deref(), &recorder.snapshot().id) => {
+                *slot = Slot::Stopping(recorder.snapshot().id);
+                recorder
+            }
+            other => {
+                *slot = other;
+                return Ok(None);
+            }
+        }
     };
     pill::hide(app);
     crate::tray::set_recording(app, false);
-    let stopped = blocking(move || recorder.stop().map_err(failed)).await?;
-    Ok(Some(stopped))
+    let stopped = blocking(move || recorder.stop().map_err(failed)).await;
+    *state.slot() = Slot::Idle;
+    stopped.map(Some)
 }
 
 #[tauri::command]
@@ -210,17 +248,27 @@ pub async fn recording_list<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, Recording>,
 ) -> Result<Vec<DesktopRecording>, DesktopRecorderError> {
-    let live = match &*state.slot() {
-        Slot::Live(recorder) => Some(recorder.snapshot()),
-        _ => None,
+    let (live, settled) = {
+        let slot = state.slot();
+        let live = match &*slot {
+            Slot::Live(recorder) => Some(recorder.snapshot()),
+            _ => None,
+        };
+        (live, may_recover(&slot))
     };
     let root = root(&app)?;
     let live_id = live.as_ref().map(|r| r.id.clone());
     let mut all = blocking(move || {
-        let spools = recover_left(&root, live_id.as_deref()).map_err(failed)?;
+        let spools = if settled {
+            recover_left(&root, live_id.as_deref())
+        } else {
+            spool::list(&root)
+        }
+        .map_err(failed)?;
         Ok(spools
             .iter()
             .filter(|s| Some(&s.manifest.id) != live_id.as_ref())
+            .filter(|s| s.manifest.state == SpoolState::Stopped)
             .map(|s| s.snapshot(-120.0))
             .collect::<Vec<_>>())
     })
@@ -315,5 +363,28 @@ pub fn shutdown<R: Runtime>(app: &AppHandle<R>) {
         && let Slot::Live(recorder) = std::mem::take(&mut *state.slot())
     {
         let _ = recorder.stop();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Bug: listing while macOS waits on a permission prompt, or while Stop closes the file,
+    // "recovered" the spool being written: its file was cut and marked stopped mid-recording.
+    #[test]
+    fn nothing_is_recovered_while_a_capture_starts_or_stops() {
+        assert!(!may_recover(&Slot::Starting));
+        assert!(!may_recover(&Slot::Stopping("spool".into())));
+        assert!(may_recover(&Slot::Idle));
+    }
+
+    // Bug: a Stop's own stopped event scheduled a second stop; when a new recording had started
+    // meanwhile, that second stop ended the new one and hid its pill.
+    #[test]
+    fn a_capture_ending_retires_only_itself() {
+        assert!(applies_to(Some("old"), "old"));
+        assert!(!applies_to(Some("old"), "new"));
+        assert!(applies_to(None, "new"));
     }
 }

@@ -41,6 +41,14 @@ export const desktopRecordingSchema = z.object({
   micDb: z.number(),
 });
 
+/** `recording_start`: the meeting `POST /api/meetings` answered, to capture for. */
+export const desktopRecordingStartSchema = z.object({
+  meetingId: z.string(),
+  memberId: z.string(),
+  folderId: z.string(),
+  title: z.string().nullish(),
+});
+
 /** Why the shell could not start capturing. */
 export const desktopRecorderErrorSchema = z.object({
   code: z.enum([
@@ -90,12 +98,14 @@ export const desktopRecordingScheduleSchema = z.object({
 export const DESKTOP_RECORDER_NATIVE_TYPES = {
   DesktopRecordingState: desktopRecordingStateSchema,
   DesktopRecording: desktopRecordingSchema,
+  DesktopRecordingStart: desktopRecordingStartSchema,
   DesktopRecorderError: desktopRecorderErrorSchema,
   DesktopRecordingRequest: desktopRecordingRequestSchema,
   DesktopRecordingSchedule: desktopRecordingScheduleSchema,
 } as const;
 
 export type DesktopRecording = z.infer<typeof desktopRecordingSchema>;
+export type DesktopRecordingStart = z.infer<typeof desktopRecordingStartSchema>;
 export type DesktopRecorderError = z.infer<typeof desktopRecorderErrorSchema>;
 export type DesktopRecordingRequest = z.infer<typeof desktopRecordingRequestSchema>;
 export type DesktopRecordingSchedule = z.infer<typeof desktopRecordingScheduleSchema>;

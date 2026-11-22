@@ -65,6 +65,19 @@ pub enum DesktopRecordingState {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopRecordingStart {
+    pub folder_id: String,
+
+    pub meeting_id: String,
+
+    pub member_id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DesktopRecorderError {
     pub code: Code,
 

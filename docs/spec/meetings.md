@@ -211,7 +211,8 @@ a recording by itself. The bridge's shapes are `@omni/contracts`' `desktop-recor
 - **The pill** is a bundled page in its own small window, on top of every window and on every
   desktop, with no close button: it goes when the recording does. It can pause, resume and stop,
   and nothing else. The tray's "Record Now" reads "Stop Recording" while one runs. Quitting the
-  app stops the recording and closes the file.
+  app stops the recording and closes the file. Capture that ends by itself (a device went away,
+  a permission was taken back) stops the same way: the pill goes and the page finishes it.
 - **The start notification.** The page hands the shell its upcoming meetings
   (`recording_schedule`); when one with a video link begins (and up to five minutes after),
   nothing is recording and the app is open, the shell shows "Record Week Kickoff?" once, and the

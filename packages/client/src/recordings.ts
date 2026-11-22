@@ -11,6 +11,10 @@ import {
   toApiError,
   type ApiErrorInfo,
 } from "@omni/contracts/errors";
+import type { InferResponseType } from "hono/client";
+import type { Api } from "./api.ts";
+
+type Meeting = InferResponseType<Api["meetings"][":id"]["$get"], 200>["meeting"];
 
 /** A failed call while finishing a recording; the spool is kept, so finishing again resumes. */
 export class RecordingUploadError extends Error {
@@ -158,7 +162,7 @@ async function uploadFile(call: Call, spool: RecordingSpool, recording: DesktopR
 async function meetingAlreadyPastStop(call: Call, meetingId: string) {
   const found = await call("GET", `/meetings/${meetingId}`);
   if (!found.ok) return false;
-  const { meeting } = found.json as { meeting: { status: string; hasAudio: boolean } };
+  const { meeting } = found.json as { meeting: Meeting };
   return meeting.status !== "recording" && meeting.hasAudio;
 }
 
