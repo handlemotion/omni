@@ -14,6 +14,7 @@ import { SidebarSection } from "@/components/ui/sidebar";
 import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
 import { useStorageList } from "@/hooks/use-storage.ts";
 import { driveKey, driveOf, type DriveRoot, type StorageNode } from "@/lib/storage.ts";
+import { useSeen } from "./file-card.tsx";
 import { FileGlyph } from "./file-glyph.tsx";
 import { GAP_MS, useDriveDrag } from "./drive-drag-state.ts";
 import {
@@ -33,7 +34,11 @@ import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 const SHOWN = 40;
 
-/** A drive's group in the sidebar: its top, then its folders. */
+/**
+ * A drive's group in the sidebar: its top, then its folders. The folders load once the group
+ * comes near the screen: a workspace with a space per deal has hundreds, and reading each one's
+ * folders at once held the sidebar, and every screen beside it, for seconds.
+ */
 export function SidebarGroup(props: {
   drive: DriveRoot;
   label: string;
@@ -49,8 +54,10 @@ export function SidebarGroup(props: {
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- the drive is its key
   const to = useMemo<DropPlace>(() => ({ place: drive, canWrite: true }), [key]);
   const menu = useDriveRowMenu(drive, path, open);
+  const section = useRef<HTMLDivElement>(null);
+  const seen = useSeen(section);
   return (
-    <SidebarSection className="pb-1">
+    <SidebarSection ref={section} className="pb-1">
       {menu.dialogs}
       <DragRow to={to} expand={open} menu={menu.props}>
         <SidebarTreeRow
@@ -63,7 +70,7 @@ export function SidebarGroup(props: {
           onPress={() => !open.value && open.toggle()}
         />
       </DragRow>
-      {open.value && <Clusters drive={drive} search={props.search} />}
+      {open.value && seen && <Clusters drive={drive} search={props.search} />}
     </SidebarSection>
   );
 }

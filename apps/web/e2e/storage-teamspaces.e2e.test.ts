@@ -165,6 +165,41 @@ test("a deal made elsewhere shows its space in the open Drive sidebar", async ()
     .toBeGreaterThan(0);
 });
 
+test("the Drive sidebar reads a space's folders only once the space nears the screen", async () => {
+  const org = await createOrg(db, "many-spaces");
+  await createMailbox(db, org.id, `hello-${Date.now()}@many-spaces.test`);
+  const ana = await createMember(db, org.id, `ana-${Date.now()}@many-spaces.test`);
+  const { page, api } = await signedIn(ana.id, org.id, org.slug);
+  const spaces = 80;
+  for (let i = 0; i < spaces; i++) {
+    await api("POST", "/api/crm/deals", { name: `Deal ${String(i).padStart(2, "0")}` });
+  }
+  const listed = (await api("GET", "/api/storage/teamspaces")) as {
+    teamspaces: { id: string; name: string }[];
+  };
+  const lastName = `Deal ${spaces - 1}`;
+  const lastId = listed.teamspaces.find((space) => space.name === lastName)?.id;
+  const lastAsked = Promise.withResolvers<void>();
+  const asked = new Set<string>();
+  page.on("request", (request) => {
+    const teamspace = new URL(request.url()).searchParams.get("teamspace");
+    if (!teamspace) return;
+    asked.add(teamspace);
+    if (teamspace === lastId) lastAsked.resolve();
+  });
+  await page.reload();
+  const last = page.getByRole("link", { name: lastName, exact: true });
+  await last.waitFor({ state: "attached", timeout: 30_000 });
+  await page.waitForLoadState("networkidle");
+  expect(lastId).toBeTruthy();
+  expect(asked.size).toBeGreaterThan(0);
+  expect(asked.size).toBeLessThan(spaces / 2);
+  expect(asked.has(lastId ?? "")).toBe(false);
+
+  await last.scrollIntoViewIfNeeded();
+  await lastAsked.promise;
+});
+
 test("a space's row deletes the space from its menu, and right-clicking a row selects no text", async () => {
   const org = await createOrg(db, "delete-spaces");
   await createMailbox(db, org.id, `hello-${Date.now()}@delete-spaces.test`);
