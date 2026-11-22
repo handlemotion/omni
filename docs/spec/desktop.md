@@ -260,7 +260,11 @@ primitives, and add no text.
 - **The shell** (every viewport wider than a phone, in the browser too): a grey window
   (`--shell`) holding a white content card.
   - A **title bar** across the top, 48px: the workspace switcher (mark, name, chevron) past the
-    traffic lights, then the sidebar toggle; notifications at the far end. The whole row is a
+    traffic lights, then the sidebar toggle and back and forward arrows (disabled at either end
+    of the window's history); at the far end the teammates online (Talk), search (it opens the
+    command menu, as `/` and `⌘K` do; there is no search field in the page headers, except a
+    search icon in the mail list header on a phone, where the title bar is hidden), then
+    notifications. The whole row is a
     drag region except its controls. Without traffic lights the workspace mark centres on the
     module rail.
   - A **module rail** down the left edge: Mail, Drive and (in a company) CRM as icon tiles, the
@@ -268,7 +272,8 @@ primitives, and add no text.
   - The **nav panel** beside it, titled with the module (or Settings), lines up with the page
     headers. The sidebar toggle hides only the panel; while it is hidden, resting on the toggle
     previews the panel over the page.
-  - Notifications open inside the card, under the title bar.
+  - Notifications open inside the card, under the title bar, sliding in from the right edge
+    under their button.
 - On a phone the sidebar is the sheet it was, with the workspace switcher in its top row and the
   module switcher at its foot.
 - `⌘[` / `⌘]` (`Alt+←` / `Alt+→` on Windows) go back and forward; `⌘,` opens Settings; `⌘N`

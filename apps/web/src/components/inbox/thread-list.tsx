@@ -1,3 +1,4 @@
+import { SearchButton } from "@/components/search/search-trigger";
 import { useLocation, useParams } from "@tanstack/react-router";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Selection } from "react-aria-components";
@@ -15,7 +16,6 @@ import { EmptyState } from "@/components/empty/empty-state";
 import { ThreadListEmpty } from "@/components/inbox/list-empty";
 import { FloatingCompose } from "@/components/compose/floating-actions";
 import { IconPencil } from "@/components/icons/central";
-import { SearchTrigger } from "@/components/search/search-trigger";
 import { Button } from "@/components/ui/button";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListSection } from "@/components/ui/grid-list";
@@ -246,8 +246,10 @@ export function List(
                 {count} selected
               </span>
             )}
-            <div className="flex min-w-0 items-center gap-1 *:shrink-0 *:data-[search-field]:shrink">
-              <SearchTrigger />
+            <div className="flex min-w-0 items-center gap-1 *:shrink-0">
+              <span className="flex md:hidden">
+                <SearchButton />
+              </span>
               <MarkAllRead rows={threads} />
               <ReloadAction />
               {detail && (

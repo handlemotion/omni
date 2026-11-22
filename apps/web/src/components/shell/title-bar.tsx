@@ -3,13 +3,15 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { desktop } from "@/lib/desktop.ts";
 import { railPeek } from "./module-rail";
 import { WorkspaceSwitcher } from "./module-switcher";
+import { SearchButton } from "@/components/search/search-trigger";
 import { PresenceStack } from "@/components/talk/presence-stack";
+import { NavArrows } from "./nav-arrows";
 import { NotificationsButton } from "./notifications";
 
 /**
  * The window's top row, on the shell's grey (not on a phone): the workspace switcher past the
  * traffic lights, the sidebar toggle (resting on it while the sidebar is closed previews the nav),
- * and at the far end the teammates online now, then notifications.
+ * back and forward, and at the far end the teammates online now, search, then notifications.
  */
 export function TitleBar() {
   const { isMobile, open } = useSidebar();
@@ -32,8 +34,10 @@ export function TitleBar() {
           <IconSidebar />
         </SidebarTrigger>
       </span>
-      <span className="ms-auto flex items-center">
+      <NavArrows />
+      <span className="ms-auto flex items-center gap-0.5">
         <PresenceStack />
+        <SearchButton />
         <NotificationsButton />
       </span>
     </div>
