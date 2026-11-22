@@ -14,6 +14,7 @@ const storage = () => scoped("storage");
 const crm = () => scoped("crm");
 const calendar = () => scoped("calendar");
 const talk = () => scoped("talk");
+const meetings = () => scoped("meetings");
 const local = [...root, "local"] as const;
 const preview = [...root, "preview"] as const;
 
@@ -170,6 +171,7 @@ export const keys = {
   crm: () => crm(),
   /** Everything the calendar caches, in the current workspace. */
   calendar: () => calendar(),
+  meetings: () => meetings(),
   /** The member's own and assigned tasks: every list, open or done, and one task. */
   calendarTasks: () => [...calendar(), "tasks"] as const,
   calendarTaskLists: () => [...calendar(), "tasks", "list"] as const,

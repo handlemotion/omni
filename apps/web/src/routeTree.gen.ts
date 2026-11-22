@@ -21,6 +21,7 @@ import { Route as SignRequestIdRouteImport } from "./routes/sign.$requestId";
 import { Route as AuthedWorkspaceSplatRouteImport } from "./routes/_authed/$workspace/$";
 import { Route as AuthedWorkspaceCalendarRouteImport } from "./routes/_authed/$workspace/calendar";
 import { Route as AuthedWorkspaceCrmRouteImport } from "./routes/_authed/$workspace/crm";
+import { Route as AuthedWorkspaceMeetingsRouteImport } from "./routes/_authed/$workspace/meetings";
 import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/invite.$invitationId";
 import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/consent";
 import { Route as AuthedPortalIndexRouteImport } from "./routes/_authed/portal.index";
@@ -41,6 +42,8 @@ import { Route as AuthedWorkspaceMailSearchRouteImport } from "./routes/_authed/
 import { Route as AuthedWorkspaceMailSentRouteImport } from "./routes/_authed/$workspace/mail/sent";
 import { Route as AuthedWorkspaceMailSpamRouteImport } from "./routes/_authed/$workspace/mail/spam";
 import { Route as AuthedWorkspaceMailTrashRouteImport } from "./routes/_authed/$workspace/mail/trash";
+import { Route as AuthedWorkspaceMeetingsIndexRouteImport } from "./routes/_authed/$workspace/meetings.index";
+import { Route as AuthedWorkspaceMeetingsIdRouteImport } from "./routes/_authed/$workspace/meetings.$id";
 import { Route as AuthedWorkspaceSettingsIndexRouteImport } from "./routes/_authed/$workspace/settings/index";
 import { Route as AuthedWorkspaceSettingsPageRouteImport } from "./routes/_authed/$workspace/settings/$page";
 import { Route as AuthedSettingsEmailsVerifyRouteImport } from "./routes/_authed/settings/emails.verify";
@@ -67,6 +70,7 @@ import { Route as AuthedWorkspaceMailSearchThreadIdRouteImport } from "./routes/
 import { Route as AuthedWorkspaceMailSentThreadIdRouteImport } from "./routes/_authed/$workspace/mail/sent.$threadId";
 import { Route as AuthedWorkspaceMailSpamThreadIdRouteImport } from "./routes/_authed/$workspace/mail/spam.$threadId";
 import { Route as AuthedWorkspaceMailTrashThreadIdRouteImport } from "./routes/_authed/$workspace/mail/trash.$threadId";
+import { Route as AuthedWorkspaceMeetingsGKeyRouteImport } from "./routes/_authed/$workspace/meetings.g.$key";
 import { Route as AuthedWorkspaceFilesTTeamspaceIdIndexRouteImport } from "./routes/_authed/$workspace/files/t.$teamspaceId.index";
 import { Route as AuthedWorkspaceFilesTTeamspaceIdFolderIdRouteImport } from "./routes/_authed/$workspace/files/t.$teamspaceId.$folderId";
 
@@ -127,6 +131,11 @@ const AuthedWorkspaceCalendarRoute = AuthedWorkspaceCalendarRouteImport.update({
 const AuthedWorkspaceCrmRoute = AuthedWorkspaceCrmRouteImport.update({
   id: "/crm",
   path: "/crm",
+  getParentRoute: () => AuthedWorkspaceRoute,
+} as any);
+const AuthedWorkspaceMeetingsRoute = AuthedWorkspaceMeetingsRouteImport.update({
+  id: "/meetings",
+  path: "/meetings",
   getParentRoute: () => AuthedWorkspaceRoute,
 } as any);
 const AuthedInviteInvitationIdRoute =
@@ -240,6 +249,18 @@ const AuthedWorkspaceMailTrashRoute =
     id: "/mail/trash",
     path: "/mail/trash",
     getParentRoute: () => AuthedWorkspaceRoute,
+  } as any);
+const AuthedWorkspaceMeetingsIndexRoute =
+  AuthedWorkspaceMeetingsIndexRouteImport.update({
+    id: "/",
+    path: "/",
+    getParentRoute: () => AuthedWorkspaceMeetingsRoute,
+  } as any);
+const AuthedWorkspaceMeetingsIdRoute =
+  AuthedWorkspaceMeetingsIdRouteImport.update({
+    id: "/$id",
+    path: "/$id",
+    getParentRoute: () => AuthedWorkspaceMeetingsRoute,
   } as any);
 const AuthedWorkspaceSettingsIndexRoute =
   AuthedWorkspaceSettingsIndexRouteImport.update({
@@ -397,6 +418,12 @@ const AuthedWorkspaceMailTrashThreadIdRoute =
     path: "/$threadId",
     getParentRoute: () => AuthedWorkspaceMailTrashRoute,
   } as any);
+const AuthedWorkspaceMeetingsGKeyRoute =
+  AuthedWorkspaceMeetingsGKeyRouteImport.update({
+    id: "/g/$key",
+    path: "/g/$key",
+    getParentRoute: () => AuthedWorkspaceMeetingsRoute,
+  } as any);
 const AuthedWorkspaceFilesTTeamspaceIdIndexRoute =
   AuthedWorkspaceFilesTTeamspaceIdIndexRouteImport.update({
     id: "/files/t/$teamspaceId/",
@@ -422,6 +449,7 @@ export interface FileRoutesByFullPath {
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
   "/$workspace/calendar": typeof AuthedWorkspaceCalendarRoute;
   "/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
+  "/$workspace/meetings": typeof AuthedWorkspaceMeetingsRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
   "/portal/$id": typeof AuthedPortalIdRoute;
@@ -440,10 +468,12 @@ export interface FileRoutesByFullPath {
   "/$workspace/mail/sent": typeof AuthedWorkspaceMailSentRouteWithChildren;
   "/$workspace/mail/spam": typeof AuthedWorkspaceMailSpamRouteWithChildren;
   "/$workspace/mail/trash": typeof AuthedWorkspaceMailTrashRouteWithChildren;
+  "/$workspace/meetings/$id": typeof AuthedWorkspaceMeetingsIdRoute;
   "/$workspace/settings/$page": typeof AuthedWorkspaceSettingsPageRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/$workspace/crm/": typeof AuthedWorkspaceCrmIndexRoute;
   "/$workspace/files/": typeof AuthedWorkspaceFilesIndexRoute;
+  "/$workspace/meetings/": typeof AuthedWorkspaceMeetingsIndexRoute;
   "/$workspace/settings/": typeof AuthedWorkspaceSettingsIndexRoute;
   "/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
   "/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
@@ -461,6 +491,7 @@ export interface FileRoutesByFullPath {
   "/$workspace/mail/sent/$threadId": typeof AuthedWorkspaceMailSentThreadIdRoute;
   "/$workspace/mail/spam/$threadId": typeof AuthedWorkspaceMailSpamThreadIdRoute;
   "/$workspace/mail/trash/$threadId": typeof AuthedWorkspaceMailTrashThreadIdRoute;
+  "/$workspace/meetings/g/$key": typeof AuthedWorkspaceMeetingsGKeyRoute;
   "/$workspace/crm/companies/": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
   "/$workspace/crm/deals/": typeof AuthedWorkspaceCrmDealsIndexRoute;
   "/$workspace/crm/people/": typeof AuthedWorkspaceCrmPeopleIndexRoute;
@@ -500,10 +531,12 @@ export interface FileRoutesByTo {
   "/$workspace/mail/sent": typeof AuthedWorkspaceMailSentRouteWithChildren;
   "/$workspace/mail/spam": typeof AuthedWorkspaceMailSpamRouteWithChildren;
   "/$workspace/mail/trash": typeof AuthedWorkspaceMailTrashRouteWithChildren;
+  "/$workspace/meetings/$id": typeof AuthedWorkspaceMeetingsIdRoute;
   "/$workspace/settings/$page": typeof AuthedWorkspaceSettingsPageRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/$workspace/crm": typeof AuthedWorkspaceCrmIndexRoute;
   "/$workspace/files": typeof AuthedWorkspaceFilesIndexRoute;
+  "/$workspace/meetings": typeof AuthedWorkspaceMeetingsIndexRoute;
   "/$workspace/settings": typeof AuthedWorkspaceSettingsIndexRoute;
   "/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
   "/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
@@ -521,6 +554,7 @@ export interface FileRoutesByTo {
   "/$workspace/mail/sent/$threadId": typeof AuthedWorkspaceMailSentThreadIdRoute;
   "/$workspace/mail/spam/$threadId": typeof AuthedWorkspaceMailSpamThreadIdRoute;
   "/$workspace/mail/trash/$threadId": typeof AuthedWorkspaceMailTrashThreadIdRoute;
+  "/$workspace/meetings/g/$key": typeof AuthedWorkspaceMeetingsGKeyRoute;
   "/$workspace/crm/companies": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
   "/$workspace/crm/deals": typeof AuthedWorkspaceCrmDealsIndexRoute;
   "/$workspace/crm/people": typeof AuthedWorkspaceCrmPeopleIndexRoute;
@@ -545,6 +579,7 @@ export interface FileRoutesById {
   "/_authed/$workspace/$": typeof AuthedWorkspaceSplatRoute;
   "/_authed/$workspace/calendar": typeof AuthedWorkspaceCalendarRoute;
   "/_authed/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
+  "/_authed/$workspace/meetings": typeof AuthedWorkspaceMeetingsRouteWithChildren;
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/_authed/oauth/consent": typeof AuthedOauthConsentRoute;
   "/_authed/portal/$id": typeof AuthedPortalIdRoute;
@@ -563,10 +598,12 @@ export interface FileRoutesById {
   "/_authed/$workspace/mail/sent": typeof AuthedWorkspaceMailSentRouteWithChildren;
   "/_authed/$workspace/mail/spam": typeof AuthedWorkspaceMailSpamRouteWithChildren;
   "/_authed/$workspace/mail/trash": typeof AuthedWorkspaceMailTrashRouteWithChildren;
+  "/_authed/$workspace/meetings/$id": typeof AuthedWorkspaceMeetingsIdRoute;
   "/_authed/$workspace/settings/$page": typeof AuthedWorkspaceSettingsPageRoute;
   "/_authed/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/_authed/$workspace/crm/": typeof AuthedWorkspaceCrmIndexRoute;
   "/_authed/$workspace/files/": typeof AuthedWorkspaceFilesIndexRoute;
+  "/_authed/$workspace/meetings/": typeof AuthedWorkspaceMeetingsIndexRoute;
   "/_authed/$workspace/settings/": typeof AuthedWorkspaceSettingsIndexRoute;
   "/_authed/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
   "/_authed/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
@@ -584,6 +621,7 @@ export interface FileRoutesById {
   "/_authed/$workspace/mail/sent/$threadId": typeof AuthedWorkspaceMailSentThreadIdRoute;
   "/_authed/$workspace/mail/spam/$threadId": typeof AuthedWorkspaceMailSpamThreadIdRoute;
   "/_authed/$workspace/mail/trash/$threadId": typeof AuthedWorkspaceMailTrashThreadIdRoute;
+  "/_authed/$workspace/meetings/g/$key": typeof AuthedWorkspaceMeetingsGKeyRoute;
   "/_authed/$workspace/crm/companies/": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
   "/_authed/$workspace/crm/deals/": typeof AuthedWorkspaceCrmDealsIndexRoute;
   "/_authed/$workspace/crm/people/": typeof AuthedWorkspaceCrmPeopleIndexRoute;
@@ -608,6 +646,7 @@ export interface FileRouteTypes {
     | "/$workspace/$"
     | "/$workspace/calendar"
     | "/$workspace/crm"
+    | "/$workspace/meetings"
     | "/invite/$invitationId"
     | "/oauth/consent"
     | "/portal/$id"
@@ -626,10 +665,12 @@ export interface FileRouteTypes {
     | "/$workspace/mail/sent"
     | "/$workspace/mail/spam"
     | "/$workspace/mail/trash"
+    | "/$workspace/meetings/$id"
     | "/$workspace/settings/$page"
     | "/settings/emails/verify"
     | "/$workspace/crm/"
     | "/$workspace/files/"
+    | "/$workspace/meetings/"
     | "/$workspace/settings/"
     | "/$workspace/crm/companies/$id"
     | "/$workspace/crm/deals/$id"
@@ -647,6 +688,7 @@ export interface FileRouteTypes {
     | "/$workspace/mail/sent/$threadId"
     | "/$workspace/mail/spam/$threadId"
     | "/$workspace/mail/trash/$threadId"
+    | "/$workspace/meetings/g/$key"
     | "/$workspace/crm/companies/"
     | "/$workspace/crm/deals/"
     | "/$workspace/crm/people/"
@@ -686,10 +728,12 @@ export interface FileRouteTypes {
     | "/$workspace/mail/sent"
     | "/$workspace/mail/spam"
     | "/$workspace/mail/trash"
+    | "/$workspace/meetings/$id"
     | "/$workspace/settings/$page"
     | "/settings/emails/verify"
     | "/$workspace/crm"
     | "/$workspace/files"
+    | "/$workspace/meetings"
     | "/$workspace/settings"
     | "/$workspace/crm/companies/$id"
     | "/$workspace/crm/deals/$id"
@@ -707,6 +751,7 @@ export interface FileRouteTypes {
     | "/$workspace/mail/sent/$threadId"
     | "/$workspace/mail/spam/$threadId"
     | "/$workspace/mail/trash/$threadId"
+    | "/$workspace/meetings/g/$key"
     | "/$workspace/crm/companies"
     | "/$workspace/crm/deals"
     | "/$workspace/crm/people"
@@ -730,6 +775,7 @@ export interface FileRouteTypes {
     | "/_authed/$workspace/$"
     | "/_authed/$workspace/calendar"
     | "/_authed/$workspace/crm"
+    | "/_authed/$workspace/meetings"
     | "/_authed/invite/$invitationId"
     | "/_authed/oauth/consent"
     | "/_authed/portal/$id"
@@ -748,10 +794,12 @@ export interface FileRouteTypes {
     | "/_authed/$workspace/mail/sent"
     | "/_authed/$workspace/mail/spam"
     | "/_authed/$workspace/mail/trash"
+    | "/_authed/$workspace/meetings/$id"
     | "/_authed/$workspace/settings/$page"
     | "/_authed/settings/emails/verify"
     | "/_authed/$workspace/crm/"
     | "/_authed/$workspace/files/"
+    | "/_authed/$workspace/meetings/"
     | "/_authed/$workspace/settings/"
     | "/_authed/$workspace/crm/companies/$id"
     | "/_authed/$workspace/crm/deals/$id"
@@ -769,6 +817,7 @@ export interface FileRouteTypes {
     | "/_authed/$workspace/mail/sent/$threadId"
     | "/_authed/$workspace/mail/spam/$threadId"
     | "/_authed/$workspace/mail/trash/$threadId"
+    | "/_authed/$workspace/meetings/g/$key"
     | "/_authed/$workspace/crm/companies/"
     | "/_authed/$workspace/crm/deals/"
     | "/_authed/$workspace/crm/people/"
@@ -872,6 +921,13 @@ declare module "@tanstack/react-router" {
       path: "/crm";
       fullPath: "/$workspace/crm";
       preLoaderRoute: typeof AuthedWorkspaceCrmRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/meetings": {
+      id: "/_authed/$workspace/meetings";
+      path: "/meetings";
+      fullPath: "/$workspace/meetings";
+      preLoaderRoute: typeof AuthedWorkspaceMeetingsRouteImport;
       parentRoute: typeof AuthedWorkspaceRoute;
     };
     "/_authed/invite/$invitationId": {
@@ -1013,6 +1069,20 @@ declare module "@tanstack/react-router" {
       fullPath: "/$workspace/mail/trash";
       preLoaderRoute: typeof AuthedWorkspaceMailTrashRouteImport;
       parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/meetings/": {
+      id: "/_authed/$workspace/meetings/";
+      path: "/";
+      fullPath: "/$workspace/meetings/";
+      preLoaderRoute: typeof AuthedWorkspaceMeetingsIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceMeetingsRoute;
+    };
+    "/_authed/$workspace/meetings/$id": {
+      id: "/_authed/$workspace/meetings/$id";
+      path: "/$id";
+      fullPath: "/$workspace/meetings/$id";
+      preLoaderRoute: typeof AuthedWorkspaceMeetingsIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMeetingsRoute;
     };
     "/_authed/$workspace/settings/": {
       id: "/_authed/$workspace/settings/";
@@ -1196,6 +1266,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedWorkspaceMailTrashThreadIdRouteImport;
       parentRoute: typeof AuthedWorkspaceMailTrashRoute;
     };
+    "/_authed/$workspace/meetings/g/$key": {
+      id: "/_authed/$workspace/meetings/g/$key";
+      path: "/g/$key";
+      fullPath: "/$workspace/meetings/g/$key";
+      preLoaderRoute: typeof AuthedWorkspaceMeetingsGKeyRouteImport;
+      parentRoute: typeof AuthedWorkspaceMeetingsRoute;
+    };
     "/_authed/$workspace/files/t/$teamspaceId/": {
       id: "/_authed/$workspace/files/t/$teamspaceId/";
       path: "/files/t/$teamspaceId";
@@ -1241,6 +1318,24 @@ const AuthedWorkspaceCrmRouteChildren: AuthedWorkspaceCrmRouteChildren = {
 
 const AuthedWorkspaceCrmRouteWithChildren =
   AuthedWorkspaceCrmRoute._addFileChildren(AuthedWorkspaceCrmRouteChildren);
+
+interface AuthedWorkspaceMeetingsRouteChildren {
+  AuthedWorkspaceMeetingsIdRoute: typeof AuthedWorkspaceMeetingsIdRoute;
+  AuthedWorkspaceMeetingsIndexRoute: typeof AuthedWorkspaceMeetingsIndexRoute;
+  AuthedWorkspaceMeetingsGKeyRoute: typeof AuthedWorkspaceMeetingsGKeyRoute;
+}
+
+const AuthedWorkspaceMeetingsRouteChildren: AuthedWorkspaceMeetingsRouteChildren =
+  {
+    AuthedWorkspaceMeetingsIdRoute: AuthedWorkspaceMeetingsIdRoute,
+    AuthedWorkspaceMeetingsIndexRoute: AuthedWorkspaceMeetingsIndexRoute,
+    AuthedWorkspaceMeetingsGKeyRoute: AuthedWorkspaceMeetingsGKeyRoute,
+  };
+
+const AuthedWorkspaceMeetingsRouteWithChildren =
+  AuthedWorkspaceMeetingsRoute._addFileChildren(
+    AuthedWorkspaceMeetingsRouteChildren,
+  );
 
 interface AuthedWorkspaceMailAllRouteChildren {
   AuthedWorkspaceMailAllThreadIdRoute: typeof AuthedWorkspaceMailAllThreadIdRoute;
@@ -1392,6 +1487,7 @@ interface AuthedWorkspaceRouteChildren {
   AuthedWorkspaceSplatRoute: typeof AuthedWorkspaceSplatRoute;
   AuthedWorkspaceCalendarRoute: typeof AuthedWorkspaceCalendarRoute;
   AuthedWorkspaceCrmRoute: typeof AuthedWorkspaceCrmRouteWithChildren;
+  AuthedWorkspaceMeetingsRoute: typeof AuthedWorkspaceMeetingsRouteWithChildren;
   AuthedWorkspaceFilesRecentsRoute: typeof AuthedWorkspaceFilesRecentsRoute;
   AuthedWorkspaceFilesSharedWithMeRoute: typeof AuthedWorkspaceFilesSharedWithMeRoute;
   AuthedWorkspaceFilesTrashRoute: typeof AuthedWorkspaceFilesTrashRoute;
@@ -1421,6 +1517,7 @@ const AuthedWorkspaceRouteChildren: AuthedWorkspaceRouteChildren = {
   AuthedWorkspaceSplatRoute: AuthedWorkspaceSplatRoute,
   AuthedWorkspaceCalendarRoute: AuthedWorkspaceCalendarRoute,
   AuthedWorkspaceCrmRoute: AuthedWorkspaceCrmRouteWithChildren,
+  AuthedWorkspaceMeetingsRoute: AuthedWorkspaceMeetingsRouteWithChildren,
   AuthedWorkspaceFilesRecentsRoute: AuthedWorkspaceFilesRecentsRoute,
   AuthedWorkspaceFilesSharedWithMeRoute: AuthedWorkspaceFilesSharedWithMeRoute,
   AuthedWorkspaceFilesTrashRoute: AuthedWorkspaceFilesTrashRoute,

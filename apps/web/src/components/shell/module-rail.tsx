@@ -12,6 +12,7 @@ import {
   IconCrmMark,
   IconDriveMark,
   IconMailMark,
+  IconMeetingsMark,
 } from "@/components/icons/module-marks";
 import {
   Sidebar,
@@ -32,6 +33,7 @@ const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   files: IconDriveMark,
   crm: IconCrmMark,
   calendar: IconCalendarMark,
+  meetings: IconMeetingsMark,
 };
 
 const PATHS: Record<ModuleId, string> = {
@@ -39,6 +41,7 @@ const PATHS: Record<ModuleId, string> = {
   files: "files",
   crm: "crm/companies",
   calendar: "calendar",
+  meetings: "meetings",
 };
 
 const PEEK_LEAVE_MS = 200;

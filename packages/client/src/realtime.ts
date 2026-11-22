@@ -1,5 +1,6 @@
 import type {
   CalendarChangedEvent,
+  MeetingsChangedEvent,
   CrmChangedEvent,
   CrmChangedKind,
   HelpdeskRealtimeEvent,
@@ -356,6 +357,7 @@ const parseEvent: (value: unknown) => RealtimeEvent | undefined = (value) => {
   return (
     parseCrmEvent(record) ??
     parseCalendarEvent(record) ??
+    parseMeetingsEvent(record) ??
     parseTalkEvent(record) ??
     parseHelpdeskEvent(record) ??
     parseStorageEvent(record)
@@ -415,6 +417,27 @@ const parseCalendarEvent: (event: Record<string, unknown>) => CalendarChangedEve
     return undefined;
   }
   return { type: "calendar.changed", calendarIds };
+};
+
+const MEETING_STATUSES = new Set([
+  "recording",
+  "uploaded",
+  "transcribing",
+  "naming",
+  "writing",
+  "ready",
+  "failed",
+]);
+
+const parseMeetingsEvent: (event: Record<string, unknown>) => MeetingsChangedEvent | undefined = (
+  event,
+) => {
+  if (event.type !== "meetings.changed") return undefined;
+  const { meetingId, status } = event;
+  if (!isId(meetingId) || typeof status !== "string" || !MEETING_STATUSES.has(status)) {
+    return undefined;
+  }
+  return { type: "meetings.changed", meetingId, status };
 };
 
 const isSeqNum = (value: unknown): value is number =>

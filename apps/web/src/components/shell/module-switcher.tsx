@@ -10,6 +10,7 @@ import {
   IconConnections,
   IconFolderFilled,
   IconCalendarFilled,
+  IconMicrophoneFilled,
   IconHandshakeFilled,
   IconLogOut,
   IconMailFilled,
@@ -28,6 +29,7 @@ import { appToast } from "@/components/ui/toast";
 import { isManager } from "@/components/settings/workspace-pages";
 import { useBilling } from "@/hooks/use-billing.ts";
 import { useHasCrm } from "@/hooks/use-crm.ts";
+import { useMeetingsEnabled } from "@/hooks/use-meetings.ts";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useMember, useSignOut } from "@/hooks/use-session.ts";
 import { useOpenSettings } from "@/hooks/use-settings.ts";
@@ -35,7 +37,7 @@ import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { useOpenWorkspace, useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 
-export type ModuleId = "mail" | "files" | "crm" | "calendar";
+export type ModuleId = "mail" | "files" | "crm" | "calendar" | "meetings";
 
 interface Module {
   id: ModuleId;
@@ -45,7 +47,8 @@ interface Module {
     | "/$workspace/mail/inbox"
     | "/$workspace/files"
     | "/$workspace/crm/companies"
-    | "/$workspace/calendar";
+    | "/$workspace/calendar"
+    | "/$workspace/meetings";
   fill: string;
 }
 
@@ -77,9 +80,20 @@ const CALENDAR: Module = {
   home: "/$workspace/calendar",
   fill: "bg-module-calendar",
 };
-const MODULES = [MAIL, DRIVE, CRM, CALENDAR];
-const MODULES_WITHOUT_CRM = [MAIL, DRIVE, CALENDAR];
-const BY_ID = { mail: MAIL, files: DRIVE, crm: CRM, calendar: CALENDAR } as const;
+const MEETINGS: Module = {
+  id: "meetings",
+  label: "Meetings",
+  icon: IconMicrophoneFilled,
+  home: "/$workspace/meetings",
+  fill: "bg-module-meetings",
+};
+const BY_ID = {
+  mail: MAIL,
+  files: DRIVE,
+  crm: CRM,
+  calendar: CALENDAR,
+  meetings: MEETINGS,
+} as const;
 
 const under = (pathname: string, root: string) =>
   pathname === root || pathname.startsWith(`${root}/`);
@@ -91,6 +105,7 @@ export const moduleOf: (pathname: string) => ModuleId = (pathname) => {
   if (under(place, "/files")) return "files";
   if (under(place, "/crm")) return "crm";
   if (under(place, "/calendar")) return "calendar";
+  if (under(place, "/meetings")) return "meetings";
   return "mail";
 };
 
@@ -171,10 +186,17 @@ export function useOpenModule() {
     });
 }
 
-/** The modules in their sidebar order, the CRM only where the workspace has it. */
+/**
+ * The modules in their sidebar order: the CRM only where the workspace has it, Meetings only
+ * where a transcription engine is set up.
+ */
 export function useModules() {
   const hasCrm = useHasCrm();
-  return hasCrm ? MODULES : MODULES_WITHOUT_CRM;
+  const hasMeetings = useMeetingsEnabled();
+  return useMemo(
+    () => [MAIL, DRIVE, ...(hasCrm ? [CRM] : []), CALENDAR, ...(hasMeetings ? [MEETINGS] : [])],
+    [hasCrm, hasMeetings],
+  );
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   IconWrite,
 } from "@/components/icons/sidebar";
 import { CalendarNav } from "@/components/calendar/calendar-nav";
+import { MeetingsNav } from "@/components/meetings/meetings-nav";
 import { CrmNav } from "@/components/crm/crm-nav";
 import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
@@ -88,6 +89,7 @@ const MODULE_LABELS = {
   files: "Drive",
   crm: "Clients",
   calendar: "Calendar",
+  meetings: "Meetings",
 } as const;
 
 export function AppSidebar() {
@@ -99,6 +101,7 @@ export function AppSidebar() {
     files: <StorageNav mailbox={mailbox} />,
     crm: <CrmNav mailbox={mailbox} />,
     calendar: <CalendarNav />,
+    meetings: <MeetingsNav />,
   };
   if (!isMobile) {
     return (

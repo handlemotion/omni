@@ -200,3 +200,43 @@ export function IconCrmMark({ className }: { className?: string }) {
     </Mark>
   );
 }
+
+/** A white microphone on a teal rounded tile, its stand underneath. */
+export function IconMeetingsMark({ className }: { className?: string }) {
+  const id = useIds();
+  return (
+    <Mark className={className}>
+      <defs>
+        <Drop id={`${id}d`} />
+        <Fade id={`${id}b`} from="#3cc1c9" to="#0b6b74" />
+        <Fade id={`${id}m`} from="#ffffff" to="#dff3f4" />
+      </defs>
+      <rect
+        x="2"
+        y="2"
+        width="16"
+        height="16"
+        rx="4"
+        fill={`url(#${id}b)`}
+        filter={`url(#${id}d)`}
+      />
+      <rect x="7.75" y="4.5" width="4.5" height="7.5" rx="2.25" fill={`url(#${id}m)`} />
+      <path
+        d="M6 10a4 4 0 0 0 8 0M10 14v1.6M7.9 15.6h4.2"
+        stroke="#fff"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+      <rect
+        x="2.25"
+        y="2.25"
+        width="15.5"
+        height="15.5"
+        rx="3.75"
+        stroke="#064b52"
+        strokeOpacity=".4"
+        strokeWidth=".5"
+      />
+    </Mark>
+  );
+}

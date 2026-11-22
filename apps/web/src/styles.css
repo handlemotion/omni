@@ -86,6 +86,7 @@
   --module-drive: #15924f;
   --module-crm: #7a4fd1;
   --module-calendar: #ef4444;
+  --module-meetings: #0e7c86;
   /* The calendar grid's hour and day lines, quieter than a pane's edge. */
   --calendar-line: color-mix(in oklab, var(--border) 55%, transparent);
   --calendar-weekend: color-mix(in oklab, var(--foreground) 1.5%, transparent);
@@ -207,6 +208,7 @@
   --color-module-drive: var(--module-drive);
   --color-module-crm: var(--module-crm);
   --color-module-calendar: var(--module-calendar);
+  --color-module-meetings: var(--module-meetings);
   --color-calendar-line: var(--calendar-line);
   --color-calendar-weekend: var(--calendar-weekend);
   --color-module-foreground: var(--module-foreground);

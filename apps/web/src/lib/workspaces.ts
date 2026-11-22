@@ -72,7 +72,8 @@ export function legacyPath(slug: string, pathname: string) {
   const [first = ""] = pathname.split("/").filter(Boolean);
   const prefix = `/${encodeURIComponent(slug)}`;
   if (MAIL.has(first) || MAIL_MORE.has(first)) return `${prefix}/mail${pathname}`;
-  if (["files", "crm", "calendar", "settings"].includes(first)) return `${prefix}${pathname}`;
+  if (["files", "crm", "calendar", "meetings", "settings"].includes(first))
+    return `${prefix}${pathname}`;
   return null;
 }
 

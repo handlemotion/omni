@@ -21,6 +21,7 @@ import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
 import { calendarChanged, calendarKeys } from "./calendar.ts";
 import { calendarTaskKeys } from "./calendar-tasks.ts";
+import { meetingKeys, meetingsChanged } from "./meetings.ts";
 import { crmChangedElsewhere } from "./crm-cache.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
@@ -199,6 +200,9 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     if (isStorageEvent(event)) onStorage(orgId, event);
     else if (event.type === "crm.changed" || event.type === "calendar.changed") {
       onModuleChange(orgId, event);
+    } else if (event.type === "meetings.changed") {
+      const writing = client.isMutating({ mutationKey: meetingKeys.writes() }) > 0;
+      if (orgId === activeOrgId && !writing) void meetingsChanged(client);
     } else if (!isTalkEvent(event)) return false;
     else if (orgId === activeOrgId) onTalk(event);
     return true;
