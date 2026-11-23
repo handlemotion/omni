@@ -1,4 +1,4 @@
-import { FOLDER_ROLES, MAILBOX_KINDS, THREAD_LANES } from "@omni/contracts";
+import { FOLDER_ROLES, MAIL_ACTION_KINDS, MAILBOX_KINDS, THREAD_LANES } from "@omni/contracts";
 import { pgEnum } from "drizzle-orm/pg-core";
 
 export const mailboxKind = pgEnum("mailbox_kind", MAILBOX_KINDS);
@@ -18,17 +18,7 @@ export const triageBucket = pgEnum("triage_bucket", THREAD_LANES);
 
 export const triageSource = pgEnum("triage_source", ["ai", "person"]);
 
-export const mailActionKind = pgEnum("mail_action_kind", [
-  "send",
-  "forward_copy",
-  "archive",
-  "move",
-  "mark_read",
-  "mark_unread",
-  "trash",
-  "spam",
-  "not_spam",
-]);
+export const mailActionKind = pgEnum("mail_action_kind", MAIL_ACTION_KINDS);
 
 /**
  * A shared conversation's status: `open` waits on the team, `pending` on the customer,

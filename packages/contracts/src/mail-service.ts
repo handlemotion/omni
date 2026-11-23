@@ -224,6 +224,11 @@ export const actionPayloadSchemas = {
 } as const;
 
 export type MailActionKind = keyof typeof actionPayloadSchemas;
+/** In the order of the `mail_action_kind` Postgres enum: append, never reorder. */
+export const MAIL_ACTION_KINDS = Object.keys(actionPayloadSchemas) as [
+  MailActionKind,
+  ...MailActionKind[],
+];
 export type MessageTarget = z.infer<typeof messageTargetSchema>;
 export type SendPayload = z.infer<typeof sendPayloadSchema>;
 export type ForwardCopyPayload = z.infer<typeof forwardCopyPayloadSchema>;

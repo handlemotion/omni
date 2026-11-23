@@ -71,7 +71,7 @@ export class PgActionSource implements ActionSource {
         smtpAcceptedAt: row.smtpAcceptedAt,
       } as MailAction);
     }
-    return claimed satisfies MailAction[];
+    return claimed;
   }
 
   async markSmtpAccepted(actionId: string) {

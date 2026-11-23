@@ -1,15 +1,8 @@
 import { CRM_STAGE_KINDS } from "@omni/contracts";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { crmDeals, crmSettings, crmStages } from "../schema/crm.ts";
-import {
-  FORBIDDEN,
-  isForeignKeyViolation,
-  NOT_FOUND,
-  type CrmMember,
-  type Ex,
-  type Forbidden,
-  type NotFound,
-} from "./core.ts";
+import { isForeignKeyViolation, type Ex } from "../pg.ts";
+import { FORBIDDEN, NOT_FOUND, type CrmMember, type Forbidden, type NotFound } from "./core.ts";
 import type { StageKind } from "./stage-transition.ts";
 
 export interface CrmStage {
