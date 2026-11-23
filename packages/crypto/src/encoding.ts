@@ -67,3 +67,8 @@ export const fromBase64: (text: string) => Uint8Array<ArrayBuffer> | null = (tex
     return null;
   }
 };
+
+/** Standard base64 as `atob` reads it. Throws `atob`'s error on malformed input. */
+export function decodeBase64(text: string) {
+  return Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+}

@@ -1,5 +1,5 @@
 import type { StorageDocEvent } from "@omni/contracts";
-import { toBase64 } from "@omni/crypto";
+import { decodeBase64, toBase64 } from "@omni/crypto";
 import {
   decodePresence,
   encodePresence,
@@ -17,8 +17,6 @@ interface Peer {
 
 const peerOf = (socket: WebSocket) => (attachmentOf(socket)?.peer as Peer | undefined) ?? null;
 const clocks = new WeakMap<WebSocket, number>();
-
-const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 function onDoc(ctx: DurableObjectState, nodeId: string) {
   return [
@@ -80,7 +78,7 @@ export function relayPresence(
   const { nodeId } = input;
   const outsiders = outsidersOn(ctx, nodeId).filter((other) => other !== socket);
   const outside = outsideOf(socket);
-  const entries = decodePresence(fromBase64(input.u));
+  const entries = decodePresence(decodeBase64(input.u));
   if (!entries) return outside ? null : { members: input.u, outsiders: null };
   const kept = ownEntries(ctx, socket, nodeId, entries);
   if (kept.length === 0) return null;
