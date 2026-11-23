@@ -1,4 +1,4 @@
-import { sql, type SQL } from "drizzle-orm";
+import { sql, type AnyColumn, type SQL } from "drizzle-orm";
 import {
   type AnyPgColumn,
   bigint,
@@ -320,6 +320,23 @@ export const CALENDAR_ATTACHMENT = sql.raw(
   "(lower(mime_type) in ('text/calendar', 'application/ics') or lower(filename) like '%.ics')",
 );
 
+const ATTACHMENT_DIR = "att";
+
+/**
+ * The R2 keys of one message's objects under its mailbox's prefix (`<orgId>/<mailboxId>`), each
+ * named by the SHA-256 of its bytes. `attachmentContentHash` reads an attachment's hash back.
+ */
+export const mailObjectKeys = (prefix: string) => ({
+  raw: (sha256: string) => `${prefix}/raw/${sha256}.eml`,
+  attachment: (sha256: string) => `${prefix}/${ATTACHMENT_DIR}/${sha256}`,
+  html: (rawSha256: string) => `${prefix}/html/${rawSha256}.html`,
+});
+
+/** An attachment's content hash, read from its `r2_key`; `attachments_content_hash_idx` indexes it. */
+export function attachmentContentHash(r2Key: AnyColumn) {
+  return sql`split_part(${r2Key}, ${sql.raw(`'/${ATTACHMENT_DIR}/'`)}, 2)`;
+}
+
 export const attachments = pgTable(
   "attachments",
   {
@@ -340,7 +357,7 @@ export const attachments = pgTable(
   },
   (t) => [
     index("attachments_message_id_idx").on(t.messageId),
-    index("attachments_content_hash_idx").on(sql`split_part(${t.r2Key}, '/att/', 2)`),
+    index("attachments_content_hash_idx").on(attachmentContentHash(t.r2Key)),
     index("attachments_calendar_idx")
       .on(t.createdAt, t.id)
       .where(sql`${CALENDAR_ATTACHMENT}`),
