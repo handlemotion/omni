@@ -2,19 +2,17 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageFolderIcons, storageNodes } from "../schema/storage.ts";
 import type { Door } from "./access.ts";
-import { inTrash, toNode, type StorageNode, type StorageSpace } from "./core.ts";
-import { reach } from "./tree.ts";
-
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
+import { toNode, type StorageNode, type StorageSpace } from "./core.ts";
+import { reachLive } from "./tree.ts";
+import { NOT_FOUND, FORBIDDEN } from "./results.ts";
 
 export type IconResult = { status: "ok"; node: StorageNode } | typeof NOT_FOUND | typeof FORBIDDEN;
 
 export function iconOperations(db: Db, door: Door) {
   return {
     async setIcon(nodeId: string, icon: string | null) {
-      const found = await reach(db, door, nodeId);
-      if (!found || inTrash(found.chain)) return NOT_FOUND satisfies IconResult;
+      const found = await reachLive(db, door, nodeId);
+      if (!found) return NOT_FOUND satisfies IconResult;
       const { node } = found;
       if (node.kind !== "folder" || node.parentId !== null) return NOT_FOUND satisfies IconResult;
       if (!found.access.change) return FORBIDDEN satisfies IconResult;

@@ -427,6 +427,31 @@ test("the calendars menu in the header hides a calendar for this person, and sho
   await expect.poll(hidden).toBe(false);
 });
 
+test("the calendars menu is out of the page bar's flow before it is placed, so the bar's buttons stay put", async () => {
+  const { org, member, page, origin } = await invited();
+  const shared = await createMailbox(db, org.id, `team-${Date.now()}@studio.example`, "shared");
+  await grant(db, org.id, shared.id, member.id);
+  await db.insert(schema.calendarCalendars).values({ orgId: org.id, mailboxId: shared.id });
+  await page.goto(new URL(`/${org.slug}/calendar?date=2026-11-24&view=month`, origin).toString());
+  const today = page.getByRole("button", { name: "Today", exact: true });
+  const menu = page.getByRole("button", { name: "Calendars, 2 calendars shown" });
+  await menu.waitFor();
+  const before = await today.boundingBox();
+  await menu.click();
+  await page.getByRole("searchbox", { name: "Filter calendars" }).waitFor();
+  const unplaced = await page.locator('[data-slot="popover-content"]').evaluate((popup) => {
+    const bare = popup.cloneNode() as HTMLElement;
+    bare.removeAttribute("popover");
+    bare.removeAttribute("style");
+    popup.after(bare);
+    const position = getComputedStyle(bare).position;
+    bare.remove();
+    return position;
+  });
+  expect(unplaced).toBe("fixed");
+  expect(await today.boundingBox()).toEqual(before);
+});
+
 test("double-clicking a slot opens the new event at the slot a click there selects", async () => {
   const { org, page, origin } = await invited();
   await openWeek(page, origin, org.slug);

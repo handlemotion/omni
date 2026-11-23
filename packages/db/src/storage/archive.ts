@@ -2,8 +2,8 @@ import { sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageNodes } from "../schema/storage.ts";
 import type { Door } from "./access.ts";
-import { inTrash, MAX_WALK } from "./core.ts";
-import { reach } from "./tree.ts";
+import { MAX_WALK } from "./core.ts";
+import { reachLive } from "./tree.ts";
 
 /** One thing a zip holds: a folder (no bytes) or a file and where its bytes are. */
 export interface StorageArchiveEntry {
@@ -40,8 +40,8 @@ export function archiveOperations(db: Db, door: Door) {
       const entries: StorageArchiveEntry[] = [];
       const roots = new Set<string>();
       for (const nodeId of new Set(nodeIds)) {
-        const found = await reach(db, door, nodeId);
-        if (!found || inTrash(found.chain)) return { status: "not_found" } satisfies ArchiveResult;
+        const found = await reachLive(db, door, nodeId);
+        if (!found) return { status: "not_found" } satisfies ArchiveResult;
         const { name, kind } = found.node;
         const root = freeRoot(name, kind, roots);
         const rows = (await db.execute(sql`

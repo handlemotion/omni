@@ -2,7 +2,7 @@ import type { Db, MemberStorage, StorageNode, StoragePlace } from "@omni/db";
 import type { Config } from "../env.ts";
 import type { Logger } from "../log.ts";
 import { announceTo } from "./announce.ts";
-import { storageLimit } from "./core.ts";
+import { deleteStorageObjects, storageLimit } from "./core.ts";
 import { uploadCaps } from "./uploads.ts";
 
 /** What writing a file from the Worker needs. */
@@ -136,7 +136,5 @@ async function putObject(
 async function dropUpload(deps: WriteDeps, files: MemberStorage, uploadId: string) {
   const aborted = await files.abortUpload(uploadId).catch(() => null);
   if (aborted?.status !== "ok") return;
-  await deps.env.STORAGE_BUCKET.delete(aborted.r2Key).catch((error: unknown) => {
-    deps.log.error("storage.objects_left", { count: 1, error });
-  });
+  await deleteStorageObjects(deps.env.STORAGE_BUCKET, [aborted.r2Key], deps.log);
 }

@@ -10,6 +10,7 @@ import {
 } from "../schema/storage.ts";
 import type { StorageMember } from "./access.ts";
 import { cleanName, deleteSubtree, lockTree, teamspaceDrive, type Drive } from "./core.ts";
+import { NOT_FOUND, FORBIDDEN, type NotFound, type Forbidden } from "./results.ts";
 
 export type StorageTeamspaceRole = (typeof storageTeamspaceMembers.role.enumValues)[number];
 
@@ -35,11 +36,6 @@ export interface StorageTeamspaceMember {
   email: string;
   image: string | null;
 }
-
-type NotFound = { status: "not_found" };
-type Forbidden = { status: "forbidden" };
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
 
 export type TeamspaceResult =
   | { status: "ok"; teamspace: StorageTeamspace }
