@@ -1,8 +1,8 @@
 export const colors = {
   /** The app canvas. */
-  background: "#ffffff",
-  /** Anything raised on the canvas: cards, sheets, the search field. */
-  surface: "#fdfdfd",
+  background: "#fafafa",
+  /** Anything raised on the canvas: cards, sheets, buttons, the search field. */
+  surface: "#ffffff",
   foreground: "#171717",
   mutedForeground: "#858585",
   subtleForeground: "#a6a6a6",
@@ -18,12 +18,15 @@ export const colors = {
   primaryForeground: "#ffffff",
   /** A logo's tile, as `--logo-tile`. */
   logoTile: "#ffffff",
+  /** `--brand-cream`: the Omni globe mark without a tile, as on the web sign-in page. */
+  brandCream: "#dcc7a8",
   /** `primary` at 12% on white, as `--primary-subtle` mixes it. */
   primarySubtle: "#e4eefc",
   /** Each module's mark (`--module-*`): its tile behind a white filled glyph. */
   moduleMail: "#1d72e8",
   moduleDrive: "#15924f",
   moduleCrm: "#7a4fd1",
+  moduleCalendar: "#ef4444",
   moduleForeground: "#ffffff",
   /** What dims the page under a sheet: the foreground at 18%. */
   scrim: "rgba(23, 23, 23, 0.18)",
@@ -51,24 +54,24 @@ export type ColorToken = keyof typeof colors;
  * the big left-aligned name at the top of a record or conversation at `display`.
  */
 export const text = {
-  xs: { fontSize: 12, lineHeight: 16 },
-  sm: { fontSize: 14, lineHeight: 19 },
+  xs: { fontSize: 11, lineHeight: 15 },
+  sm: { fontSize: 13, lineHeight: 18 },
   /** A section's heading in a list, a row's time. */
-  caption: { fontSize: 13, lineHeight: 17 },
+  caption: { fontSize: 12, lineHeight: 16 },
   /** A thread row's subject. */
-  subhead: { fontSize: 15, lineHeight: 20 },
-  /** A thread row's sender, a menu row's label, the search pill. */
-  body: { fontSize: 16, lineHeight: 21 },
-  md: { fontSize: 17, lineHeight: 23 },
-  lg: { fontSize: 20, lineHeight: 26 },
+  subhead: { fontSize: 14, lineHeight: 19 },
+  /** A thread row's sender, a menu row's label, the search pill, buttons. */
+  body: { fontSize: 15, lineHeight: 20 },
+  md: { fontSize: 16, lineHeight: 21 },
+  lg: { fontSize: 18, lineHeight: 24 },
   /** A message's text in a conversation: the body size, with room between its lines. */
-  reading: { fontSize: 16, lineHeight: 24 },
+  reading: { fontSize: 15, lineHeight: 22 },
   /** A conversation's subject. */
-  heading: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
+  heading: { fontSize: 23, lineHeight: 29, letterSpacing: -0.4 },
   /** A record's name. */
-  title: { fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
+  title: { fontSize: 25, lineHeight: 31, letterSpacing: -0.4 },
   /** The sign-in heading. */
-  display: { fontSize: 34, lineHeight: 41, letterSpacing: -0.6 },
+  display: { fontSize: 30, lineHeight: 36, letterSpacing: -0.5 },
 } as const;
 
 export type TextSize = keyof typeof text;
@@ -112,8 +115,8 @@ export const rowLead = 44;
 export const floatingControl = 50;
 /** The bar's controls while its field is open over the keyboard. */
 export const searchControl = 48;
-/** The fade behind the floating bar, where the page dissolves before it. */
-export const floatingFade = 128;
+/** The fade behind the floating bar and module dock, where the page dissolves before them. */
+export const floatingFade = 176;
 /** The dot beside an unread thread's sender, or on the bell. */
 export const unreadDot = 7;
 export const gutter = space(5);

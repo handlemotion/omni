@@ -12,5 +12,6 @@ export function usePageTitle() {
     return { title: MAIL_PAGES[place.mailPage].label, count: counts[place.mailPage] };
   if (place.drivePage) return { title: DRIVE_PAGES[place.drivePage].label };
   if (place.crmPage) return { title: CRM_PAGES[place.crmPage].label };
+  if (place.module === "calendar") return { title: "Calendar" };
   return { title: "" };
 }

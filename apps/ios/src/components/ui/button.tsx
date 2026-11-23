@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View, type PressableProps } from "react-native";
 import type { SvgProps } from "react-native-svg";
-import { colors, iconSize, radius, shadowRaised, space } from "@/theme/tokens.ts";
+import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
 
 export interface ButtonProps extends Omit<PressableProps, "children"> {
@@ -34,8 +34,8 @@ export function Button({
   ...props
 }: ButtonProps) {
   const primary = intent === "primary";
-  const glyph = primary ? colors.primaryForeground : colors.mutedForeground;
-  const glyphSize = size === "sm" ? iconSize.sm : iconSize.md;
+  const glyph = primary ? colors.primaryForeground : colors.foreground;
+  const glyphSize = size === "sm" ? iconSize.sm : iconSize.field;
   return (
     <Pressable
       {...props}
@@ -58,7 +58,7 @@ export function Button({
           <Icon size={glyphSize} color={glyph} />
         ) : null}
         <Text
-          size={size === "sm" ? "sm" : "md"}
+          size={size === "sm" ? "sm" : "body"}
           weight="medium"
           tone={primary ? "primaryForeground" : "foreground"}
           numberOfLines={1}
@@ -74,9 +74,9 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: { borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
-  sm: { minHeight: 36, paddingHorizontal: space(3.5) },
-  md: { minHeight: 48, paddingHorizontal: space(5) },
-  lg: { minHeight: 56, paddingHorizontal: space(6) },
+  sm: { minHeight: 34, paddingHorizontal: space(3.5) },
+  md: { minHeight: 44, paddingHorizontal: space(4.5) },
+  lg: { minHeight: 48, paddingHorizontal: space(5) },
   primary: {
     backgroundColor: colors.primaryButton,
     borderWidth: 1,
@@ -84,10 +84,9 @@ const styles = StyleSheet.create({
   },
   plain: { backgroundColor: colors.well },
   outline: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    ...shadowRaised,
   },
   quiet: { minHeight: 36, paddingHorizontal: 0, alignSelf: "flex-start" },
   dimmed: { opacity: 0.5 },

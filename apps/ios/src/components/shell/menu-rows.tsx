@@ -7,6 +7,7 @@ import {
   IconBubble,
   IconBubbleDots,
   IconBuildings,
+  IconCalendar,
   IconChecklist,
   IconCircleCheck,
   IconClock,
@@ -224,5 +225,20 @@ export function CrmMenu() {
         </>
       ) : null}
     </>
+  );
+}
+
+/** Calendar's drawer row until views and calendars land on iOS. */
+export function CalendarMenu() {
+  const { close } = useMenu();
+  return (
+    <MenuRow
+      nav
+      tint="moduleCalendar"
+      icon={IconCalendar}
+      label="Calendar"
+      isCurrent
+      onPress={close}
+    />
   );
 }

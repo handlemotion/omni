@@ -6,7 +6,6 @@ import { drivePageIn, type DrivePage } from "@/lib/drive.ts";
 import { isMailPage, type MailPage } from "@/lib/mail.ts";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 import { space } from "@/theme/tokens.ts";
-import { useMenu } from "./menu-context.tsx";
 
 /** The shell's round buttons (☰, the workspace) and the top bar's height below the status bar. */
 export const SHELL_CONTROL = space(11);
@@ -17,14 +16,20 @@ export function useShellTop() {
   return useSafeAreaInsets().top + SHELL_BAR;
 }
 
-export type Module = "mail" | "drive" | "crm";
+export type Module = "mail" | "drive" | "crm" | "calendar";
 
-export const MODULE_HOME = { mail: "/mail", drive: "/drive", crm: "/crm" } as const;
+export const MODULE_HOME = {
+  mail: "/mail",
+  drive: "/drive",
+  crm: "/crm",
+  calendar: "/calendar",
+} as const;
 
 function moduleOf(pathname: string) {
   let module: Module = "mail";
   if (pathname.startsWith("/drive")) module = "drive";
   else if (pathname.startsWith("/crm")) module = "crm";
+  else if (pathname.startsWith("/calendar")) module = "calendar";
   return module;
 }
 
@@ -80,17 +85,4 @@ export function useMenuPlace() {
   };
 
   return { module, onRoot, mailPage, drivePage, crmPage, mailbox, openModule, openPage, openMail };
-}
-
-/**
- * The menu's ✕ (and a search started from it): it closes onto the module it shows, whichever
- * the app was in when it opened.
- */
-export function useCloseMenu() {
-  const shell = useMenu();
-  const place = useMenuPlace();
-  return () => {
-    if (shell.isOpen && shell.browsing !== place.module) place.openModule(shell.browsing);
-    shell.close();
-  };
 }

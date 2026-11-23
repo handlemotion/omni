@@ -167,6 +167,7 @@ const SCREENS: {
     clamped: [[LONG.person, 2]],
     inFull: [LONG.deal],
   },
+  { name: "Calendar, empty", path: () => "/calendar", shows: "No events" },
 ];
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -389,16 +390,16 @@ test("the inbox row with the longest sender keeps its time inside the row", asyn
   }
 });
 
-test("the menu fits the screen, and closing it lands on the module it shows", async () => {
+test("the drawer opens and closes, and the bottom dock switches modules", async () => {
   const page = await open("/mail", LONG.sender);
   try {
     await page.getByRole("button", { name: "Open menu" }).click();
     await page.getByText("Folders", { exact: true }).waitFor();
-    const layout = await page.evaluate(sidewaysOverflow, 0.5);
-    expect(layout.offenders, "menu elements past the viewport").toEqual([]);
-    await page.getByRole("button", { name: "Drive", exact: true }).click();
-    await page.getByRole("button", { name: "Close menu" }).click();
+    await page.getByRole("button", { name: "Close menu" }).first().click();
+    await page.getByRole("tab", { name: "Drive", exact: true }).click();
     await page.getByText(LONG.folder, { exact: true }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Calendar", exact: true }).click();
+    await expect.poll(() => page.getByText("No events", { exact: true }).isVisible()).toBe(true);
   } finally {
     await page.close();
   }

@@ -5,12 +5,13 @@ import { BottomFade } from "@/components/ui/bottom-fade.tsx";
 import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import type { CrmPage } from "@/lib/crm.ts";
 import { DRIVE_PAGES } from "@/lib/drive.ts";
-import { FloatingBar } from "./floating-bar.tsx";
+import { FloatingBar, type FloatingBarAction } from "./floating-bar.tsx";
 import { useMenu } from "./menu-context.tsx";
-import { useCloseMenu, useMenuPlace, type Module } from "./menu-nav.ts";
+import { useMenuPlace, type Module } from "./menu-nav.ts";
 import { MenuRow } from "./menu-row.tsx";
+import { ModuleDock } from "./module-dock.tsx";
 
-const PLACEHOLDER: Record<Module, string> = {
+const PLACEHOLDER: Partial<Record<Module, string>> = {
   mail: "Search mail",
   drive: "Search files",
   crm: "Search records",
@@ -25,41 +26,52 @@ const NEW_RECORD: Record<CrmPage, { kind: string; label: string }> = {
 };
 
 /**
- * The shell's one bottom bar, over a module and over the menu, the page fading out behind it:
- * the module's search and its main action (New message, Drive's Add sheet, a new record). Searching or acting from the menu
- * closes it onto the module it shows.
+ * The shell's bottom bar on a module's root page, the page fading out behind it: the module's
+ * search bar and main action (New message, Drive's Add sheet, a new record) stacked above the
+ * bottom module switcher dock. Calendar shows only the dock until calendar features land.
  */
 export function BottomBar() {
   const shell = useMenu();
   const place = useMenuPlace();
-  const closeMenu = useCloseMenu();
   const adding = useSheet();
-  const module = shell.isOpen ? shell.browsing : place.module;
-  const { setQuery, setSearchIn } = shell;
+  const module = place.module;
+  const { close, setQuery, setSearchIn } = shell;
   const mine = shell.searchIn === module;
   const shared = place.drivePage === "shared";
   const add = useAddActions({ space: shared ? "shared" : "personal" });
   const record = NEW_RECORD[place.crmPage ?? "companies"];
-  const act = {
+
+  const actions: Partial<Record<Module, FloatingBarAction>> = {
     mail: {
       icon: IconCompose,
       label: "New message",
-      run: () =>
+      onPress: () => {
+        close();
         router.push({
           pathname: "/mail/compose",
           params: place.mailbox ? { mailbox: place.mailbox } : {},
-        }),
+        });
+      },
     },
-    drive: { icon: IconPlus, label: "New", run: adding.open },
+    drive: {
+      icon: IconPlus,
+      label: "New",
+      onPress: () => {
+        close();
+        adding.open();
+      },
+    },
     crm: {
       icon: IconPlus,
       label: record.label,
-      run: () =>
-        record.kind === "task"
-          ? router.push("/crm/task-new")
-          : router.push({ pathname: "/crm/form", params: { kind: record.kind } }),
+      onPress: () => {
+        close();
+        if (record.kind === "task") router.push("/crm/task-new");
+        else router.push({ pathname: "/crm/form", params: { kind: record.kind } });
+      },
     },
-  }[module];
+  };
+
   return (
     <>
       <BottomFade />
@@ -70,19 +82,13 @@ export function BottomBar() {
         query={mine ? shell.query : undefined}
         onSearch={setQuery}
         onStart={() => {
-          closeMenu();
+          close();
           setQuery("");
           setSearchIn(module);
         }}
         onStop={() => setSearchIn(null)}
-        action={{
-          icon: act.icon,
-          label: act.label,
-          onPress: () => {
-            closeMenu();
-            act.run();
-          },
-        }}
+        action={actions[module]}
+        dock={<ModuleDock />}
       />
       <BottomSheet
         isOpen={adding.isOpen}

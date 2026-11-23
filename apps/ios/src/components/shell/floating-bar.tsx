@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import {
   Keyboard,
   LayoutAnimation,
@@ -13,9 +13,10 @@ import { IconSearch, IconX } from "@/components/icons.ts";
 import { FloatingButton, FloatingField, FloatingPill } from "@/components/ui/floating.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { floatingControl, iconSize, space, text } from "@/theme/tokens.ts";
+import { DOCK_HEIGHT } from "./module-dock.tsx";
 
-/** How far a list under the bar scrolls past its last row, so the bar never covers it. */
-export const FLOATING_BAR_SPACE = floatingControl + space(10);
+/** How far a list under the bar and dock scrolls past its last row, so chrome never covers it. */
+export const FLOATING_BAR_SPACE = floatingControl + DOCK_HEIGHT + space(12);
 
 const SIDE = space(4);
 
@@ -26,9 +27,10 @@ export interface FloatingBarAction {
 }
 
 /**
- * The shell's bottom controls, floating flat over the bottom edge: a search pill and the main
- * action in the brand's blue. A tap on the pill makes it a live field above the keyboard, with
- * a close button; `onSearch` hears every change, and "" once it closes.
+ * The shell's bottom controls, floating over the bottom edge: a module-focused search pill and its
+ * main action above the module dock. A tap on the pill makes it a live field above the keyboard
+ * (hiding the dock while searching), with a close button; `onSearch` hears every change, and ""
+ * once it closes.
  */
 export function FloatingBar({
   placeholder,
@@ -38,18 +40,21 @@ export function FloatingBar({
   onStop,
   initial,
   query,
+  dock,
 }: {
-  placeholder: string;
+  placeholder?: string;
   /** A search already running (coming back from one of its results): the field reopens with it. */
   initial?: { searching: boolean; query: string };
   /** What the open field shows, when the page under it can fill it (a recent search). */
   query?: string;
-  action: FloatingBarAction;
+  action?: FloatingBarAction;
   onSearch: (q: string) => void;
-  /** The field opened (the shell closes its menu and hides its top bar). */
+  /** The field opened (the shell closes its drawer and hides its top bar). */
   onStart?: () => void;
   /** The field closed. */
   onStop?: () => void;
+  /** The module switcher dock rendered beneath the search bar when not searching. */
+  dock?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
@@ -64,14 +69,11 @@ export function FloatingBar({
     onStop?.();
   };
   const bottom =
-    searching && keyboard ? keyboard + space(2.5) : Math.max(insets.bottom - space(1), space(4));
+    searching && keyboard ? keyboard + space(2.5) : Math.max(insets.bottom - space(1), space(3));
   return (
-    <View
-      pointerEvents="box-none"
-      style={[styles.bar, searching && styles.open, { paddingBottom: bottom }]}
-    >
-      {searching ? (
-        <>
+    <View pointerEvents="box-none" style={[styles.stack, { paddingBottom: bottom }]}>
+      {searching && placeholder ? (
+        <View pointerEvents="box-none" style={[styles.row, styles.open]}>
           <FloatingField icon={IconSearch}>
             <TextField
               label={placeholder}
@@ -97,24 +99,33 @@ export function FloatingBar({
             glyph={iconSize.field}
             onPress={stop}
           />
-        </>
+        </View>
       ) : (
         <>
-          <FloatingPill
-            icon={IconSearch}
-            label={placeholder}
-            onPress={() => {
-              onStart?.();
-              setFocus(true);
-              setSearching(true);
-            }}
-          />
-          <FloatingButton
-            icon={action.icon}
-            label={action.label}
-            onPress={action.onPress}
-            primary
-          />
+          {placeholder || action ? (
+            <View pointerEvents="box-none" style={styles.row}>
+              {placeholder ? (
+                <FloatingPill
+                  icon={IconSearch}
+                  label={placeholder}
+                  onPress={() => {
+                    onStart?.();
+                    setFocus(true);
+                    setSearching(true);
+                  }}
+                />
+              ) : null}
+              {action ? (
+                <FloatingButton
+                  icon={action.icon}
+                  label={action.label}
+                  onPress={action.onPress}
+                  primary
+                />
+              ) : null}
+            </View>
+          ) : null}
+          {dock}
         </>
       )}
     </View>
@@ -144,11 +155,14 @@ function useKeyboardHeight() {
 }
 
 const styles = StyleSheet.create({
-  bar: {
+  stack: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
+    gap: space(2.5),
+  },
+  row: {
     flexDirection: "row",
     alignItems: "center",
     gap: space(2.5),
