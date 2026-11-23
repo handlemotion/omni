@@ -1,11 +1,13 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 import Animated, {
   Extrapolation,
   interpolate,
   useAnimatedStyle,
   type SharedValue,
 } from "react-native-reanimated";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import { scheduleOnRN } from "react-native-worklets";
 import type { SvgProps } from "react-native-svg";
 import {
   IconBubble,
@@ -31,13 +33,6 @@ import { ModuleMainAction } from "./module-action.tsx";
 import { useModules } from "./modules.ts";
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;
-interface Pill {
-  id: string;
-  label: string;
-  here: boolean;
-  glyph: ReactNode;
-  open: () => void;
-}
 interface Shortcut {
   id: string;
   icon: Glyph;
@@ -49,6 +44,8 @@ export const NAV_BAR = space(12);
 const NAV_HANDLE = space(5);
 const SIDE = space(11);
 const GAP = space(3);
+const EDGE = space(5);
+const SWIPE = 30;
 /** The rail's whole height: its handle and its row. */
 export const RAIL_BLOCK = NAV_HANDLE + NAV_BAR;
 
@@ -99,43 +96,71 @@ function useShortcuts() {
 }
 
 /**
- * The rail, on every page: a handle on top; the current module on the left; in the middle the
- * module's main pages as glyphs, or the modules while the rail is up; the module's main action
- * (compose, new file, new record) on the right. White pills with a hairline edge across the
- * page's width, the current one marked in grey. Pulling the rail (it sits in the frame's pull)
- * or tapping the handle or the module raises it, the page above, the module's pages beneath.
+ * The rail, on every page: a handle on top; the current module in a round button on the left
+ * (swipe it sideways for the next or previous module); the module's main pages as glyphs in the
+ * middle; the module's main action (compose, new file, new record) on the right. While the rail
+ * is up (`progress` → 1) the module button grows into a pill of every module across the width,
+ * and the pages and the main action fold away. Pulling the rail (it sits in the frame's pull) or
+ * tapping the handle or the module raises it.
  */
 export function NavBar({ progress }: { progress: SharedValue<number> }) {
   const shell = useMenu();
   const place = useMenuPlace();
   const modules = useModules();
-  const entry = modules.find((m) => m.id === place.module);
+  const { width } = useWindowDimensions();
   const shortcuts = useShortcuts();
-  const Mark = entry?.mark;
-  const side = useAnimatedStyle(() => ({
-    width: interpolate(progress.value, [0, 1], [SIDE + GAP, 0], Extrapolation.CLAMP),
-    opacity: interpolate(progress.value, [0, 0.5], [1, 0], Extrapolation.CLAMP),
+  const current = Math.max(
+    0,
+    modules.findIndex((m) => m.id === place.module),
+  );
+  const full = width - EDGE * 2;
+  const slot = full / Math.max(modules.length, 1);
+  const pagesWidth = full - (SIDE + GAP) * 2;
+
+  const step = (by: number) => {
+    const next = modules[current + by];
+    if (next) place.openModule(next.id);
+  };
+  const swipe = usePanGesture({
+    activeOffsetX: [-12, 12],
+    failOffsetY: [-12, 12],
+    onDeactivate: (e) => {
+      "worklet";
+      if (Math.abs(e.translationX) < SWIPE) return;
+      scheduleOnRN(step, e.translationX < 0 ? 1 : -1);
+    },
+  });
+
+  const moduleWrap = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [SIDE, full], Extrapolation.CLAMP),
   }));
-  const items: Pill[] = shell.isOpen
-    ? modules.map((m) => ({
-        id: m.id,
-        label: m.label,
-        here: m.id === place.module,
-        glyph: <m.mark size={22} />,
-        open: () => place.openModule(m.id),
-      }))
-    : shortcuts.items.map(({ id, icon: Icon, label }) => {
-        const here = id === shortcuts.current && place.onRoot;
-        return {
-          id,
-          label,
-          here,
-          glyph: (
-            <Icon size={iconSize.md} color={here ? colors.foreground : colors.mutedForeground} />
-          ),
-          open: () => shortcuts.open(id),
-        };
-      });
+  const moduleRow = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX: interpolate(
+          progress.value,
+          [0, 1],
+          [(SIDE - slot) / 2 - current * slot, 0],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
+  const highlight = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0.4, 1], [0, 1], Extrapolation.CLAMP),
+  }));
+  const fold = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.4], [1, 0], Extrapolation.CLAMP),
+  }));
+  const pages = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [pagesWidth, 0], Extrapolation.CLAMP),
+    marginLeft: interpolate(progress.value, [0, 1], [GAP, 0], Extrapolation.CLAMP),
+  }));
+  const action = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [SIDE, 0], Extrapolation.CLAMP),
+    marginLeft: interpolate(progress.value, [0, 1], [GAP, 0], Extrapolation.CLAMP),
+  }));
+
   return (
     <View pointerEvents="box-none">
       <Pressable
@@ -149,35 +174,62 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
         <View style={styles.grabber} />
       </Pressable>
       <View pointerEvents="box-none" style={styles.row}>
-        <Animated.View style={[styles.sideStart, side]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${entry?.label ?? "Modules"}, all pages and modules`}
-            onPress={shell.toggle}
-            style={({ pressed }) => [styles.round, pressed && styles.pressed]}
-          >
-            {Mark ? <Mark size={22} /> : null}
-          </Pressable>
+        <GestureDetector gesture={swipe}>
+          <Animated.View accessibilityRole="tablist" style={[styles.modules, moduleWrap]}>
+            <Animated.View style={[styles.moduleRow, { width: full }, moduleRow]}>
+              {modules.map((m, index) => {
+                const Mark = m.mark;
+                const here = index === current;
+                return (
+                  <Pressable
+                    key={m.id}
+                    accessibilityRole="tab"
+                    accessibilityLabel={m.label}
+                    accessibilityState={{ selected: here }}
+                    onPress={() => (shell.isOpen ? place.openModule(m.id) : shell.toggle())}
+                    style={[styles.module, { width: slot }]}
+                  >
+                    {here ? (
+                      <Animated.View style={[styles.here, styles.moduleHere, highlight]} />
+                    ) : null}
+                    <Mark size={22} />
+                  </Pressable>
+                );
+              })}
+            </Animated.View>
+          </Animated.View>
+        </GestureDetector>
+        <Animated.View
+          pointerEvents={shell.isOpen ? "none" : "auto"}
+          style={[styles.foldWrap, pages, fold]}
+        >
+          {shortcuts.items.length ? (
+            <View accessibilityRole="tablist" style={[styles.pages, { width: pagesWidth }]}>
+              {shortcuts.items.map(({ id, icon: Icon, label }) => {
+                const here = id === shortcuts.current && place.onRoot;
+                return (
+                  <Pressable
+                    key={id}
+                    accessibilityRole="tab"
+                    accessibilityLabel={label}
+                    accessibilityState={{ selected: here }}
+                    onPress={() => shortcuts.open(id)}
+                    style={[styles.page, here && styles.here]}
+                  >
+                    <Icon
+                      size={iconSize.md}
+                      color={here ? colors.foreground : colors.mutedForeground}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
         </Animated.View>
-        {items.length ? (
-          <View accessibilityRole="tablist" style={styles.pages}>
-            {items.map((item) => (
-              <Pressable
-                key={item.id}
-                accessibilityRole="tab"
-                accessibilityLabel={item.label}
-                accessibilityState={{ selected: item.here }}
-                onPress={item.open}
-                style={[styles.page, item.here && styles.here]}
-              >
-                {item.glyph}
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.spacer} />
-        )}
-        <Animated.View style={[styles.sideEnd, side]}>
+        <Animated.View
+          pointerEvents={shell.isOpen ? "none" : "auto"}
+          style={[styles.foldWrap, styles.actionWrap, action, fold]}
+        >
           <ModuleMainAction />
         </Animated.View>
       </View>
@@ -193,27 +245,32 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     backgroundColor: colors.hairlineLine,
   },
-  spacer: { flex: 1 },
   row: {
+    height: NAV_BAR,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: space(5),
+    paddingHorizontal: EDGE,
   },
-  sideStart: { overflow: "hidden", alignItems: "flex-start" },
-  sideEnd: { overflow: "hidden", alignItems: "flex-end" },
-  round: {
-    width: SIDE,
+  modules: {
     height: SIDE,
+    overflow: "hidden",
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
   },
+  moduleRow: { height: "100%", flexDirection: "row" },
+  module: { height: "100%", alignItems: "center", justifyContent: "center" },
+  moduleHere: {
+    position: "absolute",
+    top: space(1),
+    bottom: space(1),
+    left: space(1),
+    right: space(1),
+  },
+  foldWrap: { overflow: "hidden" },
+  actionWrap: { alignItems: "flex-end" },
   pages: {
-    flex: 1,
-    minWidth: 0,
     height: NAV_BAR,
     flexDirection: "row",
     alignItems: "center",
@@ -225,12 +282,11 @@ const styles = StyleSheet.create({
   },
   page: {
     flex: 1,
-    minWidth: 0,
     height: "100%",
     borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
   },
-  here: { backgroundColor: colors.well },
+  here: { backgroundColor: colors.well, borderRadius: radius.full },
   pressed: { transform: [{ scale: 0.97 }] },
 });
