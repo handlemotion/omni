@@ -113,18 +113,11 @@
         "apps/worker/src/image-proxy.ts",
         "apps/worker/src/queue.ts",
         "apps/worker/src/realtime.ts",
-        "apps/worker/src/routes/internal.ts",
         "apps/worker/src/routes/library.ts",
         "apps/worker/src/routes/stripe-webhook.ts"
       ],
       "rules": {
         "complexity": "off"
-      }
-    },
-    {
-      "files": ["apps/worker/src/routes/internal.ts"],
-      "rules": {
-        "max-depth": "off"
       }
     },
     {
