@@ -82,7 +82,7 @@ export function Input({ className, size = "md", plain = false, ref, ...props }: 
   const own = useRef<HTMLInputElement | null>(null);
   const autoFocus = props.autoFocus ?? fromField.autoFocus;
   useEffect(() => {
-    if (autoFocus) own.current?.focus();
+    if (autoFocus) own.current?.focus({ preventScroll: true });
   }, [autoFocus]);
   return (
     <InputPrimitive
