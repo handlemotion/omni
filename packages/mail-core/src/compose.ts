@@ -91,3 +91,18 @@ export const forwardBody: (
   ].join("");
   return { text, html };
 };
+
+const ADDRESS = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+
+const tokens = (text: string) =>
+  [...new Set(text.split(/[\s,;]+/).map((a) => a.replace(/^<|>$/g, "").trim()))].filter(Boolean);
+
+/** Every address in typed or pasted text, in order, without repeats. */
+export function parseAddresses(text: string) {
+  return tokens(text).filter((a) => ADDRESS.test(a)) satisfies string[];
+}
+
+/** What in typed text isn't an address, kept in the field for the person to fix. */
+export function notAddresses(text: string) {
+  return tokens(text).filter((a) => !ADDRESS.test(a)) satisfies string[];
+}

@@ -1,11 +1,10 @@
-import type { Mailbox } from "@omni/client";
+import { mailboxName, type Mailbox } from "@omni/client";
 import { useState } from "react";
 import { IconChevronDown } from "@/components/icons.ts";
 import { MailboxAvatar } from "@/components/inbox/mailbox-avatar.tsx";
 import { ChoiceRow } from "@/components/shell/mailbox-chooser.tsx";
 import { BottomSheet } from "@/components/ui/bottom-sheet.tsx";
 import { ChipButton } from "@/components/ui/chip-button.tsx";
-import { mailboxName } from "@/lib/mail.ts";
 import { useSession } from "@/lib/session.ts";
 import { colors, iconSize, space } from "@/theme/tokens.ts";
 

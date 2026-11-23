@@ -1,19 +1,4 @@
-import type { Message } from "@omni/client";
-
-/**
- * Whether a message opens as the sender's HTML rather than its text, as on the web: it has no
- * text of its own, or it is outside mail whose images carry it.
- */
-export function opensFull(message: Message) {
-  if (!message.hasHtml) return false;
-  if (!message.cleanText.trim()) return true;
-  return !message.fromTeam && (message.remoteImageCount > 0 || /\[image: /.test(message.cleanText));
-}
-
-const BLOCKED_SRC_ATTR = "data-omni-src";
-
-/** The newest messages whose HTML is fetched before a thread opens. */
-export const WARM_NEWEST = 3;
+import { BLOCKED_SRC_ATTR } from "@omni/mail-core/blocked-src";
 
 const FRAME_DEFAULTS =
   'html{padding:16px;-webkit-text-size-adjust:100%}body{margin:0;display:flow-root;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;overflow-wrap:break-word}img{max-width:100%;height:auto}';

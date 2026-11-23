@@ -1,3 +1,4 @@
+import { driveRoleLabel } from "@omni/client";
 import { TableLoadMoreItem } from "react-aria-components/Table";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -17,8 +18,6 @@ import { LinkRowsMenu } from "./node-menu.tsx";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
 import { DAY_YEAR } from "@/lib/dates.ts";
-
-const ROLE = { viewer: "Viewer", commenter: "Commenter", editor: "Editor" } as const;
 
 export function SharedWithMe() {
   const shared = useSharedWithMe();
@@ -78,7 +77,7 @@ export function SharedWithMe() {
                       <Muted>{DAY_YEAR.format(new Date(item.sharedAt))}</Muted>
                     </TableCell>
                     <TableCell>
-                      <Muted>{ROLE[item.role]}</Muted>
+                      <Muted>{driveRoleLabel(item.role)}</Muted>
                     </TableCell>
                   </TableRow>
                 ))}

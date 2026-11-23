@@ -1,5 +1,5 @@
 import { latestEpochStart, type StorageLiveEntry } from "@omni/contracts";
-import { toBase64 } from "@omni/crypto";
+import { decodeBase64, toBase64 } from "@omni/crypto";
 import { isDocFile } from "@omni/docs";
 import {
   contentWriterOf,
@@ -30,8 +30,6 @@ type Timed = StorageLiveEntry & { at: number };
 type Deps = { db: Db; config: Config; log: Logger };
 type Doc = { id: string; orgId: string; contentVersion: number };
 
-const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
-
 const memberOf = (by: string) =>
   by.startsWith("m:") || by.startsWith("a:") ? by.split(":")[1] : null;
 const agentOf = (by: string) => (by.startsWith("a:") ? by.split(":").slice(2).join(":") : null);
@@ -46,7 +44,7 @@ function runsOf(updates: Timed[]) {
     if (run && run.by === by && entry.at - run.startedAt.getTime() <= RUN_MS) {
       run.lastSeq = entry.seqNum;
       run.endedAt = at;
-      run.updates.push(fromBase64(entry.record.u));
+      run.updates.push(decodeBase64(entry.record.u));
       continue;
     }
     runs.push({
@@ -55,7 +53,7 @@ function runsOf(updates: Timed[]) {
       lastSeq: entry.seqNum,
       startedAt: at,
       endedAt: at,
-      updates: [fromBase64(entry.record.u)],
+      updates: [decodeBase64(entry.record.u)],
     });
   }
   return runs;
@@ -104,9 +102,9 @@ async function checkpoint(db: Db, doc: Doc, epoch: number, through: number, runs
   const replay = await docReplayFrom(db, doc.id, epoch, through);
   if (!replay) return null;
   const state = new Y.Doc();
-  Y.applyUpdate(state, fromBase64(replay.baseline.state));
+  Y.applyUpdate(state, decodeBase64(replay.baseline.state));
   for (const run of [...replay.runs, ...runs]) {
-    if (run.update) Y.applyUpdate(state, fromBase64(run.update));
+    if (run.update) Y.applyUpdate(state, decodeBase64(run.update));
   }
   const last = runs.at(-1);
   if (!last) return null;

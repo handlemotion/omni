@@ -1,4 +1,5 @@
 import { type StorageHistoryResponse, type StorageHistorySessionResponse } from "@omni/contracts";
+import { decodeBase64 } from "@omni/crypto";
 import { blockCounts, diffBlocks, liveMarkdown } from "@omni/docs";
 import { docReplayFrom, STORAGE_VERSION_DAYS, type Db, type DocSession } from "@omni/db";
 import * as Y from "yjs";
@@ -31,14 +32,12 @@ const wireSession = (session: DocSession, held: { versionId: string | null } | n
   versionId: held?.versionId ?? null,
 });
 
-const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
-
 async function pageAt(db: Db, nodeId: string, epoch: number, seq: number) {
   const replay = await docReplayFrom(db, nodeId, epoch, seq);
   if (!replay) return null;
   const doc = new Y.Doc();
-  Y.applyUpdate(doc, fromBase64(replay.baseline.state));
-  for (const run of replay.runs) if (run.update) Y.applyUpdate(doc, fromBase64(run.update));
+  Y.applyUpdate(doc, decodeBase64(replay.baseline.state));
+  for (const run of replay.runs) if (run.update) Y.applyUpdate(doc, decodeBase64(run.update));
   return liveMarkdown(doc);
 }
 

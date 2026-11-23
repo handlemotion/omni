@@ -1,4 +1,4 @@
-import type { CrmContract } from "@omni/client";
+import { contractDates, takesSignedCopy, type CrmContract } from "@omni/client";
 import { IconDownload, IconSignature, IconUpload } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +15,7 @@ import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import { downloadFile } from "@/lib/download.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import { ContractPeopleField } from "./contract-people.tsx";
-import { takesSignedCopy } from "./contract-signed-copy-dialog.tsx";
-import { contractBadge, contractDates } from "./contract-status.ts";
+import { contractBadge } from "./contract-status.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 
 const WHEN = new Intl.DateTimeFormat(undefined, {

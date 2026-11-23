@@ -47,7 +47,6 @@ export async function decryptCredential(keyring: Keyring, envelope: string, aad:
   }
 }
 
-/** True when the envelope was written with a key other than the current one. */
 export function needsReencryption(keyring: Keyring, envelope: string) {
   return parseEnvelope(envelope).keyId !== keyring.currentKeyId;
 }

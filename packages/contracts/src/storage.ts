@@ -7,28 +7,19 @@ import {
   storageSharedUploadSchema,
 } from "./storage-links.ts";
 
+export {
+  baseMimeType,
+  opensAsDoc,
+  STORAGE_CANVAS_TYPE,
+  STORAGE_DOC_TYPE,
+  STORAGE_MARKDOWN_NAME,
+  STORAGE_SHEET_TYPE,
+} from "./storage-types.ts";
+
 /** Bytes in every part of an upload but the last (R2 wants them uniform). */
 export const STORAGE_PART_BYTES = 16 * 1024 * 1024;
 /** R2's cap on the parts of one upload. */
 export const STORAGE_MAX_PARTS = 10_000;
-
-/** A MIME type without its parameters, lowercased; empty when there is none. */
-export const baseMimeType = (mimeType: string | null | undefined) =>
-  mimeType?.split(";")[0]?.trim().toLowerCase() ?? "";
-
-/**
- * Omni's own page types, for the database and the Worker. `@omni/docs/file` and
- * `@omni/canvas/file` hold the same strings for the clients, which do not depend on this package.
- */
-export const STORAGE_DOC_TYPE = "text/vnd.omni.doc";
-export const STORAGE_CANVAS_TYPE = "text/vnd.omni.canvas";
-/** A Markdown file's name, which opens as a doc too: a regex both JS and Postgres (`~*`) read. */
-export const STORAGE_MARKDOWN_NAME = "\\.(md|markdown)$";
-const markdownName = new RegExp(STORAGE_MARKDOWN_NAME, "i");
-
-/** Whether a file opens as a doc: an Omni doc, or a Markdown file. */
-export const opensAsDoc = (name: string, mimeType: string | null | undefined) =>
-  baseMimeType(mimeType) === STORAGE_DOC_TYPE || markdownName.test(name);
 
 /** `personal` is the member's My files; `shared` is the company's shared drive. */
 export const storageSpaceSchema = z.enum(["personal", "shared"]);

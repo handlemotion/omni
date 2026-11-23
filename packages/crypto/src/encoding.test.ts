@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { randomToken, sha256Hex, toBase64, toBase64Url } from "./index.ts";
+import { decodeBase64, randomToken, sha256Hex, toBase64, toBase64Url } from "./index.ts";
 
 describe("encoders", () => {
   it("hashes text and its bytes to the same SHA-256 hex", async () => {
@@ -18,5 +18,19 @@ describe("encoders", () => {
   it("encodes inputs larger than one chunk like Node does", () => {
     const bytes = new Uint8Array(100_000).map((_, i) => (i * 31) % 256);
     expect(toBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"));
+  });
+
+  it("decodes what toBase64 wrote, byte for byte", () => {
+    const bytes = new Uint8Array(100_000).map((_, i) => (i * 31) % 256);
+    expect(decodeBase64(toBase64(bytes))).toEqual(bytes);
+    expect(decodeBase64("")).toEqual(new Uint8Array());
+  });
+
+  it("throws atob's error on text that is not standard base64", () => {
+    for (const bad of ["-_-_AQ", "AQ=A", "A", "@@@@"]) {
+      expect(() => decodeBase64(bad)).toThrow(
+        expect.objectContaining({ name: "InvalidCharacterError" }),
+      );
+    }
   });
 });

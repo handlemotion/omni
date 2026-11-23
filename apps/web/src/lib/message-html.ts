@@ -1,21 +1,9 @@
-import type { Message, Thread } from "@omni/client";
+import { opensFull, WARM_NEWEST, type Thread } from "@omni/client";
 import { messageHtmlUrl } from "./urls.ts";
-
-/**
- * Whether a message opens as the sender's HTML rather than its text: it has no text of its own,
- * or it is outside mail whose images carry it.
- */
-export function opensFull(message: Message) {
-  if (!message.hasHtml) return false;
-  if (!message.cleanText.trim()) return true;
-  return !message.fromTeam && (message.remoteImageCount > 0 || /\[image: /.test(message.cleanText));
-}
 
 /** The sandbox of a message's frame: scripts off, same-origin (see `FullMessage`). */
 export const MESSAGE_FRAME_SANDBOX =
   "allow-same-origin allow-popups allow-popups-to-escape-sandbox";
-
-const WARM_NEWEST = 3;
 
 const warmed = new Set<string>();
 

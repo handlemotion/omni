@@ -1,4 +1,5 @@
 import { storageLiveRecordSchema, type StorageDocEvent } from "@omni/contracts";
+import { decodeBase64 } from "@omni/crypto";
 import { applyUpdate, Doc } from "yjs";
 import { createLogger } from "./log.ts";
 import { docStream, type DocAppendMessage, type DocPresenceMessage } from "./realtime-docs.ts";
@@ -65,10 +66,7 @@ const epochs = new Map<string, number>();
 function wellFormed(u: string) {
   try {
     const doc = new Doc();
-    applyUpdate(
-      doc,
-      Uint8Array.from(atob(u), (c) => c.charCodeAt(0)),
-    );
+    applyUpdate(doc, decodeBase64(u));
     doc.destroy();
     return true;
   } catch {

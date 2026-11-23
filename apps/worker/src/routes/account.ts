@@ -10,7 +10,7 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { resolveSession, type AppEnv, type SessionUser } from "../context.ts";
+import { requireUser, type AppEnv, type SessionUser } from "../context.ts";
 import { systemMailSender } from "../system-mail.ts";
 import {
   checkRateLimit,
@@ -21,13 +21,10 @@ import {
 } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 
-const requireUser = createMiddleware<AppEnv>(async (c, next) => {
-  const resolved = await resolveSession(c);
-  if (!resolved) throw new HTTPException(401, { message: "sign in first" });
-  if (resolved.user.scopeOrgId && c.req.method !== "GET") {
+const readOnlyWhenScoped = createMiddleware<AppEnv>(async (c, next) => {
+  if (c.var.user.scopeOrgId && c.req.method !== "GET") {
     throw new HTTPException(403, { message: "signed in with a work address: sign in another way" });
   }
-  c.set("user", resolved.user);
   await next();
 });
 
@@ -54,6 +51,7 @@ const emailBody = z.object({ email: z.email().max(320) });
 
 export const account = new Hono<AppEnv>()
   .use(requireUser)
+  .use(readOnlyWhenScoped)
 
   .get("/emails", async (c) => c.json({ emails: await listSignInEmails(c.var.db, c.var.user.id) }))
 

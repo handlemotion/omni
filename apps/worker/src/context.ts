@@ -152,6 +152,27 @@ export const resolveSession: (
   };
 };
 
+type SessionContext = Parameters<typeof resolveSession>[0];
+
+/**
+ * `resolveSession`, refusing a signed-out request with 401 `unauthorized` ("sign in first"). The
+ * one signed-in check: every route that needs a person goes through here or `requireUser`.
+ */
+export async function signedIn(c: SessionContext, threadId?: string) {
+  const resolved = await resolveSession(c, threadId);
+  if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+  return resolved;
+}
+
+/** The signed-in user, 401 without one. Needs no workspace. */
+export const signedInUser = async (c: SessionContext) => (await signedIn(c)).user;
+
+/** Sets `user` for a route a signed-in person reaches without a workspace. 401 when signed out. */
+export const requireUser = createMiddleware<AppEnv>(async (c, next) => {
+  c.set("user", await signedInUser(c));
+  await next();
+});
+
 /**
  * `userId`'s member in `orgId`, or null. Without `orgId`, their oldest company membership, or their
  * Personal space when they are in no company (null when they have neither). A session scoped to a company
@@ -208,8 +229,7 @@ export async function findMemberIds(db: Db, userId: string, scopeOrgId?: string 
 function memberMiddleware(threadParam?: string) {
   return createMiddleware<AppEnv>(async (c, next) => {
     if (c.get("member")) return next();
-    const resolved = await resolveSession(c, threadParam ? c.req.param(threadParam) : undefined);
-    if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+    const resolved = await signedIn(c, threadParam ? c.req.param(threadParam) : undefined);
     if (!resolved.member)
       throw new HTTPException(403, { message: "not a member of any organization" });
     c.set("user", resolved.user);
