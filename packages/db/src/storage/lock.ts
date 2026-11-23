@@ -2,9 +2,10 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageLocks, storageNodes } from "../schema/storage.ts";
 import { loadMember, type Door } from "./access.ts";
-import { inTrash, lockTree, orgOfNode, toNode } from "./core.ts";
+import { lockTree, orgOfNode, toNode } from "./core.ts";
 import { nextRevision } from "./revision.ts";
-import { keepUpdatedAt, reach, type NodeResult } from "./tree.ts";
+import { keepUpdatedAt, reachLive, type NodeResult } from "./tree.ts";
+import { NOT_FOUND, FORBIDDEN } from "./results.ts";
 
 async function bump(tx: Db, orgId: string, nodeId: string) {
   const revision = await nextRevision(tx, orgId);
@@ -17,9 +18,6 @@ async function bump(tx: Db, orgId: string, nodeId: string) {
 
 export type StorageLockResult = NodeResult | { status: "not_a_file" };
 
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
-
 export function lockOperations(db: Db, door: Door, memberId: string) {
   return {
     lock(nodeId: string) {
@@ -27,8 +25,8 @@ export function lockOperations(db: Db, door: Door, memberId: string) {
         const orgId = await orgOfNode(tx, nodeId);
         if (!orgId) return NOT_FOUND satisfies StorageLockResult;
         await lockTree(tx, orgId);
-        const found = await reach(tx, door, nodeId);
-        if (!found || inTrash(found.chain)) return NOT_FOUND satisfies StorageLockResult;
+        const found = await reachLive(tx, door, nodeId);
+        if (!found) return NOT_FOUND satisfies StorageLockResult;
         if (!found.access.change) return FORBIDDEN satisfies StorageLockResult;
         if (found.node.kind !== "file") return { status: "not_a_file" } satisfies StorageLockResult;
         if (found.node.lockedAt)
@@ -52,8 +50,8 @@ export function lockOperations(db: Db, door: Door, memberId: string) {
         const orgId = await orgOfNode(tx, nodeId);
         if (!orgId) return NOT_FOUND satisfies NodeResult;
         await lockTree(tx, orgId);
-        const found = await reach(tx, door, nodeId);
-        if (!found || inTrash(found.chain)) return NOT_FOUND satisfies NodeResult;
+        const found = await reachLive(tx, door, nodeId);
+        if (!found) return NOT_FOUND satisfies NodeResult;
         const member = await loadMember(tx, memberId);
         if (!member?.admin) return FORBIDDEN satisfies NodeResult;
         const removed = await tx

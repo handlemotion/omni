@@ -7,9 +7,10 @@ import {
   storageSigners,
 } from "../schema/storage.ts";
 import type { Door } from "./access.ts";
-import { inTrash, orgOfNode, type StorageNode } from "./core.ts";
+import { orgOfNode, type StorageNode } from "./core.ts";
 import { lockOperations } from "./lock.ts";
-import { reach } from "./tree.ts";
+import { reachLive } from "./tree.ts";
+import { NOT_FOUND } from "./results.ts";
 
 export const STORAGE_PDF_MIME = "application/pdf";
 /** Most people one request asks to sign. */
@@ -76,8 +77,6 @@ export type SignatureRequestResult =
   | { status: "ok"; request: StorageSignatureRequest }
   | { status: "not_found" }
   | { status: "signature_closed" };
-
-const NOT_FOUND = { status: "not_found" } as const;
 
 const signerColumns = {
   id: storageSigners.id,
@@ -223,9 +222,8 @@ export async function storageSignatureRequestsById(ex: Db, orgId: string, ids: s
 
 export function signingOperations(db: Db, door: Door, memberId: string) {
   async function reachFile(ex: Db, nodeId: string) {
-    const found = await reach(ex, door, nodeId);
-    if (!found || inTrash(found.chain) || found.node.kind !== "file") return null;
-    return found;
+    const found = await reachLive(ex, door, nodeId);
+    return found?.node.kind === "file" ? found : null;
   }
 
   return {
