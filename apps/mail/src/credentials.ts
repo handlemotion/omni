@@ -1,6 +1,6 @@
 import { decryptCredential, encryptCredential, type Keyring } from "@omni/crypto";
 import { z } from "zod";
-import type { MailAuth, ServerEndpoint } from "./mailbox-config.ts";
+import type { MailAuth } from "./mailbox-config.ts";
 import { type GoogleOAuth, googleTokenSource } from "./providers/gmail.ts";
 
 const endpoint = z.object({
@@ -28,22 +28,9 @@ const googleSchema = z.object({
 
 const credentialsSchema = z.union([googleSchema, passwordSchema]);
 
-export interface PasswordCredentials {
-  user: string;
-  pass: string;
-  imap: ServerEndpoint;
-  smtp: ServerEndpoint;
-}
+export type PasswordCredentials = z.infer<typeof passwordSchema>;
 
-export interface GoogleCredentials {
-  oauth: "google";
-  user: string;
-  refreshToken: string;
-  accessToken?: string;
-  accessTokenExpiresAt?: number;
-  imap: ServerEndpoint;
-  smtp: ServerEndpoint;
-}
+export type GoogleCredentials = z.infer<typeof googleSchema>;
 
 export type MailboxCredentials = PasswordCredentials | GoogleCredentials;
 
