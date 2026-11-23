@@ -39,6 +39,8 @@ import { billingCards } from "./routes/billing-cards.ts";
 import { conversations } from "./routes/conversations.ts";
 import { stripeWebhook } from "./routes/stripe-webhook.ts";
 import { compose } from "./routes/compose.ts";
+import { drafts } from "./routes/drafts.ts";
+import { uploads } from "./routes/uploads.ts";
 import { unsubscribe } from "./routes/unsubscribe.ts";
 import { handoff } from "./routes/handoff.ts";
 import { connect, desktopGoogleReturn } from "./routes/connect.ts";
@@ -67,6 +69,7 @@ import { mcp } from "./routes/mcp.ts";
 import { oauth } from "./routes/oauth.ts";
 import { limitAuth } from "./rate-limiter.ts";
 import { securityHeaders } from "./security-headers.ts";
+import { realtimeOf } from "./realtime-announce.ts";
 
 function allowedOrigins(config: Config) {
   return new Set([new URL(config.auth.baseURL).origin, ...config.auth.trustedOrigins]);
@@ -137,7 +140,7 @@ const api = new Hono<AppEnv>()
       headers.delete(WATCH_HEADER);
       if (c.req.query("talk") === "1" && talkRole(member.role)) headers.set(TEAM_HEADER, "1");
     }
-    const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
+    const stub = realtimeOf(c.env, orgId);
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
   .route("/", mail)
@@ -145,6 +148,8 @@ const api = new Hono<AppEnv>()
   .route("/", forwarding)
   .route("/mail", mailCrmSharing)
   .route("/", compose)
+  .route("/", uploads)
+  .route("/", drafts)
   .route("/", unsubscribe)
   .route("/", handoff)
   .route("/", folders)

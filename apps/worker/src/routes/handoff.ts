@@ -6,8 +6,8 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { fanOut } from "../realtime.ts";
-import { zValidator } from "../validator.ts";
+import { fanOut } from "../realtime-announce.ts";
+import { zValidator, idempotencyHeader } from "../validator.ts";
 import {
   attachmentList,
   fromName,
@@ -16,8 +16,9 @@ import {
   recipients,
   sendUnlessStale,
   threadMessage,
-} from "./compose.ts";
-import { idempotencyHeader, notFound, outboxKey, pingLater } from "./mail.ts";
+} from "./send.ts";
+import { outboxKey, pingLater } from "./mail.ts";
+import { notFound } from "../errors.ts";
 import { basedOnMessageId } from "./reply-precondition.ts";
 
 const handoffBody = z.object({

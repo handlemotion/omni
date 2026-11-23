@@ -3,7 +3,8 @@ import { forMember, previewOf, type MemberTalk, type TalkMessage } from "@omni/d
 import type { Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
-import { pushToMembers } from "../realtime.ts";
+import { pushToMembers } from "../realtime-push.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 export const memberTalk: (c: Context<AppEnv>) => MemberTalk = (c) =>
   forMember(c.var.db, c.var.member.id).talk;
@@ -25,8 +26,7 @@ export function refused(c: Context<AppEnv>, result: { status: keyof typeof FAILU
 export const wireMessage = (message: TalkMessage) =>
   ({ ...message, createdAt: message.createdAt.toISOString() }) satisfies WireMessage;
 
-const realtime = (c: Context<AppEnv>) =>
-  c.env.REALTIME.get(c.env.REALTIME.idFromName(c.var.member.orgId));
+const realtime = (c: Context<AppEnv>) => realtimeOf(c.env, c.var.member.orgId);
 
 /** Tells these members' Talk apps; returns those with none open. */
 export async function announce(c: Context<AppEnv>, memberIds: string[], event: TalkEvent) {

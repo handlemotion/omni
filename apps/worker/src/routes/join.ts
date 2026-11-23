@@ -11,7 +11,7 @@ import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { requireCap } from "../billing.ts";
 import { resolveSession, systemMailSender, type AppEnv } from "../context.ts";
-import { notifyMembers } from "../realtime.ts";
+import { notifyMembers } from "../realtime-announce.ts";
 
 async function asker(c: Context<AppEnv>) {
   const resolved = await resolveSession(c);

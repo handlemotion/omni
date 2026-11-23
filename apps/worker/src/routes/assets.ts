@@ -2,18 +2,13 @@ import { findMemberAttachmentByHash, findMemberMessageHtml } from "@omni/db";
 import { codeForStatus } from "@omni/contracts";
 import { domainLogoSource, logoSource } from "@omni/mail-core/sender-logo";
 import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { apiError } from "../errors.ts";
+import { apiError, notFound } from "../errors.ts";
 import { imageHeaders, isProxiableImageType, proxyImage } from "../image-proxy.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
 import { senderLogo } from "../sender-logo.ts";
 import { zValidator } from "../validator.ts";
-
-function notFound(): never {
-  throw new HTTPException(404, { message: "not found" });
-}
 
 /**
  * Streams a stored attachment. Raster images may render inline (they back cid: images); every

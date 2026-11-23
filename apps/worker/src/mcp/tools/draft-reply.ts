@@ -3,7 +3,7 @@ import { createDraft, schema } from "@omni/db";
 import { replyRecipients, replySubject } from "@omni/mail-core/compose";
 import { z } from "zod";
 import { inGoodStanding } from "../../billing.ts";
-import { fanOut } from "../../realtime.ts";
+import { fanOut } from "../../realtime-announce.ts";
 import { result, threadUrl, toolError } from "../format.ts";
 import { readsFor } from "../scope.ts";
 import { guarded, type ToolContext } from "../server.ts";

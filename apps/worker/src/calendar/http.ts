@@ -10,6 +10,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { errorBody } from "../errors.ts";
 import type { Logger } from "../log.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 export const memberCalendar: (c: Context<AppEnv>) => MemberCalendar = (c) =>
   forMember(c.var.db, c.var.member.id).calendar;
@@ -90,7 +91,7 @@ export async function announceCalendars(
       ];
       const memberIds = [...new Set(rows.map((row) => row.memberId))];
       if (calendarIds.length === 0 || memberIds.length === 0) continue;
-      const stub = env.REALTIME.get(env.REALTIME.idFromName(orgId));
+      const stub = realtimeOf(env, orgId);
       await stub.broadcast(memberIds, { type: "calendar.changed", calendarIds });
     }
   } catch (error) {

@@ -10,9 +10,10 @@ import type { CalendarTask } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { ApiFailure, errorBody } from "../errors.ts";
+import { errorBody } from "../errors.ts";
 import { zValidator } from "../validator.ts";
 import { memberCalendar } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 
 const iso = (date: Date) => date.toISOString();
 const isoOrNull = (date: Date | null) => (date ? iso(date) : null);
@@ -36,25 +37,9 @@ export const wireTask = (task: CalendarTask) =>
 
 const taskCursor = z.object({ at: z.iso.datetime().nullable(), id: z.string().min(1) });
 
-function encodeCursor(cursor: z.infer<typeof taskCursor> | null) {
-  if (!cursor) return null;
-  const bytes = new TextEncoder().encode(JSON.stringify(cursor));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-
-function decodeCursor(value: string | undefined) {
-  if (value === undefined) return null;
-  try {
-    const binary = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-    const json = new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
-    const cursor = taskCursor.parse(JSON.parse(json));
-    return { at: cursor.at ? new Date(cursor.at) : null, id: cursor.id };
-  } catch {
-    throw new ApiFailure("bad_request", "invalid cursor", { param: "cursor" });
-  }
+function decodeTaskCursor(value: string | undefined) {
+  const cursor = decodeCursor(value, taskCursor);
+  return cursor && { at: cursor.at ? new Date(cursor.at) : null, id: cursor.id };
 }
 
 function refusedTask(c: Context<AppEnv>, refusal: { status: "not_found" | "invalid_title" }) {
@@ -78,7 +63,7 @@ export const tasks = new Hono<AppEnv>()
     const listed = await memberCalendar(c).tasks({
       status: query.status,
       due: query.due,
-      cursor: decodeCursor(query.cursor),
+      cursor: decodeTaskCursor(query.cursor),
       limit: query.limit,
     });
     if (listed.status !== "ok") return refusedTask(c, listed);

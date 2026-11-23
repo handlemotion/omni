@@ -8,11 +8,11 @@ import { advanceOrgSetup, forUser } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
+import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { apiError } from "../errors.ts";
+import { apiError, notFound } from "../errors.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { notFound } from "./mail.ts";
 
 const GOOGLE_AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth";
 const SCOPES = ["https://mail.google.com/", "openid", "email", "profile"];
@@ -40,6 +40,23 @@ function redirectUri(c: Context<AppEnv>) {
 
 const RETURNS = { onboarding: "/onboarding", settings: "/settings/accounts" } as const;
 type Return = keyof typeof RETURNS;
+
+const googleFlow = z.object({
+  state: z.string(),
+  verifier: z.string(),
+  memberId: z.string(),
+  back: z.enum(["onboarding", "settings"]).catch("settings"),
+}) satisfies z.ZodType<{ back: Return }>;
+
+function readFlow(raw: string | false | undefined) {
+  if (!raw) return null;
+  try {
+    const parsed = googleFlow.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 function backToApp(c: Context<AppEnv>, back: Return, outcome: Record<string, string>) {
   const url = new URL(RETURNS[back], c.var.config.auth.webAppURL);
@@ -132,20 +149,10 @@ export const connect = new Hono<AppEnv>()
   .get("/google/callback", limitPerMember("provision"), async (c) => {
     const raw = await getSignedCookie(c, c.var.config.auth.secret, COOKIE);
     deleteCookie(c, COOKIE, { path: COOKIE_PATH });
-    let flow: {
-      state?: string;
-      verifier?: string;
-      memberId?: string;
-      back?: Return;
-    } = {};
-    try {
-      flow = raw ? (JSON.parse(raw) as typeof flow) : {};
-    } catch {
-      flow = {};
-    }
+    const flow = readFlow(raw);
     const { code, state, error } = c.req.query();
-    const back: Return = flow.back === "onboarding" ? "onboarding" : "settings";
-    if (!flow.state || !state || flow.state !== state || flow.memberId !== c.var.member.id) {
+    const back = flow?.back ?? "settings";
+    if (!flow?.state || !state || flow.state !== state || flow.memberId !== c.var.member.id) {
       return backToApp(c, back, { google: "error", reason: "expired" });
     }
     if (error || !code || !flow.verifier) {

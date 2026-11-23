@@ -21,6 +21,7 @@ import { LiveFile } from "./doc-live.ts";
 import { refused } from "./http.ts";
 import { latestLiveStart, readLivePage } from "./live-read.ts";
 import { guestFrom, presentedKey } from "./shared-keys.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 /**
  * Whether this reader joins the item's live document through the link
@@ -145,7 +146,7 @@ export const storageSharedLive = new Hono<AppEnv>()
       if (!name.toLowerCase().startsWith("x-omni-")) headers.set(name, value);
     }
     headers.set(OUTSIDE_HEADER, JSON.stringify(opening));
-    const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(opening.orgId));
+    const stub = realtimeOf(c.env, opening.orgId);
     return stub.fetch(new Request(c.req.raw.url, { method: "GET", headers }));
   })
 

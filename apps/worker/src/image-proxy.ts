@@ -243,19 +243,35 @@ export function isPublicIp(address: string) {
   return (first & 0xe000) === 0x2000;
 }
 
-function isPublicIpv4([a, b, c]: number[]) {
-  if (a === undefined || b === undefined || c === undefined) return false;
-  if (a === 0 || a === 10 || a === 127) return false;
-  if (a === 100 && b >= 64 && b <= 127) return false;
-  if (a === 169 && b === 254) return false;
-  if (a === 172 && b >= 16 && b <= 31) return false;
-  if (a === 192 && b === 168) return false;
-  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
-  if (a === 198 && (b === 18 || b === 19)) return false;
-  if (a === 198 && b === 51 && c === 100) return false;
-  if (a === 203 && b === 0 && c === 113) return false;
-  if (a >= 224) return false;
-  return true;
+const RESERVED_IPV4: [base: number[], prefix: number][] = [
+  [[0, 0, 0, 0], 8],
+  [[10, 0, 0, 0], 8],
+  [[127, 0, 0, 0], 8],
+  [[100, 64, 0, 0], 10],
+  [[169, 254, 0, 0], 16],
+  [[172, 16, 0, 0], 12],
+  [[192, 168, 0, 0], 16],
+  [[192, 0, 0, 0], 24],
+  [[192, 0, 2, 0], 24],
+  [[198, 18, 0, 0], 15],
+  [[198, 51, 100, 0], 24],
+  [[203, 0, 113, 0], 24],
+  [[224, 0, 0, 0], 3],
+];
+
+const ipv4Number = (bytes: number[]) => bytes.reduce((n, byte) => n * 256 + byte, 0);
+
+const RESERVED_IPV4_RANGES = RESERVED_IPV4.map(([base, prefix]) => ({
+  base: ipv4Number(base),
+  size: 2 ** (32 - prefix),
+}));
+
+function isPublicIpv4(bytes: number[]) {
+  if (bytes.length !== 4) return false;
+  const address = ipv4Number(bytes);
+  return !RESERVED_IPV4_RANGES.some(
+    ({ base, size }) => Math.floor(address / size) === Math.floor(base / size),
+  );
 }
 
 const parseIpv4: (address: string) => number[] | null = (address) => {

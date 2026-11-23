@@ -11,6 +11,7 @@ import {
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { ToolContext } from "./server.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 /** One company workspace a call reaches, and the token user's member there. */
 export interface CrmWorkspace {
@@ -310,7 +311,7 @@ export async function announce(
   if (!changed.length) return;
   const audience = await crmOf(context, workspace).audience();
   if (audience.status !== "ok" || audience.memberIds.length === 0) return;
-  const stub = context.env.REALTIME.get(context.env.REALTIME.idFromName(workspace.orgId));
+  const stub = realtimeOf(context.env, workspace.orgId);
   context.waitUntil(
     stub
       .broadcast(audience.memberIds, {

@@ -5,7 +5,8 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
-import { decodeCursor, encodeCursor, memberCrm, refused } from "./http.ts";
+import { memberCrm, refused } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 import { subjectOf, type Before, type MailSubject } from "./mail.ts";
 
 type RecordKind = "companies" | "people" | "deals";

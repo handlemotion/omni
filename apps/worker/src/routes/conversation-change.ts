@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { errorBody } from "../errors.ts";
 import { pingMailService } from "../mail-service.ts";
-import { fanOut, notifyMembers } from "../realtime.ts";
+import { fanOut, notifyMembers } from "../realtime-announce.ts";
 import { optionalJsonBody } from "../validator.ts";
 
 export const expectedAssignee = z.string().min(1).nullable().optional();

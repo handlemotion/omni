@@ -109,22 +109,10 @@
         "apps/web/src/components/settings/account-pages.tsx",
         "apps/web/src/components/ui/avatar.tsx",
         "apps/web/src/components/ui/chart.tsx",
-        "apps/web/src/lib/conversations.ts",
-        "apps/worker/src/image-proxy.ts",
-        "apps/worker/src/queue.ts",
-        "apps/worker/src/realtime.ts",
-        "apps/worker/src/routes/internal.ts",
-        "apps/worker/src/routes/library.ts",
-        "apps/worker/src/routes/stripe-webhook.ts"
+        "apps/web/src/lib/conversations.ts"
       ],
       "rules": {
         "complexity": "off"
-      }
-    },
-    {
-      "files": ["apps/worker/src/routes/internal.ts"],
-      "rules": {
-        "max-depth": "off"
       }
     },
     {
@@ -138,8 +126,7 @@
         "apps/web/src/components/settings/workspace-pages.tsx",
         "apps/web/src/components/ui/chart.tsx",
         "apps/web/src/components/ui/sidebar.tsx",
-        "apps/web/src/components/ui/table.tsx",
-        "apps/worker/src/routes/compose.ts"
+        "apps/web/src/components/ui/table.tsx"
       ],
       "rules": {
         "max-lines": "off"

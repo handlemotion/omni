@@ -68,27 +68,6 @@ export const writeDoor: (c: Context<AppEnv>) => {
   return { files: shared.writer, orgId: shared.root.node.orgId };
 };
 
-/** A cursor travels as base64url JSON: opaque to the client, checked on the way back in. */
-export function encodeCursor(cursor: unknown) {
-  if (!cursor) return null;
-  const bytes = new TextEncoder().encode(JSON.stringify(cursor));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-
-export function decodeCursor<T extends z.ZodType>(value: string | undefined, schema: T) {
-  if (value === undefined) return null;
-  try {
-    const binary = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-    const json = new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
-    return schema.parse(JSON.parse(json)) as z.output<T>;
-  } catch {
-    throw new HTTPException(400, { message: "invalid cursor" });
-  }
-}
-
 export const listCursor = z.object({
   kind: z.enum(["folder", "file"]),
   name: z.string(),

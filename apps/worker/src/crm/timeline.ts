@@ -8,15 +8,8 @@ import { threadUrl } from "../mcp/format.ts";
 import { zValidator } from "../validator.ts";
 import { activityOf, subjectOf, threadsOf, type MailSubject } from "./mail.ts";
 import { meetingsOf, meetingsSubject, type MeetingsSubject } from "./meetings.ts";
-import {
-  decodeCursor,
-  encodeCursor,
-  memberCrm,
-  refused,
-  wireEvent,
-  wireNote,
-  type CrmRefusal,
-} from "./http.ts";
+import { memberCrm, refused, wireEvent, wireNote, type CrmRefusal } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 
 const DEFAULT_LIMIT = 30;
 

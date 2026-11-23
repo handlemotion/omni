@@ -24,9 +24,11 @@ import { MEMBER_HEADER, SYNC_HEADER } from "../realtime.ts";
 import { OUTSIDE_HEADER } from "../realtime-outside.ts";
 import { storageChanges } from "./changes.ts";
 import { wireNode } from "./core.ts";
-import { decodeCursor, encodeCursor, memberStorage, refused } from "./http.ts";
+import { memberStorage, refused } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 import { storageReads } from "./routes.ts";
 import { zValidator } from "../validator.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 const syncCursor = z.object({ revision: z.number().int(), id: z.string() });
 
@@ -192,7 +194,7 @@ export const storageSync = new Hono<AppEnv>()
     headers.delete(OUTSIDE_HEADER);
     headers.set(MEMBER_HEADER, id);
     headers.set(SYNC_HEADER, "1");
-    const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
+    const stub = realtimeOf(c.env, orgId);
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
 

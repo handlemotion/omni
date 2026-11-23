@@ -37,15 +37,8 @@ import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
 import { wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
 import { storageChanges } from "./changes.ts";
-import {
-  decodeCursor,
-  download,
-  encodeCursor,
-  listCursor,
-  refused,
-  wireView,
-  type SharedAccess,
-} from "./http.ts";
+import { download, listCursor, refused, wireView, type SharedAccess } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 import { thumbnail } from "./thumbnails.ts";
 import { isOmniCanvas } from "@omni/canvas/file";
 import { isDocFile } from "@omni/docs/file";

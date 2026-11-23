@@ -11,7 +11,8 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
-import { announce, decodeCursor, encodeCursor, memberCrm, refused, wireTask } from "./http.ts";
+import { announce, memberCrm, refused, wireTask } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 
 const taskCursor = z.object({ at: z.iso.datetime().nullable(), id: z.string().min(1) });
 

@@ -18,16 +18,8 @@ import { extraGb, storageLimit, wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
 import { announceDrives } from "./announce.ts";
 import { storageChanges } from "./changes.ts";
-import {
-  decodeCursor,
-  download,
-  encodeCursor,
-  listCursor,
-  memberStorage,
-  placeOf,
-  refused,
-  wireView,
-} from "./http.ts";
+import { download, listCursor, memberStorage, placeOf, refused, wireView } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 import { storageHistory } from "./history.ts";
 import { storageLive } from "./live.ts";
 import { storageSharing } from "./sharing.ts";

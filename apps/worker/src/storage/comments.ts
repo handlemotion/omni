@@ -10,7 +10,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../context.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
-import { notifyMembers } from "../realtime.ts";
+import { notifyMembers, realtimeOf } from "../realtime-announce.ts";
 import { zValidator } from "../validator.ts";
 import { memberStorage, refused } from "./http.ts";
 
@@ -22,7 +22,7 @@ function commentDoor(c: Context<AppEnv>) {
 }
 
 function announceComments(c: Context<AppEnv>, orgId: string, nodeId: string) {
-  const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
+  const stub = realtimeOf(c.env, orgId);
   c.executionCtx.waitUntil(
     stub
       .commentsChanged(nodeId)

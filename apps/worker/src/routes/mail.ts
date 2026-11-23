@@ -14,11 +14,10 @@ import { threadLaneBodySchema, type ThreadLaneResponse } from "@omni/contracts";
 import { addedParticipants, messageDisplay } from "@omni/mail-core/display";
 import { unsubscribeMethod } from "@omni/mail-core/unsubscribe";
 import { Hono, type Context } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
-import { announceToMember, fanOut } from "../realtime.ts";
+import { announceToMember, fanOut } from "../realtime-announce.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { smartSearch } from "../search.ts";
 import { attachmentResponse } from "./assets.ts";
@@ -30,29 +29,17 @@ import {
   type ThreadWriter,
   type TriagePatch,
 } from "../thread-writes.ts";
-import { zValidator } from "../validator.ts";
+import { cursorParam, encodeCursor } from "../cursor.ts";
+import { zValidator, idempotencyHeader } from "../validator.ts";
+import { notFound } from "../errors.ts";
 
 const cursorSchema = z.object({ t: z.iso.datetime(), id: z.string().min(1) });
 
-function encodeCursor(thread: { lastMessageAt: Date; id: string }) {
-  return btoa(JSON.stringify({ t: thread.lastMessageAt.toISOString(), id: thread.id }))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
+const threadCursor = (thread: { lastMessageAt: Date; id: string }) =>
+  encodeCursor({ t: thread.lastMessageAt.toISOString(), id: thread.id });
 
-const cursorParam = z
-  .string()
-  .transform((value, ctx) => {
-    try {
-      const json = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-      const parsed = cursorSchema.parse(JSON.parse(json));
-      return { lastMessageAt: new Date(parsed.t), id: parsed.id };
-    } catch {
-      ctx.addIssue({ code: "custom", message: "invalid cursor" });
-      return z.NEVER;
-    }
-  })
+const cursorQuery = cursorParam(cursorSchema)
+  .transform((parsed) => ({ lastMessageAt: new Date(parsed.t), id: parsed.id }))
   .optional();
 
 const scopeParam = z.enum(["workspace", "all"]).default("workspace");
@@ -69,7 +56,7 @@ const listQuery = z.object({
     .enum([...THREAD_VIEWS, "queue"])
     .transform((view) => (view === "queue" ? "later" : view))
     .default("inbox"),
-  cursor: cursorParam,
+  cursor: cursorQuery,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
@@ -88,17 +75,9 @@ const deferBody = z.object({ until: z.iso.datetime() });
 
 const moveBody = z.object({ destination: z.string().min(1).max(1000) });
 
-export const idempotencyHeader = z.object({
-  "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
-});
-
 /** Outbox keys are namespaced by member so one member's key can never reach another's action. */
 export function outboxKey(c: Context<AppEnv>, key: string, ...parts: string[]) {
   return [c.var.member.id, key, ...parts].join(":");
-}
-
-export function notFound(): never {
-  throw new HTTPException(404, { message: "not found" });
 }
 
 export function pingLater(c: Context<AppEnv>) {
@@ -234,7 +213,7 @@ export const mail = new Hono<AppEnv>()
     const last = threads.at(-1);
     return c.json({
       threads,
-      nextCursor: last && threads.length === query.limit ? encodeCursor(last) : null,
+      nextCursor: last && threads.length === query.limit ? threadCursor(last) : null,
     });
   })
 

@@ -17,6 +17,7 @@ import type { Logger } from "../log.ts";
 import { enqueueNotesDoc } from "./doc.ts";
 import { engineFor, EngineError, type Engine, type EngineConfig } from "./engines.ts";
 import { deleteChunks, fileRecording } from "./file.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 export const MEETING_STEPS = ["transcribe", "poll", "name", "write"] as const;
 export type MeetingStep = (typeof MEETING_STEPS)[number];
@@ -347,7 +348,7 @@ export async function announceMeeting(
   try {
     const memberIds = await meetingsPipeline(run.db).audience(meetingId);
     if (memberIds.length === 0) return;
-    const stub = run.env.REALTIME.get(run.env.REALTIME.idFromName(orgId));
+    const stub = realtimeOf(run.env, orgId);
     await stub.broadcast(memberIds, { type: "meetings.changed", meetingId, status });
   } catch (error) {
     run.log.warn("meetings.announce_failed", { error });

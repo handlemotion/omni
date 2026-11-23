@@ -46,7 +46,9 @@ import {
 import type { Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { ApiFailure, errorBody } from "../errors.ts";
+import { errorBody } from "../errors.ts";
+import { realtimeOf } from "../realtime-announce.ts";
+import { decodeCursor } from "../cursor.ts";
 
 export const memberCrm: (c: Context<AppEnv>) => MemberCrm = (c) =>
   forMember(c.var.db, c.var.member.id).crm;
@@ -350,27 +352,6 @@ export const wireEvent = (event: CrmEvent) =>
     createdAt: iso(event.createdAt),
   }) satisfies WireEvent;
 
-/** A cursor travels as base64url JSON: opaque to the client, checked on the way back in. */
-export function encodeCursor(cursor: unknown) {
-  if (!cursor) return null;
-  const bytes = new TextEncoder().encode(JSON.stringify(cursor));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-
-export function decodeCursor<T extends z.ZodType>(value: string | undefined, schema: T) {
-  if (value === undefined) return null;
-  try {
-    const binary = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-    const json = new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
-    return schema.parse(JSON.parse(json)) as z.output<T>;
-  } catch {
-    throw new ApiFailure("bad_request", "invalid cursor", { param: "cursor" });
-  }
-}
-
 /** A list by name: the last row's name and id. */
 export const nameCursor = z.object({ name: z.string(), id: z.string().min(1) });
 
@@ -433,7 +414,7 @@ export async function announce(c: Context<AppEnv>, kind: CrmChangedKind, ids: (s
   if (changed.length === 0) return;
   const audience = await memberCrm(c).audience();
   if (audience.status !== "ok" || audience.memberIds.length === 0) return;
-  const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(c.var.member.orgId));
+  const stub = realtimeOf(c.env, c.var.member.orgId);
   c.executionCtx.waitUntil(
     stub
       .broadcast(audience.memberIds, { type: "crm.changed", kind, ids: changed })
