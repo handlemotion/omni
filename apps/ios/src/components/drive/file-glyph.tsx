@@ -1,4 +1,4 @@
-import type { DriveNode, FileKind } from "@omni/client";
+import { STORAGE_THUMBNAIL_MAX_SOURCE_BYTES, type DriveNode, type FileKind } from "@omni/client";
 import { Image } from "expo-image";
 import { useState, type ComponentType } from "react";
 import { StyleSheet, View } from "react-native";
@@ -34,9 +34,6 @@ const GLYPH: Record<Exclude<FileKind, BrandedKind> | "folder", Glyph> = {
   other: IconFile,
 };
 
-/** Images over this draw their glyph: the Worker draws thumbnails from originals up to 20 MB. */
-export const THUMBNAIL_MAX_BYTES = 20_000_000;
-
 /**
  * A file's or folder's glyph, muted as every icon is at rest; a PDF or an Office file shows its
  * brand's mark in its own colours, as on the web.
@@ -55,7 +52,9 @@ export const kindOf = (node: DriveNode) => (node.kind === "folder" ? "folder" : 
 
 /** Whether `node` is an image small enough to draw from its bytes. */
 export const hasThumbnail = (node: DriveNode) =>
-  node.kind === "file" && previewKindOf(node) === "image" && node.size <= THUMBNAIL_MAX_BYTES;
+  node.kind === "file" &&
+  previewKindOf(node) === "image" &&
+  node.size <= STORAGE_THUMBNAIL_MAX_SOURCE_BYTES;
 
 /**
  * An image's own picture, filling the box it sits in, over the glyph until it loads: the Worker's

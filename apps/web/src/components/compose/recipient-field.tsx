@@ -1,3 +1,4 @@
+import { parseAddresses } from "@omni/mail-core/compose";
 import { use, useEffect, useRef, useState } from "react";
 import {
   ComboBox as ComboBoxPrimitive,
@@ -12,15 +13,6 @@ import {
 import { AriaInput } from "@/components/ui/aria-input";
 import { Tag, TagGroup, TagList } from "@/components/ui/tag-group";
 import { useCustomerSearch, type CustomerMatch } from "@/hooks/use-compose.ts";
-
-const ADDRESS = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
-
-/** Every address in pasted or typed text, in order, without repeats. */
-export function parseAddresses(text: string) {
-  return [...new Set(text.split(/[\s,;]+/).map((a) => a.replace(/^<|>$/g, "").trim()))].filter(
-    (a) => ADDRESS.test(a),
-  ) satisfies string[];
-}
 
 /**
  * One recipient line: a label, the addresses as removable chips, and a field that suggests

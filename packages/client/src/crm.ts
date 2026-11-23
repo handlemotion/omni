@@ -1,4 +1,4 @@
-import type { CrmStageKind, CrmTask } from "./api.ts";
+import type { CrmContract, CrmStageKind, CrmTask } from "./api.ts";
 
 export type CrmRecordKind = "companies" | "people" | "deals";
 
@@ -107,3 +107,59 @@ export function dueLabel(iso: string | null, now = new Date()) {
   const date = new Date(iso);
   return (date.getFullYear() === now.getFullYear() ? SHORT : LONG).format(date);
 }
+
+/** Days before its end date that a signed contract shows it is ending. */
+export const ENDING_SOON_DAYS = 30;
+
+const contractDay = (date: string) => LONG.format(new Date(`${date}T00:00:00`));
+
+/** Whole days from today (local) until `date`, `YYYY-MM-DD`. */
+export function daysUntil(date: string, now = new Date()) {
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((Date.parse(`${date}T00:00:00Z`) - today) / 86_400_000);
+}
+
+const CONTRACT_STATUS = {
+  draft: "Draft",
+  sent: "Sent",
+  signed: "Signed",
+  ended: "Ended",
+} as const satisfies Record<CrmContract["status"], string>;
+
+/** A contract's status word: its status, how far signing got, or that it ends soon. */
+export function contractStatus(contract: CrmContract) {
+  const signing = contract.signing;
+  if (contract.status === "sent" && signing?.status === "completed") return "Signed";
+  if (contract.status === "sent" && signing) return "Out for signature";
+  if (contract.status === "signed" && contract.expiresOn) {
+    const left = daysUntil(contract.expiresOn);
+    if (left <= 0) return "Ends today";
+    if (left === 1) return "Ends tomorrow";
+    if (left <= ENDING_SOON_DAYS) return `Ends in ${left} days` as const;
+  }
+  return CONTRACT_STATUS[contract.status];
+}
+
+/** "1 of 2 signed" while out for signature, else its dates; null when it has neither. */
+export function contractLine(contract: CrmContract) {
+  const signing = contract.signing;
+  if (contract.status === "sent" && signing?.status === "sent") {
+    const signed = signing.signers.filter((signer) => signer.signedAt).length;
+    return `${signed} of ${signing.signers.length} signed`;
+  }
+  return contractDates(contract);
+}
+
+/** "From Nov 1, 2026 until Oct 31, 2027", or the one end it has; null when it has neither. */
+export function contractDates(contract: CrmContract) {
+  const dates = [
+    contract.effectiveOn && `From ${contractDay(contract.effectiveOn)}`,
+    contract.expiresOn &&
+      `${contract.effectiveOn ? "until" : "Until"} ${contractDay(contract.expiresOn)}`,
+  ].filter(Boolean);
+  return dates.length ? dates.join(" ") : null;
+}
+
+/** Signed outside Omni and still without its signed copy, or about to be. */
+export const takesSignedCopy = (contract: CrmContract) =>
+  !contract.signedNodeId && !(contract.status === "sent" && contract.signing);

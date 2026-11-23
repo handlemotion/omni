@@ -1,4 +1,4 @@
-import type { Workspace } from "@omni/client";
+import { workspaceLabel, type Workspace } from "@omni/client";
 import { useLocation, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import { useMemo, useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
@@ -269,20 +269,6 @@ function Step(props: {
       <Icon />
     </Button>
   );
-}
-
-/** The name a Personal space is made with (`personal-space.ts`), until its owner renames it. */
-export const PERSONAL_DEFAULT_NAME = "Personal";
-
-/**
- * A workspace as the person reads it: a company by its name; their Personal space as their own
- * ("Rodrigo's Workspace"), from the first word of their name.
- */
-export function workspaceLabel(workspace: Workspace, userName: string | null | undefined) {
-  if (workspace.kind !== "personal" || workspace.name !== PERSONAL_DEFAULT_NAME)
-    return workspace.name;
-  const first = userName?.trim().split(/\s+/)[0];
-  return first ? `${first}'s Workspace` : "Personal Workspace";
 }
 
 /**

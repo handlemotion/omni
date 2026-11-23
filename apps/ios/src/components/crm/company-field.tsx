@@ -1,25 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { api, call } from "@/lib/api.ts";
 import { keys } from "@/lib/query-keys.ts";
+import { useDebounced } from "@/lib/use-debounced.ts";
 import { space } from "@/theme/tokens.ts";
 
 export interface CompanyChoice {
   id: string;
   name: string;
-}
-
-function useDebounced(value: string, ms: number) {
-  const [settled, setSettled] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(value), ms);
-    return () => clearTimeout(timer);
-  }, [value, ms]);
-  return settled;
 }
 
 /**
