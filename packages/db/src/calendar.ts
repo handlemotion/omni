@@ -23,7 +23,6 @@ import {
   deleteOwnTask,
   ownTask,
   ownTasks,
-  releaseMemberTasks,
   taskMember,
   updateOwnTask,
   type OwnTaskInput,
@@ -32,6 +31,7 @@ import {
   type TaskMirror,
   type TaskQuery,
 } from "./calendar/tasks.ts";
+import { releaseMemberTasks } from "./calendar/task-sync.ts";
 import {
   createBookingLink,
   deleteBookingLink,
@@ -204,32 +204,31 @@ export {
   type OwnEventPatch,
 } from "./calendar/write.ts";
 export {
-  countLinkedTasks,
-  dropTasksOn,
-  isSoleOwner,
-  linkedTasks,
-  putTask,
+  cleanBody as cleanTaskBody,
+  cleanSteps as cleanTaskSteps,
+  cleanTitle as cleanTaskTitle,
+  completionAfter,
   lockTask,
   readTask as calendarTask,
   removeTask,
-  taskVersions,
-  tasksOnRecord,
-  TASK_BODY_MAX,
-  TASK_STEPS_MAX,
-  TASK_TITLE_MAX,
   type CalendarTask,
   type CalendarTaskResult,
   type OwnTaskInput,
   type OwnTaskPatch,
-  type LinkedTaskFilter,
   type TaskCursor,
   type TaskMirror,
   type TaskQuery,
   type TaskRecord,
   type TaskRecordKind,
-  type TaskRow,
   type TaskStep,
 } from "./calendar/tasks.ts";
+export {
+  countLinkedTasks,
+  dropTasksOn,
+  linkedTasks,
+  type LinkedTaskFilter,
+} from "./calendar/linked-tasks.ts";
+export { isSoleOwner, putTask, taskVersions } from "./calendar/task-sync.ts";
 
 /** A member is leaving: their private tasks go, their linked ones stay unassigned. */
 export const releaseCalendarTasks = (db: Db, input: { orgId: string; memberId: string }) =>

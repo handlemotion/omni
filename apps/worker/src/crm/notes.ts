@@ -4,7 +4,7 @@ import {
   type CrmChangedKind,
   type CrmNoteResponse,
 } from "@omni/contracts";
-import type { CrmNote, CrmRecordRef } from "@omni/db";
+import type { CrmNote } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
@@ -22,13 +22,7 @@ async function announceNote(c: Context<AppEnv>, note: CrmNote) {
 
 export const notes = new Hono<AppEnv>()
   .post("/notes", zValidator("json", crmCreateNoteBodySchema), async (c) => {
-    const { companyId, personId, dealId, body } = c.req.valid("json");
-    const record: CrmRecordRef = companyId
-      ? { companyId }
-      : personId
-        ? { personId }
-        : { dealId: dealId ?? "" };
-    const made = await memberCrm(c).createNote({ record, body });
+    const made = await memberCrm(c).createNote(c.req.valid("json"));
     if (made.status !== "ok") return refused(c, made);
     await announceNote(c, made.note);
     return c.json({ note: wireNote(made.note) } satisfies CrmNoteResponse, 201);

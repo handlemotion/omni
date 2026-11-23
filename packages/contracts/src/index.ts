@@ -1,4 +1,5 @@
 export * from "./storage.ts";
+export * from "./storage-sync.ts";
 export * from "./storage-live.ts";
 export * from "./storage-history.ts";
 export * from "./storage-teamspaces.ts";

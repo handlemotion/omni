@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { crmTimelineMeetingItemSchema } from "./crm-meetings.ts";
+import { crmOneRecordKey } from "./crm-records.ts";
 import { CRM_CONTRACT_STATUSES, CRM_STAGE_KINDS } from "./crm-values.ts";
 import { storageSendForSignatureBodySchema, storageSignatureStatusSchema } from "./storage.ts";
 
@@ -328,7 +329,7 @@ export const crmPutSettingsBodySchema = z.object({
   defaultCurrency: z.string().max(3).nullable(),
 });
 
-/** `POST /notes`: on exactly one record. */
+/** `POST /notes`: on exactly one record, parsed into the `record` it names. */
 export const crmCreateNoteBodySchema = z
   .object({
     companyId: id.optional(),
@@ -336,9 +337,7 @@ export const crmCreateNoteBodySchema = z
     dealId: id.optional(),
     body: z.string().max(20_000),
   })
-  .refine((note) => [note.companyId, note.personId, note.dealId].filter(Boolean).length === 1, {
-    message: "give exactly one of companyId, personId and dealId",
-  });
+  .transform(({ body, ...ids }, ctx) => ({ record: crmOneRecordKey(ids, ctx), body }));
 export const crmUpdateNoteBodySchema = z.object({ body: z.string().max(20_000) });
 
 /** `GET /contracts?company=|deal=`: newest first. A company's include those on its deals. */

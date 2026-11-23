@@ -4,9 +4,10 @@ import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
 import { storageComments, type StorageCommentAnchor } from "../schema/storage.ts";
 import { readsComments, type Door } from "./access.ts";
-import { inTrash, type NodeRow } from "./core.ts";
+import type { NodeRow } from "./core.ts";
 import { notifyComment } from "./comment-notifications.ts";
-import { reach } from "./tree.ts";
+import { reachLive } from "./tree.ts";
+import { NOT_FOUND, FORBIDDEN, type NotFound, type Forbidden } from "./results.ts";
 
 export type { StorageCommentAnchor };
 
@@ -34,8 +35,6 @@ export interface StorageComment {
   resolvedByName: string | null;
 }
 
-type NotFound = { status: "not_found" };
-type Forbidden = { status: "forbidden" };
 export type CommentsResult =
   | { status: "ok"; contentVersion: number; comments: StorageComment[] }
   | NotFound
@@ -48,9 +47,6 @@ export type AddCommentResult =
   | { status: "version_conflict" };
 export type DeleteCommentResult = { status: "ok" } | NotFound | Forbidden;
 
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
-
 const author = alias(members, "comment_author");
 const authorUser = alias(users, "comment_author_user");
 const resolver = alias(members, "comment_resolver");
@@ -60,8 +56,8 @@ const displayName = (user: { name: Column; email: Column }) =>
   sql<string | null>`coalesce(nullif(${user.name}, ''), ${user.email})`;
 
 async function commentable(ex: Db, door: Door, nodeId: string) {
-  const found = await reach(ex, door, nodeId);
-  if (!found || found.node.kind !== "file" || inTrash(found.chain)) return NOT_FOUND;
+  const found = await reachLive(ex, door, nodeId);
+  if (found?.node.kind !== "file") return NOT_FOUND;
   if (!readsComments(found.access)) return FORBIDDEN;
   return { status: "ok", node: found.node } as const;
 }

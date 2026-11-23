@@ -6,9 +6,6 @@ export const storageGrantRoleSchema = z.enum(STORAGE_GRANT_ROLES);
 
 const isoDate = z.iso.datetime();
 
-/** A person's address as a grant stores it: trimmed and lowercase. `:email` in the sharing routes. */
-export const storageEmailSchema = z.string().trim().toLowerCase().pipe(z.email().max(320));
-
 /**
  * What a link does beyond who it opens for. None of it limits members or the people it is
  * shared with by address.
@@ -90,3 +87,6 @@ export const storageSharedUploadingResponseSchema = z.object({
 
 export type StorageSharedUpload = z.infer<typeof storageSharedUploadSchema>;
 export type StorageSharedUploadingResponse = z.infer<typeof storageSharedUploadingResponseSchema>;
+
+/** A person's address as a grant or a signer stores it: trimmed and lowercase. */
+export const storageEmailSchema = z.string().trim().toLowerCase().pipe(z.email().max(320));
