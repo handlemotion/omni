@@ -9,6 +9,7 @@
     "fixtures/eml/**",
     "docs/spec/**",
     "**/CHANGELOG.md",
+    "apps/desktop/src-tauri/tauri.conf.json",
     "pnpm-lock.yaml",
     "**/routeTree.gen.ts",
     ".claude/skills/typesafe-ai/**",

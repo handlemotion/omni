@@ -6,7 +6,7 @@ email. We take reports seriously and thank everyone who sends one.
 ## Reporting a vulnerability
 
 Report privately through GitHub: open the repository's **Security** tab and choose
-**Report a vulnerability** ([direct link](https://github.com/wokshop/omni/security/advisories/new)).
+**Report a vulnerability** ([direct link](https://github.com/handlemotion/omni/security/advisories/new)).
 Please do not open a public issue, pull request, or discussion for a suspected vulnerability.
 
 Include what you can: the affected component and commit, steps to reproduce or a proof of
