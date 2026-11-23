@@ -6,7 +6,22 @@ import { Text } from "@/components/ui/text.tsx";
 import { IconChevronRight } from "@/components/icons.ts";
 import { colors, iconSize, space, type ColorToken } from "@/theme/tokens.ts";
 
-const NAV_LEAD = space(11);
+export const NAV_LEAD = space(9);
+export const NAV_PAD_LEFT = space(1.5);
+
+function rowInk(props: {
+  destructive?: boolean;
+  accent?: boolean;
+  nav?: boolean;
+  isCurrent?: boolean;
+  tint?: ColorToken;
+  muted?: boolean;
+}) {
+  if (props.destructive) return "danger" satisfies ColorToken;
+  if (props.accent) return "primary" satisfies ColorToken;
+  if (props.nav) return (props.isCurrent ? "foreground" : "mutedForeground") satisfies ColorToken;
+  return (props.tint ?? (props.muted ? "mutedForeground" : "primary")) satisfies ColorToken;
+}
 
 /**
  * A row on the menu page (`nav`) or in a sheet: a glyph (or `lead`, an avatar), the label, a
@@ -40,11 +55,7 @@ export function MenuRow(props: {
 }) {
   const Icon = props.icon;
   const current = !!props.isCurrent;
-  const ink: ColorToken = props.destructive
-    ? "danger"
-    : props.accent
-      ? "primary"
-      : (props.tint ?? (props.muted ? "mutedForeground" : "primary"));
+  const ink = rowInk(props);
   return (
     <PressableRow
       shape={props.nav ? "nav" : "menu"}
@@ -59,10 +70,13 @@ export function MenuRow(props: {
           props.leadWidth ? { width: props.leadWidth } : null,
         ]}
       >
-        {props.lead ?? (Icon ? <Icon size={iconSize.menu} color={colors[ink]} /> : null)}
+        {props.lead ??
+          (Icon ? (
+            <Icon size={props.nav ? iconSize.field : iconSize.menu} color={colors[ink]} />
+          ) : null)}
       </View>
       <Text
-        size="md"
+        size={props.nav ? "body" : "md"}
         weight={current ? "semibold" : "regular"}
         tone={props.destructive ? "danger" : props.accent ? "primary" : "foreground"}
         numberOfLines={1}
@@ -122,7 +136,11 @@ const styles = StyleSheet.create({
   lead: { width: iconSize.menu, alignItems: "center", justifyContent: "center" },
   navLead: { width: NAV_LEAD },
   label: { flex: 1, minWidth: 0 },
-  heading: { height: space(11), justifyContent: "center", paddingHorizontal: space(4.25) },
+  heading: {
+    height: space(9),
+    justifyContent: "center",
+    paddingHorizontal: NAV_PAD_LEFT + space(2.25),
+  },
   divider: {
     height: StyleSheet.hairlineWidth,
     marginVertical: space(2),

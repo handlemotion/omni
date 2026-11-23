@@ -7,17 +7,14 @@ import { Text } from "@/components/ui/text.tsx";
 import { colors, iconSize, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import { SHELL_CONTROL, useMenuPlace } from "./menu-nav.ts";
-import { WorkspaceButton } from "./menu-workspace.tsx";
 import { usePageTitle } from "./use-page-title.ts";
 
 const FADE_MS = 180;
 const SIDE = space(4);
 
 /**
- * The shell's top bar on a module's root page: ☰ (opens the left navigation drawer) and the
- * workspace button in equal round slots at the sides; between them, centred on the screen, the
- * page's title and count. Its hairline shows once rows have scrolled under it. Steps away while
- * the bottom bar's search field is open.
+ * The shell's top bar on a module's root page: ☰ on the left (opens the left sidebar drawer) and
+ * the page's title and count centred. Its hairline shows once rows have scrolled under it.
  */
 export function TopBar() {
   const shell = useMenu();
@@ -27,11 +24,12 @@ export function TopBar() {
   const edge = useCrossfade(shell.scrolled && !shell.isOpen);
   const { setScrolled } = shell;
   useEffect(() => setScrolled(false), [page.title, place.mailbox, setScrolled]);
+
   if (shell.searching) return null;
   return (
     <View style={[styles.bar, { paddingTop: insets.top + space(2) }]}>
       <Animated.View pointerEvents="none" style={[styles.edge, { opacity: edge }]} />
-      <View style={styles.slot}>
+      <View style={styles.leftSlot}>
         <FloatingButton
           icon={IconMenu}
           glyph={iconSize.md}
@@ -50,9 +48,7 @@ export function TopBar() {
           </Text>
         ) : null}
       </View>
-      <View style={styles.slot}>
-        <WorkspaceButton />
-      </View>
+      <View style={styles.rightSlot} />
     </View>
   );
 }
@@ -77,11 +73,12 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
   },
-  slot: { width: SHELL_CONTROL, height: SHELL_CONTROL },
+  leftSlot: { flex: 1, height: SHELL_CONTROL, alignItems: "flex-start", justifyContent: "center" },
+  rightSlot: { flex: 1, height: SHELL_CONTROL, alignItems: "flex-end", justifyContent: "center" },
   center: {
-    flex: 1,
+    flexShrink: 1,
     height: SHELL_CONTROL,
-    marginHorizontal: space(3),
+    marginHorizontal: space(2),
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

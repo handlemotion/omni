@@ -79,10 +79,10 @@ const styles = StyleSheet.create({
   nav: {
     alignItems: "center",
     gap: space(2),
-    minHeight: space(12.5),
+    minHeight: space(10.5),
     paddingLeft: space(1.5),
-    paddingRight: space(3.5),
-    borderRadius: radius.row,
+    paddingRight: space(3),
+    borderRadius: radius.field,
   },
   bare: { alignItems: "flex-start", gap: space(3) },
   highlighted: { backgroundColor: colors.accent },

@@ -52,6 +52,7 @@ export default function SignedInLayout() {
         <Stack.Screen name="drive" />
         <Stack.Screen name="crm" />
         <Stack.Screen name="calendar" />
+        <Stack.Screen name="search" />
       </Stack>
       <ClearSearchOnModuleChange />
     </MenuProvider>

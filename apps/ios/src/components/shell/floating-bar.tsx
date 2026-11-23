@@ -27,14 +27,12 @@ export interface FloatingBarAction {
 }
 
 /**
- * The shell's bottom controls, floating over the bottom edge: a module-focused search pill and its
- * main action above the module dock. A tap on the pill makes it a live field above the keyboard
- * (hiding the dock while searching), with a close button; `onSearch` hears every change, and ""
- * once it closes.
+ * The shell's bottom controls: a full-width module-focused search bar (sized to match the login
+ * buttons: 48pt tall, 1pt border on solid white) stacked directly above the bottom module dock.
+ * Tapping the search bar opens the live field above the keyboard and hides the dock.
  */
 export function FloatingBar({
   placeholder,
-  action,
   onSearch,
   onStart,
   onStop,
@@ -47,7 +45,6 @@ export function FloatingBar({
   initial?: { searching: boolean; query: string };
   /** What the open field shows, when the page under it can fill it (a recent search). */
   query?: string;
-  action?: FloatingBarAction;
   onSearch: (q: string) => void;
   /** The field opened (the shell closes its drawer and hides its top bar). */
   onStart?: () => void;
@@ -102,27 +99,17 @@ export function FloatingBar({
         </View>
       ) : (
         <>
-          {placeholder || action ? (
+          {placeholder ? (
             <View pointerEvents="box-none" style={styles.row}>
-              {placeholder ? (
-                <FloatingPill
-                  icon={IconSearch}
-                  label={placeholder}
-                  onPress={() => {
-                    onStart?.();
-                    setFocus(true);
-                    setSearching(true);
-                  }}
-                />
-              ) : null}
-              {action ? (
-                <FloatingButton
-                  icon={action.icon}
-                  label={action.label}
-                  onPress={action.onPress}
-                  primary
-                />
-              ) : null}
+              <FloatingPill
+                icon={IconSearch}
+                label={placeholder}
+                onPress={() => {
+                  onStart?.();
+                  setFocus(true);
+                  setSearching(true);
+                }}
+              />
             </View>
           ) : null}
           {dock}

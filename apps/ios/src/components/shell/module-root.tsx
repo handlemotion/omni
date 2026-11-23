@@ -105,7 +105,6 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
 
   const pageShell = useAnimatedStyle(() => ({
     transform: [{ translateX: progress.value * drawerWidth }],
-    shadowOpacity: interpolate(progress.value, [0, 1], [0, 0.14], Extrapolation.CLAMP),
   }));
 
   const pageClip = useAnimatedStyle(() => ({
@@ -115,10 +114,7 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
       [0, radius.sheet, radius.sheet],
       Extrapolation.CLAMP,
     ),
-  }));
-
-  const scrim = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 1], [0, 0.08], Extrapolation.CLAMP),
+    borderWidth: interpolate(progress.value, [0, 0.05, 1], [0, 1, 1], Extrapolation.CLAMP),
   }));
 
   return (
@@ -148,17 +144,14 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
               <ShellChrome />
               {mounted ? (
                 <GestureDetector gesture={closeSwipe}>
-                  <Animated.View
-                    pointerEvents={shell.isOpen ? "auto" : "none"}
-                    style={[styles.scrim, scrim]}
-                  >
+                  <View pointerEvents={shell.isOpen ? "auto" : "none"} style={styles.scrim}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Close menu"
                       onPress={shell.close}
                       style={styles.scrimHit}
                     />
-                  </Animated.View>
+                  </View>
                 </GestureDetector>
               ) : null}
               {!shell.isOpen && !shell.searching ? (
@@ -175,23 +168,16 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background, overflow: "hidden" },
-  pageShell: {
-    flex: 1,
-    shadowColor: "#000000",
-    shadowRadius: 18,
-    shadowOffset: { width: -4, height: 0 },
-  },
+  root: { flex: 1, backgroundColor: colors.sidebar, overflow: "hidden" },
+  pageShell: { flex: 1 },
   pageClip: {
     flex: 1,
     backgroundColor: colors.background,
+    borderColor: colors.border,
     overflow: "hidden",
   },
   page: { flex: 1, backgroundColor: colors.background },
-  scrim: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.foreground,
-  },
+  scrim: { ...StyleSheet.absoluteFill },
   scrimHit: { flex: 1 },
   edge: {
     position: "absolute",

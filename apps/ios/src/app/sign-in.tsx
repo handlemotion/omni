@@ -18,7 +18,7 @@ import {
   verifyEmailOtp,
 } from "@/lib/session.ts";
 import { useSplashDone } from "@/lib/splash.ts";
-import { gutter, space } from "@/theme/tokens.ts";
+import { colors, gutter, space } from "@/theme/tokens.ts";
 
 type Step = "choose" | "email" | "code";
 
@@ -36,7 +36,7 @@ export default function SignIn() {
       setActiveSocial(provider);
       return signInWithSocial(provider);
     },
-    onSettled: () => setActiveSocial(null),
+    onError: () => setActiveSocial(null),
   });
   const sendOtp = useMutation({
     mutationFn: (address: string) => sendEmailOtp(address),
@@ -53,7 +53,9 @@ export default function SignIn() {
   useSplashDone(!session.data);
   if (session.data) return <Redirect href="/mail" />;
 
-  const busy = social.isPending || sendOtp.isPending || verifyOtp.isPending;
+  const finishingSocial = activeSocial !== null && (social.isPending || session.isPending);
+  const finishingOtp = verifyOtp.isPending || (verifyOtp.isSuccess && session.isPending);
+  const busy = finishingSocial || sendOtp.isPending || finishingOtp;
   const errorText = {
     choose: social.error?.message,
     email: sendOtp.error?.message,
@@ -70,7 +72,7 @@ export default function SignIn() {
   };
 
   return (
-    <Screen>
+    <Screen style={styles.screen}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.body}
@@ -95,7 +97,7 @@ export default function SignIn() {
           {step === "choose" ? (
             <ChooseStep
               busy={busy}
-              activeSocial={activeSocial}
+              activeSocial={finishingSocial ? activeSocial : null}
               methods={methods.data}
               onSocial={(provider) => social.mutate(provider)}
               onEmail={() => setStep("email")}
@@ -113,7 +115,7 @@ export default function SignIn() {
             <CodeStep
               otp={otp}
               busy={busy}
-              pending={verifyOtp.isPending}
+              pending={finishingOtp}
               onChange={(digits) => {
                 setOtp(digits);
                 if (digits.length === 6) submitCode(digits);
@@ -271,6 +273,7 @@ function CodeStep(props: {
 }
 
 const styles = StyleSheet.create({
+  screen: { backgroundColor: colors.sidebar },
   body: { flex: 1, paddingHorizontal: gutter + space(1), paddingBottom: space(4) },
   hero: {
     flex: 1,

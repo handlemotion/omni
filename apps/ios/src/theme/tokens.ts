@@ -1,6 +1,8 @@
 export const colors = {
-  /** The app canvas. */
-  background: "#fafafa",
+  /** The main app canvas. */
+  background: "#ffffff",
+  /** The left navigation drawer and welcome canvas. */
+  sidebar: "#fafafa",
   /** Anything raised on the canvas: cards, sheets, buttons, the search field. */
   surface: "#ffffff",
   foreground: "#171717",
@@ -111,10 +113,10 @@ export const iconSize = { sm: 15, field: 18, md: 20, menu: 22, lg: 24 } as const
 
 /** A list row's leading avatar or tile, and the gutter every screen keeps from its edges. */
 export const rowLead = 44;
-/** The floating bar's round buttons and its search pill. */
-export const floatingControl = 50;
+/** The floating bar's round buttons and its search pill (matches login's 48pt buttons). */
+export const floatingControl = 48;
 /** The bar's controls while its field is open over the keyboard. */
-export const searchControl = 48;
+export const searchControl = 44;
 /** The fade behind the floating bar and module dock, where the page dissolves before them. */
 export const floatingFade = 176;
 /** The dot beside an unread thread's sender, or on the bell. */

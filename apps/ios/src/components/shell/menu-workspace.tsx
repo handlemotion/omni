@@ -21,14 +21,12 @@ import { ChoiceRow } from "./mailbox-chooser.tsx";
 import { useMenuPlace } from "./menu-nav.ts";
 import { MenuRow, SheetDivider } from "./menu-row.tsx";
 
-const AVATAR = space(11);
+const AVATAR = space(9);
 const SHEET_LEAD = space(9);
 
 /**
- * The top bar's right button: the workspace's avatar (its logo, else its initial), a circle the
- * size of ☰'s. A tap opens a sheet with the desktop's workspace menu: every workspace you belong
- * to (the current one checked) and New workspace; Account settings, Workspace settings and
- * Connections; a company's Invite members and Upgrade for those who manage it; Log out.
+ * The left drawer's footer button: the active workspace's avatar alone.
+ * A tap opens the workspace & account sheet (switch workspace, settings, connections, log out).
  */
 export function WorkspaceButton() {
   const { active, all } = useWorkspace();
