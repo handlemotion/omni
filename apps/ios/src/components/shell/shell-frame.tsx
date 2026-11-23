@@ -10,15 +10,12 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
-import { IconChevronDown } from "@/components/icons.ts";
 import { BarFade } from "@/components/ui/edge-blur.tsx";
-import { Text } from "@/components/ui/text.tsx";
 import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
-import { colors, iconSize, space } from "@/theme/tokens.ts";
+import { colors, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import { useMenuPlace } from "./menu-nav.ts";
 import {
-  CARD_PEEK,
   ModuleSection,
   SECTION_EASE,
   SECTION_MS,
@@ -75,9 +72,6 @@ export function ShellFrame({ children }: { children: ReactNode }) {
   const wash = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0.2, 0.8], [0, 1], Extrapolation.CLAMP),
   }));
-  const hint = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0.6, 1], [0, 1], Extrapolation.CLAMP),
-  }));
 
   return (
     <View style={styles.root}>
@@ -91,12 +85,6 @@ export function ShellFrame({ children }: { children: ReactNode }) {
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, wash]}>
           <BlurView intensity={10} tint="light" style={StyleSheet.absoluteFill} />
           <View style={styles.wash} />
-        </Animated.View>
-        <Animated.View pointerEvents="none" style={[styles.hint, hint]}>
-          <IconChevronDown size={iconSize.sm} color={colors.mutedForeground} />
-          <Text size="sm" tone="mutedForeground">
-            Swipe down to hide
-          </Text>
         </Animated.View>
         {shell.isOpen ? (
           <GestureDetector gesture={pullCard}>
@@ -113,7 +101,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
       {shell.searching ? null : (
         <GestureDetector gesture={pull}>
           <Animated.View style={[styles.rail, { bottom: railBottom }, rail]}>
-            <NavBar />
+            <NavBar progress={progress} />
           </Animated.View>
         </GestureDetector>
       )}
@@ -134,15 +122,4 @@ const styles = StyleSheet.create({
   },
   rail: { position: "absolute", left: 0, right: 0 },
   wash: { ...StyleSheet.absoluteFill, backgroundColor: colors.background, opacity: 0.35 },
-  hint: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: CARD_PEEK,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: space(1.5),
-  },
 });

@@ -1,4 +1,10 @@
 import type { ComponentType, ReactNode } from "react";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  type SharedValue,
+} from "react-native-reanimated";
 import { Pressable, StyleSheet, View } from "react-native";
 import type { SvgProps } from "react-native-svg";
 import {
@@ -40,7 +46,9 @@ interface Shortcut {
 
 /** The bar's height, and how far above the home indicator it floats. */
 export const NAV_BAR = space(12);
-const NAV_HANDLE = space(4);
+const NAV_HANDLE = space(7);
+const SIDE = space(11);
+const GAP = space(2);
 /** The rail's whole height: its handle and its row. */
 export const RAIL_BLOCK = NAV_HANDLE + NAV_BAR;
 
@@ -97,13 +105,17 @@ function useShortcuts() {
  * page's width, the current one marked in grey. Pulling the rail (it sits in the frame's pull)
  * or tapping the handle or the module raises it, the page above, the module's pages beneath.
  */
-export function NavBar() {
+export function NavBar({ progress }: { progress: SharedValue<number> }) {
   const shell = useMenu();
   const place = useMenuPlace();
   const modules = useModules();
   const entry = modules.find((m) => m.id === place.module);
   const shortcuts = useShortcuts();
   const Mark = entry?.mark;
+  const side = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [SIDE + GAP, 0], Extrapolation.CLAMP),
+    opacity: interpolate(progress.value, [0, 0.5], [1, 0], Extrapolation.CLAMP),
+  }));
   const items: Pill[] = shell.isOpen
     ? modules.map((m) => ({
         id: m.id,
@@ -137,14 +149,16 @@ export function NavBar() {
         <View style={styles.grabber} />
       </Pressable>
       <View pointerEvents="box-none" style={styles.row}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${entry?.label ?? "Modules"}, all pages and modules`}
-          onPress={shell.toggle}
-          style={({ pressed }) => [styles.round, pressed && styles.pressed]}
-        >
-          {Mark ? <Mark size={22} /> : null}
-        </Pressable>
+        <Animated.View style={[styles.sideStart, side]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${entry?.label ?? "Modules"}, all pages and modules`}
+            onPress={shell.toggle}
+            style={({ pressed }) => [styles.round, pressed && styles.pressed]}
+          >
+            {Mark ? <Mark size={22} /> : null}
+          </Pressable>
+        </Animated.View>
         {items.length ? (
           <View accessibilityRole="tablist" style={styles.pages}>
             {items.map((item) => (
@@ -163,14 +177,16 @@ export function NavBar() {
         ) : (
           <View style={styles.spacer} />
         )}
-        <ModuleMainAction />
+        <Animated.View style={[styles.sideEnd, side]}>
+          <ModuleMainAction />
+        </Animated.View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  handle: { height: NAV_HANDLE, alignItems: "center", justifyContent: "center" },
+  handle: { height: NAV_HANDLE, alignItems: "center", justifyContent: "flex-start" },
   grabber: {
     width: space(7),
     height: space(0.75),
@@ -181,12 +197,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space(2),
     paddingHorizontal: space(4),
   },
+  sideStart: { overflow: "hidden", alignItems: "flex-start" },
+  sideEnd: { overflow: "hidden", alignItems: "flex-end" },
   round: {
-    width: NAV_BAR,
-    height: NAV_BAR,
+    width: SIDE,
+    height: SIDE,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.border,

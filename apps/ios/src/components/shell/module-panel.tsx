@@ -24,11 +24,11 @@ import { RootPlace, useMenuPlace } from "./menu-nav.ts";
 import { useModules } from "./modules.ts";
 import { RAIL_BLOCK } from "./nav-bar.tsx";
 
-const EDGE_FADE = space(6);
+const EDGE_FADE = space(4);
 const FLING = 600;
 
 /** How much of the page card stays on screen under the status bar while the pages are up. */
-export const CARD_PEEK = space(20);
+export const CARD_PEEK = space(14);
 
 /** How long the section takes to open and close, and its curve. */
 export const SECTION_MS = 300;
@@ -100,7 +100,7 @@ export function ModuleSection({
   const modules = useModules();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { lift: travel } = useRailLayout();
+  const { lift: travel, railBottom } = useRailLayout();
   const current = Math.max(
     0,
     modules.findIndex((entry) => entry.id === module),
@@ -128,7 +128,7 @@ export function ModuleSection({
 
   if (shell.searching) return null;
   return (
-    <Animated.View style={[styles.section, { top: height }, lift]}>
+    <Animated.View style={[styles.section, { top: height - railBottom }, lift]}>
       <Animated.View
         pointerEvents={shell.isOpen ? "auto" : "none"}
         accessibilityElementsHidden={!shell.isOpen}
@@ -153,7 +153,7 @@ export function ModuleSection({
               <ScrollView
                 key={entry.id}
                 showsVerticalScrollIndicator={false}
-                style={{ width, height: travel }}
+                style={{ width, height: travel + railBottom }}
                 contentContainerStyle={[styles.rows, { paddingBottom: insets.bottom + space(2) }]}
               >
                 <Rows />
@@ -187,6 +187,6 @@ export function ModuleSection({
 const styles = StyleSheet.create({
   section: { position: "absolute", left: 0, right: 0 },
   pages: { position: "absolute", top: 0, left: 0, right: 0 },
-  rows: { paddingHorizontal: MENU_INSET, paddingTop: EDGE_FADE },
+  rows: { paddingHorizontal: MENU_INSET, paddingTop: space(3) },
   fade: { position: "absolute", top: 0, left: 0 },
 });
