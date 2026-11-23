@@ -6,10 +6,16 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
   type SharedValue,
 } from "react-native-reanimated";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
-import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import {
+  GestureDetector,
+  useCompetingGestures,
+  usePanGesture,
+  useTapGesture,
+} from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import type { SvgProps } from "react-native-svg";
 import {
@@ -236,26 +242,12 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
           style={[styles.foldWrap, pages, fold]}
         >
           {shortcuts.items.length ? (
-            <View accessibilityRole="tablist" style={[styles.pages, { width: pagesWidth }]}>
-              {shortcuts.items.map(({ id, icon: Icon, label }) => {
-                const here = id === shortcuts.current && place.onRoot;
-                return (
-                  <Pressable
-                    key={id}
-                    accessibilityRole="tab"
-                    accessibilityLabel={label}
-                    accessibilityState={{ selected: here }}
-                    onPress={() => shortcuts.open(id)}
-                    style={[styles.page, here && styles.here]}
-                  >
-                    <Icon
-                      size={iconSize.md}
-                      color={here ? colors.foreground : colors.mutedForeground}
-                    />
-                  </Pressable>
-                );
-              })}
-            </View>
+            <PagePill
+              width={pagesWidth}
+              items={shortcuts.items}
+              current={place.onRoot ? shortcuts.current : undefined}
+              onOpen={shortcuts.open}
+            />
           ) : null}
         </Animated.View>
         <Animated.View
@@ -266,6 +258,92 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
         </Animated.View>
       </View>
     </View>
+  );
+}
+
+const PILL_INSET = space(1) + 1;
+
+function PagePill(props: {
+  width: number;
+  items: Shortcut[];
+  current: string | undefined;
+  onOpen: (id: string) => void;
+}) {
+  const { items, onOpen } = props;
+  const slot = (props.width - PILL_INSET * 2) / items.length;
+  const index = items.findIndex((item) => item.id === props.current);
+  const x = useSharedValue(Math.max(index, 0) * slot);
+  const shown = useSharedValue(index < 0 ? 0 : 1);
+  useEffect(() => {
+    if (index < 0) {
+      shown.value = withTiming(0);
+      return;
+    }
+    shown.value = withTiming(1);
+    x.value = withSpring(index * slot, SPRING);
+  }, [index, slot, x, shown]);
+  const open = (at: number) => {
+    const item = items[at];
+    if (item) onOpen(item.id);
+  };
+  const under = (touchX: number) => {
+    "worklet";
+    return Math.min(Math.max(Math.floor((touchX - PILL_INSET) / slot), 0), items.length - 1);
+  };
+  const tap = useTapGesture({
+    maxDistance: 10,
+    onActivate: (e) => {
+      "worklet";
+      const at = under(e.x);
+      shown.value = withTiming(1);
+      x.value = withSpring(at * slot, SPRING);
+      scheduleOnRN(open, at);
+    },
+  });
+  const drag = usePanGesture({
+    activeOffsetX: [-8, 8],
+    failOffsetY: [-12, 12],
+    onUpdate: (e) => {
+      "worklet";
+      shown.value = 1;
+      x.value = Math.min(Math.max(e.x - PILL_INSET - slot / 2, 0), (items.length - 1) * slot);
+    },
+    onDeactivate: () => {
+      "worklet";
+      const at = Math.round(x.value / slot);
+      x.value = withSpring(at * slot, SPRING);
+      scheduleOnRN(open, at);
+    },
+  });
+  const press = useCompetingGestures(drag, tap);
+  const lens = useAnimatedStyle(() => ({
+    opacity: shown.value,
+    transform: [{ translateX: x.value }],
+  }));
+  return (
+    <GestureDetector gesture={press}>
+      <View accessibilityRole="tablist" style={[styles.pages, { width: props.width }]}>
+        <Animated.View pointerEvents="none" style={[styles.pageLens, { width: slot }, lens]}>
+          <View style={[styles.here, styles.fill]} />
+        </Animated.View>
+        {items.map(({ id, icon: Icon, label }) => {
+          const here = id === props.current;
+          return (
+            <View
+              key={id}
+              accessible
+              accessibilityRole="tab"
+              accessibilityLabel={label}
+              accessibilityState={{ selected: here }}
+              onAccessibilityTap={() => onOpen(id)}
+              style={styles.page}
+            >
+              <Icon size={iconSize.md} color={here ? colors.foreground : colors.mutedForeground} />
+            </View>
+          );
+        })}
+      </View>
+    </GestureDetector>
   );
 }
 
@@ -320,6 +398,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  pageLens: { position: "absolute", top: PILL_INSET, bottom: PILL_INSET, left: PILL_INSET },
+  fill: { flex: 1 },
   here: { backgroundColor: colors.well, borderRadius: radius.full },
   pressed: { transform: [{ scale: 0.97 }] },
 });
