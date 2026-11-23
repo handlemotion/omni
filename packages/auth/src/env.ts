@@ -1,17 +1,6 @@
+import { commaList, optionalText } from "@omni/contracts/env";
 import { z } from "zod";
-import { billingConfig, billingFields, checkBillingEnv, optionalText } from "./billing-env.ts";
-
-const commaList = z
-  .string()
-  .optional()
-  .transform((value) =>
-    value
-      ? value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [],
-  );
+import { billingConfig, billingFields, checkBillingEnv } from "./billing-env.ts";
 
 /** Auth variables, documented in `packages/auth/.env.example`. */
 export const authEnvSchema = z

@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./env": "./src/env.ts",
     "./errors": "./src/errors.ts",
     "./headers": "./src/headers.ts",
     "./storage-live-parts": "./src/storage-live-parts.ts"

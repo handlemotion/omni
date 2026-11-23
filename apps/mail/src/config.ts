@@ -1,4 +1,5 @@
 import { type Keyring, parseKeyring } from "@omni/crypto";
+import { commaList, optionalText } from "@omni/contracts/env";
 import { z } from "zod";
 import { hostList } from "./mail-hosts.ts";
 
@@ -20,11 +21,7 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(8788),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  SENTRY_DSN: z
-    .string()
-    .optional()
-    .transform((value) => value || undefined)
-    .pipe(z.url().optional()),
+  SENTRY_DSN: optionalText.pipe(z.url().optional()),
   SENTRY_ENVIRONMENT: z.string().min(1).default("production"),
   MAIL_SERVICE_HMAC_SECRET: z.string().min(32),
   WORKER_URL: z.url(),
@@ -44,29 +41,12 @@ const schema = z.object({
   OUTBOX_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
   NOTIFY_SWEEP_MS: z.coerce.number().int().positive().default(60_000),
   MAILBOX_CONCURRENCY: z.coerce.number().int().positive().default(4),
-  PURELYMAIL_API_TOKEN: z
-    .string()
-    .optional()
-    .transform((value) => value || undefined),
+  PURELYMAIL_API_TOKEN: optionalText,
   PURELYMAIL_CREDIT_WARN_USD: z.coerce.number().nonnegative().default(5),
-  GOOGLE_CLIENT_ID: z
-    .string()
-    .optional()
-    .transform((value) => value || undefined),
-  GOOGLE_CLIENT_SECRET: z
-    .string()
-    .optional()
-    .transform((value) => value || undefined),
+  GOOGLE_CLIENT_ID: optionalText,
+  GOOGLE_CLIENT_SECRET: optionalText,
   GMAIL_SYNC_DAYS: z.coerce.number().int().nonnegative().default(7),
-  DNS_RESOLVERS: z
-    .string()
-    .optional()
-    .transform((value) =>
-      (value ?? "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ),
+  DNS_RESOLVERS: commaList,
   MAIL_ALLOW_PLAINTEXT_HOSTS: hosts,
   MAIL_ALLOW_PRIVATE_HOSTS: hosts,
   DNS_NAMESERVER_PORT: z.coerce.number().int().positive().max(65_535).default(53),

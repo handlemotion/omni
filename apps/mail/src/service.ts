@@ -37,40 +37,6 @@ import { every } from "./timing.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type ServiceConfig = Pick<
-  Config,
-  | "DATABASE_URL"
-  | "MAIL_CREDENTIALS_KEY"
-  | "SYNC_INTERVAL_MS"
-  | "OUTBOX_INTERVAL_MS"
-  | "MAILBOX_CONCURRENCY"
-  | "MAIL_SERVICE_HMAC_SECRET"
-  | "WORKER_URL"
-  | "S3_ENDPOINT"
-  | "S3_BUCKET"
-  | "S3_ACCESS_KEY_ID"
-  | "S3_SECRET_ACCESS_KEY"
-  | "S3_REGION"
-  | "IMAGE_PROXY_URL"
-  | "ATTACHMENT_URL"
-> &
-  Partial<
-    Pick<
-      Config,
-      | "PURELYMAIL_API_TOKEN"
-      | "PURELYMAIL_CREDIT_WARN_USD"
-      | "GMAIL_SYNC_DAYS"
-      | "DNS_RESOLVERS"
-      | "DNS_NAMESERVER_PORT"
-      | "DNS_TIMEOUT_MS"
-      | "NOTIFY_SWEEP_MS"
-      | "GOOGLE_CLIENT_ID"
-      | "GOOGLE_CLIENT_SECRET"
-      | "MAIL_ALLOW_PLAINTEXT_HOSTS"
-      | "MAIL_ALLOW_PRIVATE_HOSTS"
-    >
-  >;
-
 export interface MailService {
   app: Hono;
   supervisor: Supervisor;
@@ -79,7 +45,7 @@ export interface MailService {
   stop(): Promise<void>;
 }
 
-export async function startService(config: ServiceConfig, log: Logger) {
+export async function startService(config: Config, log: Logger) {
   const hosts: MailHostPolicy = {
     plaintextHosts: new Set(config.MAIL_ALLOW_PLAINTEXT_HOSTS),
     privateHosts: new Set(config.MAIL_ALLOW_PRIVATE_HOSTS),
@@ -196,7 +162,7 @@ export async function startService(config: ServiceConfig, log: Logger) {
   const credit = host
     ? createCreditWatch({
         host,
-        warnBelowUsd: config.PURELYMAIL_CREDIT_WARN_USD ?? 5,
+        warnBelowUsd: config.PURELYMAIL_CREDIT_WARN_USD,
         logger: log,
       })
     : undefined;
@@ -204,7 +170,7 @@ export async function startService(config: ServiceConfig, log: Logger) {
   let reconciling: Promise<void> | null = null;
   let again = false;
   let stopping = false;
-  const gmailSyncDays = config.GMAIL_SYNC_DAYS ?? 7;
+  const gmailSyncDays = config.GMAIL_SYNC_DAYS;
   async function reconcileOnce() {
     if (stopping) return;
     await rehomeMailboxes({
@@ -293,7 +259,7 @@ export async function startService(config: ServiceConfig, log: Logger) {
 
   supervisor.start();
   await sweepNotifications().catch((error: unknown) => log.error("notify.sweep_failed", { error }));
-  const sweepLoop = every(config.NOTIFY_SWEEP_MS ?? 60_000, () =>
+  const sweepLoop = every(config.NOTIFY_SWEEP_MS, () =>
     sweepNotifications().catch((error: unknown) => log.error("notify.sweep_failed", { error })),
   );
   await reconcileMailboxes();
@@ -345,9 +311,9 @@ export async function startService(config: ServiceConfig, log: Logger) {
     disconnectMailbox: (input) => disconnectMailbox(disconnectDeps, input),
     log: httpLog,
     dns: createDnsLookup({
-      resolvers: config.DNS_RESOLVERS ?? [],
-      nameserverPort: config.DNS_NAMESERVER_PORT ?? 53,
-      timeoutMs: config.DNS_TIMEOUT_MS ?? 2_000,
+      resolvers: config.DNS_RESOLVERS,
+      nameserverPort: config.DNS_NAMESERVER_PORT,
+      timeoutMs: config.DNS_TIMEOUT_MS,
       logger: log,
     }),
     onError: (error) => httpLog.error("http.error", { error }),
