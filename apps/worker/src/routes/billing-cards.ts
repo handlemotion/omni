@@ -123,7 +123,7 @@ export const billingCards = new Hono<AppEnv>()
     const customer = await workspaceCustomer(c, stripe);
     const intent = await stripe.setupIntents.create({
       customer,
-      payment_method_types: ["card"],
+      allowed_payment_method_types: ["card"],
       usage: "off_session",
       metadata: { organizationId: c.var.member.orgId },
     });
