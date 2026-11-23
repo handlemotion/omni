@@ -11,9 +11,16 @@ import {
 } from "../schema/storage.ts";
 import { companyForAddress } from "../session-scopes.ts";
 import { findEmailOwner } from "../sign-in-emails.ts";
-import { loadMember, storagePolicyOf, type Door, type StoragePolicy } from "./access.ts";
-import { inTrash, MAX_WALK, pageSize, toNode, type NodeRow, type StorageNode } from "./core.ts";
-import { reach, type Forbidden, type NotFound } from "./tree.ts";
+import {
+  loadMember,
+  storagePolicyOf,
+  type Door,
+  type DoorKind,
+  type StoragePolicy,
+} from "./access.ts";
+import { MAX_WALK, pageSize, toNode, type NodeRow, type StorageNode } from "./core.ts";
+import { reach, reachLive } from "./tree.ts";
+import { NOT_FOUND, FORBIDDEN, type NotFound, type Forbidden } from "./results.ts";
 
 export type StorageLinkAccess = (typeof storageNodes.linkAccess.enumValues)[number];
 export type StorageGrantRole = (typeof storageGrants.$inferSelect)["role"];
@@ -73,8 +80,6 @@ export type PutGrantResult =
 export type RemoveGrantResult = { status: "ok" } | NotFound | Forbidden;
 export type PolicyResult = { status: "ok"; policy: StoragePolicy } | Forbidden | NotFound;
 
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
 const POLICY = { status: "policy" } as const;
 
 /** 22 base64url characters: 128 bits from the CSPRNG, derived from nothing. */
@@ -90,7 +95,7 @@ export interface ShareEventInput {
   orgId: string;
   nodeId: string;
   kind: (typeof storageShareEvents.kind.enumValues)[number];
-  via: "member" | "grant" | "link";
+  via: DoorKind;
   actorMemberId?: string | null;
   actorUserId?: string | null;
   detail?: Record<string, unknown>;
@@ -187,8 +192,8 @@ export function linkDetail(change: Partial<NodeRow>, reset: boolean) {
 
 export function sharingOperations(db: Db, door: Door) {
   async function shareable(ex: Db, nodeId: string, evenInTrash = false) {
-    const found = await reach(ex, door, nodeId);
-    if (!found || (!evenInTrash && inTrash(found.chain))) return NOT_FOUND;
+    const found = await (evenInTrash ? reach : reachLive)(ex, door, nodeId);
+    if (!found) return NOT_FOUND;
     if (!found.access.share) return FORBIDDEN;
     return { status: "ok" as const, ...found };
   }

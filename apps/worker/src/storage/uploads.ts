@@ -7,14 +7,14 @@ import {
   type StorageUploadPartResponse,
   type StorageUploadResponse,
 } from "@omni/contracts";
-import type { StorageUpload, UploadCaps } from "@omni/db";
+import type { MemberStorage, SharedStorage, StorageUpload, UploadCaps } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import type { Config } from "../env.ts";
 import { apiError } from "../errors.ts";
-import type { Logger } from "../log.ts";
 import {
   abortMultipart,
+  deleteStorageObjects,
   partCount,
   partLength,
   storageLimit,
@@ -36,6 +36,37 @@ export const uploadCaps = (config: Config) =>
     maxOpenUploads: config.STORAGE_MAX_OPEN_UPLOADS,
     maxReservedBytes: config.STORAGE_MAX_RESERVED_BYTES,
   }) satisfies UploadCaps;
+
+/**
+ * The answer to opening an upload, new file or new version, of `size` bytes: `413
+ * file_too_large` past the file cap or R2's parts, else null to go on.
+ */
+export const tooLarge = (c: Context<AppEnv>, size: number) =>
+  size <= c.var.config.STORAGE_MAX_FILE_BYTES && partCount(size) <= STORAGE_MAX_PARTS
+    ? null
+    : apiError(c, "file_too_large", "the file is larger than one file may be");
+
+/**
+ * Starts the bucket's multipart upload behind a freshly opened upload row, and answers the row
+ * as it now is. An empty file has no parts and is answered as it was opened. If the bucket or
+ * the row fails, the row is aborted and the error thrown.
+ */
+export async function startObject(
+  c: Context<AppEnv>,
+  files: MemberStorage | SharedStorage,
+  opened: StorageUpload,
+) {
+  if (opened.size === 0) return opened;
+  try {
+    const multipart = await c.env.STORAGE_BUCKET.createMultipartUpload(opened.r2Key);
+    const started = await files.startUpload(opened.id, multipart.uploadId);
+    if (!started) throw new Error("storage: the upload was gone before it started");
+    return started;
+  } catch (error) {
+    await files.abortUpload(opened.id);
+    throw error;
+  }
+}
 
 const isInvalidPart = (error: unknown) =>
   error instanceof Error && /InvalidPart|10025|parts could not be found/i.test(error.message);
@@ -65,12 +96,6 @@ async function objectSha256(bucket: R2Bucket, key: string) {
   return [...new Uint8Array(await digest.digest)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-}
-
-async function deleteObject(bucket: R2Bucket, key: string, log: Logger) {
-  await bucket.delete(key).catch((error: unknown) => {
-    log.error("storage.objects_left", { count: 1, error });
-  });
 }
 
 async function findUpload(c: Context<AppEnv>, id: string) {
@@ -140,7 +165,7 @@ async function prepareObject(c: Context<AppEnv>, upload: StorageUpload) {
     return null;
   }
   const aborted = await files.abortUpload(upload.id);
-  if (aborted.status === "ok") await deleteObject(bucket, aborted.r2Key, c.var.log);
+  if (aborted.status === "ok") await deleteStorageObjects(bucket, [aborted.r2Key], c.var.log);
   return apiError(c, "checksum_mismatch", "the bytes stored do not match the sha256 sent");
 }
 
@@ -149,9 +174,8 @@ export const storageUploads = new Hono<AppEnv>()
     const { name, size, mimeType, sha256, parentId, space, teamspaceId } = c.req.valid("json");
     const { db, config } = c.var;
     const { files, orgId } = writeDoor(c);
-    if (size > config.STORAGE_MAX_FILE_BYTES || partCount(size) > STORAGE_MAX_PARTS) {
-      return apiError(c, "file_too_large", "the file is larger than one file may be");
-    }
+    const refusedSize = tooLarge(c, size);
+    if (refusedSize) return refusedSize;
     const { limitBytes } = await storageLimit(db, config, orgId);
     const opened = await files.openUpload(placeOf({ parentId, space, teamspaceId }), {
       name,
@@ -162,16 +186,7 @@ export const storageUploads = new Hono<AppEnv>()
       caps: uploadCaps(config),
     });
     if (opened.status !== "ok") return refused(c, opened.status);
-    if (size === 0) return c.json(answer(opened.upload), 201);
-    try {
-      const multipart = await c.env.STORAGE_BUCKET.createMultipartUpload(opened.upload.r2Key);
-      const started = await files.startUpload(opened.upload.id, multipart.uploadId);
-      if (!started) throw new Error("storage: the upload was gone before it started");
-      return c.json(answer(started), 201);
-    } catch (error) {
-      await files.abortUpload(opened.upload.id);
-      throw error;
-    }
+    return c.json(answer(await startObject(c, files, opened.upload)), 201);
   })
 
   .get("/uploads/:id", async (c) => {
@@ -229,7 +244,9 @@ export const storageUploads = new Hono<AppEnv>()
     }
     if (done.status === "not_found") {
       const aborted = await files.abortUpload(upload.id);
-      if (aborted.status === "ok") await deleteObject(c.env.STORAGE_BUCKET, aborted.r2Key, log);
+      if (aborted.status === "ok") {
+        await deleteStorageObjects(c.env.STORAGE_BUCKET, [aborted.r2Key], log);
+      }
     }
     if (done.status === "version_conflict") return staleSave(c, done.contentVersion);
     return refused(c, done.status);
@@ -239,6 +256,6 @@ export const storageUploads = new Hono<AppEnv>()
     const aborted = await writeDoor(c).files.abortUpload(c.req.param("id"));
     if (aborted.status !== "ok") return refused(c, aborted.status);
     await abortMultipart(c.env.STORAGE_BUCKET, aborted.r2Key, aborted.r2UploadId);
-    await deleteObject(c.env.STORAGE_BUCKET, aborted.r2Key, c.var.log);
+    await deleteStorageObjects(c.env.STORAGE_BUCKET, [aborted.r2Key], c.var.log);
     return c.body(null, 204);
   });

@@ -5,7 +5,7 @@ import { InputData, JSONSchemaInput, JSONSchemaStore, quicktype } from "quicktyp
 import type { JSONSchema } from "quicktype-core";
 import { z } from "zod";
 import { DESKTOP_RECORDER_NATIVE_TYPES } from "../src/desktop-recorder.ts";
-import { STORAGE_SYNC_NATIVE_TYPES } from "../src/storage.ts";
+import { STORAGE_SYNC_NATIVE_TYPES } from "../src/storage-sync.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const outDir = join(root, "apps/desktop/generated");
