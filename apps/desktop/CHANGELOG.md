@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/wokshop/omni/compare/desktop-v0.5.0...desktop-v0.6.0) (2026-11-23)
+
+
+### Features
+
+* **desktop:** Windows drops the native title bar; the web app draws minimize, maximize and close ([#892](https://github.com/wokshop/omni/issues/892)) ([390dfca](https://github.com/wokshop/omni/commit/390dfca80c89c0377eb478e18cd9bbe7f2cfa7ba))
+
+
+### Fixes
+
+* **db:** a Personal space holding a domain survives the sign-up sweep, and one its owner left stays with its people ([#884](https://github.com/wokshop/omni/issues/884)) ([531db22](https://github.com/wokshop/omni/commit/531db2234a75cb3d8ae9944ba678490f0a98488a))
+* **desktop:** installer downloads keep their release names ([#885](https://github.com/wokshop/omni/issues/885)) ([b2e446b](https://github.com/wokshop/omni/commit/b2e446beddcfe1a969e97a62d9c59eb0c8e8edc1))
+
 ## [0.5.0](https://github.com/wokshop/omni/compare/desktop-v0.4.0...desktop-v0.5.0) (2026-11-22)
 
 
