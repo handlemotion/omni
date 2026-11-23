@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/handlemotion/omni/compare/ios-v0.7.0...ios-v0.8.0) (2026-11-23)
+
+
+### Features
+
+* **ios:** dictate into the module search bar ([#906](https://github.com/handlemotion/omni/issues/906)) ([830d576](https://github.com/handlemotion/omni/commit/830d57649aac6294140b9cc057b91f3fc1401057))
+
+
+### Fixes
+
+* **ios:** replace an invalid App Store profile instead of failing the release ([#904](https://github.com/handlemotion/omni/issues/904)) ([2f9df1e](https://github.com/handlemotion/omni/commit/2f9df1e4dc57c4189886c0b944562dddcac04ed5))
+
 ## [0.7.0](https://github.com/wokshop/omni/compare/ios-v0.6.0...ios-v0.7.0) (2026-11-23)
 
 
