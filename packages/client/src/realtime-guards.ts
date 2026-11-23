@@ -15,11 +15,6 @@ export const isIds = (value: unknown): value is string[] =>
 export const isTime = (value: unknown): value is string =>
   typeof value === "string" && !Number.isNaN(Date.parse(value));
 
-export const oneOf =
-  <const T extends string>(values: readonly T[]) =>
-  (value: unknown): value is T =>
-    typeof value === "string" && (values as readonly string[]).includes(value);
-
 export const keyOf =
   <K extends string>(table: Record<K, unknown>) =>
   (value: unknown): value is K =>

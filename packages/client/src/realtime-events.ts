@@ -2,6 +2,7 @@ import type {
   CrmChangedKind,
   HelpdeskRealtimeEvent,
   MailActionKind,
+  SlaTarget,
   StorageChangedEvent,
   StorageDocEvent,
   StorageFilePresenceEvent,
@@ -10,7 +11,7 @@ import type {
 } from "@omni/contracts";
 import type { schema } from "@omni/db";
 import type { Realtime as RealtimeObject } from "@omni/worker";
-import { isId, isIds, isObject, isSeqNum, isTime, keyOf, oneOf } from "./realtime-guards.ts";
+import { isId, isIds, isObject, isSeqNum, isTime, keyOf } from "./realtime-guards.ts";
 import { parseStorageEvent } from "./realtime-storage.ts";
 import { parseTalkEvent } from "./realtime-talk.ts";
 
@@ -78,17 +79,27 @@ const isCrmChangedKind = keyOf<CrmChangedKind>({
   task: true,
 });
 
-const isPresenceState = oneOf(["viewing", "replying", "left"]);
-const isSlaTarget = oneOf(["first_response", "next_response", "resolution"]);
-const isMeetingStatus = oneOf([
-  "recording",
-  "uploaded",
-  "transcribing",
-  "naming",
-  "writing",
-  "ready",
-  "failed",
-]);
+const isPresenceState = keyOf<Extract<HelpdeskRealtimeEvent, { type: "presence" }>["state"]>({
+  viewing: true,
+  replying: true,
+  left: true,
+});
+
+const isSlaTarget = keyOf<SlaTarget>({
+  first_response: true,
+  next_response: true,
+  resolution: true,
+});
+
+const isMeetingStatus = keyOf<(typeof schema.meetingsStatus.enumValues)[number]>({
+  recording: true,
+  uploaded: true,
+  transcribing: true,
+  naming: true,
+  writing: true,
+  ready: true,
+  failed: true,
+});
 
 const MAIL_PARSERS: Record<string, Parser> = {
   changed: ({ mailboxId, threadIds }) =>
