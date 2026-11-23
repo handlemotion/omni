@@ -54,8 +54,15 @@ async function save(jar: CookieJar, attachmentId: string, body?: { parentId: str
   return { status: response.status, body: (await response.json()) as any };
 }
 
-const myFiles = async (person: Person) =>
-  (await stack.api(person.jar, "GET", "/nodes?space=personal")).body.nodes as StorageNode[];
+async function spaceOf(person: Person, name: string, open = false) {
+  const made = await stack.api(person.jar, "POST", "/teamspaces", { name, private: !open });
+  expect(made.status).toBe(201);
+  return made.body.teamspace.id as string;
+}
+
+const inSpace = async (person: Person, teamspaceId: string) =>
+  (await stack.api(person.jar, "GET", `/nodes?teamspace=${teamspaceId}`)).body
+    .nodes as StorageNode[];
 
 async function storedObjects(orgId: string) {
   const listed = await (await stack.bucket()).list({ prefix: `orgs/${orgId}/` });
@@ -68,13 +75,14 @@ const uploadsOf = (orgId: string) =>
     .from(schema.storageUploads)
     .where(and(eq(schema.storageUploads.orgId, orgId), isNull(schema.storageUploads.nodeId)));
 
-test("a member saves an attachment from a thread they can open into My files, bytes and all", async () => {
+test("a member saves an attachment from a thread they can open into their first space, bytes and all", async () => {
   const bytes = randomBytes(300 * 1024);
   const { org, ana, attachmentId } = await companyWithAttachment(
     "Q3 report.pdf",
     "application/pdf",
     bytes,
   );
+  const teamspaceId = await spaceOf(ana, "Ana");
 
   const saved = await save(ana.jar, attachmentId);
   expect(saved.status).toBe(201);
@@ -82,15 +90,38 @@ test("a member saves an attachment from a thread they can open into My files, by
     name: "Q3 report.pdf",
     mimeType: "application/pdf",
     size: bytes.length,
-    space: "personal",
+    space: "teamspace",
+    teamspaceId,
     parentId: null,
-    ownerMemberId: ana.id,
+    ownerMemberId: null,
   });
-  expect((await myFiles(ana)).map((node) => node.id)).toEqual([saved.body.node.id]);
+  expect((await inSpace(ana, teamspaceId)).map((node) => node.id)).toEqual([saved.body.node.id]);
+  const recent = await stack.api(ana.jar, "GET", "/recent");
+  expect((recent.body.nodes as StorageNode[]).map((node) => node.id)).toEqual([saved.body.node.id]);
   const download = await stack.download(ana.jar, saved.body.node.id);
   expect(download.status).toBe(200);
   expect(Buffer.from(await download.arrayBuffer())).toEqual(bytes);
   expect(await stack.usedBytes(org.id)).toBe(bytes.length);
+});
+
+test("a member in no space gets 404 and nothing is written", async () => {
+  const { org, ana, attachmentId } = await companyWithAttachment(
+    "nowhere.txt",
+    "text/plain",
+    randomBytes(64),
+  );
+
+  const refused = await save(ana.jar, attachmentId);
+  expect(refused.status).toBe(404);
+  expect(refused.body.code).toBe("NOT_FOUND");
+  const nodes = await stack.db
+    .select()
+    .from(schema.storageNodes)
+    .where(eq(schema.storageNodes.orgId, org.id));
+  expect(nodes).toEqual([]);
+  expect(await storedObjects(org.id)).toEqual([]);
+  expect(await uploadsOf(org.id)).toEqual([]);
+  expect(await stack.usedBytes(org.id)).toBe(0);
 });
 
 test("a member who cannot open the thread gets 404 and nothing is written", async () => {
@@ -100,11 +131,12 @@ test("a member who cannot open the thread gets 404 and nothing is written", asyn
     randomBytes(64),
   );
   const bea = await stack.member(org.id);
+  const beas = await spaceOf(bea, "Bea");
 
   const refused = await save(bea.jar, attachmentId);
   expect(refused.status).toBe(404);
   expect(refused.body.code).toBe("NOT_FOUND");
-  expect(await myFiles(bea)).toEqual([]);
+  expect(await inSpace(bea, beas)).toEqual([]);
   expect(await storedObjects(org.id)).toEqual([]);
   expect(await uploadsOf(org.id)).toEqual([]);
   expect(await stack.usedBytes(org.id)).toBe(0);
@@ -116,9 +148,10 @@ test("a full drive answers 402 storage_full and leaves no object behind", async 
     "application/octet-stream",
     randomBytes(200 * 1024),
   );
+  const teamspaceId = await spaceOf(ana, "Ana");
   const kept = await stack.upload(
     ana.jar,
-    { space: "personal" },
+    { teamspaceId },
     "kept.bin",
     randomBytes(WORKSPACE_BYTES - 100 * 1024),
   );
@@ -126,7 +159,7 @@ test("a full drive answers 402 storage_full and leaves no object behind", async 
   const refused = await save(ana.jar, attachmentId);
   expect(refused.status).toBe(402);
   expect(refused.body.code).toBe("STORAGE_FULL");
-  expect((await myFiles(ana)).map((node) => node.name)).toEqual(["kept.bin"]);
+  expect((await inSpace(ana, teamspaceId)).map((node) => node.name)).toEqual(["kept.bin"]);
   expect(await storedObjects(org.id)).toEqual([`orgs/${org.id}/${kept.id}`]);
   expect(await uploadsOf(org.id)).toEqual([]);
   expect(await stack.usedBytes(org.id)).toBe(kept.size);
@@ -135,6 +168,7 @@ test("a full drive answers 402 storage_full and leaves no object behind", async 
 test("saving the same attachment twice gives the second copy a numbered name", async () => {
   const bytes = randomBytes(1000);
   const { org, ana, attachmentId } = await companyWithAttachment("notes.txt", "text/plain", bytes);
+  await spaceOf(ana, "Ana");
 
   const first = await save(ana.jar, attachmentId);
   const second = await save(ana.jar, attachmentId);
@@ -146,20 +180,22 @@ test("saving the same attachment twice gives the second copy a numbered name", a
   expect(await stack.usedBytes(org.id)).toBe(2 * bytes.length);
 });
 
-test("a member saves into a Shared folder, and never into a teammate's My files", async () => {
+test("a member saves into a folder in an open space, and never into a teammate's private space", async () => {
   const { org, ana, attachmentId } = await companyWithAttachment(
     "deck.key",
     "application/x-iwork",
     randomBytes(500),
   );
-  const folder = await stack.api(ana.jar, "POST", "/folders", { name: "Team", space: "shared" });
+  const team = await spaceOf(ana, "Team", true);
+  const folder = await stack.api(ana.jar, "POST", "/folders", { name: "Team", teamspaceId: team });
   expect(folder.status).toBe(201);
 
   const saved = await save(ana.jar, attachmentId, { parentId: folder.body.node.id });
   expect(saved.status).toBe(201);
   expect(saved.body.node).toMatchObject({
     name: "deck.key",
-    space: "shared",
+    space: "teamspace",
+    teamspaceId: team,
     parentId: folder.body.node.id,
     ownerMemberId: null,
   });
@@ -167,8 +203,9 @@ test("a member saves into a Shared folder, and never into a teammate's My files"
   const bea = await stack.member(org.id);
   const beaFolder = await stack.api(bea.jar, "POST", "/folders", {
     name: "Mine",
-    space: "personal",
+    teamspaceId: await spaceOf(bea, "Bea"),
   });
+  expect(beaFolder.status).toBe(201);
   const refused = await save(ana.jar, attachmentId, { parentId: beaFolder.body.node.id });
   expect(refused.status).toBe(404);
   const inside = await stack.api(bea.jar, "GET", `/nodes?parent=${beaFolder.body.node.id}`);

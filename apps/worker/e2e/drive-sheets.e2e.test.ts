@@ -101,21 +101,28 @@ const leads = {
   columns: [null, { type: "number", format: { kind: "currency", currency: "MXN" } }],
 };
 
+async function teamspaceOf(api: StorageStack["api"], jar: CookieJar, open = false) {
+  const made = await api(jar, "POST", "/teamspaces", { name: "Sheets", private: !open });
+  expect(made.status).toBe(201);
+  return (made.body.teamspace as { id: string }).id;
+}
+
 test("an agent writes a sheet and edits it by cell and range, only where its person may", async () => {
   const acme = await stack.company(`sheets-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(acme.id);
   const carl = await stack.member(acme.id);
   const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const teamspaceId = await teamspaceOf(stack.api, ana.jar);
 
   const made = await call(agent, "drive_create_sheet", {
     name: "Pipeline",
-    workspace: acme.id,
+    teamspace_id: teamspaceId,
     tabs: [leads],
   });
   expect(made).not.toHaveProperty("error");
   const sheet = made.sheet as { id: string; title: string };
   expect(sheet.title).toBe("Pipeline");
-  const mine = await stack.api(ana.jar, "GET", "/nodes?space=personal");
+  const mine = await stack.api(ana.jar, "GET", `/nodes?teamspace=${teamspaceId}`);
   expect((mine.body.nodes as StorageNode[]).find((n) => n.id === sheet.id)).toMatchObject({
     name: "Pipeline",
     mimeType: SHEET_TYPE,
@@ -155,9 +162,9 @@ test("an agent writes a sheet and edits it by cell and range, only where its per
   expect(edited.values).toContain("Leads!B6 = 2800");
   const saved = parseSheet(await fileText(ana, sheet.id));
   expect(saved.tabs[0]!.rows).toHaveLength(6);
-  expect((await stack.api(ana.jar, "GET", "/nodes?space=personal")).body.nodes).toContainEqual(
-    expect.objectContaining({ id: sheet.id, mimeType: SHEET_TYPE }),
-  );
+  expect(
+    (await stack.api(ana.jar, "GET", `/nodes?teamspace=${teamspaceId}`)).body.nodes,
+  ).toContainEqual(expect.objectContaining({ id: sheet.id, mimeType: SHEET_TYPE }));
 
   const stale = await call(agent, "drive_edit_sheet", {
     id: sheet.id,
@@ -192,13 +199,13 @@ test("an agent writes a sheet and edits it by cell and range, only where its per
 
   const oversized = await call(agent, "drive_create_sheet", {
     name: "Too big",
-    workspace: acme.id,
+    teamspace_id: teamspaceId,
     tabs: [{ name: "T", rows: [Array.from({ length: 160 }, () => '=REPT("x", 32767)')] }],
   });
   expect(oversized.error).toContain("larger than 5 MB");
   const twins = await call(agent, "drive_create_sheet", {
     name: "Twins",
-    workspace: acme.id,
+    teamspace_id: teamspaceId,
     tabs: [
       { name: "Leads", rows: [] },
       { name: "leads", rows: [] },
@@ -214,7 +221,7 @@ test("an agent writes a sheet and edits it by cell and range, only where its per
     }),
   ).toHaveProperty("error");
 
-  const doc = await stack.upload(ana.jar, { space: "personal" }, "notes.txt", new Uint8Array(3));
+  const doc = await stack.upload(ana.jar, { teamspaceId }, "notes.txt", new Uint8Array(3));
   expect(
     (await call(agent, "drive_edit_sheet", { id: doc.id, edits: [{ set: "A1", value: 1 }] })).error,
   ).toContain("not an Omni sheet");
@@ -239,8 +246,7 @@ test("an agent's edit merges into a sheet people have open: their unsaved typing
   const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
   const made = await call(agent, "drive_create_sheet", {
     name: "Live",
-    workspace: acme.id,
-    space: "shared",
+    teamspace_id: await teamspaceOf(stack.api, ana.jar, true),
     tabs: [leads],
   });
   const id = (made.sheet as { id: string }).id;
@@ -303,8 +309,7 @@ test("two agents adding the same tab to a sheet people have open at once never s
   const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
   const made = await call(agent, "drive_create_sheet", {
     name: "Plan",
-    workspace: acme.id,
-    space: "shared",
+    teamspace_id: await teamspaceOf(stack.api, ana.jar, true),
     tabs: [leads],
   });
   const id = (made.sheet as { id: string }).id;
@@ -341,15 +346,16 @@ test("when the live layer cannot be reached, an agent still reads a sheet as its
     const acme = await down.company(`s2-down-${randomUUID().slice(0, 8)}`);
     const ana = await down.member(acme.id);
     const agent = await connectAgent(down.worker.url, ana.jar, { scope: WRITE });
+    const teamspaceId = await teamspaceOf(down.api, ana.jar);
     const made = await call(agent, "drive_create_sheet", {
       name: "Offline",
-      workspace: acme.id,
+      teamspace_id: teamspaceId,
       tabs: [leads],
     });
     const id = (made.sheet as { id: string }).id;
     const note = await down.upload(
       ana.jar,
-      { space: "personal" },
+      { teamspaceId },
       "note.txt",
       new TextEncoder().encode("hello"),
     );

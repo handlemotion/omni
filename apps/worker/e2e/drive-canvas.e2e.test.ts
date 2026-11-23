@@ -18,8 +18,14 @@ const WRITE = "openid mail:read drive:read drive:write";
 
 type Answer = Record<string, unknown> & { error?: string };
 
+const spaceOf = new WeakMap<Client, string>();
+
 async function call(agent: Client, name: string, args: Record<string, unknown>) {
-  const result = await agent.callTool({ name, arguments: args });
+  const placed =
+    name === "drive_create_canvas" && !args.folder_id && !args.teamspace_id
+      ? { ...args, teamspace_id: spaceOf.get(agent) }
+      : args;
+  const result = await agent.callTool({ name, arguments: placed });
   if (result.isError) return { error: (result.content as { text: string }[])[0]!.text } as Answer;
   return result.structuredContent as Answer;
 }
@@ -27,7 +33,11 @@ async function call(agent: Client, name: string, args: Record<string, unknown>) 
 async function person() {
   const org = await stack.company(`canvas-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
-  return { ana, agent: await connectAgent(stack.worker.url, ana.jar, { scope: WRITE }) };
+  const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const made = await stack.api(ana.jar, "POST", "/teamspaces", { name: "Boards", private: true });
+  expect(made.status).toBe(201);
+  spaceOf.set(agent, (made.body.teamspace as { id: string }).id);
+  return { ana, agent };
 }
 
 async function body(who: Person, nodeId: string) {
@@ -43,7 +53,6 @@ const byText = (elements: CanvasElement[], text: string) =>
 async function roofPlan(agent: Client) {
   const made = await call(agent, "drive_create_canvas", {
     name: "Roof repair",
-    space: "shared",
     ops: [
       { op: "frame", title: "Q1 plan", ref: "plan" },
       { op: "add", kind: "sticky", text: "Call the roofer", parent: "plan", ref: "call" },

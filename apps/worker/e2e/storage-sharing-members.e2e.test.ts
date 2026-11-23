@@ -68,7 +68,11 @@ test("a Restricted link opens for a teammate who reaches the item as a member, a
 test("with no SYSTEM_MAIL_FROM a person is added without a mail and finds the item under Shared with me", async () => {
   const org = await stack.company(`quiet-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id, "owner");
-  const made = await stack.api(ana.jar, "POST", "/folders", { name: "Quiet", space: "personal" });
+  const space = await stack.api(ana.jar, "POST", "/teamspaces", { name: "Ana", private: true });
+  const made = await stack.api(ana.jar, "POST", "/folders", {
+    name: "Quiet",
+    teamspaceId: space.body.teamspace.id,
+  });
   const guestEmail = `guest-${randomUUID().slice(0, 8)}@outside.test`;
 
   const quiet = await startWorker({

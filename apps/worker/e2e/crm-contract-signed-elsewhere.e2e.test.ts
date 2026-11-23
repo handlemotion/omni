@@ -111,7 +111,12 @@ test("a contract signed on the client's side is recorded with its uploaded copy,
     ],
     signing: null,
   });
-  const inFolder = await stack.api(ana.jar, "GET", `/nodes?parent=${folderId}`);
+  const inProject = await stack.api(ana.jar, "GET", `/nodes?parent=${folderId}`);
+  const admin = inProject.body.nodes.find(
+    (n: { name: string; kind: string }) => n.kind === "folder" && n.name === "Admin",
+  );
+  expect(admin).toBeDefined();
+  const inFolder = await stack.api(ana.jar, "GET", `/nodes?parent=${admin.id}`);
   const locked = new Map(
     inFolder.body.nodes.map((n: { id: string; lockedAt: string | null }) => [n.id, n.lockedAt]),
   );

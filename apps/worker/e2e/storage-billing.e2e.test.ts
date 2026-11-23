@@ -105,7 +105,9 @@ test("the daily job records each paying workspace's peak per usage month and lea
   const old = new Date(Date.now() - 31 * DAY_MS);
   async function withOldTrash(plan: Plan) {
     const { org, owner } = await company(plan);
-    const file = await stack.upload(owner.jar, { space: "shared" }, "old.bin", randomBytes(300));
+    const made = await stack.api(owner.jar, "POST", "/teamspaces", { name: "Team" });
+    const place = { teamspaceId: made.body.teamspace.id as string };
+    const file = await stack.upload(owner.jar, place, "old.bin", randomBytes(300));
     expect((await stack.api(owner.jar, "DELETE", `/nodes/${file.id}`)).status).toBe(200);
     await stack.db
       .update(schema.storageNodes)

@@ -99,13 +99,20 @@ async function search(agent: Client, query: string) {
 
 const named = (hits: Hit[]) => hits.map((hit) => recordedName(hit.title));
 
+async function teamspace(owner: Person, name: string, open: boolean) {
+  const made = await stack.api(owner.jar, "POST", "/teamspaces", { name, private: !open });
+  expect(made.status).toBe(201);
+  return { teamspaceId: made.body.teamspace.id as string };
+}
+
 async function seed(owner: Person) {
   const ids = new Map<string, string>();
+  const mine = await teamspace(owner, "Mine", false);
+  const team = await teamspace(owner, "Team", true);
   for (const file of fixture.files) {
-    const space = file.location.endsWith("My files") ? "personal" : "shared";
     const node = await stack.upload(
       owner.jar,
-      { space },
+      file.location.endsWith("My files") ? mine : team,
       uploadedName(file.name),
       new TextEncoder().encode(file.text),
     );

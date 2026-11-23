@@ -30,6 +30,12 @@ async function folder(person: Person, place: object, name: string) {
   return made.body.node as StorageNode;
 }
 
+async function privateSpace(person: Person, name = "Mine") {
+  const made = await stack.api(person.jar, "POST", "/teamspaces", { name, private: true });
+  if (made.status !== 201) throw new Error(`teamspace ${name}: ${made.status}`);
+  return { teamspaceId: made.body.teamspace.id as string };
+}
+
 async function share(person: Person, nodeId: string, email: string, role = "viewer") {
   const put = await stack.api(
     person.jar,
@@ -51,7 +57,7 @@ async function ana() {
 
 test("a grant on a folder opens a file two levels down for that address only, by one mail, until it is removed", async () => {
   const { ana: owner } = await ana();
-  const top = await folder(owner, { space: "personal" }, "Top");
+  const top = await folder(owner, await privateSpace(owner), "Top");
   const mid = await folder(owner, { parentId: top.id }, "Mid");
   const bytes = randomBytes(3000);
   const deep = await stack.upload(owner.jar, { parentId: mid.id }, "deep.bin", bytes);
@@ -210,8 +216,9 @@ test("a Restricted link is 404 to a visitor; Anyone lists and downloads and noth
 
 test("an Editor uploads and changes inside the granted folder and nowhere else; a Viewer only reads; neither manages sharing", async () => {
   const { org, ana: owner } = await ana();
-  const project = await folder(owner, { space: "personal" }, "Project");
-  const other = await folder(owner, { space: "personal" }, "Other");
+  const mine = await privateSpace(owner);
+  const project = await folder(owner, mine, "Project");
+  const other = await folder(owner, mine, "Other");
   const secret = await stack.upload(
     owner.jar,
     { parentId: other.id },
@@ -235,10 +242,10 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
     undefined,
     base,
   );
-  expect(uploaded).toMatchObject({ orgId: org.id, space: "personal", ownerMemberId: owner.id });
+  expect(uploaded).toMatchObject({ orgId: org.id, space: "teamspace", ...mine });
   expect(await stack.usedBytes(org.id)).toBe(4010);
-  const mine = await stack.download(owner.jar, uploaded.id);
-  expect(Buffer.from(await mine.arrayBuffer())).toEqual(bytes);
+  const theirs = await stack.download(owner.jar, uploaded.id);
+  expect(Buffer.from(await theirs.arrayBuffer())).toEqual(bytes);
   const made = await stack.api(editor, "POST", `${base}/folders`, {
     name: "Notes",
     parentId: project.id,
@@ -389,8 +396,9 @@ test("a session scoped to a company does not see or open a grant addressed to th
   await db.insert(schema.mailDomains).values({ orgId: corp.id, domain, provider: "imap" });
 
   const bytes = randomBytes(100);
-  const toPersonal = await stack.upload(owner.jar, { space: "personal" }, "personal.txt", bytes);
-  const toWork = await stack.upload(owner.jar, { space: "personal" }, "work.txt", bytes);
+  const mine = await privateSpace(owner);
+  const toPersonal = await stack.upload(owner.jar, mine, "personal.txt", bytes);
+  const toWork = await stack.upload(owner.jar, mine, "work.txt", bytes);
   const personalLink = await share(owner, toPersonal.id, personal);
   const workLink = await share(owner, toWork.id, work);
   const shared = async (jar: CookieJar) =>
