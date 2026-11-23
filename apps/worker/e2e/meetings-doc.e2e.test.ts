@@ -4,6 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startMeetingsStack, type MeetingsStack } from "./meetings-support.ts";
 import type { Person } from "./storage-support.ts";
+import { waitFor } from "./support.ts";
 
 let m: MeetingsStack;
 beforeAll(async () => {
@@ -15,17 +16,18 @@ const DOC_TYPE = "text/vnd.omni.doc";
 const marta = { address: "marta@client.test", name: "Marta Gil" };
 
 async function written(person: Person, meetingId: string) {
-  const found = await m.until(
+  const found = await waitFor(
     async () => {
       const [meeting] = await m.stack.db
         .select({ notesNodeId: schema.meetingsMeetings.notesNodeId })
         .from(schema.meetingsMeetings)
         .where(eq(schema.meetingsMeetings.id, meetingId));
       const docId = meeting?.notesNodeId ?? null;
-      return { docId, body: docId ? await text(person, docId) : "" };
+      const body = docId ? await text(person, docId) : "";
+      return body.includes(`/meetings/${meetingId})`) && { docId, body };
     },
-    (r) => r.body.includes(`/meetings/${meetingId})`),
     40_000,
+    { intervalMs: 500 },
   );
   expect(found.body).toContain(`/meetings/${meetingId})`);
   return found.docId!;
@@ -65,9 +67,10 @@ test("the notes go into one new doc in Recordings, however often the steps run a
     .set({ status: "writing" })
     .where(eq(schema.meetingsMeetings.id, meetingId));
   await queue({ kind: "meeting", meetingId, orgId: org.id, step: "write" });
-  await m.until(
-    () => m.api(dana, "GET", `/${meetingId}`),
-    (r) => r.body?.meeting?.status === "ready",
+  await waitFor(
+    async () => (await m.api(dana, "GET", `/${meetingId}`)).body?.meeting?.status === "ready",
+    50_000,
+    { intervalMs: 500 },
   );
   await m.stack.db
     .update(schema.meetingsNotes)
@@ -75,7 +78,7 @@ test("the notes go into one new doc in Recordings, however often the steps run a
     .where(eq(schema.meetingsNotes.meetingId, meetingId));
   await queue({ kind: "meeting-doc", meetingId, orgId: org.id });
   await queue({ kind: "meeting-doc", meetingId, orgId: org.id });
-  await m.until(
+  await waitFor(
     async () =>
       (
         await m.stack.db
@@ -83,7 +86,8 @@ test("the notes go into one new doc in Recordings, however often the steps run a
           .from(schema.meetingsNotes)
           .where(eq(schema.meetingsNotes.meetingId, meetingId))
       )[0]?.at,
-    (at) => !!at,
+    50_000,
+    { intervalMs: 500 },
   );
 
   const after = await text(dana, docId);

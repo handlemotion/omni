@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect } from "vitest";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
-import { WEB_ORIGIN } from "./support.ts";
+import { waitFor, WEB_ORIGIN } from "./support.ts";
 
 const fixtures = new URL("../../../fixtures/meetings/", import.meta.url);
 const read = (path: string) => JSON.parse(readFileSync(new URL(path, fixtures), "utf8")) as any;
@@ -79,15 +79,6 @@ export async function startMeetingsStack() {
     return { status: response.status, body: (text ? JSON.parse(text) : null) as any };
   }
 
-  async function until<T>(get: () => Promise<T>, done: (value: T) => boolean, ms = 50_000) {
-    const deadline = Date.now() + ms;
-    for (;;) {
-      const value = await get();
-      if (done(value) || Date.now() > deadline) return value;
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-
   async function record(
     recorder: Person,
     input: { title: string; attendees: Array<{ address: string; name?: string }> },
@@ -110,9 +101,13 @@ export async function startMeetingsStack() {
       micSpans: null,
     });
     expect(stopped.status).toBe(204);
-    const ready = await until(
-      () => api(recorder, "GET", `/${meetingId}`),
-      (r) => ["ready", "failed"].includes(r.body?.meeting?.status),
+    const ready = await waitFor(
+      async () => {
+        const r = await api(recorder, "GET", `/${meetingId}`);
+        return ["ready", "failed"].includes(r.body?.meeting?.status) && r;
+      },
+      50_000,
+      { intervalMs: 500 },
     );
     expect(ready.body.meeting.status).toBe("ready");
     return { meetingId: meetingId as string, audioNodeId: node.id as string, folderId };
@@ -122,7 +117,6 @@ export async function startMeetingsStack() {
     stack,
     calls,
     api,
-    until,
     record,
     stop: async () => {
       await stack.stop();

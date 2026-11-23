@@ -25,6 +25,8 @@ import {
   WEB_ORIGIN,
 } from "./support.ts";
 
+export { waitFor } from "./support.ts";
+
 export const greenmail = {
   host: process.env.GREENMAIL_HOST ?? "localhost",
   imapPort: Number(process.env.GREENMAIL_IMAP_PORT ?? 3143),
@@ -38,16 +40,6 @@ export function login(user: string, pass: string) {
     imap: { host: greenmail.host, port: greenmail.imapPort, secure: false },
     smtp: { host: greenmail.host, port: greenmail.smtpPort, secure: false },
   };
-}
-
-export async function waitFor<T>(check: () => Promise<T | undefined | false>, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > deadline) throw new Error(`timed out after ${timeoutMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
 }
 
 export type OnboardingStack = Awaited<ReturnType<typeof startOnboardingStack>>;

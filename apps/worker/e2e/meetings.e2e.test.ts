@@ -7,7 +7,7 @@ import { forUser, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
-import { authPost, WEB_ORIGIN } from "./support.ts";
+import { authPost, waitFor, WEB_ORIGIN } from "./support.ts";
 
 const fixtures = new URL("../../../fixtures/meetings/", import.meta.url);
 const read = (path: string) => JSON.parse(readFileSync(new URL(path, fixtures), "utf8")) as any;
@@ -114,15 +114,6 @@ async function api(person: Person, method: string, path: string, payload?: unkno
   return { status: response.status, body: (text ? JSON.parse(text) : null) as any };
 }
 
-async function until<T>(read: () => Promise<T>, done: (value: T) => boolean, ms = 50_000) {
-  const deadline = Date.now() + ms;
-  for (;;) {
-    const value = await read();
-    if (done(value) || Date.now() > deadline) return value;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-}
-
 test("a recorded call becomes a transcript with names, notes and actions, for its attendees only", async () => {
   const org = await stack.company(`meetings-${randomUUID().slice(0, 8)}`);
   const dana = await stack.member(org.id);
@@ -163,10 +154,7 @@ test("a recorded call becomes a transcript with names, notes and actions, for it
   });
   expect(stopped.status).toBe(204);
 
-  const ready = await until(
-    () => api(dana, "GET", `/${meetingId}`),
-    (r) => ["ready", "failed"].includes(r.body?.meeting?.status),
-  );
+  const ready = await settled(dana, meetingId);
   expect(ready.body.meeting).toMatchObject({ status: "ready", language: "es", failure: null });
 
   expect(fake.uploadedBytes).toBe(audio.length);
@@ -296,10 +284,14 @@ async function recordCall(dana: Person) {
   return meetingId as string;
 }
 
-const settled = (dana: Person, meetingId: string) =>
-  until(
-    () => api(dana, "GET", `/${meetingId}`),
-    (r) => ["ready", "failed"].includes(r.body?.meeting?.status),
+const settled = (dana: Person, meetingId: string, timeoutMs = 50_000) =>
+  waitFor(
+    async () => {
+      const r = await api(dana, "GET", `/${meetingId}`);
+      return ["ready", "failed"].includes(r.body?.meeting?.status) && r;
+    },
+    timeoutMs,
+    { intervalMs: 500 },
   );
 
 test("a meeting the engine failed on is sent again on retry, as a new engine job", async () => {
@@ -460,10 +452,7 @@ test("a meeting deleted while its audio goes to the engine leaves nothing at the
     await arrived;
     expect((await api(dana, "DELETE", `/${meetingId}`)).status).toBe(204);
     release();
-    await until(
-      async () => fake.forgotten.length,
-      (n) => n > forgottenBefore,
-    );
+    await waitFor(() => fake.forgotten.length > forgottenBefore, 50_000, { intervalMs: 500 });
     expect(fake.forgotten.slice(forgottenBefore)).toEqual(["job-1"]);
     const bucket = await stack.bucket();
     expect(await bucket.list({ prefix: `meetings/${org.id}/${meetingId}/` })).toMatchObject({
@@ -480,11 +469,7 @@ test("an engine that is briefly down is tried again after a pause, and the meeti
   const dana = await stack.member(org.id);
   fake.unavailablePolls = 1;
   const meetingId = await recordCall(dana);
-  const ready = await until(
-    () => api(dana, "GET", `/${meetingId}`),
-    (r) => ["ready", "failed"].includes(r.body?.meeting?.status),
-    55_000,
-  );
+  const ready = await settled(dana, meetingId, 55_000);
   expect(ready.body.meeting).toMatchObject({ status: "ready", failure: null });
   expect(fake.unavailablePolls).toBe(0);
   const [job] = await stack.db

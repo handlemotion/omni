@@ -4,7 +4,7 @@ import { schema } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
-import { CookieJar, sentMail, signIn, WEB_ORIGIN } from "./support.ts";
+import { CookieJar, sentMail, signIn, waitFor, WEB_ORIGIN } from "./support.ts";
 
 let stack: StorageStack;
 beforeAll(async () => {
@@ -78,14 +78,18 @@ async function signAs(email: string, requestId: string) {
   return jar;
 }
 
-async function sealed(person: Person, fileId: string) {
-  for (let tries = 0; tries < 50; tries++) {
-    const listed = await stack.api(person.jar, "GET", `/files/${fileId}/signatures`);
-    const request = listed.body.requests.find((r: { status: string }) => r.status === "completed");
-    if (request?.sealedNodeId) return request;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error("never sealed");
+function sealed(person: Person, fileId: string) {
+  return waitFor(
+    async () => {
+      const listed = await stack.api(person.jar, "GET", `/files/${fileId}/signatures`);
+      const request = listed.body.requests.find(
+        (r: { status: string }) => r.status === "completed",
+      );
+      return request?.sealedNodeId && request;
+    },
+    5_000,
+    { intervalMs: 100, detail: () => "never sealed" },
+  );
 }
 
 const contractOf = async (person: Person, dealId: string, contractId: string) => {

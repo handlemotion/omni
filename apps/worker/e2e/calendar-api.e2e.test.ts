@@ -5,7 +5,14 @@ import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { startCrmStack, type CrmStack, type Person } from "./crm-support.ts";
-import { createMailbox, grant, postMailEvents, seedMessage, type CookieJar } from "./support.ts";
+import {
+  createMailbox,
+  grant,
+  postMailEvents,
+  seedMessage,
+  type CookieJar,
+  waitFor,
+} from "./support.ts";
 
 const invite = readFileSync(
   join(import.meta.dirname, "../../../fixtures/ics/google-invite.ics"),
@@ -73,24 +80,18 @@ async function invited(inboxAddress = `hello-${crypto.randomUUID().slice(0, 6)}@
       },
     ],
   });
-  const event = await until(async () => {
-    const found = await api(rodrigo.jar, "GET", `/events?${window}`);
-    return found.body?.events?.[0];
-  });
+  const event = await waitFor(
+    async () => {
+      const found = await api(rodrigo.jar, "GET", `/events?${window}`);
+      return found.body?.events?.[0];
+    },
+    10_000,
+    { intervalMs: 100 },
+  );
   return { org, rodrigo, outsider, inbox, event, threadId: seeded.threadId, address: inboxAddress };
 }
 
 const window = `from=2026-11-01T00:00:00Z&to=2026-12-31T00:00:00Z`;
-
-async function until<T>(read: () => Promise<T | undefined>, timeoutMs = 10_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await read();
-    if (value !== undefined) return value;
-    if (Date.now() > deadline) throw new Error("timed out");
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-}
 
 const sends = (mailboxId: string) =>
   stack.db

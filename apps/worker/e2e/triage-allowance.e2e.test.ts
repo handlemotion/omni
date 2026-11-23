@@ -28,6 +28,7 @@ import {
   signIn,
   startWorker,
   SYSTEM_MAIL_FROM,
+  waitFor,
 } from "./support.ts";
 import {
   BILLING_SECRETS,
@@ -192,13 +193,17 @@ async function setUpWorkspace(options: { personal?: boolean } = {}) {
   });
   await grant(db, org.id, id, member.id);
   await mail.service.reconcileMailboxes();
-  await waitUntil(async () => {
-    const [row] = await db
-      .select({ status: schema.mailboxes.status })
-      .from(schema.mailboxes)
-      .where(eq(schema.mailboxes.id, id));
-    return row?.status === "active";
-  });
+  await waitFor(
+    async () => {
+      const [row] = await db
+        .select({ status: schema.mailboxes.status })
+        .from(schema.mailboxes)
+        .where(eq(schema.mailboxes.id, id));
+      return row?.status === "active";
+    },
+    20_000,
+    { intervalMs: 100 },
+  );
   return {
     address,
     orgId: org.id,
@@ -227,18 +232,22 @@ async function arrives(name: string, reader: { address: string; mailboxId: strin
     transport.close();
   }
   const messageIdHeader = raw.match(/^Message-ID: *(.+)$/im)![1]!.trim();
-  return waitUntil(async () => {
-    const [message] = await database.db
-      .select({ id: schema.messages.id, threadId: schema.messages.threadId })
-      .from(schema.messages)
-      .where(
-        and(
-          eq(schema.messages.mailboxId, reader.mailboxId),
-          eq(schema.messages.messageIdHeader, messageIdHeader),
-        ),
-      );
-    return message;
-  });
+  return waitFor(
+    async () => {
+      const [message] = await database.db
+        .select({ id: schema.messages.id, threadId: schema.messages.threadId })
+        .from(schema.messages)
+        .where(
+          and(
+            eq(schema.messages.mailboxId, reader.mailboxId),
+            eq(schema.messages.messageIdHeader, messageIdHeader),
+          ),
+        );
+      return message;
+    },
+    20_000,
+    { intervalMs: 100 },
+  );
 }
 
 async function threadRow(threadId: string) {
@@ -291,16 +300,6 @@ async function redeliver(
   expect(response.status).toBe(202);
 }
 
-async function waitUntil<T>(check: () => Promise<T | false | undefined>, timeoutMs = 20_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > deadline) throw new Error(`timed out after ${timeoutMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-}
-
 test("each triaged email counts once; past the allowance mail arrives untriaged until the next period", async () => {
   const reader = await setUpWorkspace();
   const subscriptionId = `sub_e2e_${randomUUID().slice(0, 8)}`;
@@ -330,7 +329,11 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   });
 
   const request = await arrives("triage-inbound-request.eml", reader);
-  await waitUntil(async () => (await threadRow(request.threadId)).triageMessageId === request.id);
+  await waitFor(
+    async () => (await threadRow(request.threadId)).triageMessageId === request.id,
+    20_000,
+    { intervalMs: 100 },
+  );
   expect(await usageRows(reader.orgId)).toEqual([
     { periodStart: firstStart, messageId: request.id },
   ]);
@@ -341,21 +344,31 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
     .set({ triageMessageId: null, summaryMessageId: null })
     .where(eq(schema.threads.id, request.threadId));
   await redeliver(reader, request);
-  await waitUntil(async () => (await threadRow(request.threadId)).triageMessageId === request.id);
+  await waitFor(
+    async () => (await threadRow(request.threadId)).triageMessageId === request.id,
+    20_000,
+    { intervalMs: 100 },
+  );
   expect(jev.hits.filter((id) => id === "kickoff-1")).toHaveLength(2);
   expect(await usageRows(reader.orgId)).toHaveLength(1);
 
   const fyi = await arrives("triage-inbound-fyi.eml", reader);
-  await waitUntil(async () => (await threadRow(fyi.threadId)).triageMessageId === fyi.id);
+  await waitFor(async () => (await threadRow(fyi.threadId)).triageMessageId === fyi.id, 20_000, {
+    intervalMs: 100,
+  });
   expect(await billing(reader.cookie)).toMatchObject({
     triage: { used: ALLOWANCE, allowance: ALLOWANCE, pausedUntil: firstEnd.toISOString() },
   });
 
   const receipt = await arrives("triage-automated-receipt.eml", reader);
-  const paused = await waitUntil(async () => {
-    const thread = await threadRow(receipt.threadId);
-    return thread.triagePausedUntil && thread;
-  });
+  const paused = await waitFor(
+    async () => {
+      const thread = await threadRow(receipt.threadId);
+      return thread.triagePausedUntil && thread;
+    },
+    20_000,
+    { intervalMs: 100 },
+  );
   expect(paused).toMatchObject({
     triage: null,
     triageMessageId: null,
@@ -398,10 +411,14 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   );
   expect(renewed.body).toMatchObject({ applied: true });
   await redeliver(reader, receipt);
-  const resumed = await waitUntil(async () => {
-    const thread = await threadRow(receipt.threadId);
-    return thread.triageMessageId === receipt.id && thread;
-  });
+  const resumed = await waitFor(
+    async () => {
+      const thread = await threadRow(receipt.threadId);
+      return thread.triageMessageId === receipt.id && thread;
+    },
+    20_000,
+    { intervalMs: 100 },
+  );
   expect(resumed).toMatchObject({ triagePausedUntil: null, triageSource: "ai" });
   expect(jev.hits).toContain("receipt-1");
   expect(await billing(reader.cookie)).toMatchObject({ triage: { used: 1, pausedUntil: null } });
@@ -426,10 +443,14 @@ test("a Personal space's triage is metered on its plan, like any workspace's", a
   );
   expect(subscribed.body).toMatchObject({ applied: true });
   const request = await arrives("triage-inbound-request.eml", reader);
-  const triaged = await waitUntil(async () => {
-    const thread = await threadRow(request.threadId);
-    return thread.triageMessageId === request.id && thread;
-  });
+  const triaged = await waitFor(
+    async () => {
+      const thread = await threadRow(request.threadId);
+      return thread.triageMessageId === request.id && thread;
+    },
+    20_000,
+    { intervalMs: 100 },
+  );
   expect(triaged).toMatchObject({ triageSource: "ai", triagePausedUntil: null });
   expect(await usageRows(reader.orgId)).toEqual([
     expect.objectContaining({ messageId: request.id }),
