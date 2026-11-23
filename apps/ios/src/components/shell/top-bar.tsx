@@ -11,13 +11,12 @@ import { SHELL_CONTROL } from "./menu-nav.ts";
 import { usePageTitle } from "./page-title.ts";
 
 const SIDE = space(4);
-const TITLE_LINE = 24;
-const FADE_RAMP = space(12);
+const FADE_RAMP = SHELL_CONTROL + space(6);
 const FADE_MS = 200;
 
 /**
- * The shell's top bar on a module's root page: the page's title, small, and nothing else. Once the page scrolls, it is covered down to the title's baseline
- * and eases out over a long ramp below it, so rows never run behind the title.
+ * The shell's top bar on a module's root page: the page's title, small, and nothing else. Once the page scrolls, it is covered behind the status bar and eases out through the title
+ * and eases out through the title, so rows soften as they pass under it.
  */
 export function TopBar() {
   const shell = useMenu();
@@ -34,7 +33,7 @@ export function TopBar() {
   return (
     <>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fade]}>
-        <TitleFade covered={top + (SHELL_CONTROL + TITLE_LINE) / 2} ramp={FADE_RAMP} />
+        <TitleFade covered={top} ramp={FADE_RAMP} />
       </Animated.View>
       <View style={[styles.bar, { paddingTop: top }]} pointerEvents="box-none">
         <Text
