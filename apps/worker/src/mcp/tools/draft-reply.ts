@@ -1,12 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import { createDraft, schema } from "@omni/db";
+import { createDraft } from "@omni/db";
 import { replyRecipients, replySubject } from "@omni/mail-core/compose";
 import { z } from "zod";
 import { inGoodStanding } from "../../billing.ts";
 import { fanOut } from "../../realtime-announce.ts";
 import { result, threadUrl, toolError } from "../format.ts";
 import { readsFor } from "../scope.ts";
-import { guarded, type ToolContext } from "../server.ts";
+import { guarded, recordMcpWrite, type ToolContext } from "../server.ts";
 
 const inputSchema = z.object({
   thread_id: z.string().min(1).describe("The thread to reply in (from `search` or `inbox`)."),
@@ -57,13 +57,8 @@ async function draft(context: ToolContext, input: z.infer<typeof inputSchema>) {
     bodyText: input.body,
   });
   if (!created) return toolError("The draft could not be saved on that thread.");
-  await context.db.insert(schema.auditEvents).values({
-    orgId: member.orgId,
-    actorMemberId: member.id,
-    action: "mcp.draft_reply",
-    subject: thread.id,
-    data: { via: "mcp", clientId: context.caller.clientId, draftId: created.id },
-  });
+  const actor = { orgId: member.orgId, memberId: member.id };
+  await recordMcpWrite(context, actor, "mcp.draft_reply", thread.id, { draftId: created.id });
   context.waitUntil(
     fanOut(
       context.env,

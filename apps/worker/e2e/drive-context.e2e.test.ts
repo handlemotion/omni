@@ -266,3 +266,21 @@ test("an agent pages through a folder whose names are not Latin", async () => {
   }
   expect(seen.toSorted()).toEqual(["ñandú.md", "日本.md", "💡ideas.md"].toSorted());
 });
+
+test("a drive_list cursor handed out as standard base64 still pages", async () => {
+  const org = await stack.company("legacy-cursor");
+  const ana = await stack.member(org.id);
+  for (const name of ["日本.md", "💡ideas.md"]) {
+    await stack.upload(ana.jar, { space: "personal" }, name, text(name));
+  }
+  const agent = await agentFor(ana);
+  const ask = { workspace: org.id, space: "my_files", limit: 1 };
+  type Listed = { items: Item[]; next_cursor?: string };
+  const first = (await call(agent, "drive_list", ask)) as Listed;
+  const cursor = first.next_cursor ?? "";
+  const legacy = Buffer.from(cursor, "base64url").toString("base64");
+  const current = (await call(agent, "drive_list", { ...ask, cursor })) as Listed;
+  const old = (await call(agent, "drive_list", { ...ask, cursor: legacy })) as Listed;
+  expect(current.items).toHaveLength(1);
+  expect(old.items.map((item) => item.title)).toEqual(current.items.map((item) => item.title));
+});

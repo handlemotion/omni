@@ -24,6 +24,7 @@ import {
   type CrmWorkspace,
 } from "../crm.ts";
 import { result, toolError } from "../format.ts";
+import { encodeCursor, readCursor } from "../../cursor.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
 const inputSchema = z.object({
@@ -99,15 +100,10 @@ type Found = {
 
 const NOTHING: Found = { people: [], companies: [], deals: [], next: {} };
 
-function readCursor(cursor: string | undefined) {
+function readPages(cursor: string | undefined) {
   const first: Pages = {};
   if (cursor === undefined) return first;
-  try {
-    const parsed = cursorSchema.safeParse(JSON.parse(Buffer.from(cursor, "base64url").toString()));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
+  return readCursor(cursor, cursorSchema)?.cursor ?? null;
 }
 
 async function ownerFilter(context: ToolContext, workspace: CrmWorkspace, owner?: string) {
@@ -252,7 +248,7 @@ async function findIn(
 }
 
 async function search(context: ToolContext, input: Input) {
-  const pages = readCursor(input.cursor);
+  const pages = readPages(input.cursor);
   if (pages === null) return toolError("That `cursor` is not one `crm_search` gave.");
   const reach = await crmWorkspaces(context, input.workspace);
   if ("error" in reach) return toolError(reach.error);
@@ -278,9 +274,7 @@ async function search(context: ToolContext, input: Input) {
     out.deals.push(...found.deals.map((d) => dealRow(d, rows)));
     if (Object.keys(found.next).length) next[workspace.orgId] = found.next;
   }
-  if (Object.keys(next).length) {
-    out.next_cursor = Buffer.from(JSON.stringify(next)).toString("base64url");
-  }
+  if (Object.keys(next).length) out.next_cursor = encodeCursor(next);
   return result(out);
 }
 
