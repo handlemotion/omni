@@ -5,8 +5,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import * as Linking from "expo-linking";
-import { Stack, router, useNavigationContainerRef, usePathname } from "expo-router";
+import { Stack, useNavigationContainerRef, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect } from "react";
@@ -16,7 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { persistOptions, queryClient } from "@/lib/query-client.ts";
 import { holdSplash } from "@/lib/splash.ts";
 import { useDriveUploads } from "@/lib/drive-uploads.ts";
-import { acceptSignInLink, useClearCacheOnUserChange, useSession } from "@/lib/session.ts";
+import { useClearCacheOnUserChange, useSession } from "@/lib/session.ts";
 import {
   initErrorReporting,
   registerNavigation,
@@ -25,6 +24,7 @@ import {
 } from "@/lib/telemetry.ts";
 import { colors } from "@/theme/tokens.ts";
 
+WebBrowser.maybeCompleteAuthSession();
 initErrorReporting();
 holdSplash();
 
@@ -32,7 +32,6 @@ export default withErrorReporting(RootLayout);
 
 function RootLayout() {
   const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold });
-  useSignInLinks();
   useScreenTracking();
   useClearCacheOnUserChange();
   useDriveUploads(useSession().data?.user.id ?? null);
@@ -54,21 +53,6 @@ function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
-}
-
-function useSignInLinks() {
-  const url = Linking.useLinkingURL();
-  useEffect(() => {
-    if (!url) return;
-    const accept = async () => {
-      const accepted = await acceptSignInLink(url);
-      if (accepted) WebBrowser.dismissAuthSession();
-      if (accepted === "error") {
-        router.replace({ pathname: "/sign-in", params: { error: "link" } });
-      }
-    };
-    void accept();
-  }, [url]);
 }
 
 function useScreenTracking() {

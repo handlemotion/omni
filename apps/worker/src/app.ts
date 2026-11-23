@@ -197,7 +197,12 @@ export const app = new Hono<AppEnv>()
   .use("/.well-known/*", requestScope)
   .route("/", appLinks)
   .route("/", mcp)
-  .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
+  .get("/api/sign-in-methods", (c) =>
+    c.json({
+      google: c.var.config.auth.google !== undefined,
+      apple: c.var.config.auth.apple !== undefined,
+    }),
+  )
   .route("/api/auth/stripe/webhook", stripeWebhook)
   .post("/api/auth/subscription/*", (c) => apiError(c, "not_found", "use /api/billing"))
   .post("/api/auth/organization/invite-member", limitAuth, async (c) => {

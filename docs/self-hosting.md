@@ -41,19 +41,22 @@ apply. The database is an index of your mail host: if it is lost, re-sync rebuil
 
 Filled in per unit: see each unit's `.env.example`.
 
-| Variable               | Used by                         | Required | Notes                                                                                |
-| ---------------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------------ |
-| `DATABASE_URL`         | migrations, mail service, tests | yes      | `postgres://` URL. The Worker reaches the same database via Hyperdrive.              |
-| `BETTER_AUTH_SECRET`   | Worker (auth)                   | yes      | At least 32 random characters.                                                       |
-| `BETTER_AUTH_URL`      | Worker (auth)                   | yes      | Public origin of the API.                                                            |
-| `AUTH_TRUSTED_ORIGINS` | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth; `omni://` for iOS and desktop. |
-| `AUTH_PASSKEY_RP_ID`   | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.                   |
-| `APP_NAME`             | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                                        |
-| `GOOGLE_CLIENT_ID`     | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on Google sign-in and Gmail connect.              |
-| `GOOGLE_CLIENT_SECRET` | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.                            |
-| `SIGN_UP`              | Worker (auth)                   | no       | `open` (default) or `invitation`: who may sign up.                                   |
-| `MCP_CIMD_HOSTS`       | Worker (auth)                   | no       | Hosts whose OAuth client metadata agents connect with.                               |
-| `PURELYMAIL_API_TOKEN` | mail service                    | no       | Secret. Lets onboarding create domains, users and app passwords.                     |
+| Variable                      | Used by                         | Required | Notes                                                                                |
+| ----------------------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                | migrations, mail service, tests | yes      | `postgres://` URL. The Worker reaches the same database via Hyperdrive.              |
+| `BETTER_AUTH_SECRET`          | Worker (auth)                   | yes      | At least 32 random characters.                                                       |
+| `BETTER_AUTH_URL`             | Worker (auth)                   | yes      | Public origin of the API.                                                            |
+| `AUTH_TRUSTED_ORIGINS`        | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth; `omni://` for iOS and desktop. |
+| `AUTH_PASSKEY_RP_ID`          | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.                   |
+| `APP_NAME`                    | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                                        |
+| `GOOGLE_CLIENT_ID`            | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on Google sign-in and Gmail connect.              |
+| `GOOGLE_CLIENT_SECRET`        | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.                            |
+| `APPLE_CLIENT_ID`             | Worker (auth)                   | no       | With `APPLE_CLIENT_SECRET`, turns on Sign in with Apple.                             |
+| `APPLE_CLIENT_SECRET`         | Worker (auth)                   | no       | Secret. Set together with `APPLE_CLIENT_ID`, or neither.                             |
+| `APPLE_APP_BUNDLE_IDENTIFIER` | Worker (auth)                   | no       | Optional native iOS bundle ID for Sign in with Apple.                                |
+| `SIGN_UP`                     | Worker (auth)                   | no       | `open` (default) or `invitation`: who may sign up.                                   |
+| `MCP_CIMD_HOSTS`              | Worker (auth)                   | no       | Hosts whose OAuth client metadata agents connect with.                               |
+| `PURELYMAIL_API_TOKEN`        | mail service                    | no       | Secret. Lets onboarding create domains, users and app passwords.                     |
 
 ### Mail service (`apps/mail`)
 

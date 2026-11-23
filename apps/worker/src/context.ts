@@ -89,14 +89,14 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
       billingLog: (event, fields) => c.var.log.error(event, fields),
       modules: [...modules, leavesRealtime(c.env)],
       oauthProvider: usesOAuthProvider(new URL(c.req.url).pathname),
-      sendMagicLink: async ({ email, signInAs, url }) => {
-        devLog(config, { kind: "magic-link", email, url });
+      sendEmailOtp: async ({ email, signInAs, otp }) => {
+        devLog(config, { kind: "email-otp", email, otp });
         const appName = config.auth.appName;
         const as = signInAs.toLowerCase() === email ? "" : ` as ${signInAs}`;
         await mail({
           to: email,
-          subject: `Sign in to ${appName}${as}`,
-          text: `Open this link to sign in to ${appName}${as}:\n\n${url}\n\nIf you did not ask for it, ignore this email.`,
+          subject: `${otp} is your ${appName} sign-in code${as}`,
+          text: `Your ${appName} sign-in code${as} is:\n\n${otp}\n\nIt expires in 10 minutes. If you did not ask for it, ignore this email.`,
         });
       },
       sendInvitation: async (invite) => {
@@ -295,9 +295,12 @@ function invitationText(invite: InvitationMessage, appName: string) {
   ].join("\n");
 }
 
-function devLog(config: Config, link: { kind: string; email: string; url: string }) {
+function devLog(
+  config: Config,
+  payload: { kind: string; email: string; url?: string; otp?: string },
+) {
   if (config.ENVIRONMENT !== "development") return;
-  console.log(JSON.stringify({ event: "auth.dev_link", ...link }));
+  console.log(JSON.stringify({ event: "auth.dev_link", ...payload }));
 }
 
 async function requestedMailbox(c: {

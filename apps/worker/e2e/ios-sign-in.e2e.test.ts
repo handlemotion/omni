@@ -31,54 +31,49 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-function requestLink(email: string, callbackURL: string) {
-  return fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
-    method: "POST",
-    headers: { "content-type": "application/json", "expo-origin": APP_ORIGIN },
-    body: JSON.stringify({ email, callbackURL }),
-  });
+function cookieHeader(setCookie: string[]) {
+  return setCookie.map((c) => c.split(";")[0]).join("; ");
 }
 
-async function openLink(email: string) {
-  const link = (await sentMail(worker, email)).at(-1)?.text.match(/https?:\/\/\S+/)?.[0];
-  expect(link).toBeDefined();
-  const url = new URL(link!);
-  return fetch(new URL(url.pathname + url.search, worker.url), { redirect: "manual" });
-}
-
-function cookieHeader(setCookie: string) {
-  return [...setCookie.matchAll(/(?:^|,\s*)((?:__Secure-)?better-auth\.[\w.]+)=([^;]*)/g)]
-    .map(([, name, value]) => `${name}=${value}`)
-    .join("; ");
-}
-
-test("a magic link opened on the phone hands the app a session it can call the API with", async () => {
+test("native email OTP on iOS returns a session cookie directly without a browser redirect", async () => {
   const { db } = database;
   const org = await createOrg(db, "ios");
   const member = await createMember(db, org.id, "ana@ios.test");
 
-  expect((await requestLink("ana@ios.test", `${APP_ORIGIN}/`)).status).toBe(200);
-  const verified = await openLink("ana@ios.test");
-  expect(verified.status).toBe(302);
-
-  const location = new URL(verified.headers.get("location")!);
-  expect(location.protocol).toBe("omni:");
-  const setCookie = location.searchParams.get("cookie");
-  expect(setCookie).toContain("session_token");
-
-  const me = await fetch(new URL("/api/me", worker.url), {
-    headers: { cookie: cookieHeader(setCookie!) },
+  const requested = await fetch(new URL("/api/auth/email-otp/send-verification-otp", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "expo-origin": APP_ORIGIN },
+    body: JSON.stringify({ email: "ana@ios.test", type: "sign-in" }),
   });
+  expect(requested.status).toBe(200);
+
+  const otp = (await sentMail(worker, "ana@ios.test")).at(-1)?.text.match(/\b(\d{6})\b/)?.[1];
+  expect(otp).toBeDefined();
+
+  const verified = await fetch(new URL("/api/auth/sign-in/email-otp", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "expo-origin": APP_ORIGIN },
+    body: JSON.stringify({ email: "ana@ios.test", otp }),
+  });
+  expect(verified.status).toBe(200);
+
+  const cookie = cookieHeader(verified.headers.getSetCookie());
+  expect(cookie).toContain("session_token");
+
+  const me = await fetch(new URL("/api/me", worker.url), { headers: { cookie } });
   expect(me.status).toBe(200);
   expect(await me.json()).toMatchObject({ id: member.id, orgId: org.id });
 });
 
-test("a link that ends on an untrusted app scheme never carries a session", async () => {
-  const { db } = database;
-  const org = await createOrg(db, "evil");
-  await createMember(db, org.id, "ben@evil.test");
+test("magic link endpoints are removed and sign-in-methods reports google and apple", async () => {
+  const magic = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "expo-origin": APP_ORIGIN },
+    body: JSON.stringify({ email: "ana@ios.test" }),
+  });
+  expect(magic.status).toBe(404);
 
-  const requested = await requestLink("ben@evil.test", "evil://steal");
-  expect(requested.status).toBe(403);
-  expect(await sentMail(worker, "ben@evil.test")).toEqual([]);
+  const methods = await fetch(new URL("/api/sign-in-methods", worker.url));
+  expect(methods.status).toBe(200);
+  expect(await methods.json()).toEqual({ google: false, apple: false });
 });

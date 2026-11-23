@@ -11,10 +11,12 @@ import {
   switchAccount,
   updateNameMutation,
   rejectInvitation,
+  sendEmailOtp,
   sessionQuery,
   signInMethodsQuery,
+  signInWithApple,
+  signInWithEmailOtp,
   signInWithGoogle,
-  signInWithMagicLink,
   signInWithPasskey,
   signOut,
 } from "../lib/session.ts";
@@ -41,14 +43,20 @@ export function useCurrentSession() {
   return data.session;
 }
 
-/**
- * `mutate({ email, redirect?, callback? })` emails a sign-in link that returns to `redirect`, or
- * to a native app's `callback`.
- */
-export function useSignInMagicLink() {
+/** `mutate({ email })` emails a 6-digit sign-in code. */
+export function useSendEmailOtp() {
   return useMutation({
-    mutationFn: ({ email, redirect, callback }: SignInTarget & { email: string }) =>
-      signInWithMagicLink(email, redirect, callback),
+    mutationFn: ({ email }: { email: string }) => sendEmailOtp(email),
+  });
+}
+
+/** `mutate({ email, otp })` verifies the 6-digit code and signs in. */
+export function useVerifyEmailOtp() {
+  const client = useQueryClient();
+  const router = useRouter();
+  return useMutation({
+    mutationFn: ({ email, otp }: { email: string; otp: string }) =>
+      signInWithEmailOtp(client, router, email, otp),
   });
 }
 
@@ -57,7 +65,7 @@ interface SignInTarget {
   callback?: string | undefined;
 }
 
-/** `{ google }`: which optional sign-in methods this deployment has configured. */
+/** `{ google, apple }`: which optional sign-in methods this deployment has configured. */
 export function useSignInMethods() {
   return useQuery(signInMethodsQuery());
 }
@@ -69,6 +77,13 @@ export function useSignInMethods() {
 export function useSignInGoogle() {
   return useMutation({
     mutationFn: ({ redirect, callback }: SignInTarget) => signInWithGoogle(redirect, callback),
+  });
+}
+
+/** `mutate({ redirect? })` leaves for Apple; after consent the browser lands on `redirect` signed in. */
+export function useSignInApple() {
+  return useMutation({
+    mutationFn: ({ redirect, callback }: SignInTarget) => signInWithApple(redirect, callback),
   });
 }
 

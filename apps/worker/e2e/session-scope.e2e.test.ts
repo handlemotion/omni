@@ -174,25 +174,27 @@ test("a magic link to a personal address opens every workspace", async () => {
   expect(await threadOrgs(jar)).toEqual(new Set([a.spaceId]));
 });
 
-test("a link for an address Omni hosts goes to the person's outside address, still scoped", async () => {
+test("a sign-in code for an address Omni hosts goes to the person's outside address, still scoped", async () => {
   const a = await ana();
   await createMailbox(database.db, a.acme.orgId, a.work, "personal");
-  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+  const requested = await fetch(new URL("/api/auth/email-otp/send-verification-otp", worker.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
-    body: JSON.stringify({ email: a.work, callbackURL: "/" }),
+    body: JSON.stringify({ email: a.work, type: "sign-in" }),
   });
   expect(requested.status).toBe(200);
 
   expect(await sentMail(worker, a.work)).toEqual([]);
   const [mail] = await sentMail(worker, a.personal);
   expect(mail?.subject).toContain(`as ${a.work}`);
-  const link = new URL(mail!.text.match(/https?:\/\/\S+/)![0]);
+  const otp = mail!.text.match(/\b(\d{6})\b/)?.[1];
+  expect(otp).toBeDefined();
   const jar = new CookieJar();
   jar.store(
-    await fetch(new URL(link.pathname + link.search, worker.url), {
-      redirect: "manual",
-      headers: { cookie: jar.header },
+    await fetch(new URL("/api/auth/sign-in/email-otp", worker.url), {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: WEB_ORIGIN, cookie: jar.header },
+      body: JSON.stringify({ email: a.work, otp }),
     }),
   );
   const listed = await api(jar, "/workspaces?include=personal");

@@ -1,87 +1,53 @@
-import { getSetCookie, storageAdapter } from "@better-auth/expo/client";
-import { randomUUID } from "expo-crypto";
+import { useQuery } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
-import * as WebBrowser from "expo-web-browser";
-import * as SecureStore from "./secure-store";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { STORAGE_PREFIX, auth } from "./api.ts";
-import { config } from "./config.ts";
+import { api, auth, call } from "./api.ts";
 import { forgetDriveFiles } from "./drive-files.ts";
 import { cancelUploads } from "./drive-uploads.ts";
 import { persistOptions, queryClient } from "./query-client.ts";
 import { resetCache } from "./workspace.ts";
 import { storeWorkspaceId } from "./workspace-id.ts";
 
-const storage = storageAdapter(SecureStore);
-const COOKIE_KEY = `${STORAGE_PREFIX}_cookie`;
-
-const STATES_KEY = `${STORAGE_PREFIX}_sign_in_states`;
-const SIGN_IN_TTL_MS = 60 * 60 * 1000;
-const MAX_SIGN_INS_IN_FLIGHT = 8;
-
-type IssuedStates = [state: string, issuedAt: number][];
-
-async function readStates() {
-  const none: IssuedStates = [];
-  try {
-    const stored: unknown = JSON.parse((await SecureStore.getItemAsync(STATES_KEY)) ?? "[]");
-    if (!Array.isArray(stored)) return none;
-    return (stored as IssuedStates).filter(([, at]) => Date.now() - at < SIGN_IN_TTL_MS);
-  } catch {
-    return none;
-  }
-}
-
-async function issueState() {
-  const state = randomUUID();
-  const states = (await readStates()).slice(-(MAX_SIGN_INS_IN_FLIGHT - 1));
-  await SecureStore.setItemAsync(STATES_KEY, JSON.stringify([...states, [state, Date.now()]]));
-  return state;
-}
-
-async function takeIssuedState(state: string) {
-  const states = await readStates();
-  const rest = states.filter(([issued]) => issued !== state);
-  await SecureStore.setItemAsync(STATES_KEY, JSON.stringify(rest));
-  return rest.length < states.length;
-}
-
 /**
- * Opens the server's sign-in page in a browser sheet (`ASWebAuthenticationSession`), as the
- * desktop app hands sign-in to the browser. Every method there ends on this app's scheme with the
- * session as `cookie` (Better Auth's `expo` plugin): Google inside the sheet, which hands the
- * redirect back here; a magic link from the mail app, which opens the app itself
- * (`useSignInLinks`). The sheet is ephemeral, so a browser already signed in to the web app
- * still shows the sign-in page. Resolves `true` once signed in, `"error"` for a refused sign-in,
- * `false` when the person closed the sheet.
+ * Starts Google or Apple OAuth directly through Better Auth's Expo client: opens the provider's
+ * consent screen in `ASWebAuthenticationSession` (never Omni's web login page), returns to
+ * `omni://`, stores the session cookie in SecureStore, and notifies `useSession`.
  */
-export async function signInInBrowser() {
-  const callback = Linking.createURL("/", { queryParams: { state: await issueState() } });
-  const page = new URL("/login", config.apiUrl);
-  page.searchParams.set("callback", callback);
-  const result = await WebBrowser.openAuthSessionAsync(page.toString(), callback, {
-    preferEphemeralSession: true,
+export async function signInWithSocial(provider: "google" | "apple") {
+  const { error } = await auth.signIn.social({
+    provider,
+    callbackURL: Linking.createURL("/"),
+    errorCallbackURL: Linking.createURL("/sign-in", { queryParams: { error: provider } }),
   });
-  return result.type === "success" ? acceptSignInLink(result.url) : (false as const);
+  if (error) throw new Error(error.message || `Could not sign in with ${provider}`);
 }
 
-/**
- * Takes the session out of a sign-in redirect this app started. Returns `true` when `url` carried
- * one, `"error"` when the sign-in was refused (an expired or used link, a cancelled consent),
- * `false` for any other URL, including one with a state this app did not issue or already used.
- */
-export const acceptSignInLink: (url: string) => Promise<boolean | "error"> = async (url) => {
-  const { queryParams } = Linking.parse(url);
-  const state = queryParams?.state;
-  if (typeof state !== "string" || !(await takeIssuedState(state))) return false;
-  if (typeof queryParams?.error === "string") return "error";
-  const setCookie = queryParams?.cookie;
-  if (typeof setCookie !== "string" || !setCookie) return "error";
-  const previous = await storage.getItemAsync(COOKIE_KEY);
-  await storage.setItemAsync(COOKIE_KEY, getSetCookie(setCookie, previous ?? undefined));
-  auth.$store.notify("$sessionSignal");
-  return true;
-};
+/** Sends a 6-digit sign-in code to `email`. */
+export async function sendEmailOtp(email: string) {
+  const { error } = await auth.emailOtp.sendVerificationOtp({
+    email: email.trim(),
+    type: "sign-in",
+  });
+  if (error) throw new Error(error.message || "Could not send code");
+}
+
+/** Verifies the 6-digit code natively and saves the session cookie into SecureStore. */
+export async function verifyEmailOtp(email: string, otp: string) {
+  const { error } = await auth.signIn.emailOtp({
+    email: email.trim(),
+    otp: otp.trim(),
+  });
+  if (error) throw new Error(error.message || "Invalid code");
+}
+
+/** Which optional OAuth providers (`google`, `apple`) this deployment has configured. */
+export function useSignInMethods() {
+  return useQuery({
+    queryKey: ["sign-in-methods"],
+    queryFn: ({ signal }) => call(api["sign-in-methods"].$get(undefined, { init: { signal } })),
+    staleTime: Infinity,
+  });
+}
 
 export async function signOut() {
   await cancelUploads();

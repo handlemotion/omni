@@ -45,7 +45,7 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-test("a magic link sent through Email Sending signs the member in, once", async () => {
+test("a 6-digit email OTP sent through Email Sending signs the member in, once", async () => {
   const { db } = database;
   const org = await createOrg(db, "acme");
   const member = await createMember(db, org.id, "ana@acme.test");
@@ -53,10 +53,10 @@ test("a magic link sent through Email Sending signs the member in, once", async 
   const anonymous = await fetch(new URL("/api/me", worker.url));
   expect(anonymous.status).toBe(401);
 
-  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+  const requested = await fetch(new URL("/api/auth/email-otp/send-verification-otp", worker.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
-    body: JSON.stringify({ email: "ana@acme.test", callbackURL: "/" }),
+    body: JSON.stringify({ email: "ana@acme.test", type: "sign-in" }),
   });
   expect(requested.status).toBe(200);
 
@@ -64,13 +64,16 @@ test("a magic link sent through Email Sending signs the member in, once", async 
   expect(sent).toHaveLength(1);
   const [payload] = sent;
   expect(payload!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
-  expect(payload!.subject).toBe("Sign in to Omni");
+  const otp = payload!.text.match(/\b(\d{6})\b/)?.[1];
+  expect(otp).toBeDefined();
+  expect(payload!.subject).toBe(`${otp} is your Omni sign-in code`);
 
-  const link = new URL(payload!.text.match(/https?:\/\/\S+/)![0]);
-  const verified = await fetch(new URL(link.pathname + link.search, worker.url), {
-    redirect: "manual",
+  const verified = await fetch(new URL("/api/auth/sign-in/email-otp", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email: "ana@acme.test", otp }),
   });
-  expect(verified.status).toBe(302);
+  expect(verified.status).toBe(200);
   const cookie = verified.headers
     .getSetCookie()
     .map((c) => c.split(";")[0])
@@ -81,9 +84,12 @@ test("a magic link sent through Email Sending signs the member in, once", async 
   expect(me.status).toBe(200);
   expect(await me.json()).toMatchObject({ id: member.id, orgId: org.id });
 
-  const reused = await fetch(new URL(link.pathname + link.search, worker.url), {
-    redirect: "manual",
+  const reused = await fetch(new URL("/api/auth/sign-in/email-otp", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email: "ana@acme.test", otp }),
   });
+  expect(reused.status).toBe(400);
   expect(reused.headers.getSetCookie().filter((c) => /session_token=[^;]/.test(c))).toEqual([]);
 });
 
@@ -114,25 +120,27 @@ async function invite(owner: { jar: CookieJar }, email: string, on: Worker = wor
   return ((await response.json()) as { invitation: { id: string } }).invitation.id;
 }
 
-test("a brand-new email with no invitation signs up by magic link and has no workspace yet", async () => {
+test("a brand-new email with no invitation signs up by email OTP and has no workspace yet", async () => {
   await signedInOwner("open");
-  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+  const requested = await fetch(new URL("/api/auth/email-otp/send-verification-otp", worker.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
-    body: JSON.stringify({ email: "newcomer@open.test", callbackURL: "/" }),
+    body: JSON.stringify({ email: "newcomer@open.test", type: "sign-in" }),
   });
   expect(requested.status).toBe(200);
   const [mail] = await mailTo("newcomer@open.test");
   expect(mail!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
-  const link = new URL(mail!.text.match(/https?:\/\/\S+magic-link\S+/)![0]);
+  const otp = mail!.text.match(/\b(\d{6})\b/)?.[1];
+  expect(otp).toBeDefined();
 
   const jar = new CookieJar();
-  const opened = await fetch(new URL(link.pathname + link.search, worker.url), {
-    redirect: "manual",
+  const opened = await fetch(new URL("/api/auth/sign-in/email-otp", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email: "newcomer@open.test", otp }),
   });
   jar.store(opened);
-  expect(opened.status).toBe(302);
-  expect(opened.headers.get("location")).not.toContain("error=");
+  expect(opened.status).toBe(200);
   expect(jar.header).toContain("session_token");
 
   const users = await database.db
@@ -174,17 +182,20 @@ test("a brand-new email with no invitation signs up by magic link and has no wor
 
 test("with SIGN_UP=invitation, an email with no account and no invitation is answered alike but mailed nothing", async () => {
   await signedInOwner("gate");
-  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", invitationOnly.url), {
-    method: "POST",
-    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
-    body: JSON.stringify({ email: "stranger@elsewhere.test", callbackURL: "/" }),
-  });
+  const requested = await fetch(
+    new URL("/api/auth/email-otp/send-verification-otp", invitationOnly.url),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+      body: JSON.stringify({ email: "stranger@elsewhere.test", type: "sign-in" }),
+    },
+  );
   expect(requested.status).toBe(200);
-  expect(await requested.json()).toEqual({ status: true });
+  expect(await requested.json()).toEqual({ success: true });
   expect(await mailTo("stranger@elsewhere.test", invitationOnly)).toEqual([]);
 });
 
-test("invite, then a brand-new user signs in by magic link, accepts, and is a member", async () => {
+test("invite, then a brand-new user signs in by email OTP, accepts, and is a member", async () => {
   const owner = await signedInOwner("invite");
   const invitationId = await invite(owner, "New@Invite.test");
 
@@ -206,29 +217,31 @@ test("invite, then a brand-new user signs in by magic link, accepts, and is a me
   expect(workerEvents(worker).filter((e) => e.event === "auth.dev_link")).toEqual([]);
 });
 
-test("with SIGN_UP=invitation, a link sent while invited cannot sign up once the invitation is canceled", async () => {
+test("with SIGN_UP=invitation, a code sent while invited cannot sign up once the invitation is canceled", async () => {
   const owner = await signedInOwner("cancel");
   const invitationId = await invite(owner, "late@cancel.test", invitationOnly);
-  await fetch(new URL("/api/auth/sign-in/magic-link", invitationOnly.url), {
+  await fetch(new URL("/api/auth/email-otp/send-verification-otp", invitationOnly.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
-    body: JSON.stringify({ email: "late@cancel.test", callbackURL: "/" }),
+    body: JSON.stringify({ email: "late@cancel.test", type: "sign-in" }),
   });
-  const link = (await mailTo("late@cancel.test", invitationOnly))
-    .map((m) => m.text.match(/https?:\/\/\S+magic-link\S+/)?.[0])
+  const otp = (await mailTo("late@cancel.test", invitationOnly))
+    .map((m) => m.text.match(/\b(\d{6})\b/)?.[1])
     .find(Boolean);
-  expect(link).toBeDefined();
+  expect(otp).toBeDefined();
 
   const canceled = await authPost(invitationOnly, owner.jar, "/organization/cancel-invitation", {
     invitationId,
   });
   expect(canceled.status).toBe(200);
 
-  const url = new URL(link!);
-  const opened = await fetch(new URL(url.pathname + url.search, invitationOnly.url), {
-    redirect: "manual",
+  const opened = await fetch(new URL("/api/auth/sign-in/email-otp", invitationOnly.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email: "late@cancel.test", otp }),
   });
-  expect(opened.headers.get("location")).toContain("error=SIGN_UP_REQUIRES_INVITATION");
+  expect(opened.status).toBe(403);
+  expect(await opened.json()).toMatchObject({ code: "SIGN_UP_REQUIRES_INVITATION" });
   expect(opened.headers.getSetCookie().filter((c) => /session_token=[^;]/.test(c))).toEqual([]);
   const users = await database.db
     .select()

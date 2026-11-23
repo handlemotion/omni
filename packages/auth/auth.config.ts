@@ -14,7 +14,7 @@ export const auth: Auth = createAuth({
     trialDays: 0,
     storage: undefined,
   },
-  sendMagicLink: async () => {
+  sendEmailOtp: async () => {
     throw new Error("auth.config.ts is for schema generation only");
   },
   sendInvitation: async () => {

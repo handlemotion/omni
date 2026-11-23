@@ -12,10 +12,11 @@ import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { TextField } from "@/components/ui/text-field";
 import {
+  useSendEmailOtp,
   useSignInGoogle,
-  useSignInMagicLink,
   useSignInMethods,
   useSignInPasskey,
+  useVerifyEmailOtp,
 } from "@/hooks/use-session.ts";
 import { isServerPath, safeRedirect } from "@/lib/session.ts";
 
@@ -26,12 +27,21 @@ const LEGAL_LINK = "text-foreground underline decoration-border underline-offset
 /** `callback`: a native app opened this page for its sign-in (`/login?callback=`). */
 export function SignIn({ redirect, callback }: { redirect?: string; callback?: string }) {
   const router = useRouter();
-  const magicLink = useSignInMagicLink();
+  const sendOtp = useSendEmailOtp();
+  const verifyOtp = useVerifyEmailOtp();
   const passkey = useSignInPasskey();
   const methods = useSignInMethods();
   const google = useSignInGoogle();
   const [email, setEmail] = useState("");
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [otp, setOtp] = useState("");
   const lastSend = useRef<{ email: string; at: number } | null>(null);
+
+  const finishSignIn = () => {
+    const to = safeRedirect(redirect);
+    if (isServerPath(to)) window.location.assign(to);
+    else router.history.push(to);
+  };
 
   return (
     <main className="grid min-h-dvh bg-background lg:grid-cols-2">
@@ -67,15 +77,7 @@ export function SignIn({ redirect, callback }: { redirect?: string; callback?: s
                   intent="outline"
                   className={CONTROL_HEIGHT}
                   isPending={passkey.isPending}
-                  onPress={() =>
-                    passkey.mutate(undefined, {
-                      onSuccess: () => {
-                        const to = safeRedirect(redirect);
-                        if (isServerPath(to)) window.location.assign(to);
-                        else router.history.push(to);
-                      },
-                    })
-                  }
+                  onPress={() => passkey.mutate(undefined, { onSuccess: finishSignIn })}
                 >
                   <IconKey />
                   Continue with a Passkey
@@ -89,37 +91,90 @@ export function SignIn({ redirect, callback }: { redirect?: string; callback?: s
               <Separator className="flex-1" />
             </div>
 
-            <form
-              className="flex flex-col gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const last = lastSend.current;
-                if (last?.email === email && Date.now() - last.at < RESEND_AFTER_MS) return;
-                lastSend.current = { email, at: Date.now() };
-                magicLink.mutate(
-                  { email, redirect, callback },
-                  { onError: () => (lastSend.current = null) },
-                );
-              }}
-            >
-              <TextField
-                type="email"
-                aria-label="Email"
-                autoComplete="username webauthn"
-                isRequired
-                value={email}
-                onChange={setEmail}
+            {sentTo ? (
+              <form
+                className="flex flex-col gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  verifyOtp.mutate({ email: sentTo, otp: otp.trim() }, { onSuccess: finishSignIn });
+                }}
               >
-                <Input
-                  size="lg"
+                <TextField
+                  aria-label="Sign-in code"
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  isRequired
+                  value={otp}
+                  onChange={(value) => setOtp(value.replace(/\D/g, "").slice(0, 6))}
+                >
+                  <Input
+                    size="lg"
+                    className={CONTROL_HEIGHT}
+                    placeholder="6-digit code"
+                    maxLength={6}
+                  />
+                </TextField>
+                <Button
+                  type="submit"
                   className={CONTROL_HEIGHT}
-                  placeholder={`email@${location.hostname}`}
-                />
-              </TextField>
-              <Button type="submit" className={CONTROL_HEIGHT} isPending={magicLink.isPending}>
-                Continue
-              </Button>
-            </form>
+                  isDisabled={otp.trim().length < 6}
+                  isPending={verifyOtp.isPending}
+                >
+                  Continue
+                </Button>
+                <Button
+                  intent="plain"
+                  className={CONTROL_HEIGHT}
+                  onPress={() => {
+                    setSentTo(null);
+                    setOtp("");
+                  }}
+                >
+                  Use another email
+                </Button>
+              </form>
+            ) : (
+              <form
+                className="flex flex-col gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const target = email.trim();
+                  const last = lastSend.current;
+                  if (last?.email === target && Date.now() - last.at < RESEND_AFTER_MS) {
+                    setSentTo(target);
+                    return;
+                  }
+                  lastSend.current = { email: target, at: Date.now() };
+                  sendOtp.mutate(
+                    { email: target },
+                    {
+                      onSuccess: () => setSentTo(target),
+                      onError: () => {
+                        lastSend.current = null;
+                      },
+                    },
+                  );
+                }}
+              >
+                <TextField
+                  type="email"
+                  aria-label="Email"
+                  autoComplete="username webauthn"
+                  isRequired
+                  value={email}
+                  onChange={setEmail}
+                >
+                  <Input
+                    size="lg"
+                    className={CONTROL_HEIGHT}
+                    placeholder={`email@${location.hostname}`}
+                  />
+                </TextField>
+                <Button type="submit" className={CONTROL_HEIGHT} isPending={sendOtp.isPending}>
+                  Continue
+                </Button>
+              </form>
+            )}
 
             <Text className="text-balance text-center text-xs/5 text-muted-foreground">
               By signing in, you agree to our <Link className={LEGAL_LINK}>Terms of Service</Link>{" "}

@@ -188,7 +188,7 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
   expect(made.status).toBe(201);
 });
 
-test("with SIGN_UP=invitation a grant is not an invitation: the share mail goes out, a magic link does not", async () => {
+test("with SIGN_UP=invitation a grant is not an invitation: the share mail goes out, a sign-in code does not", async () => {
   const { owner } = await company();
   const { folderId } = await sharedFolder(owner);
   const newcomer = address("newcomer");
@@ -197,9 +197,9 @@ test("with SIGN_UP=invitation a grant is not an invitation: the share mail goes 
   ).toBe(200);
   expect(await sentMail(stack.worker, newcomer)).toHaveLength(1);
 
-  const asked = await authPost(stack.worker, new CookieJar(), "/sign-in/magic-link", {
+  const asked = await authPost(stack.worker, new CookieJar(), "/email-otp/send-verification-otp", {
     email: newcomer,
-    callbackURL: "/",
+    type: "sign-in",
   });
   expect(asked.status).toBe(200);
   await asked.body?.cancel();

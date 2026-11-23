@@ -25,6 +25,13 @@ WEB_APP_URL=http://localhost:5173
 GOOGLE_CLIENT_ID=
 # Secret.
 GOOGLE_CLIENT_SECRET=
+# Optional. Apple OAuth client; set both or neither. Neither hides "Sign in with Apple".
+# Authorized redirect URI: <BETTER_AUTH_URL>/api/auth/callback/apple.
+APPLE_CLIENT_ID=
+# Secret.
+APPLE_CLIENT_SECRET=
+# Optional. Native iOS bundle ID for Sign in with Apple.
+APPLE_APP_BUNDLE_IDENTIFIER=
 # Optional. "on" (default) asks a Gmail account for its primary Google Calendar
 # (calendar.events.readonly); "all" also asks for its calendar list
 # (calendar.calendarlist.readonly), so every calendar it has shows; "off" connects Gmail without

@@ -64,13 +64,12 @@ async function signIn(db: TestDb, email: string) {
   const jar = cookieJar();
   const baseUrl = String(worker.url);
   const auth = createAuth({ baseUrl, fetch: jar.fetch });
-  const requested = await auth.signIn.magicLink({ email });
+  const requested = await auth.emailOtp.sendVerificationOtp({ email, type: "sign-in" });
   expect(requested.error).toBeNull();
 
-  const link = (await sentMail(worker, email)).at(-1)?.text.match(/https?:\/\/\S+/)?.[0];
-  if (!link) throw new Error(`no magic link sent to ${email}`);
-  const token = new URL(link).searchParams.get("token") ?? "";
-  const verified = await auth.magicLink.verify({ query: { token } });
+  const otp = (await sentMail(worker, email)).at(-1)?.text.match(/\b(\d{6})\b/)?.[1];
+  if (!otp) throw new Error(`no sign-in code sent to ${email}`);
+  const verified = await auth.signIn.emailOtp({ email, otp });
   expect(verified.error).toBeNull();
 
   return { auth, jar, api: createApi({ baseUrl, fetch: jar.fetch }) };

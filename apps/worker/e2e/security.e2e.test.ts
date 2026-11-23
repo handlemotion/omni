@@ -193,30 +193,30 @@ describe("rate limits", () => {
     return (await sentMail(limited)).filter((m) => m.to[0]!.toLowerCase() === email);
   }
 
-  function requestMagicLink(email: string) {
-    return fetch(new URL("/api/auth/sign-in/magic-link", limited.url), {
+  function requestSignInOtp(email: string) {
+    return fetch(new URL("/api/auth/email-otp/send-verification-otp", limited.url), {
       method: "POST",
       headers: { "content-type": "application/json", origin: WEB_ORIGIN },
-      body: JSON.stringify({ email, callbackURL: "/" }),
+      body: JSON.stringify({ email, type: "sign-in" }),
     });
   }
 
-  test("magic links are limited per address, so nobody can mail-bomb an inbox", async () => {
+  test("sign-in codes are limited per address, so nobody can mail-bomb an inbox", async () => {
     const { db } = database;
     const org = await createOrg(db, "bomb");
     await createMember(db, org.id, "victim@bomb.test");
     await createMember(db, org.id, "other@bomb.test");
 
-    expect((await requestMagicLink("victim@bomb.test")).status).toBe(200);
-    expect((await requestMagicLink("Victim@Bomb.test")).status).toBe(200);
-    const refused = await requestMagicLink("VICTIM@bomb.test");
+    expect((await requestSignInOtp("victim@bomb.test")).status).toBe(200);
+    expect((await requestSignInOtp("Victim@Bomb.test")).status).toBe(200);
+    const refused = await requestSignInOtp("VICTIM@bomb.test");
     expect(refused.status).toBe(429);
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(Number(refused.headers.get("retry-after"))).toBeLessThanOrEqual(60);
     expectBaseline(refused);
     expect(await outboxTo("victim@bomb.test")).toHaveLength(2);
 
-    expect((await requestMagicLink("other@bomb.test")).status).toBe(200);
+    expect((await requestSignInOtp("other@bomb.test")).status).toBe(200);
     expect(await outboxTo("other@bomb.test")).toHaveLength(1);
   });
 
@@ -236,7 +236,10 @@ describe("rate limits", () => {
         provider: "google",
       });
       expect(google.status).toBe(429);
-      const verify = await get(tight, "/api/auth/magic-link/verify?token=guess");
+      const verify = await authPost(tight, new CookieJar(), "/sign-in/email-otp", {
+        email: "nobody@tight.test",
+        otp: "000000",
+      });
       expect(verify.status).toBe(429);
       for (let i = 0; i < 5; i++) {
         expect((await get(tight, "/api/auth/get-session")).status).toBe(200);

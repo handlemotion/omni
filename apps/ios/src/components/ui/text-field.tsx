@@ -55,19 +55,19 @@ export function TextField({
 
 const styles = StyleSheet.create({
   input: {
-    ...text.md,
+    ...text.body,
     fontFamily: fonts.regular,
     color: colors.foreground,
-    height: 56,
+    height: 48,
     paddingHorizontal: space(5),
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.well,
-    backgroundColor: colors.well,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   focused: { borderColor: colors.primary },
   bare: {
-    ...text.md,
+    ...text.body,
     fontFamily: fonts.regular,
     color: colors.foreground,
     padding: 0,

@@ -6,7 +6,7 @@ import {
   advanceOrgSetup,
   findEmailOwner,
   isCompany,
-  magicLinkRecipient,
+  signInCodeRecipient,
   schema,
   claimInvitationInboxes,
   notifyMemberJoined,
@@ -37,7 +37,7 @@ import {
   sessionScopeGuard,
 } from "./session-scope.ts";
 import { refreshSessionCacheOnOrgChange } from "./session-cache.ts";
-import { magicLink } from "better-auth/plugins/magic-link";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import { multiSession } from "better-auth/plugins/multi-session";
 import { organization } from "better-auth/plugins/organization";
 import { adminAc, defaultAc, memberAc, ownerAc } from "better-auth/plugins/organization/access";
@@ -46,11 +46,11 @@ import Stripe from "stripe";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
 
-/** `email`: where the link is mailed. `signInAs`: the address it signs in. */
-export type MagicLinkSender = (message: {
+/** `email`: where the sign-in code is mailed. `signInAs`: the address it signs in. */
+export type EmailOtpSender = (message: {
   email: string;
   signInAs: string;
-  url: string;
+  otp: string;
 }) => Promise<void>;
 
 export interface InvitationMessage {
@@ -89,6 +89,10 @@ export const authEnvSchema = z
     /** Google OAuth client. Both set turns on "Sign in with Google"; neither leaves it off. */
     GOOGLE_CLIENT_ID: optionalText,
     GOOGLE_CLIENT_SECRET: optionalText,
+    /** Apple OAuth client. Both set turns on "Sign in with Apple"; neither leaves it off. */
+    APPLE_CLIENT_ID: optionalText,
+    APPLE_CLIENT_SECRET: optionalText,
+    APPLE_APP_BUNDLE_IDENTIFIER: optionalText,
     /**
      * Who may have an account. `open` (default): anyone with a verified email signs up
      * and creates their own workspace in onboarding. `invitation`: sign-up needs a pending
@@ -107,6 +111,10 @@ export const authEnvSchema = z
     path: ["GOOGLE_CLIENT_SECRET"],
     message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET together, or neither",
   })
+  .refine((env) => !env.APPLE_CLIENT_ID === !env.APPLE_CLIENT_SECRET, {
+    path: ["APPLE_CLIENT_SECRET"],
+    message: "set APPLE_CLIENT_ID and APPLE_CLIENT_SECRET together, or neither",
+  })
   .superRefine(checkBillingEnv)
   .transform((env) => ({
     secret: env.BETTER_AUTH_SECRET,
@@ -118,6 +126,16 @@ export const authEnvSchema = z
     google:
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
         ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
+        : undefined,
+    apple:
+      env.APPLE_CLIENT_ID && env.APPLE_CLIENT_SECRET
+        ? {
+            clientId: env.APPLE_CLIENT_ID,
+            clientSecret: env.APPLE_CLIENT_SECRET,
+            ...(env.APPLE_APP_BUNDLE_IDENTIFIER
+              ? { appBundleIdentifier: env.APPLE_APP_BUNDLE_IDENTIFIER }
+              : {}),
+          }
         : undefined,
     signUp: env.SIGN_UP,
     cimdHosts: env.MCP_CIMD_HOSTS,
@@ -201,6 +219,7 @@ export interface AuthEnv extends Partial<
     | "appName"
     | "webAppURL"
     | "google"
+    | "apple"
     | "signUp"
     | "billing"
     | "cimdHosts"
@@ -211,8 +230,8 @@ export interface AuthEnv extends Partial<
   secret: string;
   /** BETTER_AUTH_URL, the API's public origin. */
   baseURL: string;
-  /** Delivers the magic link. The Worker injects the real sender. */
-  sendMagicLink: MagicLinkSender;
+  /** Delivers the 6-digit sign-in code. The Worker injects the real sender. */
+  sendEmailOtp: EmailOtpSender;
   /** Delivers an organization invitation. The Worker injects the real sender. */
   sendInvitation: InvitationSender;
   /** Error-level log for billing a person must act on (a canceled duplicate to refund). */
@@ -290,20 +309,44 @@ export function createAuth(env: AuthEnv) {
     appName: env.appName ?? "Omni",
     secret: env.secret,
     baseURL: env.baseURL,
-    trustedOrigins: env.trustedOrigins ?? [],
+    trustedOrigins: [
+      ...(env.trustedOrigins ?? []),
+      ...(env.apple ? ["https://appleid.apple.com"] : []),
+    ],
     database: resolveSignInEmails(drizzleAdapter(env.db, { provider: "pg", schema }), env.db),
-    socialProviders: env.google
-      ? {
-          google: {
-            ...env.google,
-            prompt: "select_account",
-            mapProfileToUser: (profile) => {
-              if (profile.email_verified) noteSignInAddress(profile.email);
-              return {};
-            },
-          },
-        }
-      : undefined,
+    socialProviders:
+      env.google || env.apple
+        ? {
+            ...(env.google
+              ? {
+                  google: {
+                    ...env.google,
+                    prompt: "select_account",
+                    mapProfileToUser: (profile: { email?: string; email_verified?: boolean }) => {
+                      if (profile.email_verified && profile.email) noteSignInAddress(profile.email);
+                      return {};
+                    },
+                  },
+                }
+              : {}),
+            ...(env.apple
+              ? {
+                  apple: {
+                    ...env.apple,
+                    mapProfileToUser: (profile: {
+                      email?: string;
+                      email_verified?: boolean | string;
+                    }) => {
+                      const verified =
+                        profile.email_verified === true || profile.email_verified === "true";
+                      if (verified && profile.email) noteSignInAddress(profile.email);
+                      return {};
+                    },
+                  },
+                }
+              : {}),
+          }
+        : undefined,
     user: { modelName: "users" },
     session: {
       modelName: "sessions",
@@ -383,11 +426,17 @@ export function createAuth(env: AuthEnv) {
     },
     plugins: [
       expo(),
-      magicLink({
-        sendMagicLink: async ({ email, url }) => {
-          if (!(await maySignIn(env.db, email, env.signUp))) return;
-          const to = await magicLinkRecipient(env.db, email);
-          await env.sendMagicLink({ email: to, signInAs: email, url });
+      emailOTP({
+        otpLength: 6,
+        expiresIn: 600,
+        allowedAttempts: 5,
+        sendVerificationOTP: async ({ email, otp, type }, ctx) => {
+          if (type !== "sign-in") return;
+          const bodyEmail = (ctx?.body as { email?: unknown } | undefined)?.email;
+          const signInAs = typeof bodyEmail === "string" && bodyEmail ? bodyEmail : email;
+          if (!(await maySignIn(env.db, signInAs, env.signUp))) return;
+          const to = await signInCodeRecipient(env.db, signInAs);
+          await env.sendEmailOtp({ email: to, signInAs, otp });
         },
       }),
       passkey({

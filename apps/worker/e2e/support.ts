@@ -339,23 +339,28 @@ export async function justMe(worker: Worker, jar: CookieJar) {
 }
 
 /**
- * The real magic-link flow: request a link, read it from the outbox, open it. Returns the cookie.
- * With `jar`, the link is opened in that browser (so its other sessions stay signed in).
+ * The real email-OTP flow: request a 6-digit code, read it from the outbox, verify it. Returns the
+ * cookie. With `jar`, verified in that browser (so its other sessions stay signed in).
  */
 export async function signIn(worker: Worker, _db: TestDb, email: string, jar?: CookieJar) {
-  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+  const requested = await fetch(new URL("/api/auth/email-otp/send-verification-otp", worker.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
-    body: JSON.stringify({ email, callbackURL: "/" }),
+    body: JSON.stringify({ email, type: "sign-in" }),
   });
-  if (requested.status !== 200) throw new Error(`magic link request failed: ${requested.status}`);
-  const link = (await sentMail(worker, email)).at(-1)?.text.match(/https?:\/\/\S+/)?.[0];
-  if (!link) throw new Error(`no magic link sent to ${email}`);
-  const url = new URL(link);
-  const verified = await fetch(new URL(url.pathname + url.search, worker.url), {
-    redirect: "manual",
-    headers: jar ? { cookie: jar.header } : {},
+  if (requested.status !== 200) throw new Error(`email otp request failed: ${requested.status}`);
+  const otp = (await sentMail(worker, email)).at(-1)?.text.match(/\b(\d{6})\b/)?.[1];
+  if (!otp) throw new Error(`no sign-in code sent to ${email}`);
+  const verified = await fetch(new URL("/api/auth/sign-in/email-otp", worker.url), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: WEB_ORIGIN,
+      ...(jar ? { cookie: jar.header } : {}),
+    },
+    body: JSON.stringify({ email, otp }),
   });
+  if (verified.status !== 200) throw new Error(`email otp verify failed: ${verified.status}`);
   jar?.store(verified);
   return verified.headers
     .getSetCookie()

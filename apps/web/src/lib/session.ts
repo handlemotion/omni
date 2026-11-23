@@ -104,22 +104,20 @@ async function nativeCallback(callback: string | undefined) {
   return /^(https?|javascript|data|blob|file|about|vbscript):$/i.test(protocol) ? null : callback;
 }
 
-/**
- * Emails a sign-in link that returns to `redirect` (a same-origin path) or the inbox. In the
- * desktop app the link opens in the browser, so it returns to the app through the shell's
- * `omni://` callback instead, success or failure; the window then reloads where it was. A phone
- * app's `callback` works the same way, without the reload.
- */
-export async function signInWithMagicLink(email: string, redirect?: string, app?: string) {
-  const callback = await nativeCallback(app);
-  if (callback && desktop.isDesktop) rememberSignInRedirect(safeRedirect(redirect));
-  return authCall(
-    auth.signIn.magicLink({
-      email,
-      callbackURL: callback ?? safeRedirect(redirect),
-      errorCallbackURL: callback ?? "/login?error=magic_link",
-    }),
-  );
+/** Emails a 6-digit sign-in code to `email`. */
+export function sendEmailOtp(email: string) {
+  return authCall(auth.emailOtp.sendVerificationOtp({ email, type: "sign-in" }));
+}
+
+/** Verifies a 6-digit sign-in code and drops the signed-out cache so route guards see the session. */
+export async function signInWithEmailOtp(
+  client: QueryClient,
+  router: Reloadable,
+  email: string,
+  otp: string,
+) {
+  await authCall(auth.signIn.emailOtp({ email, otp }));
+  await resetSession(client, router);
 }
 
 const SIGN_IN_REDIRECT = "omni.sign-in-redirect";
@@ -149,33 +147,24 @@ export const signInMethodsQuery = () =>
     staleTime: Infinity,
   });
 
-/**
- * Leaves for Google's consent screen; Google returns through the Worker to `redirect` (a
- * same-origin path) or the inbox. A refused sign-in (no invitation, cancelled consent) comes back
- * to `/login?error=<code>`. In the desktop app the consent opens in the browser (Google refuses
- * embedded sign-in) through Better Auth's Expo proxy, which gives that browser the flow's state
- * cookie; the session comes back to the window through the shell's `omni://` callback, as a
- * magic link's does. A phone app's `callback` page is already in the browser, so Google returns
- * through the Worker straight to the app.
- */
-export async function signInWithGoogle(redirect?: string, app?: string) {
+async function signInWithProvider(provider: "google" | "apple", redirect?: string, app?: string) {
   const callback = await nativeCallback(app);
   if (callback && !desktop.isDesktop) {
     return authCall(
-      auth.signIn.social({ provider: "google", callbackURL: callback, errorCallbackURL: callback }),
+      auth.signIn.social({ provider, callbackURL: callback, errorCallbackURL: callback }),
     );
   }
   if (callback) {
     rememberSignInRedirect(safeRedirect(redirect));
     const { url } = await authCall(
       auth.signIn.social({
-        provider: "google",
+        provider,
         callbackURL: callback,
         errorCallbackURL: callback,
         disableRedirect: true,
       }),
     );
-    if (!url) throw new ApiError(500, "Google sign-in did not start");
+    if (!url) throw new ApiError(500, `${provider} sign-in did not start`);
     const proxy = new URL("/api/auth/expo-authorization-proxy", window.location.origin);
     proxy.searchParams.set("authorizationURL", url);
     desktop.openOutside(proxy.toString());
@@ -183,11 +172,25 @@ export async function signInWithGoogle(redirect?: string, app?: string) {
   }
   return authCall(
     auth.signIn.social({
-      provider: "google",
+      provider,
       callbackURL: safeRedirect(redirect),
       errorCallbackURL: "/login",
     }),
   );
+}
+
+/**
+ * Leaves for Google's consent screen; Google returns through the Worker to `redirect` (a
+ * same-origin path) or the inbox. A refused sign-in (no invitation, cancelled consent) comes back
+ * to `/login?error=<code>`.
+ */
+export function signInWithGoogle(redirect?: string, app?: string) {
+  return signInWithProvider("google", redirect, app);
+}
+
+/** Leaves for Apple's consent screen; returns to `redirect` (or the inbox) signed in. */
+export function signInWithApple(redirect?: string, app?: string) {
+  return signInWithProvider("apple", redirect, app);
 }
 
 /** Signs in with a passkey, then drops the signed-out cache so the route guards see the session. */

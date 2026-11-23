@@ -118,13 +118,13 @@ export const limitAuth = createMiddleware<AppEnv>(async (c, next) => {
   const { env } = c;
   const { config } = c.var;
   const path = new URL(c.req.url).pathname.replace(/^\/api\/auth/, "");
-  const signInStep = c.req.method === "POST" || /^\/(callback|magic-link|passkey)\//.test(path);
+  const signInStep = c.req.method === "POST" || /^\/(callback|passkey)\//.test(path);
   if (!signInStep) return next();
 
   const checks: [RateLimitRule, Promise<number>][] = [
     ["auth", checkRateLimit(env, config, "auth", clientIp(c.req.raw))],
   ];
-  if (c.req.method === "POST" && path === "/sign-in/magic-link") {
+  if (c.req.method === "POST" && path === "/email-otp/send-verification-otp") {
     const body = (await c.req.raw
       .clone()
       .json()
