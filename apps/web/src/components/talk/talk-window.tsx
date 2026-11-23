@@ -94,6 +94,11 @@ function Composer(props: {
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={onKeyDown}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        {...{ writingsuggestions: "false" }}
         className="max-h-28 min-h-7 flex-1 resize-none py-1 sm:py-1"
       />
       <FileTrigger allowsMultiple onSelect={(list) => list && attach([...list])}>

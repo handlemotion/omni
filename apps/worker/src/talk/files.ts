@@ -1,4 +1,8 @@
-import { talkFileQuerySchema, type TalkMessageResponse } from "@omni/contracts";
+import {
+  STORAGE_THUMBNAIL_SIZES,
+  talkFileQuerySchema,
+  type TalkMessageResponse,
+} from "@omni/contracts";
 import { forUser, type MemberStorage } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
@@ -93,19 +97,43 @@ async function takeBack(c: Context<AppEnv>, files: MemberStorage, nodeId: string
   c.var.log.warn("talk.file_taken_back", { nodeId });
 }
 
+const WHERE_MAX_AGE = 3600;
+
+function fileAt(base: string, size: number | null, version: number | undefined, query: string) {
+  if (size === null) return `${base}/content${query}`;
+  const params = new URLSearchParams(query);
+  params.set("size", String(size));
+  if (version !== undefined) params.set("v", String(version));
+  return `${base}/thumbnail?${params}`;
+}
+
+function sizeOf(raw: string | undefined) {
+  const size = Number(raw);
+  return (STORAGE_THUMBNAIL_SIZES as readonly number[]).includes(size) ? size : null;
+}
+
 async function openFile(c: Context<AppEnv>) {
   const file = await memberTalk(c).fileOf(c.req.param("id") ?? "");
   if (file.status !== "ok") return refused(c, file);
   const query = new URL(c.req.url).search;
+  const size = sizeOf(c.req.query("size"));
+  const go = (url: string) => {
+    if (size !== null) c.header("cache-control", `private, max-age=${WHERE_MAX_AGE}`);
+    return c.redirect(url, 302);
+  };
   if (file.sent) {
     const own = await memberStorage(c).node(file.nodeId);
     if (!own) return refused(c, { status: "not_found" });
-    return c.redirect(`/api/storage/files/${file.nodeId}/content${query}`, 302);
+    const base = `/api/storage/files/${file.nodeId}`;
+    return go(fileAt(base, size, own.node.contentVersion, query));
   }
   const { user } = c.var;
-  const shareId = await forUser(c.var.db, user.id, user.scopeOrgId).storage.linkOf(file.nodeId);
+  const storage = forUser(c.var.db, user.id, user.scopeOrgId).storage;
+  const shareId = await storage.linkOf(file.nodeId);
   if (!shareId) return refused(c, { status: "not_found" });
-  return c.redirect(`/api/storage/shared/${shareId}/files/${file.nodeId}/content${query}`, 302);
+  const base = `/api/storage/shared/${shareId}/files/${file.nodeId}`;
+  const shared = size === null ? null : await storage.under(shareId).node(file.nodeId);
+  return go(fileAt(base, size, shared?.node.contentVersion, query));
 }
 
 export const talkFiles = new Hono<AppEnv>()

@@ -110,6 +110,11 @@ threads, then Storage's own doors decide. The sender is sent to the file's conte
 member door, the recipient through the share link their grant opens (read fresh each time, since
 a link can be reset).
 
+An image shows inline as Storage's 640 px thumbnail (`?size=640`), named by the file's version so
+the browser keeps it for good; that redirect may be reused for an hour, so a reopened thread
+shows its images with no request. A GIF, a file too large to draw, or a thumbnail that fails
+shows the file itself.
+
 The folder drops go into is shared with nobody else: if the sender shares their `Talk` folder in
 Drive, the next drop makes a new one, so a later file is never visible to that folder's
 grantees. Each drop also tells the sender's open Drive listings that the folder changed.

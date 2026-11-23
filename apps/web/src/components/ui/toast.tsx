@@ -86,21 +86,16 @@ export function Toaster({
 const toneIconClassName = "aspect-square h-[1.56cap] w-auto shrink-0 translate-y-[0.28cap]";
 
 const TONE_ICONS: Record<ToastTone, ReactNode> = {
-  success: (
-    <CheckCircleIcon aria-hidden className={cn(toneIconClassName, "text-primary-foreground")} />
-  ),
-  error: <XCircleIcon aria-hidden className={cn(toneIconClassName, "text-primary-foreground")} />,
+  success: <CheckCircleIcon aria-hidden className={cn(toneIconClassName, "text-success")} />,
+  error: <XCircleIcon aria-hidden className={cn(toneIconClassName, "text-danger")} />,
   warning: (
     <ExclamationTriangleIcon
       aria-hidden
-      className={cn(toneIconClassName, "text-primary-foreground")}
+      className={cn(toneIconClassName, "text-warning-subtle-foreground")}
     />
   ),
   info: (
-    <InformationCircleIcon
-      aria-hidden
-      className={cn(toneIconClassName, "text-primary-foreground")}
-    />
+    <InformationCircleIcon aria-hidden className={cn(toneIconClassName, "text-muted-foreground")} />
   ),
 };
 
@@ -122,8 +117,8 @@ function ToastButton(props: {
         "outline-none focus-visible:inset-ring focus-visible:inset-ring-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
         props.emphasis === "primary"
-          ? "bg-primary-foreground text-brand hover:bg-primary-foreground/90"
-          : "text-primary-foreground/80 hover:bg-primary-foreground/15 hover:text-primary-foreground",
+          ? "bg-primary-button text-primary-foreground hover:bg-primary-button/90"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
       )}
       onClick={() => {
         props.action.onClick();
@@ -143,8 +138,8 @@ interface ToastCardProps {
 }
 
 /**
- * The toast card, brand blue like setup's toasts (`.setup-toaster` in styles.css): white text and
- * icon on the primary button's blue, with no edge. Stacked behind the front toast, a card dims.
+ * The toast card, in the page's theme: foreground text on the background with a hairline border,
+ * the tone carried by the icon alone. Stacked behind the front toast, a card's text fades.
  *
  * Room, in ink: 8px above and below the 24px action (12px to the icon's shape and the text),
  * 12px from the left edge to the icon, 8px from the right edge to the action.
@@ -155,8 +150,7 @@ export function ToastCard({ tone, message, description, children }: ToastCardPro
       data-slot="toast"
       data-tone={tone}
       className={cn(
-        "relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-brand text-primary-foreground transition-colors duration-200",
-        "[[data-expanded=false][data-front=false]_&]:bg-[color-mix(in_oklab,var(--color-brand)_65%,var(--color-background))]",
+        "relative flex h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-overlay",
       )}
     >
       <div
@@ -176,7 +170,7 @@ export function ToastCard({ tone, message, description, children }: ToastCardPro
           {description && (
             <p
               data-slot="toast-description"
-              className="line-clamp-2 text-sm leading-5 tracking-[-0.01em] break-words text-primary-foreground/85"
+              className="line-clamp-2 text-sm leading-5 tracking-[-0.01em] break-words text-muted-foreground"
             >
               {description}
             </p>

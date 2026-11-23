@@ -16,7 +16,7 @@ import { appToast } from "@/components/ui/toast";
 import { Link } from "@/components/ui/link";
 import { useReact } from "@/hooks/use-talk.ts";
 import { fileType } from "@/lib/file-kind.ts";
-import { fileUrl, isImage, reacting, type TalkMessage } from "@/lib/talk.ts";
+import { fileUrl, imageUrl, isImage, reacting, type TalkMessage } from "@/lib/talk.ts";
 import { isPending } from "@/lib/talk-cache.ts";
 
 const GAP_MS = 60 * 60_000;
@@ -174,12 +174,7 @@ function Attachment(props: { message: TalkMessage; mine: boolean }) {
   if (href && isImage(file.mimeType)) {
     return (
       <Link href={href} target="_blank" rel="noreferrer" className="block hover:opacity-90">
-        <img
-          src={href}
-          alt={file.name}
-          loading="lazy"
-          className="block h-auto max-h-64 min-h-12 w-auto max-w-44 min-w-12 rounded-xl border border-border bg-secondary object-contain"
-        />
+        <InlineImage messageId={props.message.id} file={file} original={href} />
       </Link>
     );
   }
@@ -187,7 +182,7 @@ function Attachment(props: { message: TalkMessage; mine: boolean }) {
     <span
       className={cn(
         "flex max-w-56 min-w-0 items-center gap-2 rounded-xl px-2.5 py-1.5",
-        props.mine ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground",
+        props.mine ? "bg-primary-button text-primary-foreground" : "bg-secondary text-foreground",
       )}
     >
       <span className="shrink-0 opacity-70 *:size-4">
@@ -207,6 +202,24 @@ function Attachment(props: { message: TalkMessage; mine: boolean }) {
     </Link>
   ) : (
     <span className="block min-w-0 opacity-50">{chip}</span>
+  );
+}
+
+function InlineImage(props: {
+  messageId: string;
+  file: NonNullable<TalkMessage["file"]>;
+  original: string;
+}) {
+  const [src, setSrc] = useState(() => imageUrl(props.messageId, props.file));
+  return (
+    <img
+      src={src}
+      alt={props.file.name}
+      loading="lazy"
+      decoding="async"
+      onError={() => setSrc((now) => (now === props.original ? now : props.original))}
+      className="block h-auto max-h-64 min-h-12 w-auto max-w-44 min-w-12 rounded-xl border border-border bg-secondary object-contain"
+    />
   );
 }
 
@@ -232,7 +245,7 @@ const Note = memo(function Note(props: NoteProps & { tail: boolean }) {
           <p
             className={cn(
               "max-w-full rounded-xl px-2.5 py-1 text-sm/5 break-words whitespace-pre-wrap",
-              mine ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground",
+              mine ? "bg-primary-button text-primary-foreground" : "bg-secondary text-foreground",
             )}
           >
             {message.body}
@@ -261,11 +274,12 @@ export function TalkMessages(props: { messages: TalkMessage[]; meId: string; thr
         const after = ordered[i + 1];
         const at = Date.parse(message.createdAt);
         const newHour = !before || at - Date.parse(before.createdAt) > GAP_MS;
-        const tail = !!after && after.authorMemberId !== message.authorMemberId;
+        const nextHour = !!after && Date.parse(after.createdAt) - at > GAP_MS;
+        const tail = !!after && !nextHour && after.authorMemberId !== message.authorMemberId;
         return (
           <Fragment key={message.id}>
             {newHour && (
-              <p className="pt-1 pb-2.5 text-center text-xs text-muted-foreground tabular-nums">
+              <p className="py-2.5 text-center text-xs text-muted-foreground tabular-nums">
                 {timeLine(new Date(at))}
               </p>
             )}

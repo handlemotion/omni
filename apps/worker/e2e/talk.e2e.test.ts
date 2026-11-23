@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -222,6 +223,42 @@ test("a dropped file lands in the sender's Drive, shared with the recipient and 
     expect(new Uint8Array(await got.arrayBuffer())).toEqual(bytes);
   }
   expect((await open(cy.cookie)).status).toBe(404);
+
+  const thumbnailAt = async (cookie: string) => {
+    const url = new URL(`/api/talk/messages/${message.id}/file?size=640`, worker.url);
+    const got = await fetch(url, { headers: { cookie }, redirect: "manual" });
+    expect(got.status).toBe(302);
+    expect(got.headers.get("cache-control")).toBe("private, max-age=3600");
+    return new URL(got.headers.get("location")!, worker.url);
+  };
+  const opened = await fetch(new URL(`/api/talk/messages/${message.id}/file`, worker.url), {
+    headers: { cookie: ben.cookie },
+    redirect: "manual",
+  });
+  expect(opened.status).toBe(302);
+  expect(opened.headers.get("cache-control")).toBeNull();
+  for (const person of [ana, ben]) {
+    const at = await thumbnailAt(person.cookie);
+    expect(at.pathname).toMatch(new RegExp(`/files/${node!.id}/thumbnail$`));
+    expect(at.searchParams.get("size")).toBe("640");
+    expect(at.searchParams.get("v")).toBe(String(node!.contentVersion));
+  }
+
+  const png = readFileSync(new URL("../../../fixtures/drive/sunset.png", import.meta.url));
+  const photo = await fetch(
+    new URL(`/api/talk/threads/${threadId}/files?name=sunset.png`, worker.url),
+    { method: "POST", headers: { cookie: ana.cookie, "content-type": "image/png" }, body: png },
+  );
+  expect(photo.status).toBe(201);
+  const photoId = ((await photo.json()) as { message: { id: string } }).message.id;
+  const thumb = await fetch(new URL(`/api/talk/messages/${photoId}/file?size=640`, worker.url), {
+    headers: { cookie: ben.cookie },
+  });
+  expect(thumb.status).toBe(200);
+  expect(thumb.headers.get("content-type")).toBe("image/webp");
+  expect(thumb.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+  const webp = new Uint8Array(await thumb.arrayBuffer());
+  expect(new TextDecoder().decode(webp.slice(8, 12))).toBe("WEBP");
 
   await db
     .delete(schema.storageGrants)
