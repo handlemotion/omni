@@ -1,106 +1,21 @@
 import { EventEmitter } from "node:events";
 import { Data, Deferred, Duration, Effect, Fiber, Schedule, Semaphore } from "effect";
-import { type FetchMessageObject, ImapFlow, type ListResponse, type MailboxObject } from "imapflow";
-import { type FolderSyncPlan, planFolderSync } from "@omni/mail-core/folder-sync";
+import { ImapFlow } from "imapflow";
+import {
+  type FetchLimits,
+  type FolderSyncResult,
+  type NewMessageEvent,
+  StoppedError,
+  syncFolder,
+} from "./folder-sync.ts";
+import { type Capabilities, detectCapabilities, listFolders } from "./imap-server.ts";
 import type { Logger } from "./log.ts";
+import { loginFor, type MailboxConfig } from "./mailbox-config.ts";
 import { imapTls } from "./mail-hosts.ts";
-import type {
-  FetchedMessage,
-  FlagChange,
-  FolderInfo,
-  FolderRole,
-  MailStore,
-  SyncPosition,
-} from "./ports.ts";
-import { discard, isSpooled, spool } from "./spool.ts";
+import type { FolderInfo, FolderRole, MailStore } from "./ports.ts";
 import { backoff } from "./timing.ts";
 
 const FILED_ROLES = new Set<FolderRole>(["archive", "trash", "junk"]);
-
-export interface ServerEndpoint {
-  host: string;
-  port: number;
-  /** Implicit TLS (993 / 465). False means plain, and the connection must upgrade with STARTTLS. */
-  secure: boolean;
-  /**
-   * A `secure: false` endpoint may stay cleartext when STARTTLS isn't offered. Never stored: the
-   * service decides it on load from `MAIL_ALLOW_PLAINTEXT_HOSTS` (see `withPlaintextPolicy`).
-   */
-  allowPlaintext?: boolean;
-}
-
-/** Mints OAuth2 access tokens for one mailbox (XOAUTH2). */
-export interface TokenSource {
-  /** A token valid for at least the next few minutes. */
-  get(): Promise<string>;
-  /** The server refused the last token: the next `get` mints a new one. */
-  invalidate(): void;
-  /** `get` failed because the grant is gone: retrying cannot help, the person must reconnect. */
-  isRevoked(error: unknown): boolean;
-}
-
-/** How a mailbox logs in to IMAP and SMTP. */
-export type MailAuth = { kind: "password"; pass: string } | { kind: "oauth2"; token: TokenSource };
-
-/** A mailbox with its decrypted login. Lives only inside the mail service. */
-export interface MailboxConfig {
-  id: string;
-  orgId: string;
-  address: string;
-  /** Shared mailboxes keep read state per person in Postgres; we never touch their `\Seen`. */
-  kind: "personal" | "shared";
-  /** `gmail` for a Google account, where Gmail's read is Omni's Done. */
-  provider?: string;
-  /**
-   * Index only mail from this date on. Each folder syncs from its oldest message dated
-   * on or after it; everything older stays on the server. Unset: every message.
-   */
-  syncSince?: Date;
-  user: string;
-  auth: MailAuth;
-  imap: ServerEndpoint;
-  smtp: ServerEndpoint;
-}
-
-/** ImapFlow's and Nodemailer's `auth` for this mailbox, with a fresh token for OAuth2. */
-export const loginFor: (
-  mailbox: Pick<MailboxConfig, "user" | "auth">,
-) => Promise<{ user: string; pass: string } | { user: string; accessToken: string }> = async (
-  mailbox,
-) => {
-  return mailbox.auth.kind === "password"
-    ? { user: mailbox.user, pass: mailbox.auth.pass }
-    : { user: mailbox.user, accessToken: await mailbox.auth.token.get() };
-};
-
-export interface Capabilities {
-  idle: boolean;
-  condstore: boolean;
-  uidplus: boolean;
-  move: boolean;
-  /** Gmail (`X-GM-EXT-1`): system folders only, All Mail is the archive, X-GM-THRID threads. */
-  gmail: boolean;
-  /** Every capability the server advertised, logged on connect to show what a host supports. */
-  all: string[];
-}
-
-export interface NewMessageEvent {
-  mailboxId: string;
-  folder: string;
-  role: FolderRole;
-  uid: number;
-}
-
-export interface FolderSyncResult {
-  folder: string;
-  added: number;
-  /** New messages that could not be stored this time; the next sync retries them. */
-  failed: number;
-  removed: number;
-  flagsChanged: number;
-  reset: boolean;
-  mode: "condstore" | "uid-diff" | "unchanged";
-}
 
 /** What an outbox action gets while it holds the connection. */
 export interface ImapSession {
@@ -113,18 +28,9 @@ export interface ImapSession {
   syncFolder(path: string): Promise<FolderSyncResult>;
 }
 
-export interface ConnectionOptions {
+export interface ConnectionOptions extends Partial<FetchLimits> {
   store: MailStore;
   logger: Logger;
-  /** Messages fetched per round trip during import and catch-up. */
-  batchSize?: number;
-  /** A fetch batch also stops at this many bytes, so big messages come one at a time. */
-  batchBytes?: number;
-  /**
-   * A message larger than this is streamed to a temp file and parsed from there, never held in
-   * memory: parsing costs several times a message's size, and the VM is small.
-   */
-  streamAboveBytes?: number;
   reconnectBaseMs?: number;
   reconnectMaxMs?: number;
   /**
@@ -172,21 +78,6 @@ export class MailboxUnavailableError extends Error {
   override name = "MailboxUnavailableError";
 }
 
-class StoppedError extends Error {
-  override name = "StoppedError";
-}
-
-const MAX_CONSECUTIVE_STORE_FAILURES = 5;
-
-const ROLE_BY_SPECIAL_USE: Record<string, FolderRole> = {
-  "\\Inbox": "inbox",
-  "\\Sent": "sent",
-  "\\Archive": "archive",
-  "\\Trash": "trash",
-  "\\Drafts": "drafts",
-  "\\Junk": "junk",
-};
-
 /**
  * One IMAP connection for one mailbox. It IDLEs on INBOX, syncs folders on request, and runs
  * outbox actions. Every IMAP command goes through one queue, so a sync and an action never
@@ -196,9 +87,7 @@ export class MailboxConnection extends EventEmitter<Events> {
   readonly mailbox: MailboxConfig;
   private readonly store: MailStore;
   private readonly log: Logger;
-  private readonly batchSize: number;
-  private readonly batchBytes: number;
-  private readonly streamAboveBytes: number;
+  private readonly limits: FetchLimits;
   private readonly reconnectBaseMs: number;
   private readonly reconnectMaxMs: number;
   private readonly stableAfterMs: number;
@@ -225,9 +114,11 @@ export class MailboxConnection extends EventEmitter<Events> {
     this.mailbox = mailbox;
     this.store = options.store;
     this.log = options.logger.child({ mailboxId: mailbox.id });
-    this.batchSize = options.batchSize ?? 50;
-    this.batchBytes = options.batchBytes ?? 16 * 1024 * 1024;
-    this.streamAboveBytes = options.streamAboveBytes ?? 4 * 1024 * 1024;
+    this.limits = {
+      batchSize: options.batchSize ?? 50,
+      batchBytes: options.batchBytes ?? 16 * 1024 * 1024,
+      streamAboveBytes: options.streamAboveBytes ?? 4 * 1024 * 1024,
+    };
     this.reconnectBaseMs = options.reconnectBaseMs ?? 1_000;
     this.reconnectMaxMs = options.reconnectMaxMs ?? 5 * 60_000;
     this.stableAfterMs = options.stableAfterMs ?? 60_000;
@@ -586,18 +477,7 @@ export class MailboxConnection extends EventEmitter<Events> {
   }
 
   private async discoverFolders() {
-    const listed = await this.requireClient().list();
-    const gmail = this.capabilities?.gmail === true;
-    const taken = new Set<FolderRole>();
-    this.folders = listed
-      .filter((f) => !f.flags.has("\\Noselect") && !f.flags.has("\\NonExistent"))
-      .map((f) => {
-        let role = roleOf(f, gmail);
-        if (role !== "other" && taken.has(role)) role = "other";
-        taken.add(role);
-        return { path: f.path, role };
-      })
-      .filter((f) => !gmail || f.role !== "other");
+    this.folders = await listFolders(this.requireClient(), this.capabilities?.gmail === true);
     await this.store.saveFolders(this.mailbox.id, this.folders);
   }
 
@@ -610,314 +490,20 @@ export class MailboxConnection extends EventEmitter<Events> {
   }
 
   private async syncFolderNow(path: string) {
-    const client = this.requireClient();
-    this.throwIfStopped();
-    const lock = await client.getMailboxLock(path);
-    try {
-      if (client.mailbox === false) throw new Error(`could not select ${path}`);
-      const box = client.mailbox;
-      const result: FolderSyncResult = {
-        folder: path,
-        added: 0,
-        failed: 0,
-        removed: 0,
-        flagsChanged: 0,
-        reset: false,
-        mode: "uid-diff",
-      };
-      const position = await this.startPosition(path, box, result);
-      const serverModseq =
-        this.capabilities?.condstore && !box.noModseq ? (box.highestModseq ?? null) : null;
-      const index = await this.store.folderIndex(this.mailbox.id, path);
-      const plan = planFolderSync(
-        position,
-        { uidNext: box.uidNext, exists: box.exists, highestModseq: serverModseq },
-        index.size,
-      );
-      result.mode = plan.mode;
-      if (plan.mode === "unchanged") return result satisfies FolderSyncResult;
-
-      const serverUids = await this.listServerUids(client, box, plan, index);
-      const added = await this.applyServerChanges(client, path, box, plan, index, serverUids);
-      result.removed = added.removed;
-      result.flagsChanged = added.flagsChanged;
-      await this.importMessages(client, path, added.uids, result);
-
-      await this.store.saveSyncPosition(this.mailbox.id, path, {
-        uidValidity: box.uidValidity,
-        highestModseq: serverModseq,
-        uidNext: result.failed > 0 ? position.uidNext : box.uidNext,
-      });
-      if (result.added || result.removed || result.flagsChanged || result.reset || result.failed) {
-        this.log.info("sync.folder", { ...result });
-      }
-      return result satisfies FolderSyncResult;
-    } finally {
-      lock.release();
-    }
-  }
-
-  private async startPosition(path: string, box: MailboxObject, result: FolderSyncResult) {
-    const mailboxId = this.mailbox.id;
-    const stored = await this.store.getSyncPosition(mailboxId, path);
-    if (stored && stored.uidValidity === box.uidValidity) return stored satisfies SyncPosition;
-    if (stored) {
-      this.log.warn("sync.uidvalidity_changed", {
-        folder: path,
-        was: stored.uidValidity,
-        now: box.uidValidity,
-      });
-      await this.store.resetFolder(mailboxId, path);
-      result.reset = true;
-    }
-    const position = { uidValidity: box.uidValidity, highestModseq: null, uidNext: 0 };
-    await this.store.saveSyncPosition(mailboxId, path, position);
-    return position satisfies SyncPosition;
-  }
-
-  private async listServerUids(
-    client: ImapFlow,
-    box: MailboxObject,
-    plan: ChangedPlan,
-    index: Map<number, string[]>,
-  ) {
-    if (!plan.listUids) return [...index.keys()] satisfies number[];
-    if (box.exists === 0) return [] satisfies number[];
-    const since = this.mailbox.syncSince;
-    if (!since)
-      return ((await client.search({ all: true }, { uid: true })) || []) satisfies number[];
-    const recent = (await client.search({ since }, { uid: true })) || [];
-    const floor = recent.reduce((low, uid) => Math.min(low, uid), box.uidNext);
-    const from = lowestUid(index, floor);
-    const listed = (await client.search({ uid: `${from}:*` }, { uid: true })) || [];
-    return listed.filter((uid) => uid >= floor || index.has(uid)) satisfies number[];
-  }
-
-  private async applyServerChanges(
-    client: ImapFlow,
-    path: string,
-    box: MailboxObject,
-    plan: ChangedPlan,
-    index: Map<number, string[]>,
-    serverUids: number[],
-  ) {
-    const mailboxId = this.mailbox.id;
-    const onServer = new Set(serverUids);
-    const removed = [...index.keys()].filter((uid) => !onServer.has(uid));
-    const flagChanges =
-      box.exists > 0 && index.size > 0
-        ? await this.changedFlags(client, index, plan.changedSince)
-        : [];
-    if (removed.length > 0) await this.store.removeMessages(mailboxId, path, removed);
-    if (flagChanges.length > 0) await this.store.applyFlags(mailboxId, path, flagChanges);
-    return {
-      removed: removed.length,
-      flagsChanged: flagChanges.length,
-      uids: serverUids.filter((uid) => !index.has(uid)).toSorted((a, b) => b - a),
-    };
-  }
-
-  private async changedFlags(
-    client: ImapFlow,
-    index: Map<number, string[]>,
-    changedSince: bigint | undefined,
-  ) {
-    const changes: FlagChange[] = [];
-    for await (const msg of client.fetch(
-      `${lowestUid(index, 1)}:*`,
-      { uid: true, flags: true },
-      { uid: true, changedSince },
-    )) {
-      const known = index.get(msg.uid);
-      const flags = sortedFlags(msg.flags);
-      if (known && !sameFlags(known, flags)) {
-        changes.push({ uid: msg.uid, flags, modseq: msg.modseq ?? null });
-      }
-    }
-    return changes satisfies FlagChange[];
-  }
-
-  private async importMessages(
-    client: ImapFlow,
-    path: string,
-    uids: number[],
-    result: FolderSyncResult,
-  ) {
-    const store = this.messageStorer(path, result);
-    for await (const { uids: batch, large } of this.sizedBatches(client, uids)) {
-      this.throwIfStopped();
-      if (large) await this.importLarge(client, path, batch[0] ?? 0, store);
-      else await this.importBatch(client, path, batch, store);
-      this.throwIfStopped();
-    }
-  }
-
-  private messageStorer(path: string, result: FolderSyncResult) {
-    const mailboxId = this.mailbox.id;
-    const role = this.folders.find((f) => f.path === path)?.role ?? "other";
-    let consecutiveFailures = 0;
-    return async (fetched: FetchedMessage) => {
-      try {
-        const { created } = await this.store.storeMessage(mailboxId, fetched);
-        consecutiveFailures = 0;
-        if (!created) return;
-        result.added++;
-        this.emit("message", { mailboxId, folder: path, role, uid: fetched.uid });
-      } catch (error) {
-        result.failed++;
-        consecutiveFailures++;
-        this.log.warn("sync.message_failed", { folder: path, uid: fetched.uid, error });
-        if (consecutiveFailures >= MAX_CONSECUTIVE_STORE_FAILURES) throw error;
-      }
-    };
-  }
-
-  private async importLarge(
-    client: ImapFlow,
-    path: string,
-    uid: number,
-    store: (fetched: FetchedMessage) => Promise<void>,
-  ) {
-    const fetched = await this.fetchLarge(client, path, uid);
-    if (!fetched) return;
-    try {
-      await store(fetched);
-    } finally {
-      if (isSpooled(fetched.raw)) await discard(fetched.raw.path);
-    }
-  }
-
-  private async importBatch(
-    client: ImapFlow,
-    path: string,
-    batch: number[],
-    store: (fetched: FetchedMessage) => Promise<void>,
-  ) {
-    const query = {
-      uid: true,
-      flags: true,
-      source: true,
-      internalDate: true,
-      ...(this.capabilities?.gmail ? { threadId: true } : {}),
-    };
-    for await (const msg of client.fetch(batch.join(","), query, { uid: true })) {
-      if (this.stopped || !msg.source) continue;
-      await store({ ...fetchedFields(path, msg), raw: msg.source });
-    }
-  }
-
-  private throwIfStopped() {
-    if (this.stopped) throw new StoppedError(`mailbox ${this.mailbox.id} is stopping`);
-  }
-
-  private async *sizedBatches(client: ImapFlow, uids: number[]) {
-    const SIZE_CHUNK = 500;
-    let batch: number[] = [];
-    let bytes = 0;
-    for (let i = 0; i < uids.length; i += SIZE_CHUNK) {
-      const chunk = uids.slice(i, i + SIZE_CHUNK);
-      const sizes = new Map<number, number>();
-      for await (const msg of client.fetch(
-        chunk.join(","),
-        { uid: true, size: true },
-        { uid: true },
-      )) {
-        sizes.set(msg.uid, msg.size ?? 0);
-      }
-      for (const uid of chunk) {
-        if (!sizes.has(uid)) continue;
-        const size = sizes.get(uid) ?? 0;
-        if (size > this.streamAboveBytes) {
-          yield { uids: [uid], large: true };
-          continue;
-        }
-        if (
-          batch.length > 0 &&
-          (batch.length >= this.batchSize || bytes + size > this.batchBytes)
-        ) {
-          yield { uids: batch, large: false };
-          batch = [];
-          bytes = 0;
-        }
-        batch.push(uid);
-        bytes += size;
-      }
-    }
-    if (batch.length > 0) yield { uids: batch, large: false };
-  }
-
-  private async fetchLarge(client: ImapFlow, path: string, uid: number) {
-    const msg = await client.fetchOne(
-      String(uid),
+    return (await syncFolder(
       {
-        uid: true,
-        flags: true,
-        internalDate: true,
-        ...(this.capabilities?.gmail ? { threadId: true } : {}),
+        client: this.requireClient(),
+        mailbox: this.mailbox,
+        store: this.store,
+        log: this.log,
+        condstore: this.capabilities?.condstore === true,
+        gmail: this.capabilities?.gmail === true,
+        role: this.folders.find((f) => f.path === path)?.role ?? "other",
+        limits: this.limits,
+        isStopped: () => this.stopped,
+        onMessage: (event) => this.emit("message", event),
       },
-      { uid: true },
-    );
-    if (!msg) {
-      const result: FetchedMessage | null = null;
-      return result;
-    }
-    const download = await client.download(String(uid), undefined, {
-      uid: true,
-      chunkSize: 1024 * 1024,
-    });
-    if (!download.content) {
-      const result: FetchedMessage | null = null;
-      return result;
-    }
-    const result: FetchedMessage | null = {
-      ...fetchedFields(path, msg),
-      raw: await spool(download.content),
-    };
-    return result;
+      path,
+    )) satisfies FolderSyncResult;
   }
 }
-
-function detectCapabilities(client: ImapFlow) {
-  const has = (name: string) => client.capabilities.has(name);
-  return {
-    idle: has("IDLE"),
-    condstore: client.enabled.has("CONDSTORE") || has("CONDSTORE"),
-    uidplus: has("UIDPLUS"),
-    move: has("MOVE"),
-    gmail: has("X-GM-EXT-1"),
-    all: [...client.capabilities.keys()].toSorted(),
-  } satisfies Capabilities;
-}
-
-const roleOf: (folder: ListResponse, gmail: boolean) => FolderRole = (folder, gmail) => {
-  if (folder.path.toUpperCase() === "INBOX") return "inbox";
-  if (gmail && folder.specialUse === "\\All") return "archive";
-  return (folder.specialUse && ROLE_BY_SPECIAL_USE[folder.specialUse]) || "other";
-};
-
-function fetchedFields(path: string, msg: FetchMessageObject) {
-  return {
-    folder: path,
-    uid: msg.uid,
-    flags: sortedFlags(msg.flags),
-    modseq: msg.modseq ?? null,
-    internalDate: msg.internalDate ? new Date(msg.internalDate) : null,
-    ...(msg.threadId ? { providerThreadId: msg.threadId } : {}),
-  } satisfies Omit<FetchedMessage, "raw">;
-}
-
-function lowestUid(index: Map<number, string[]>, fallback: number) {
-  let lowest = fallback;
-  for (const uid of index.keys()) lowest = Math.min(lowest, uid);
-  return lowest;
-}
-
-function sortedFlags(flags: Set<string> | undefined) {
-  return (flags ? [...flags].toSorted() : []) satisfies string[];
-}
-
-function sameFlags(a: string[], b: string[]) {
-  return a.length === b.length && a.every((flag, i) => flag === b[i]);
-}
-
-type ChangedPlan = Exclude<FolderSyncPlan, { mode: "unchanged" }>;

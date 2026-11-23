@@ -1,4 +1,4 @@
-import type { ServerEndpoint } from "../mailbox-connection.ts";
+import type { ServerEndpoint } from "../mailbox-config.ts";
 
 export const PURELYMAIL_SERVERS: { imap: ServerEndpoint; smtp: ServerEndpoint } = {
   imap: { host: "imap.purelymail.com", port: 993, secure: true },

@@ -2,7 +2,8 @@ import { schema } from "@omni/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { PgForwarding } from "../src/forward-copy.ts";
-import { MailboxConnection, type MailboxConfig } from "../src/mailbox-connection.ts";
+import type { MailboxConfig } from "../src/mailbox-config.ts";
+import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { OutboxExecutor } from "../src/outbox.ts";
 import { PgActionSource, PgMailStore } from "../src/pg-store.ts";
 import {

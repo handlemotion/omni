@@ -5,10 +5,9 @@ import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import { composeForwardCopy, type Forwarding } from "./forward-copy.ts";
 import type { Logger } from "./log.ts";
 import { smtpTls } from "./mail-hosts.ts";
+import { loginFor, type MailboxConfig } from "./mailbox-config.ts";
 import {
   type ImapSession,
-  loginFor,
-  type MailboxConfig,
   type MailboxConnection,
   MailboxUnavailableError,
 } from "./mailbox-connection.ts";

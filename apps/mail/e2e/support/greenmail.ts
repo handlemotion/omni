@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ImapFlow } from "imapflow";
 import { createTransport } from "nodemailer";
 import { createLogger } from "../../src/log.ts";
-import type { MailboxConfig } from "../../src/mailbox-connection.ts";
+import type { MailboxConfig } from "../../src/mailbox-config.ts";
 
 const host = process.env.GREENMAIL_HOST ?? "localhost";
 const imapPort = Number(process.env.GREENMAIL_IMAP_PORT ?? 3143);

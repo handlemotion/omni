@@ -25,7 +25,7 @@ import { z } from "zod";
 import type { GoogleCredentials } from "../credentials.ts";
 import { openCredentials, sealCredentials } from "../credentials.ts";
 import type { Logger } from "../log.ts";
-import type { ServerEndpoint, TokenSource } from "../mailbox-connection.ts";
+import type { ServerEndpoint, TokenSource } from "../mailbox-config.ts";
 import { ProvisionError } from "../provisioning.ts";
 
 export const GMAIL_SERVERS: { imap: ServerEndpoint; smtp: ServerEndpoint } = {

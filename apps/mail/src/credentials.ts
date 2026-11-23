@@ -1,6 +1,6 @@
 import { decryptCredential, encryptCredential, type Keyring } from "@omni/crypto";
 import { z } from "zod";
-import type { MailAuth, ServerEndpoint } from "./mailbox-connection.ts";
+import type { MailAuth, ServerEndpoint } from "./mailbox-config.ts";
 import { type GoogleOAuth, googleTokenSource } from "./providers/gmail.ts";
 
 const endpoint = z.object({

@@ -7,7 +7,7 @@ import { createDb, findMailboxByAddress, findMemberByEmail, saveMailbox } from "
 import { z } from "zod";
 import { type PasswordCredentials, sealCredentials } from "../credentials.ts";
 import { hostList, withPlaintextPolicy } from "../mail-hosts.ts";
-import type { ServerEndpoint } from "../mailbox-connection.ts";
+import type { ServerEndpoint } from "../mailbox-config.ts";
 import { createPurelymailClient, PURELYMAIL_SERVERS } from "../providers/purelymail.ts";
 import { verifyImapLogin } from "../verify-login.ts";
 

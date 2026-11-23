@@ -1,4 +1,7 @@
 export * from "./ports.ts";
+export * from "./mailbox-config.ts";
+export type { Capabilities } from "./imap-server.ts";
+export type { FolderSyncResult, NewMessageEvent } from "./folder-sync.ts";
 export * from "./mailbox-connection.ts";
 export * from "./outbox.ts";
 export * from "./supervisor.ts";
