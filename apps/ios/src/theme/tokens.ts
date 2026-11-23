@@ -29,6 +29,7 @@ export const colors = {
   moduleDrive: "#15924f",
   moduleCrm: "#7a4fd1",
   moduleCalendar: "#ef4444",
+  moduleMeetings: "#0e7c86",
   moduleForeground: "#ffffff",
   /** What dims the page under a sheet: the foreground at 18%. */
   scrim: "rgba(23, 23, 23, 0.18)",
@@ -46,6 +47,16 @@ export const colors = {
   swipeLater: "#8e8e93",
   /** The label and badge drawn on a swipe's fill. */
   swipeForeground: "#ffffff",
+  /** The surface under a module's root page card: its dock and its pages. */
+  under: "#f5f5f5",
+  /** Text and current glyphs on `under`. */
+  underForeground: "#171717",
+  /** Labels, section names and resting glyphs on `under`. */
+  underMuted: "#858585",
+  /** The current or pressed row and the current module's pill on `under`. */
+  underFill: "#ffffff",
+  /** Hairlines between groups on `under`, and the page card's edge. */
+  underLine: "#e5e5e5",
   /** `--tooltip`: dark surface behind code card previews. */
   tooltip: "#2b2b2b",
   /** `--chart-3`: `primary` mixed 60% into white, for keywords on code card previews. */

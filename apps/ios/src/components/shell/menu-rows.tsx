@@ -16,6 +16,7 @@ import {
   IconProjects,
   IconInbox,
   IconMail,
+  IconMicrophone,
   IconSend,
   IconTrash,
   IconUserRound,
@@ -252,17 +253,31 @@ export function CrmMenu() {
   );
 }
 
-/** Calendar's drawer row until views and calendars land on iOS. */
+/** Calendar's panel row until views and calendars land on iOS. */
 export function CalendarMenu() {
+  return <PlaceholderRow module="calendar" icon={IconCalendar} label="Calendar" />;
+}
+
+/** Meetings' panel row until recording lands on iOS. */
+export function MeetingsMenu() {
+  return <PlaceholderRow module="meetings" icon={IconMicrophone} label="Meetings" />;
+}
+
+function PlaceholderRow(props: { module: "calendar" | "meetings"; icon: Glyph; label: string }) {
   const { close } = useMenu();
+  const place = useMenuPlace();
+  const here = place.module === props.module;
   return (
     <MenuRow
       nav
-      tint="moduleCalendar"
-      icon={IconCalendar}
-      label="Calendar"
-      isCurrent
-      onPress={close}
+      tint={props.module === "calendar" ? "moduleCalendar" : "moduleMeetings"}
+      icon={props.icon}
+      label={props.label}
+      isCurrent={here}
+      onPress={() => {
+        close();
+        if (!here) place.openModule(props.module);
+      }}
     />
   );
 }

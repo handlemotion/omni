@@ -5,9 +5,9 @@ import { useMenuPlace } from "./menu-nav.ts";
 import { TopBar } from "./top-bar.tsx";
 
 /**
- * The shell's chrome on a module's root page: the top bar and the bottom bar (search + module
- * dock). Drawn inside `ModuleRoot` so it belongs to the page's native screen: a pushed page or
- * sheet covers it as it slides in, and it moves with the page when the left drawer opens.
+ * The shell's chrome on a module's root page card: the top bar (title and actions) and the open
+ * search field. Drawn inside `ModuleRoot` so it belongs to the page's native screen: a pushed
+ * page or sheet covers it as it slides in.
  */
 export function ShellChrome() {
   return (
