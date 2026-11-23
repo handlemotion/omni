@@ -8,15 +8,17 @@ import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
 import { space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import { SHELL_CONTROL } from "./menu-nav.ts";
+import { WorkspaceButton } from "./menu-workspace.tsx";
 import { ModuleSearch } from "./module-action.tsx";
 import { usePageTitle } from "./page-title.ts";
 
 const SIDE = space(4);
+const AVATAR = space(8);
 const FADE_RAMP = SHELL_CONTROL + space(6);
 const FADE_MS = 200;
 
 /**
- * The shell's top bar on a module's root page: the page's title, small, and the module's search glyph opposite it. Once the page scrolls, it is covered behind the status bar and eases out through the title
+ * The shell's top bar on a module's root page: the page's title, small, and the module's search and the workspace opposite it. Once the page scrolls, it is covered behind the status bar and eases out through the title
  * and eases out through the title, so rows soften as they pass under it.
  */
 export function TopBar() {
@@ -46,7 +48,10 @@ export function TopBar() {
         >
           {title}
         </Text>
-        <ModuleSearch />
+        <View style={styles.end} pointerEvents="box-none">
+          <ModuleSearch />
+          <WorkspaceButton size={AVATAR} />
+        </View>
       </View>
     </>
   );
@@ -65,5 +70,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIDE,
     minHeight: SHELL_CONTROL,
   },
+  end: { flexDirection: "row", alignItems: "center", gap: space(1) },
   title: { flexShrink: 1, paddingLeft: space(1) },
 });

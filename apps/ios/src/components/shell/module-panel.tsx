@@ -23,10 +23,8 @@ import { MENU_INSET, MenuUnder } from "./menu-row.tsx";
 import { CalendarMenu, CrmMenu, DriveMenu, MailMenu, MeetingsMenu } from "./menu-rows.tsx";
 import { RootPlace, useMenuPlace } from "./menu-nav.ts";
 import { useModules } from "./modules.ts";
-import { WorkspaceButton } from "./menu-workspace.tsx";
 import { DOCK_HEIGHT, ModuleDock } from "./module-dock.tsx";
 
-const WORKSPACE_SIZE = space(7);
 const HANDLE = space(4);
 const EDGE_FADE = space(6);
 const FLING = 600;
@@ -46,9 +44,9 @@ const ROWS = {
   meetings: MeetingsMenu,
 } as const;
 
-/** The closed section's height under the page: the handle and the dock, above the home indicator. */
+/** The section is hidden below the screen until the page slides up: nothing of it shows closed. */
 export function useSectionHeight() {
-  return HANDLE + DOCK_HEIGHT + Math.max(useSafeAreaInsets().bottom - space(3), space(2));
+  return 0;
 }
 
 /** How far the page card and the dock slide up: until the card only peeks under the status bar. */
@@ -83,7 +81,7 @@ export function useSectionPull(progress: SharedValue<number>, travel: number) {
 }
 
 /**
- * The section under a module's root page, on the grey surface: a handle, the module dock with the workspace at its end, and
+ * The section under a module's root page, on the grey surface, hidden below the screen until the page slides up: a handle, the module dock, and
  * under them the module's pages. Pulling the dock up (or tapping the handle) slides the page card
  * and the dock up until the card only peeks under the status bar; pulling down, tapping the card,
  * or picking a page slides them back. The pages of every module sit side by side: swiping them
@@ -108,7 +106,6 @@ export function ModuleSection({
   const closed = useSectionHeight();
   const travel = useSectionTravel();
   const pull = useSectionPull(progress, travel);
-  const below = closed - HANDLE - DOCK_HEIGHT;
   const current = Math.max(
     0,
     modules.findIndex((entry) => entry.id === module),
@@ -138,7 +135,7 @@ export function ModuleSection({
   return (
     <Animated.View style={[styles.section, { top: height - closed }, lift]}>
       <GestureDetector gesture={pull}>
-        <View style={{ height: closed }}>
+        <View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={shell.isOpen ? "Hide pages" : "Show pages"}
@@ -148,12 +145,7 @@ export function ModuleSection({
           >
             <View style={styles.grabber} />
           </Pressable>
-          <View style={styles.dockRow}>
-            <ModuleDock follow={follow} />
-            <View style={styles.workspace}>
-              <WorkspaceButton size={WORKSPACE_SIZE} />
-            </View>
-          </View>
+          <ModuleDock follow={follow} />
         </View>
       </GestureDetector>
       <Animated.View
@@ -180,7 +172,7 @@ export function ModuleSection({
               <ScrollView
                 key={entry.id}
                 showsVerticalScrollIndicator={false}
-                style={{ width, height: travel + below }}
+                style={{ width, height: travel - HANDLE - DOCK_HEIGHT }}
                 contentContainerStyle={[styles.rows, { paddingBottom: insets.bottom + space(2) }]}
               >
                 <MenuUnder value>
@@ -217,14 +209,6 @@ export function ModuleSection({
 
 const styles = StyleSheet.create({
   section: { position: "absolute", left: 0, right: 0 },
-  dockRow: { justifyContent: "center" },
-  workspace: {
-    position: "absolute",
-    right: space(4),
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-  },
   handle: { height: HANDLE, alignItems: "center", justifyContent: "center" },
   grabber: {
     width: space(7),

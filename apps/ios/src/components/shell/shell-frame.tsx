@@ -11,6 +11,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
 import { IconChevronDown } from "@/components/icons.ts";
+import { BarFade } from "@/components/ui/edge-blur.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
 import { colors, iconSize, space } from "@/theme/tokens.ts";
@@ -26,17 +27,18 @@ import {
   useSectionTravel,
 } from "./module-panel.tsx";
 import { useModules } from "./modules.ts";
+import { NAV_BAR, NAV_CHEVRON, NavBar } from "./nav-bar.tsx";
 
 const CARD_RADIUS = space(11);
 
 /**
  * The signed-in app's frame: every page, root or pushed, sits in a white card with round bottom
- * corners, outlined on top of whatever the page draws, on the grey surface, and the module section (the handle and dock, and under them the
- * module's pages) sits below it on every page. Pulling the dock up slides the card away until it
- * peeks under the status bar, blurred and dimmed behind a prompt; tapping or pulling it down slides
- * it back. Swiping the pages sideways slides the card's contents with them. Pages in the card see
- * no bottom safe area: the section holds the home indicator's strip. Only the open search field
- * takes the whole screen.
+ * corners, outlined on top of whatever the page draws, with the floating navigation (`NavBar`) at
+ * its foot. The module section (the module dock and every page of the module) waits below the
+ * screen: the bar's chevron or module button slides the card up to show it, until the card only
+ * peeks under the status bar, blurred and dimmed behind a prompt; tapping or pulling it down
+ * slides it back. Pages see the bar as part of the bottom safe area, so their own bottom bars sit
+ * above it. Only the open search field takes the whole screen.
  */
 export function ShellFrame({ children }: { children: ReactNode }) {
   const shell = useMenu();
@@ -44,6 +46,8 @@ export function ShellFrame({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const section = useSectionHeight();
+  const barBottom = Math.max(insets.bottom - space(3), space(2));
+  const taken = barBottom + NAV_CHEVRON + NAV_BAR + space(2);
   const travel = useSectionTravel();
   const still = useReduceMotion();
   const progress = useSharedValue(shell.isOpen ? 1 : 0);
@@ -82,9 +86,17 @@ export function ShellFrame({ children }: { children: ReactNode }) {
       <Animated.View
         style={[styles.card, shell.searching ? styles.full : { bottom: section }, card]}
       >
-        <SafeAreaInsetsContext.Provider value={shell.searching ? insets : { ...insets, bottom: 0 }}>
+        <SafeAreaInsetsContext.Provider
+          value={shell.searching ? insets : { ...insets, bottom: taken }}
+        >
           <Animated.View style={[StyleSheet.absoluteFill, slide]}>{children}</Animated.View>
         </SafeAreaInsetsContext.Provider>
+        {shell.searching ? null : (
+          <>
+            <BarFade middle={barBottom + NAV_CHEVRON + NAV_BAR} />
+            <NavBar bottom={barBottom} />
+          </>
+        )}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, wash]}>
           <BlurView intensity={10} tint="light" style={StyleSheet.absoluteFill} />
           <View style={styles.wash} />
