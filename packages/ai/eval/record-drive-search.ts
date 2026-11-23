@@ -1,11 +1,7 @@
 /* oxlint-disable no-console -- a CLI report */
 import { writeFileSync } from "node:fs";
-import {
-  createJevClient,
-  jevFileSearchRequest,
-  judgeFileRelevance,
-  rankByRelevance,
-} from "../src/index.ts";
+import { createJevClient } from "../src/jev.ts";
+import { jevFileSearchRequest, judgeFileRelevance, rankByRelevance } from "../src/search.ts";
 import {
   driveSearchCandidates,
   driveSearchFixture,

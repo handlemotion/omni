@@ -1,4 +1,4 @@
-import type { Bucket, TriageInput } from "../src/index.ts";
+import type { Bucket, TriageInput } from "../src/types.ts";
 
 /** `expected: null`: the thread belongs in no lane. */
 export const threads: Array<{ name: string; expected: Bucket | null; input: TriageInput }> = [

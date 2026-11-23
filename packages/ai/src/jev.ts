@@ -165,21 +165,23 @@ export async function ask(client: JevClient, body: unknown, signal?: AbortSignal
   return parsed.data;
 }
 
+/** Each key's Noul probability. A missing or malformed answer throws `JevError`. */
+export function nouls(response: { answers: Record<string, unknown> }, keys: readonly string[]) {
+  const judgments: Record<string, number> = {};
+  for (const key of keys) {
+    const answer = NoulAnswer.safeParse(response.answers[key]);
+    if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${key}`);
+    judgments[key] = answer.data.noul;
+  }
+  return judgments;
+}
+
 /** Triage through Jev's judgments and the truth table. Errors throw; there is no fallback. */
 export async function triageWithJev(client: JevClient, input: TriageInput) {
   const response = await ask(client, jevTriageRequest(input, client.model));
-  const nouls = (keys: readonly string[]) => {
-    const judgments: Record<string, number> = {};
-    for (const key of keys) {
-      const answer = NoulAnswer.safeParse(response.answers[key]);
-      if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${key}`);
-      judgments[key] = answer.data.noul;
-    }
-    return judgments;
-  };
   const { bucket, confidence }: Decision = input.latestFromUs
-    ? decideSent(nouls(SENT_JUDGMENTS) as Parameters<typeof decideSent>[0])
-    : decide(nouls(JUDGMENTS) as Parameters<typeof decide>[0]);
+    ? decideSent(nouls(response, SENT_JUDGMENTS) as Parameters<typeof decideSent>[0])
+    : decide(nouls(response, JUDGMENTS) as Parameters<typeof decide>[0]);
   const result: TriageResult = {
     bucket,
     confidence,
@@ -189,11 +191,17 @@ export async function triageWithJev(client: JevClient, input: TriageInput) {
   };
   if (input.helpdesk && !input.latestFromUs) {
     const { asked } = tagQuestions(input.helpdesk.tags);
-    const tagNouls = nouls(asked.map((_, i) => `tag_${i}`));
+    const tagNouls = nouls(
+      response,
+      asked.map((_, i) => `tag_${i}`),
+    );
     const team = teammateQuestions(input.helpdesk.teammates).asked;
-    const teamNouls = nouls(team.map((_, i) => `teammate_${i}`));
+    const teamNouls = nouls(
+      response,
+      team.map((_, i) => `teammate_${i}`),
+    );
     result.helpdesk = {
-      priority: decidePriority(nouls(PRIORITY_JUDGMENTS) as PriorityJudgments, bucket),
+      priority: decidePriority(nouls(response, PRIORITY_JUDGMENTS) as PriorityJudgments, bucket),
       tagIds: pickTags(
         asked,
         asked.map((_, i) => tagNouls[`tag_${i}`] ?? 0),

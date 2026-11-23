@@ -6,14 +6,8 @@ import {
   searchNow,
   searchRecordingUrl,
 } from "../eval/search-scenarios.ts";
-import {
-  createJevClient,
-  describeDate,
-  jevSearchRequest,
-  JevError,
-  judgeRelevance,
-  rankByRelevance,
-} from "./index.ts";
+import { createJevClient, JevError } from "./jev.ts";
+import { describeDate, jevSearchRequest, judgeRelevance, rankByRelevance } from "./search.ts";
 
 function recorded(id: string) {
   return JSON.parse(readFileSync(searchRecordingUrl(id), "utf8")) as {
