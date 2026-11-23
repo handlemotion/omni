@@ -7,7 +7,13 @@ import { serve } from "@hono/node-server";
 import type { MailEventsBody } from "@omni/contracts";
 import { parseKeyring } from "@omni/crypto";
 import { schema } from "@omni/db";
-import { createLogger, sealCredentials, startService, type MailService } from "@omni/mail";
+import {
+  createLogger,
+  loadConfig,
+  sealCredentials,
+  startService,
+  type MailService,
+} from "@omni/mail";
 import { AwsClient } from "aws4fetch";
 import { and, eq } from "drizzle-orm";
 import { ImapFlow } from "imapflow";
@@ -34,7 +40,8 @@ const greenmail = {
   smtpPort: Number(process.env.GREENMAIL_SMTP_PORT ?? 3025),
 };
 const FIXTURE_READER = "sam@example.com";
-const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
+const keyringText = `k1:${randomBytes(32).toString("base64")}`;
+const keyring = parseKeyring(keyringText);
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let jev: Awaited<ReturnType<typeof startJevReplay>>;
@@ -116,9 +123,9 @@ beforeAll(async () => {
   });
   const bucket = await createTestBucket();
   const service = await startService(
-    {
+    loadConfig({
       DATABASE_URL: database.url,
-      MAIL_CREDENTIALS_KEY: keyring,
+      MAIL_CREDENTIALS_KEY: keyringText,
       MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
       WORKER_URL: String(worker.url),
       S3_ENDPOINT: bucket.endpoint,
@@ -126,12 +133,10 @@ beforeAll(async () => {
       S3_ACCESS_KEY_ID: bucket.accessKeyId,
       S3_SECRET_ACCESS_KEY: bucket.secretAccessKey,
       S3_REGION: bucket.region,
-      IMAGE_PROXY_URL: "/api/image-proxy",
-      ATTACHMENT_URL: "/api/attachments",
-      SYNC_INTERVAL_MS: 500,
-      OUTBOX_INTERVAL_MS: 60 * 60_000,
-      MAILBOX_CONCURRENCY: 2,
-    },
+      SYNC_INTERVAL_MS: "500",
+      OUTBOX_INTERVAL_MS: String(60 * 60_000),
+      MAILBOX_CONCURRENCY: "2",
+    }),
     createLogger("error"),
   );
   const http = serve({ fetch: service.app.fetch, port: mailPort, hostname: "127.0.0.1" });

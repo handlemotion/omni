@@ -1,10 +1,6 @@
 import type { PlanKey } from "@omni/contracts";
+import { optionalText } from "@omni/contracts/env";
 import { z } from "zod";
-
-export const optionalText = z
-  .string()
-  .optional()
-  .transform((value) => value || undefined);
 
 /**
  * Billing: flat plans per workspace (Team, Business), never per member, after a free trial. What

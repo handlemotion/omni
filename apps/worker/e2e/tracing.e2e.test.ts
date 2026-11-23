@@ -7,7 +7,13 @@ import { promisify } from "node:util";
 import { serve } from "@hono/node-server";
 import { parseKeyring } from "@omni/crypto";
 import { schema } from "@omni/db";
-import { createLogger, sealCredentials, startService, type MailService } from "@omni/mail";
+import {
+  createLogger,
+  loadConfig,
+  sealCredentials,
+  startService,
+  type MailService,
+} from "@omni/mail";
 import { and, eq } from "drizzle-orm";
 import { createTransport } from "nodemailer";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -28,7 +34,8 @@ const greenmail = {
   imapPort: Number(process.env.GREENMAIL_IMAP_PORT ?? 3143),
   smtpPort: Number(process.env.GREENMAIL_SMTP_PORT ?? 3025),
 };
-const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
+const keyringText = `k1:${randomBytes(32).toString("base64")}`;
+const keyring = parseKeyring(keyringText);
 const mailApp = join(import.meta.dirname, "../../mail");
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -52,9 +59,9 @@ beforeAll(async () => {
     mailServiceUrl: `http://127.0.0.1:${mailPort}`,
   });
   const service = await startService(
-    {
+    loadConfig({
       DATABASE_URL: database.url,
-      MAIL_CREDENTIALS_KEY: keyring,
+      MAIL_CREDENTIALS_KEY: keyringText,
       MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
       WORKER_URL: String(worker.url),
       S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://localhost:7070",
@@ -62,12 +69,10 @@ beforeAll(async () => {
       S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "omni-local",
       S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "omni-local-secret",
       S3_REGION: process.env.S3_REGION ?? "auto",
-      IMAGE_PROXY_URL: "/api/image-proxy",
-      ATTACHMENT_URL: "/api/attachments",
-      SYNC_INTERVAL_MS: 60 * 60_000,
-      OUTBOX_INTERVAL_MS: 60 * 60_000,
-      MAILBOX_CONCURRENCY: 2,
-    },
+      SYNC_INTERVAL_MS: String(60 * 60_000),
+      OUTBOX_INTERVAL_MS: String(60 * 60_000),
+      MAILBOX_CONCURRENCY: "2",
+    }),
     createLogger("debug", {}, { write: (line) => mailLog.push(JSON.parse(line)) }),
   );
   mail = {

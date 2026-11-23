@@ -1,4 +1,5 @@
 import { authEnvSchema } from "@omni/auth";
+import { commaList, optionalText } from "@omni/contracts/env";
 import { z } from "zod";
 
 declare global {
@@ -18,11 +19,6 @@ declare global {
     }
   }
 }
-
-const optionalText = z
-  .string()
-  .optional()
-  .transform((value) => value || undefined);
 
 const optionalGb = z.coerce.number<string | undefined>().positive().optional();
 
@@ -121,12 +117,7 @@ const configSchema = z
     S2_BASIN: optionalText,
     S2_ACCESS_TOKEN: optionalText,
     EXPO_ACCESS_TOKEN: optionalText,
-    IOS_APP_IDS: optionalText.transform((value) =>
-      (value ?? "")
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean),
-    ),
+    IOS_APP_IDS: commaList,
     RATE_LIMIT_AUTH: rateLimit("60/60"),
     RATE_LIMIT_MAGIC_LINK: rateLimit("5/900"),
     RATE_LIMIT_INVITE: rateLimit("30/3600"),

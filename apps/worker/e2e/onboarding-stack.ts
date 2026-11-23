@@ -4,7 +4,13 @@ import type { AddressInfo } from "node:net";
 import { getRequestListener } from "@hono/node-server";
 import { parseKeyring } from "@omni/crypto";
 import { createOrgWithOwner, schema } from "@omni/db";
-import { createLogger, type MailService, sealCredentials, startService } from "@omni/mail";
+import {
+  createLogger,
+  loadConfig,
+  type MailService,
+  sealCredentials,
+  startService,
+} from "@omni/mail";
 import { expect } from "vitest";
 import { startDnsServer, type DnsServer } from "./dns-server.ts";
 import {
@@ -54,7 +60,8 @@ export async function startOnboardingStack(
     workerSecrets?: Record<string, string>;
   } = {},
 ) {
-  const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
+  const keyringText = `k1:${randomBytes(32).toString("base64")}`;
+  const keyring = parseKeyring(keyringText);
   const database = await createTestDatabase();
   const dns: DnsServer = await startDnsServer();
   const system = await createOrg(database.db, "system");
@@ -81,9 +88,9 @@ export async function startOnboardingStack(
     secrets: options.workerSecrets,
   });
   const service: MailService = await startService(
-    {
+    loadConfig({
       DATABASE_URL: database.url,
-      MAIL_CREDENTIALS_KEY: keyring,
+      MAIL_CREDENTIALS_KEY: keyringText,
       MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
       WORKER_URL: String(worker.url),
       S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://localhost:7070",
@@ -91,16 +98,14 @@ export async function startOnboardingStack(
       S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "omni-local",
       S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "omni-local-secret",
       S3_REGION: process.env.S3_REGION ?? "auto",
-      IMAGE_PROXY_URL: "/api/image-proxy",
-      ATTACHMENT_URL: "/api/attachments",
-      SYNC_INTERVAL_MS: 60 * 60_000,
-      OUTBOX_INTERVAL_MS: options.outboxIntervalMs ?? 60 * 60_000,
-      MAILBOX_CONCURRENCY: 4,
-      DNS_RESOLVERS: [dns.address],
-      DNS_NAMESERVER_PORT: dns.port,
-      DNS_TIMEOUT_MS: 1_000,
-      MAIL_ALLOW_PRIVATE_HOSTS: [greenmail.host],
-    },
+      SYNC_INTERVAL_MS: String(60 * 60_000),
+      OUTBOX_INTERVAL_MS: String(options.outboxIntervalMs ?? 60 * 60_000),
+      MAILBOX_CONCURRENCY: "4",
+      DNS_RESOLVERS: dns.address,
+      DNS_NAMESERVER_PORT: String(dns.port),
+      DNS_TIMEOUT_MS: "1000",
+      MAIL_ALLOW_PRIVATE_HOSTS: greenmail.host,
+    }),
     createLogger(process.env.E2E_LOG_LEVEL === "debug" ? "debug" : "error"),
   );
   handle = getRequestListener(service.app.fetch);
