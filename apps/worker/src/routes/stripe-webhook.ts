@@ -25,76 +25,119 @@ function referencedOrg(object: StripeObject) {
   return typeof reference === "string" && reference ? reference : null;
 }
 
-const expectedEffect: (
+type Effect = { stripeSubscriptionId: string; status?: string } | { ignored: string };
+
+async function checkoutEffect(db: Db, object: StripeObject, ourId: string | undefined) {
+  if (object.mode !== "subscription" || typeof object.subscription !== "string") {
+    return { ignored: "not a subscription checkout" } satisfies Effect;
+  }
+  if (!referencedOrg(object) || !ourId) return { ignored: "checkout not started by Omni" };
+  if (!(await storedSubscriptions(db, { id: ourId })).length) {
+    return { ignored: "no pending subscription for the checkout" };
+  }
+  return { stripeSubscriptionId: object.subscription } satisfies Effect;
+}
+
+interface SubscriptionEvent {
+  db: Db;
+  id: string;
+  customer: string | null;
+  status: string;
+  matchesPlan: boolean;
+  itemCount: number;
+  belongsHere: boolean;
+  orgFound: boolean;
+  storedByOurId: () => Promise<unknown[]>;
+}
+
+const createdEffect: (event: SubscriptionEvent) => Promise<Effect> = async (event) => {
+  if (!event.customer) return { ignored: "subscription without a customer" };
+  if ((await event.storedByOurId()).length) return { ignored: "subscription already stored" };
+  if (!event.orgFound) return { ignored: "customer maps to no workspace" };
+  if (!event.matchesPlan) return { ignored: "price matches no plan" };
+  return { stripeSubscriptionId: event.id, status: event.status };
+};
+
+const updatedEffect: (event: SubscriptionEvent) => Promise<Effect> = async (event) => {
+  const { db, id, customer, status } = event;
+  if (!event.matchesPlan && event.itemCount !== 1) return { ignored: "price matches no plan" };
+  if ((await event.storedByOurId()).length) return { stripeSubscriptionId: id, status };
+  const ofCustomer = customer ? await storedSubscriptions(db, { stripeCustomerId: customer }) : [];
+  if (ofCustomer.length > 1 && !ofCustomer.some((s) => ["active", "trialing"].includes(s.status))) {
+    return { ignored: "several subscriptions for the customer, none active" };
+  }
+  if (ofCustomer.length || event.belongsHere) return { stripeSubscriptionId: id, status };
+  return { ignored: "subscription Omni does not hold" };
+};
+
+const deletedEffect: (event: SubscriptionEvent) => Promise<Effect> = async (event) => {
+  const { db, id, status } = event;
+  if ((await storedSubscriptions(db, { stripeSubscriptionId: id })).length || event.belongsHere) {
+    return { stripeSubscriptionId: id, status };
+  }
+  return { ignored: "subscription Omni does not hold" };
+};
+
+const subscriptionEffects = {
+  created: createdEffect,
+  updated: updatedEffect,
+  deleted: deletedEffect,
+};
+
+async function orgOfCustomer(db: Db, customer: string | null) {
+  if (!customer) return undefined;
+  const [org] = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.stripeCustomerId, customer));
+  return org;
+}
+
+async function subscriptionEffect(
   db: Db,
   billing: BillingConfig,
-  event: Stripe.Event,
-) => Promise<{ stripeSubscriptionId: string; status?: string } | { ignored: string }> = async (
-  db,
-  billing,
-  event,
-) => {
-  const object = event.data.object as unknown as StripeObject;
-  const metadata = (object.metadata ?? {}) as Record<string, string | undefined>;
-  const ourId = metadata.subscriptionId;
-
-  if (event.type === "checkout.session.completed") {
-    if (object.mode !== "subscription" || typeof object.subscription !== "string") {
-      return { ignored: "not a subscription checkout" };
-    }
-    if (!referencedOrg(object) || !ourId) return { ignored: "checkout not started by Omni" };
-    if (!(await storedSubscriptions(db, { id: ourId })).length) {
-      return { ignored: "no pending subscription for the checkout" };
-    }
-    return { stripeSubscriptionId: object.subscription };
-  }
-
-  const kind = event.type.replace("customer.subscription.", "");
-  if (!["created", "updated", "deleted"].includes(kind) || typeof object.id !== "string") {
-    return { ignored: "not an event the plugin handles" };
-  }
-  const id = object.id;
+  kind: keyof typeof subscriptionEffects,
+  object: StripeObject & { id: string },
+  ourId: string | undefined,
+) {
+  const { id } = object;
   const customer = typeof object.customer === "string" ? object.customer : null;
   const items = (object.items as { data?: { price?: { id?: string } }[] } | undefined)?.data ?? [];
   const prices = planPriceIds(billing.plans);
   const matchesPlan = items.some((item) => prices.includes(item.price?.id ?? ""));
-  const [org] = customer
-    ? await db
-        .select({ id: schema.organizations.id })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.stripeCustomerId, customer))
-    : [];
-  const belongsHere = org !== undefined && matchesPlan;
-  const byOurId = async () =>
-    storedSubscriptions(db, ourId ? { id: ourId } : { stripeSubscriptionId: id });
-  const status = kind === "deleted" ? "canceled" : String(object.status);
+  const org = await orgOfCustomer(db, customer);
+  return subscriptionEffects[kind]({
+    db,
+    id,
+    customer,
+    status: kind === "deleted" ? "canceled" : String(object.status),
+    matchesPlan,
+    itemCount: items.length,
+    belongsHere: org !== undefined && matchesPlan,
+    orgFound: org !== undefined,
+    storedByOurId: () =>
+      storedSubscriptions(db, ourId ? { id: ourId } : { stripeSubscriptionId: id }),
+  });
+}
 
-  if (kind === "created") {
-    if (!customer) return { ignored: "subscription without a customer" };
-    if ((await byOurId()).length) return { ignored: "subscription already stored" };
-    if (!org) return { ignored: "customer maps to no workspace" };
-    if (!matchesPlan) return { ignored: "price matches no plan" };
-    return { stripeSubscriptionId: id, status };
+function isSubscriptionKind(kind: string): kind is keyof typeof subscriptionEffects {
+  return Object.hasOwn(subscriptionEffects, kind);
+}
+
+const expectedEffect: (
+  db: Db,
+  billing: BillingConfig,
+  event: Stripe.Event,
+) => Promise<Effect> = async (db, billing, event) => {
+  const object = event.data.object as unknown as StripeObject;
+  const metadata = (object.metadata ?? {}) as Record<string, string | undefined>;
+  const ourId = metadata.subscriptionId;
+  if (event.type === "checkout.session.completed") return checkoutEffect(db, object, ourId);
+  const kind = event.type.replace("customer.subscription.", "");
+  if (!isSubscriptionKind(kind) || typeof object.id !== "string") {
+    return { ignored: "not an event the plugin handles" };
   }
-  if (kind === "updated") {
-    if (!matchesPlan && items.length !== 1) return { ignored: "price matches no plan" };
-    if ((await byOurId()).length) return { stripeSubscriptionId: id, status };
-    const ofCustomer = customer
-      ? await storedSubscriptions(db, { stripeCustomerId: customer })
-      : [];
-    if (
-      ofCustomer.length > 1 &&
-      !ofCustomer.some((s) => ["active", "trialing"].includes(s.status))
-    ) {
-      return { ignored: "several subscriptions for the customer, none active" };
-    }
-    if (ofCustomer.length || belongsHere) return { stripeSubscriptionId: id, status };
-    return { ignored: "subscription Omni does not hold" };
-  }
-  if ((await storedSubscriptions(db, { stripeSubscriptionId: id })).length || belongsHere) {
-    return { stripeSubscriptionId: id, status };
-  }
-  return { ignored: "subscription Omni does not hold" };
+  return subscriptionEffect(db, billing, kind, { ...object, id: object.id }, ourId);
 };
 
 export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
