@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { api } from "./asc.mjs";
 const { OMNI_IOS_BUNDLE_ID: BUNDLE, CERT_SERIAL: SERIAL, PROFILES_DIR: OUT_DIR } = process.env;
+const NAME = "Omni App Store";
 const bundle = (await api(`/v1/bundleIds?filter[identifier]=${BUNDLE}`)).data.find(
   (b) => b.attributes.identifier === BUNDLE,
 );
@@ -10,17 +11,32 @@ const certs = (
 ).data;
 const cert = certs.find((c) => c.attributes.serialNumber.toUpperCase() === SERIAL.toUpperCase());
 if (!cert) throw new Error(`certificate ${SERIAL} not found among ${certs.length}`);
-const active = (await api(`/v1/bundleIds/${bundle.id}/profiles?limit=50`)).data.filter(
-  (p) => p.attributes.profileType === "IOS_APP_STORE" && p.attributes.profileState === "ACTIVE",
-);
+
+const BUILD_MARGIN_MS = 3600_000;
+const usable = (p) =>
+  p.attributes.profileState === "ACTIVE" &&
+  Date.parse(p.attributes.expirationDate) > Date.now() + BUILD_MARGIN_MS;
+const holdsCert = async (p) =>
+  (await api(`/v1/profiles/${p.id}/relationships/certificates?limit=50`)).data.some(
+    (c) => c.id === cert.id,
+  );
+
 let existing;
-for (const p of active) {
-  const holds = (await api(`/v1/profiles/${p.id}/relationships/certificates?limit=50`)).data;
-  if (holds.some((c) => c.id === cert.id)) {
+for (const p of (await api(`/v1/bundleIds/${bundle.id}/profiles?limit=200`)).data) {
+  if (p.attributes.profileType === "IOS_APP_STORE" && usable(p) && (await holdsCert(p))) {
     existing = p;
     break;
   }
 }
+
+if (!existing) {
+  const named = (await api(`/v1/profiles?filter[name]=${encodeURIComponent(NAME)}&limit=200`)).data;
+  for (const stale of named.filter((p) => p.attributes.name === NAME)) {
+    await api(`/v1/profiles/${stale.id}`, { method: "DELETE" });
+    console.error(`deleted ${stale.attributes.profileState} profile "${NAME}" (${stale.id})`);
+  }
+}
+
 const profile =
   existing ??
   (
@@ -29,7 +45,7 @@ const profile =
       body: JSON.stringify({
         data: {
           type: "profiles",
-          attributes: { name: "Omni App Store", profileType: "IOS_APP_STORE" },
+          attributes: { name: NAME, profileType: "IOS_APP_STORE" },
           relationships: {
             bundleId: { data: { type: "bundleIds", id: bundle.id } },
             certificates: { data: [{ type: "certificates", id: cert.id }] },
