@@ -144,8 +144,7 @@
         "apps/web/src/components/ui/chart.tsx",
         "apps/web/src/components/ui/sidebar.tsx",
         "apps/web/src/components/ui/table.tsx",
-        "apps/worker/src/routes/compose.ts",
-        "packages/db/src/mail/mail-sync.ts"
+        "apps/worker/src/routes/compose.ts"
       ],
       "rules": {
         "max-lines": "off"

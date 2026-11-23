@@ -10,7 +10,7 @@ import {
   calendarSweepPage,
 } from "../src/calendar.ts";
 import { forMember, forUser } from "../src/for-member.ts";
-import { addLocation } from "../src/mail/mail-sync.ts";
+import { addLocation } from "../src/mail/folder-sync.ts";
 import { createThread, upsertFolder, upsertMessage } from "../src/mail/writers.ts";
 import { calendarCalendars, calendarParts, members } from "../src/schema/index.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";

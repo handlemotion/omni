@@ -27,7 +27,11 @@ export {
 } from "./mail/conversation-core.ts";
 export type { InboxAuditAction } from "./mail/inbox-admin.ts";
 export * from "./mail/writers.ts";
-export * from "./mail/mail-sync.ts";
+export * from "./mail/mailbox-registry.ts";
+export * from "./mail/folder-sync.ts";
+export * from "./mail/threading.ts";
+export * from "./mail/message-lifecycle.ts";
+export * from "./mail/outbox.ts";
 export * from "./mail/mailbox-credentials.ts";
 export * from "./mail/thread-merge.ts";
 export * from "./mail/pending-mail-events.ts";

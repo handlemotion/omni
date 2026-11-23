@@ -2,7 +2,9 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 import { saveSummary } from "../src/mail/ai-jobs.ts";
 import { createDb } from "../src/client.ts";
-import { moveMessageToThread, rescheduleAction, setLocationFlags } from "../src/mail/mail-sync.ts";
+import { setLocationFlags } from "../src/mail/folder-sync.ts";
+import { rescheduleAction } from "../src/mail/outbox.ts";
+import { moveMessageToThread } from "../src/mail/threading.ts";
 import { mergeThreads } from "../src/mail/thread-merge.ts";
 import {
   attachments,
