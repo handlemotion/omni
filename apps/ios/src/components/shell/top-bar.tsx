@@ -11,8 +11,8 @@ import { SHELL_CONTROL } from "./menu-nav.ts";
 import { usePageTitle } from "./page-title.ts";
 
 const SIDE = space(4);
-const TITLE_BOTTOM = space(9);
-const FADE_RAMP = space(20);
+const TITLE_LINE = 24;
+const FADE_RAMP = space(12);
 const FADE_MS = 200;
 
 /**
@@ -34,12 +34,12 @@ export function TopBar() {
   return (
     <>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fade]}>
-        <TitleFade covered={top + TITLE_BOTTOM} ramp={FADE_RAMP} />
+        <TitleFade covered={top + (SHELL_CONTROL + TITLE_LINE) / 2} ramp={FADE_RAMP} />
       </Animated.View>
       <View style={[styles.bar, { paddingTop: top }]} pointerEvents="box-none">
         <Text
           size="lg"
-          weight="semibold"
+          weight="medium"
           numberOfLines={1}
           accessibilityRole="header"
           style={styles.title}
