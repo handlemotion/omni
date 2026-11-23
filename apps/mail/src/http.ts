@@ -138,14 +138,6 @@ export function createApp(deps: HttpDeps) {
     return c.json({ ok: true }, 202);
   });
 
-  async function signedBody<S extends z.ZodType>(c: Context, schema: S, available: boolean) {
-    if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);
-    if (!available) return c.json({ error: "not found" }, 404);
-    const parsed = schema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "invalid body" }, 400);
-    return parsed.data as z.output<S>;
-  }
-
   async function answer(c: Context, task: () => Promise<unknown>) {
     try {
       return c.json(await task());
@@ -157,79 +149,58 @@ export function createApp(deps: HttpDeps) {
     }
   }
 
-  app.post(PROVISION_DOMAIN_PATH, async (c) => {
-    const body = await signedBody(c, provisionDomainBodySchema, deps.provisioner !== undefined);
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.provisioner!.domain(body.domain, { add: body.add }));
-  });
+  function signedRoute<S extends z.ZodType>(
+    path: string,
+    schema: S,
+    handle: ((body: z.output<S>) => Promise<unknown>) | undefined,
+  ) {
+    app.post(path, async (c) => {
+      if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);
+      if (!handle) return c.json({ error: "not found" }, 404);
+      const parsed = schema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) return c.json({ error: "invalid body" }, 400);
+      return answer(c, () => handle(parsed.data as z.output<S>));
+    });
+  }
 
-  app.post(PROVISION_MAILBOX_PATH, async (c) => {
-    const body = await signedBody(c, provisionMailboxBodySchema, deps.provisioner !== undefined);
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.provisioner!.mailbox(body));
-  });
-
-  app.post(GOOGLE_CONNECT_PATH, async (c) => {
-    const body = await signedBody(c, googleConnectBodySchema, deps.connectGoogle !== undefined);
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.connectGoogle!(body));
-  });
-
-  app.post(GOOGLE_DISCONNECT_PATH, async (c) => {
-    const body = await signedBody(
-      c,
-      googleDisconnectBodySchema,
-      deps.disconnectGoogle !== undefined,
-    );
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.disconnectGoogle!(body));
-  });
-
-  app.post(GOOGLE_CALENDAR_EVENTS_PATH, async (c) => {
-    const body = await signedBody(
-      c,
-      googleCalendarEventsBodySchema,
-      deps.googleCalendarEvents !== undefined,
-    );
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.googleCalendarEvents!(body));
-  });
-
-  app.post(GOOGLE_CALENDAR_LIST_PATH, async (c) => {
-    const body = await signedBody(
-      c,
-      googleCalendarListBodySchema,
-      deps.googleCalendarList !== undefined,
-    );
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.googleCalendarList!(body));
-  });
-
-  app.post(HOSTED_DISCONNECT_PATH, async (c) => {
-    const body = await signedBody(
-      c,
-      hostedDisconnectBodySchema,
-      deps.disconnectHosted !== undefined,
-    );
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.disconnectHosted!(body));
-  });
-
-  app.post(MAILBOX_DISCONNECT_PATH, async (c) => {
-    const body = await signedBody(
-      c,
-      hostedDisconnectBodySchema,
-      deps.disconnectMailbox !== undefined,
-    );
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.disconnectMailbox!(body));
-  });
-
-  app.post(DNS_LOOKUP_PATH, async (c) => {
-    const body = await signedBody(c, dnsLookupBodySchema, deps.dns !== undefined);
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.dns!(body));
-  });
+  const { provisioner } = deps;
+  signedRoute(
+    PROVISION_DOMAIN_PATH,
+    provisionDomainBodySchema,
+    provisioner && ((body) => provisioner.domain(body.domain, { add: body.add })),
+  );
+  signedRoute(
+    PROVISION_MAILBOX_PATH,
+    provisionMailboxBodySchema,
+    provisioner && ((body) => provisioner.mailbox(body)),
+  );
+  signedRoute(GOOGLE_CONNECT_PATH, googleConnectBodySchema, deps.connectGoogle?.bind(deps));
+  signedRoute(
+    GOOGLE_DISCONNECT_PATH,
+    googleDisconnectBodySchema,
+    deps.disconnectGoogle?.bind(deps),
+  );
+  signedRoute(
+    GOOGLE_CALENDAR_EVENTS_PATH,
+    googleCalendarEventsBodySchema,
+    deps.googleCalendarEvents?.bind(deps),
+  );
+  signedRoute(
+    GOOGLE_CALENDAR_LIST_PATH,
+    googleCalendarListBodySchema,
+    deps.googleCalendarList?.bind(deps),
+  );
+  signedRoute(
+    HOSTED_DISCONNECT_PATH,
+    hostedDisconnectBodySchema,
+    deps.disconnectHosted?.bind(deps),
+  );
+  signedRoute(
+    MAILBOX_DISCONNECT_PATH,
+    hostedDisconnectBodySchema,
+    deps.disconnectMailbox?.bind(deps),
+  );
+  signedRoute(DNS_LOOKUP_PATH, dnsLookupBodySchema, deps.dns);
 
   return app satisfies Hono;
 }
