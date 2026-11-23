@@ -5,29 +5,14 @@ import type {
   StorageUpload,
   StorageUploadResponse,
 } from "@omni/contracts";
-import {
-  ERROR_FORMAT_HEADER,
-  ERROR_FORMAT_VERSION,
-  toApiError,
-  type ApiErrorInfo,
-} from "@omni/contracts/errors";
+import { toApiError } from "@omni/contracts/errors";
 import type { InferResponseType } from "hono/client";
 import type { Api } from "./api.ts";
+import { failure, send, type RecordingTransport } from "./recording-transport.ts";
+
+export { RecordingUploadError, type RecordingTransport } from "./recording-transport.ts";
 
 type Meeting = InferResponseType<Api["meetings"][":id"]["$get"], 200>["meeting"];
-
-/** A failed call while finishing a recording; the spool is kept, so finishing again resumes. */
-export class RecordingUploadError extends Error {
-  readonly status: number;
-  readonly info: ApiErrorInfo;
-
-  constructor(status: number, info: ApiErrorInfo) {
-    super(info.message);
-    this.name = "RecordingUploadError";
-    this.status = status;
-    this.info = info;
-  }
-}
 
 /** Where a recording's bytes are and where its progress is kept: the desktop shell's spool. */
 export interface RecordingSpool {
@@ -39,14 +24,6 @@ export interface RecordingSpool {
   discard(id: string): Promise<void>;
 }
 
-export interface RecordingTransport {
-  /** The Worker's origin. */
-  baseUrl: string;
-  fetch?: typeof fetch;
-  /** Headers for every request (iOS: the session cookie). */
-  headers?: Record<string, string>;
-}
-
 /**
  * `finished`: the meeting has its audio and its pipeline started. `meeting_gone`: the meeting was
  * deleted while its recording waited here; the file stays in the recorder's Drive.
@@ -54,36 +31,20 @@ export interface RecordingTransport {
 export type FinishOutcome = "finished" | "meeting_gone";
 
 function request(transport: RecordingTransport) {
-  const send = transport.fetch ?? fetch;
-  return async (method: string, path: string, body?: unknown) => {
-    const raw = body instanceof Uint8Array;
-    const response = await send(new URL(`/api${path}`, transport.baseUrl), {
-      method,
-      credentials: "include",
-      headers: {
-        [ERROR_FORMAT_HEADER]: ERROR_FORMAT_VERSION,
-        ...(body === undefined
-          ? {}
-          : { "content-type": raw ? "application/octet-stream" : "application/json" }),
-        ...transport.headers,
-      },
-      body: raw
-        ? new Blob([new Uint8Array(body)])
-        : body === undefined
-          ? undefined
-          : JSON.stringify(body),
+  return (method: string, path: string, body?: unknown) => {
+    if (body === undefined) return send(transport, method, path);
+    if (body instanceof Uint8Array) {
+      return send(transport, method, path, {
+        body: new Blob([new Uint8Array(body)]),
+        headers: { "content-type": "application/octet-stream" },
+      });
+    }
+    return send(transport, method, path, {
+      body: JSON.stringify(body),
+      headers: { "content-type": "application/json" },
     });
-    const text = await response.text();
-    const json: unknown = text ? JSON.parse(text) : null;
-    return { status: response.status, ok: response.ok, json };
   };
 }
-
-const fail = (answer: { status: number; json: unknown }, what: string) =>
-  new RecordingUploadError(
-    answer.status,
-    toApiError(answer.json, `${what} failed (${answer.status})`),
-  );
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -104,7 +65,7 @@ type Call = ReturnType<typeof request>;
 async function fileTheExpiredUploadBecame(call: Call, uploadId: string, size: number) {
   const found = await call("GET", `/storage/nodes/${uploadId}`);
   if (found.status === 404) return null;
-  if (!found.ok) throw fail(found, "reading the uploaded file");
+  if (!found.ok) throw failure(found, "reading the uploaded file");
   const { node } = found.json as StorageNodeResponse;
   return node.size === size ? node.id : null;
 }
@@ -114,7 +75,7 @@ async function openUpload(call: Call, spool: RecordingSpool, recording: DesktopR
     const found = await call("GET", `/storage/uploads/${recording.uploadId}`);
     const upload = found.ok ? (found.json as StorageUploadResponse).upload : null;
     if (upload && upload.size === recording.size) return { kind: "upload" as const, upload };
-    if (!found.ok && found.status !== 404) throw fail(found, "reading the upload");
+    if (!found.ok && found.status !== 404) throw failure(found, "reading the upload");
     const nodeId = await fileTheExpiredUploadBecame(call, recording.uploadId, recording.size);
     if (nodeId) return { kind: "file" as const, nodeId };
   }
@@ -124,7 +85,7 @@ async function openUpload(call: Call, spool: RecordingSpool, recording: DesktopR
     mimeType: "audio/ogg",
     parentId: recording.folderId,
   });
-  if (!opened.ok) throw fail(opened, "opening the upload");
+  if (!opened.ok) throw failure(opened, "opening the upload");
   const { upload } = opened.json as StorageUploadResponse;
   await spool.mark(recording.id, { uploadId: upload.id });
   return { kind: "upload" as const, upload };
@@ -136,7 +97,7 @@ async function sendParts(call: Call, spool: RecordingSpool, id: string, upload: 
     if (stored.has(n)) continue;
     const bytes = await spool.readPart(id, n, upload.partSize);
     const sent = await call("PUT", `/storage/uploads/${upload.id}/parts/${n}`, bytes);
-    if (!sent.ok) throw fail(sent, `sending part ${n}`);
+    if (!sent.ok) throw failure(sent, `sending part ${n}`);
   }
 }
 
@@ -151,10 +112,10 @@ async function uploadFile(call: Call, spool: RecordingSpool, recording: DesktopR
     if (done.ok) return (done.json as StorageNodeResponse).node.id;
     const bucketForgotTheParts = toApiError(done.json, "").code === "upload_incomplete";
     if (!bucketForgotTheParts || attempt > 0) {
-      throw fail(done, "completing the upload");
+      throw failure(done, "completing the upload");
     }
     const again = await call("GET", `/storage/uploads/${upload.id}`);
-    if (!again.ok) throw fail(again, "reading the upload");
+    if (!again.ok) throw failure(again, "reading the upload");
     upload = (again.json as StorageUploadResponse).upload;
   }
 }
@@ -195,7 +156,7 @@ export async function finishRecording(
     stopped.status !== 404 &&
     !(await meetingAlreadyPastStop(call, recording.meetingId))
   ) {
-    throw fail(stopped, "stopping the meeting");
+    throw failure(stopped, "stopping the meeting");
   }
   await spool.discard(recording.id);
   const outcome: FinishOutcome = stopped.status === 404 ? "meeting_gone" : "finished";
