@@ -225,6 +225,15 @@ const READ_ONLY_ALLOWED = [
     reason: "gated in storage/shared.ts by the shared node's workspace, not the visitor's own",
   },
   {
+    path: "/api/meetings/shared",
+    reason: "Ask takes its assist from the meetings' workspace (ask.ts), never the asker's own",
+  },
+  {
+    path: "/api/booking",
+    reason:
+      "a visitor booking; calendar/booking.ts answers 404 while the link's workspace is unpaid",
+  },
+  {
     path: "/api/storage/signing",
     reason: "a signer answering a request already sent; sending one is gated",
   },
