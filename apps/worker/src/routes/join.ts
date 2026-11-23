@@ -1,6 +1,7 @@
 import {
   acceptJoinRequest,
   declineJoinRequest,
+  isManager,
   joinStatus,
   listJoinRequests,
   notifyMemberJoined,
@@ -25,7 +26,7 @@ async function decider(c: Context<AppEnv>) {
   const resolved = await resolveSession(c);
   if (!resolved) throw new HTTPException(401, { message: "sign in first" });
   const member = resolved.member;
-  if (!member || !(member.role.includes("owner") || member.role.includes("admin"))) {
+  if (!member || !isManager(member.role)) {
     throw new HTTPException(403, { message: "only owners and admins decide on join requests" });
   }
   return member;

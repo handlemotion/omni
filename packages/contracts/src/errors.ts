@@ -47,8 +47,8 @@ const spec = (status: ErrorSpec["status"], category: ErrorCategory, retryable = 
 });
 
 /**
- * Every code the Worker answers, with its one status and category. Generic codes first: a
- * refusal without a code of its own gets the generic code of its status (`codeForStatus`).
+ * Every code the Worker answers, with its one status and category. A refusal without a code of
+ * its own gets the generic code of its status (`GENERIC_CODES`).
  */
 export const ERROR_CODES = {
   bad_request: spec(400, "validation"),
@@ -178,14 +178,28 @@ export type ErrorCode = keyof typeof ERROR_CODES;
 export type ErrorStatus = ErrorSpec["status"];
 export const errorCodes = Object.keys(ERROR_CODES) as [ErrorCode, ...ErrorCode[]];
 
-const BY_STATUS = new Map<number, ErrorCode>();
-for (const [code, { status }] of Object.entries(ERROR_CODES) as [ErrorCode, ErrorSpec][]) {
-  if (!BY_STATUS.has(status)) BY_STATUS.set(status, code);
-}
+const GENERIC_CODES = {
+  400: "bad_request",
+  401: "unauthorized",
+  402: "billing_inactive",
+  403: "forbidden",
+  404: "not_found",
+  409: "conflict",
+  410: "gone",
+  411: "length_required",
+  413: "payload_too_large",
+  415: "unsupported_media_type",
+  422: "unprocessable_entity",
+  426: "upgrade_required",
+  429: "rate_limited",
+  500: "internal_server_error",
+  502: "bad_gateway",
+  504: "gateway_timeout",
+} as const satisfies { [S in ErrorStatus]: ErrorCode };
 
 /** The generic code for a status; an unknown one reads as an internal error. */
 export function codeForStatus(status: number) {
-  return (BY_STATUS.get(status) ?? "internal_server_error") satisfies ErrorCode;
+  return (GENERIC_CODES[status as ErrorStatus] ?? "internal_server_error") satisfies ErrorCode;
 }
 
 /** A rate limit's state when the Worker refused: Vercel's `limit` object. */

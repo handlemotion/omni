@@ -37,6 +37,8 @@ import { assets } from "./routes/assets.ts";
 import { billing } from "./routes/billing.ts";
 import { billingCards } from "./routes/billing-cards.ts";
 import { conversations } from "./routes/conversations.ts";
+import { inboxSettings } from "./routes/inbox-settings.ts";
+import { notifications } from "./routes/notifications.ts";
 import { stripeWebhook } from "./routes/stripe-webhook.ts";
 import { compose } from "./routes/compose.ts";
 import { drafts } from "./routes/drafts.ts";
@@ -156,6 +158,8 @@ const api = new Hono<AppEnv>()
   .route("/connect", connect)
   .route("/", library)
   .route("/", conversations)
+  .route("/", notifications)
+  .route("/", inboxSettings)
   .route("/", workspaceAdmin)
   .route("/", aiSettings)
   .route("/", workspaceInboxes)
