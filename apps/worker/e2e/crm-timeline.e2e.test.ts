@@ -76,6 +76,30 @@ test("two members open one person's timeline: each sees the thread from the inbo
   expect(threadsIn(beaCompany.body)).toEqual(["Login broken"]);
 });
 
+test("a note names exactly one record: none or two is refused, and nothing lands on either", async () => {
+  const { api } = stack;
+  const org = await stack.company("note-records");
+  const ana = await stack.member(org.id);
+  const person = (
+    await api(ana.jar, "POST", "/people", { name: "Ivy", address: "ivy@initech.com" })
+  ).body.person;
+  for (const ids of [{}, { personId: person.id, companyId: person.companyId }]) {
+    const refused = await api(ana.jar, "POST", "/notes", { ...ids, body: "Called back" });
+    expect(refused.status).toBe(400);
+    expect(JSON.stringify(refused.body)).toContain("give exactly one of companyId, personId");
+  }
+  const notesOn = async (path: string) =>
+    // oxlint-disable-next-line typescript/no-explicit-any -- test reads of JSON answers
+    (await api(ana.jar, "GET", path)).body.items.filter((item: any) => item.kind === "note");
+  expect(await notesOn(`/people/${person.id}/timeline`)).toEqual([]);
+  expect(await notesOn(`/companies/${person.companyId}/timeline`)).toEqual([]);
+
+  const made = await api(ana.jar, "POST", "/notes", { personId: person.id, body: "Called back" });
+  expect(made.status).toBe(201);
+  expect(made.body.note).toMatchObject({ personId: person.id, companyId: null, dealId: null });
+  expect(await notesOn(`/people/${person.id}/timeline`)).toHaveLength(1);
+});
+
 test("paging a timeline in small pages returns every item once, newest first, across events, notes and threads", async () => {
   const { db, api } = stack;
   const org = await stack.company("paging");

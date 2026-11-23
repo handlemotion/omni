@@ -1,12 +1,14 @@
 import {
   crmCreateTaskBodySchema,
+  crmRecordKeyOf,
+  type CrmRecordIds,
   crmTasksQuerySchema,
   crmUpdateTaskBodySchema,
   type CrmTaskCountsResponse,
   type CrmTaskListResponse,
   type CrmTaskResponse,
 } from "@omni/contracts";
-import type { CrmRecordRef, CrmTask, TaskPatch } from "@omni/db";
+import type { CrmTask, TaskPatch } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
@@ -16,16 +18,12 @@ import { decodeCursor, encodeCursor } from "../cursor.ts";
 
 const taskCursor = z.object({ at: z.iso.datetime().nullable(), id: z.string().min(1) });
 
-type Linked = { companyId?: string | null; personId?: string | null; dealId?: string | null };
+type Linked = CrmRecordIds;
 
-function recordOf(body: Linked) {
-  let record: CrmRecordRef | null | undefined;
-  if (body.companyId) record = { companyId: body.companyId };
-  else if (body.personId) record = { personId: body.personId };
-  else if (body.dealId) record = { dealId: body.dealId };
-  else if ([body.companyId, body.personId, body.dealId].some((v) => v !== undefined)) record = null;
-  return record;
-}
+const recordOf = (body: Linked) =>
+  [body.companyId, body.personId, body.dealId].some((v) => v !== undefined)
+    ? crmRecordKeyOf(body)
+    : undefined;
 
 const dateOrNull = (value: string | null | undefined) =>
   value === undefined ? undefined : value === null ? null : new Date(value);
@@ -55,7 +53,7 @@ export const tasks = new Hono<AppEnv>()
     const assigneeMemberId =
       query.assignee === "me" ? c.var.member.id : query.assignee === "none" ? null : query.assignee;
     const cursor = decodeCursor(query.cursor, taskCursor);
-    const record = recordOf({
+    const record = crmRecordKeyOf({
       companyId: query.company,
       personId: query.person,
       dealId: query.deal,

@@ -1,19 +1,22 @@
 import { z } from "zod";
+import {
+  CALENDAR_TASK_BODY_MAX,
+  CALENDAR_TASK_STEPS_MAX,
+  CALENDAR_TASK_TITLE_MAX,
+  calendarTaskStepSchema,
+} from "./calendar.ts";
+import { crmRecordsNamed, type CrmRecordIds } from "./crm-records.ts";
+
+export * from "./crm-records.ts";
 
 const id = z.string().min(1).max(64);
 const isoDate = z.iso.datetime();
 
-export const CRM_TASK_TITLE_MAX = 500;
-export const CRM_TASK_BODY_MAX = 20_000;
-
-export const CRM_SUBTASKS_MAX = 100;
-
-/** A step of a task's checklist, with an id the client makes. */
-export const crmSubtaskSchema = z.object({
-  id,
-  title: z.string().max(CRM_TASK_TITLE_MAX),
-  done: z.boolean(),
-});
+/**
+ * A step of a task's checklist, with an id the client makes. A CRM task is a calendar task on a
+ * record (`docs/spec/calendar.md`, "Tasks"), so it keeps the calendar's steps and limits.
+ */
+export const crmSubtaskSchema = calendarTaskStepSchema;
 
 export const crmTaskSchema = z.object({
   id,
@@ -47,8 +50,7 @@ const onRecord = {
   personId: id.nullable().optional(),
   dealId: id.nullable().optional(),
 };
-const oneRecordAtMost = (task: { companyId?: unknown; personId?: unknown; dealId?: unknown }) =>
-  [task.companyId, task.personId, task.dealId].filter(Boolean).length <= 1;
+const oneRecordAtMost = (task: CrmRecordIds) => crmRecordsNamed(task) <= 1;
 const ONE_RECORD = { message: "give at most one of companyId, personId and dealId" };
 
 /**
@@ -67,9 +69,12 @@ export const crmTasksQuerySchema = z
     cursor: z.string().min(1).max(2048).optional(),
     limit: z.coerce.number().int().min(1).max(200).optional(),
   })
-  .refine((query) => [query.company, query.person, query.deal].filter(Boolean).length <= 1, {
-    message: "give at most one of company, person and deal",
-  });
+  .refine(
+    (query) =>
+      crmRecordsNamed({ companyId: query.company, personId: query.person, dealId: query.deal }) <=
+      1,
+    { message: "give at most one of company, person and deal" },
+  );
 
 /**
  * `POST /tasks`: assigned to its creator unless `assigneeMemberId` says otherwise (null: nobody).
@@ -77,8 +82,8 @@ export const crmTasksQuerySchema = z
  */
 export const crmCreateTaskBodySchema = z
   .object({
-    title: z.string().max(CRM_TASK_TITLE_MAX),
-    body: z.string().max(CRM_TASK_BODY_MAX).nullable().optional(),
+    title: z.string().max(CALENDAR_TASK_TITLE_MAX),
+    body: z.string().max(CALENDAR_TASK_BODY_MAX).nullable().optional(),
     assigneeMemberId: id.nullable().optional(),
     dueAt: isoDate.nullable().optional(),
     ...onRecord,
@@ -91,10 +96,10 @@ export const crmCreateTaskBodySchema = z
  */
 export const crmUpdateTaskBodySchema = z
   .object({
-    title: z.string().max(CRM_TASK_TITLE_MAX).optional(),
-    body: z.string().max(CRM_TASK_BODY_MAX).nullable().optional(),
+    title: z.string().max(CALENDAR_TASK_TITLE_MAX).optional(),
+    body: z.string().max(CALENDAR_TASK_BODY_MAX).nullable().optional(),
     /** The whole checklist, replacing the one it has. Steps left blank are dropped. */
-    subtasks: z.array(crmSubtaskSchema).max(CRM_SUBTASKS_MAX).optional(),
+    subtasks: z.array(crmSubtaskSchema).max(CALENDAR_TASK_STEPS_MAX).optional(),
     assigneeMemberId: id.nullable().optional(),
     dueAt: isoDate.nullable().optional(),
     done: z.boolean().optional(),
