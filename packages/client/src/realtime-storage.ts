@@ -5,10 +5,8 @@ import type {
   StorageLiveRecord,
   StorageTeamspacesChangedEvent,
 } from "@omni/contracts";
+import { STORAGE_DOC_PRESENCE_MAX } from "@omni/contracts/storage-types";
 import { isId, isObject, isSeqNum, keyOf } from "./realtime-guards.ts";
-
-/** `STORAGE_DOC_PRESENCE_MAX` in `@omni/contracts`, without pulling its schemas in. */
-export const DOC_PRESENCE_MAX = 4096;
 
 type DocRefusal = Extract<StorageDocEvent, { type: "doc.refused" }>["reason"];
 
@@ -95,7 +93,7 @@ const NODE_EVENT_PARSERS: Record<NodeEvent["type"], NodeEventParser> = {
       : undefined;
   },
   "doc.presence": (nodeId, { u }) =>
-    typeof u === "string" && u.length <= DOC_PRESENCE_MAX
+    typeof u === "string" && u.length <= STORAGE_DOC_PRESENCE_MAX
       ? { type: "doc.presence", nodeId, u }
       : undefined,
   "doc.access": (nodeId, { role }) =>
