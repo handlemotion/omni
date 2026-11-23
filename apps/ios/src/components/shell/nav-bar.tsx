@@ -46,9 +46,10 @@ interface Shortcut {
 
 /** The bar's height, and how far above the home indicator it floats. */
 export const NAV_BAR = space(12);
-const NAV_HANDLE = space(7);
+const NAV_HANDLE = space(5);
 const SIDE = space(11);
-const GAP = space(2);
+const GAP = space(3);
+const PAGE = space(13);
 /** The rail's whole height: its handle and its row. */
 export const RAIL_BLOCK = NAV_HANDLE + NAV_BAR;
 
@@ -186,7 +187,7 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
 }
 
 const styles = StyleSheet.create({
-  handle: { height: NAV_HANDLE, alignItems: "center", justifyContent: "flex-start" },
+  handle: { height: NAV_HANDLE, alignItems: "center", justifyContent: "center" },
   grabber: {
     width: space(7),
     height: space(0.75),
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: space(4),
+    justifyContent: "center",
   },
   sideStart: { overflow: "hidden", alignItems: "flex-start" },
   sideEnd: { overflow: "hidden", alignItems: "flex-end" },
@@ -212,7 +213,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   pages: {
-    flex: 1,
     height: NAV_BAR,
     flexDirection: "row",
     alignItems: "center",
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   page: {
-    flex: 1,
+    width: PAGE,
     height: "100%",
     borderRadius: radius.full,
     alignItems: "center",
