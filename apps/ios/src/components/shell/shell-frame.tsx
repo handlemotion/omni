@@ -1,4 +1,5 @@
 import { BlurView } from "expo-blur";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { useEffect, type ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
@@ -10,44 +11,42 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
-import { IconChevronDown } from "@/components/icons.ts";
-import { Text } from "@/components/ui/text.tsx";
+import { BarFade } from "@/components/ui/edge-blur.tsx";
 import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
-import { colors, iconSize, space } from "@/theme/tokens.ts";
+import { colors, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import { useMenuPlace } from "./menu-nav.ts";
 import {
-  CARD_PEEK,
   ModuleSection,
   SECTION_EASE,
   SECTION_MS,
-  useSectionHeight,
+  useRailLayout,
   useSectionPull,
-  useSectionTravel,
 } from "./module-panel.tsx";
 import { useModules } from "./modules.ts";
+import { NAV_BAR, NavBar, RAIL_BLOCK } from "./nav-bar.tsx";
 
-const CARD_RADIUS = space(11);
+const TAIL = space(24);
 
 /**
- * The signed-in app's frame: every page, root or pushed, sits in a white card with round bottom
- * corners, outlined on top of whatever the page draws, on the grey surface, and the module section (the handle and dock, and under them the
- * module's pages) sits below it on every page. Pulling the dock up slides the card away until it
- * peeks under the status bar, blurred and dimmed behind a prompt; tapping or pulling it down slides
- * it back. Swiping the pages sideways slides the card's contents with them. Pages in the card see
- * no bottom safe area: the section holds the home indicator's strip. Only the open search field
- * takes the whole screen.
+ * The signed-in app's frame: every page, root or pushed, on one white surface with the rail
+ * (`NavBar`) floating over its foot. Pulling the rail up, or tapping its handle or module, raises
+ * the rail and slides the page up just above it, until the card only peeks under the status bar, blurred and dimmed behind a
+ * prompt; the module's pages show beneath the rail. Tapping or pulling the card or the rail down
+ * slides it all back. Pages see the rail as part of the bottom safe area, so their own bottom bars
+ * sit above it. Only the open search field takes the whole screen.
  */
 export function ShellFrame({ children }: { children: ReactNode }) {
   const shell = useMenu();
   const { module } = useMenuPlace();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const section = useSectionHeight();
-  const travel = useSectionTravel();
+  const { railBottom, lift, cardLift } = useRailLayout();
+  const taken = railBottom + RAIL_BLOCK + space(2);
   const still = useReduceMotion();
   const progress = useSharedValue(shell.isOpen ? 1 : 0);
-  const pull = useSectionPull(progress, travel);
+  const pull = useSectionPull(progress, lift);
+  const pullCard = useSectionPull(progress, lift);
   const modules = useModules();
   const current = Math.max(
     0,
@@ -66,37 +65,42 @@ export function ShellFrame({ children }: { children: ReactNode }) {
     follow.value = current;
   }, [current, follow]);
 
-  const card = useAnimatedStyle(() => ({ transform: [{ translateY: -travel * progress.value }] }));
+  const card = useAnimatedStyle(() => ({
+    transform: [{ translateY: -cardLift * progress.value }],
+  }));
+  const rail = useAnimatedStyle(() => ({ transform: [{ translateY: -lift * progress.value }] }));
   const slide = useAnimatedStyle(() => ({
     transform: [{ translateX: (current - follow.value) * width }],
   }));
   const wash = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0.2, 0.8], [0, 1], Extrapolation.CLAMP),
   }));
-  const hint = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0.6, 1], [0, 1], Extrapolation.CLAMP),
-  }));
 
   return (
     <View style={styles.root}>
-      <Animated.View
-        style={[styles.card, shell.searching ? styles.full : { bottom: section }, card]}
-      >
-        <SafeAreaInsetsContext.Provider value={shell.searching ? insets : { ...insets, bottom: 0 }}>
+      <Animated.View style={[styles.card, card]}>
+        <SafeAreaInsetsContext.Provider
+          value={shell.searching ? insets : { ...insets, bottom: taken }}
+        >
           <Animated.View style={[StyleSheet.absoluteFill, slide]}>{children}</Animated.View>
         </SafeAreaInsetsContext.Provider>
+        {shell.searching ? null : <BarFade middle={railBottom + NAV_BAR / 2} />}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, wash]}>
           <BlurView intensity={10} tint="light" style={StyleSheet.absoluteFill} />
           <View style={styles.wash} />
-        </Animated.View>
-        <Animated.View pointerEvents="none" style={[styles.hint, hint]}>
-          <IconChevronDown size={iconSize.sm} color={colors.mutedForeground} />
-          <Text size="sm" tone="mutedForeground">
-            Swipe down to hide
-          </Text>
+          <Svg pointerEvents="none" width="100%" height={TAIL} style={styles.tail}>
+            <Defs>
+              <LinearGradient id="pageTail" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={colors.background} stopOpacity={0} />
+                <Stop offset="0.6" stopColor={colors.background} stopOpacity={0.85} />
+                <Stop offset="1" stopColor={colors.background} stopOpacity={1} />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#pageTail)" />
+          </Svg>
         </Animated.View>
         {shell.isOpen ? (
-          <GestureDetector gesture={pull}>
+          <GestureDetector gesture={pullCard}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Hide pages"
@@ -105,47 +109,31 @@ export function ShellFrame({ children }: { children: ReactNode }) {
             />
           </GestureDetector>
         ) : null}
-        {shell.searching ? null : <View pointerEvents="none" style={styles.outline} />}
       </Animated.View>
       <ModuleSection module={module} progress={progress} follow={follow} />
+      {shell.searching ? null : (
+        <GestureDetector gesture={pull}>
+          <Animated.View style={[styles.rail, { bottom: railBottom }, rail]}>
+            <NavBar progress={progress} />
+          </Animated.View>
+        </GestureDetector>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.under, overflow: "hidden" },
+  root: { flex: 1, backgroundColor: colors.background, overflow: "hidden" },
   card: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
+    bottom: 0,
     overflow: "hidden",
     backgroundColor: colors.background,
-    borderBottomLeftRadius: CARD_RADIUS,
-    borderBottomRightRadius: CARD_RADIUS,
-    borderCurve: "continuous",
   },
-  full: { bottom: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-  outline: {
-    ...StyleSheet.absoluteFill,
-    borderColor: colors.underLine,
-    borderBottomWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomLeftRadius: CARD_RADIUS,
-    borderBottomRightRadius: CARD_RADIUS,
-    borderCurve: "continuous",
-  },
+  rail: { position: "absolute", left: 0, right: 0 },
+  tail: { position: "absolute", left: 0, right: 0, bottom: 0 },
   wash: { ...StyleSheet.absoluteFill, backgroundColor: colors.background, opacity: 0.35 },
-  hint: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: CARD_PEEK,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: space(1.5),
-  },
 });
