@@ -7,6 +7,8 @@ const linkHost = process.env.OMNI_IOS_LINK_HOST;
 const easProjectId = process.env.OMNI_IOS_EAS_PROJECT_ID;
 const updateChannel = process.env.OMNI_IOS_UPDATE_CHANNEL || "production";
 
+const MICROPHONE_USE = "Omni listens while you dictate a search.";
+
 const config: ExpoConfig = {
   name: process.env.OMNI_IOS_NAME || "Omni",
   slug: process.env.OMNI_IOS_SLUG || "omni",
@@ -40,7 +42,14 @@ const config: ExpoConfig = {
       "expo-splash-screen",
       { backgroundColor: "#ffffff", image: "./assets/splash-icon.png", imageWidth: 88 },
     ],
-    ["expo-image-picker", { cameraPermission: false, microphonePermission: false }],
+    ["expo-image-picker", { cameraPermission: false, microphonePermission: MICROPHONE_USE }],
+    [
+      "expo-speech-recognition",
+      {
+        microphonePermission: MICROPHONE_USE,
+        speechRecognitionPermission: "Omni turns what you dictate into search text.",
+      },
+    ],
     [
       "@sentry/react-native/expo",
       {
