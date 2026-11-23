@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "@better-auth/passkey": "^1.7.27",
+    "@omni/contracts": "workspace:*",
     "@omni/docs": "workspace:*",
     "better-auth": "^1.7.27",
     "hono": "^4.13.19"
   },
   "devDependencies": {
-    "@omni/contracts": "workspace:*",
     "@omni/db": "workspace:*",
     "@omni/mail-core": "workspace:*",
     "@omni/worker": "workspace:*",
