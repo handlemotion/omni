@@ -1,7 +1,10 @@
+import { escapeHtml } from "./escape-html.ts";
+import { isForwardSubject, isReplySubject } from "./subject.ts";
+
 /** `Re: <subject>`, without stacking prefixes a mail client already added (`Re:`, `RE:`, `Aw:`). */
 export function replySubject(subject: string) {
   const trimmed = subject.trim();
-  return /^(re|aw|sv|antw)\s*:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+  return isReplySubject(trimmed) ? trimmed : `Re: ${trimmed}`;
 }
 
 /**
@@ -32,7 +35,7 @@ export function replyRecipients(
 /** `Fwd: <subject>`, without stacking a second forward prefix (`Fwd:`, `FW:`, `WG:`). */
 export function forwardSubject(subject: string) {
   const trimmed = subject.trim();
-  return /^(fwd?|wg|tr)\s*:/i.test(trimmed) ? trimmed : `Fwd: ${trimmed}`;
+  return isForwardSubject(trimmed) ? trimmed : `Fwd: ${trimmed}`;
 }
 
 export interface ForwardedMessage {
@@ -48,15 +51,6 @@ export interface ForwardedMessage {
 
 function formatAddress(a: { name: string | null; address: string }) {
   return a.name ? `${a.name} <${a.address}>` : a.address;
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 function forwardHeaders(original: ForwardedMessage) {

@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { textOf, usageOf } from "./model.ts";
 import { estimateTokens, truncateToTokens } from "./policy.ts";
 import { DATA_TAG, escapeUntrusted } from "./prompt.ts";
 import type { Usage } from "./types.ts";
@@ -67,18 +68,9 @@ export const suggestReply: (
       },
     ],
   });
-  const u = message.usage;
-  const usage: Usage = {
-    tokensIn:
-      u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
-    tokensOut: u.output_tokens,
-  };
+  const usage = usageOf(message.usage);
   if (message.stop_reason !== "end_turn") return { reply: null, source: "fallback", usage };
-  const text = message.content
-    .filter((block): block is Anthropic.Beta.BetaTextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-  const reply = toReplyText(text);
+  const reply = toReplyText(textOf(message.content));
   return reply === null
     ? { reply: null, source: "fallback", usage }
     : { reply, source: "ai", usage, model: message.model };

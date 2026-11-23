@@ -1,15 +1,21 @@
 import { Buffer } from "node:buffer";
-import { type Readable, Transform } from "node:stream";
-import type {
-  AddressObject,
-  AttachmentStream,
-  EmailAddress,
-  HeaderLines,
-  MessageText,
-  ParsedMail,
-} from "mailparser";
-import { MailParser, simpleParser } from "mailparser";
-import { AUTOMATED_HEADERS, type Automated, automatedKind, bouncedMessageId } from "./automated.ts";
+import type { Readable } from "node:stream";
+import type { ParsedMail } from "mailparser";
+import { simpleParser } from "mailparser";
+import { type Automated, automatedKind, bouncedMessageId } from "./automated.ts";
+import { addresses, header, signals, topHeaders } from "./parse/headers.ts";
+import {
+  boundedId,
+  boundedIds,
+  capReferences,
+  firstMessageId,
+  idAliases,
+  messageIds,
+  synthesizeMessageId,
+} from "./parse/message-id.ts";
+import { PARSER_OPTIONS, RETURNED_PARTS } from "./parse/options.ts";
+import { displayNameSpoof } from "./parse/spoof.ts";
+import { headBytes, streamParser } from "./parse/stream.ts";
 
 export interface Address {
   name: string;
@@ -94,12 +100,18 @@ export interface ParseResult {
   attachmentContents: Uint8Array[];
 }
 
-const PARSER_OPTIONS = {
-  keepCidLinks: true,
-  skipHtmlToText: true,
-  skipTextToHtml: true,
-  skipImageLinks: true,
-} as const;
+async function parseOrTopHeadersOnEmaxlen(
+  parse: () => Promise<ParsedMail>,
+  headers: () => Promise<string | Buffer> | string | Buffer,
+) {
+  try {
+    return { mail: await parse(), bodySkipped: false };
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== "EMAXLEN") throw error;
+    const mail = await simpleParser(topHeaders(await headers()), PARSER_OPTIONS);
+    return { mail, bodySkipped: true };
+  }
+}
 
 /**
  * Parses raw RFC 5322 bytes into plain data. Message bodies are decoded to UTF-8, and NUL
@@ -108,15 +120,10 @@ const PARSER_OPTIONS = {
 export const parseMessage: (raw: Uint8Array | string) => Promise<ParseResult> = async (raw) => {
   const source =
     typeof raw === "string" ? raw : Buffer.from(raw.buffer, raw.byteOffset, raw.length);
-  let mail: ParsedMail;
-  let bodySkipped = false;
-  try {
-    mail = await simpleParser(source, PARSER_OPTIONS);
-  } catch (error) {
-    if ((error as { code?: unknown }).code !== "EMAXLEN") throw error;
-    mail = await simpleParser(topHeaders(source), PARSER_OPTIONS);
-    bodySkipped = true;
-  }
+  const { mail, bodySkipped } = await parseOrTopHeadersOnEmaxlen(
+    () => simpleParser(source, PARSER_OPTIONS),
+    () => source,
+  );
   const message = await describe(mail, bodySkipped);
   return {
     message,
@@ -134,15 +141,10 @@ export async function parseMessageStream(
   open: () => Readable,
   saveAttachment: (index: number, content: Readable) => Promise<void>,
 ) {
-  let mail: ParsedMail;
-  let bodySkipped = false;
-  try {
-    mail = await streamParser(open(), saveAttachment);
-  } catch (error) {
-    if ((error as { code?: unknown }).code !== "EMAXLEN") throw error;
-    mail = await simpleParser(topHeaders(await headBytes(open())), PARSER_OPTIONS);
-    bodySkipped = true;
-  }
+  const { mail, bodySkipped } = await parseOrTopHeadersOnEmaxlen(
+    () => streamParser(open(), saveAttachment),
+    () => headBytes(open()),
+  );
   return { message: await describe(mail, bodySkipped) } satisfies { message: ParsedMessage };
 }
 
@@ -173,7 +175,9 @@ async function describe(mail: ParsedMail, bodySkipped: boolean) {
     signals: { ...signals(mail.headerLines), displayNameSpoof: displayNameSpoof(from) },
     automated: automated(mail, from),
   };
-  message.inReplyTo ??= message.automated?.bouncedMessageId ?? null;
+  if (message.automated?.kind === "bounce") {
+    message.inReplyTo ??= message.automated.bouncedMessageId;
+  }
   message.messageIdAliases = await idAliases(message.messageId);
   message.messageId = await boundedId(message.messageId);
   if (message.inReplyTo !== null) message.inReplyTo = await boundedId(message.inReplyTo);
@@ -181,103 +185,6 @@ async function describe(mail: ParsedMail, bodySkipped: boolean) {
 
   return withoutNul(message) satisfies ParsedMessage;
 }
-
-const KEEP_IN_MEMORY_MAX = 1024 * 1024;
-
-function streamParser(input: Readable, save: (index: number, content: Readable) => Promise<void>) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const fail = (error: unknown) => {
-      if (settled) return;
-      settled = true;
-      input.destroy();
-      parser.destroy();
-      reject(error);
-    };
-    const mail = { attachments: [] } as unknown as ParsedMail & Record<string, unknown>;
-    const parser = new MailParser(PARSER_OPTIONS);
-    parser.on("error", fail);
-    parser.on("headers", (headers) => {
-      mail.headers = headers;
-      mail.headerLines = (parser as unknown as { headerLines: HeaderLines }).headerLines;
-    });
-    let reading = false;
-    const read = () => {
-      reading = true;
-      const data = parser.read() as MessageText | AttachmentStream | null;
-      if (data === null) {
-        reading = false;
-        return;
-      }
-      if (data.type === "text") {
-        if (data.text !== undefined) mail.text = data.text;
-        if (data.html !== undefined) mail.html = data.html;
-        read();
-        return;
-      }
-      const attachment = data;
-      const index = mail.attachments.length;
-      const keep = RETURNED_PARTS.has(attachment.contentType.toLowerCase());
-      const kept: Buffer[] = [];
-      let size = 0;
-      const counted = new Transform({
-        transform(chunk: Buffer, _encoding, done) {
-          size += chunk.length;
-          if (keep && size <= KEEP_IN_MEMORY_MAX) kept.push(chunk);
-          done(null, chunk);
-        },
-      });
-      attachment.content.on("error", fail);
-      const saved = save(index, attachment.content.pipe(counted));
-      mail.attachments.push(attachment as unknown as ParsedMail["attachments"][number]);
-      saved.then(() => {
-        const entry = mail.attachments[index] as unknown as { content: Buffer; size: number };
-        entry.content = Buffer.concat(kept);
-        entry.size = size;
-        attachment.release?.();
-        read();
-      }, fail);
-    };
-    parser.on("readable", () => {
-      if (!reading) read();
-    });
-    parser.on("end", () => {
-      for (const key of [
-        "subject",
-        "references",
-        "date",
-        "to",
-        "from",
-        "cc",
-        "bcc",
-        "message-id",
-        "in-reply-to",
-        "reply-to",
-      ]) {
-        if (mail.headers?.has(key)) {
-          mail[key.replace(/-([a-z])/g, (_m, c: string) => c.toUpperCase())] =
-            mail.headers.get(key);
-        }
-      }
-      if (settled) return;
-      settled = true;
-      resolve(mail);
-    });
-    input.once("error", fail).pipe(parser);
-  }) satisfies Promise<ParsedMail>;
-}
-
-const headBytes: (input: Readable) => Promise<Buffer> = async (input) => {
-  const chunks: Buffer[] = [];
-  let length = 0;
-  for await (const chunk of input) {
-    chunks.push(chunk as Buffer);
-    length += (chunk as Buffer).length;
-    if (length >= 4 * 1024 * 1024) break;
-  }
-  input.destroy();
-  return Buffer.concat(chunks);
-};
 
 const withoutNul: <T>(value: T) => T = (value) => {
   if (typeof value === "string") {
@@ -292,175 +199,12 @@ const withoutNul: <T>(value: T) => T = (value) => {
   return value;
 };
 
-const TOP_HEADERS = new Set([
-  "from",
-  "to",
-  "cc",
-  "reply-to",
-  "subject",
-  "date",
-  "message-id",
-  "in-reply-to",
-  "references",
-  "list-id",
-  "list-unsubscribe",
-  "list-unsubscribe-post",
-  "precedence",
-  ...AUTOMATED_HEADERS,
-]);
-const MAX_TOP_HEADER = 16 * 1024;
-
-const topHeaders: (source: string | Buffer) => Buffer = (source) => {
-  const bytes = typeof source === "string" ? Buffer.from(source) : source;
-  const ends = [bytes.indexOf("\r\n\r\n"), bytes.indexOf("\n\n")].filter((i) => i !== -1);
-  const head = bytes.subarray(0, Math.min(bytes.length, ...ends)).toString("latin1");
-  const fields = head
-    .split(/\r?\n(?![ \t])/)
-    .filter((field) => TOP_HEADERS.has(field.slice(0, field.indexOf(":")).trim().toLowerCase()))
-    .map((field) => field.slice(0, MAX_TOP_HEADER));
-  return Buffer.from(`${fields.join("\r\n")}\r\n\r\n`, "latin1");
-};
-
-const MAX_REFERENCES = 100;
-
-const capReferences: (ids: string[]) => string[] = (ids) => {
-  if (ids.length <= MAX_REFERENCES) return ids;
-  return [...ids.slice(0, 1), ...ids.slice(-(MAX_REFERENCES - 1))];
-};
-
-const INVISIBLE =
-  /[\u{AD}\u{61C}\u{115F}\u{1160}\u{180E}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}-\u{2064}\u{2066}-\u{206F}\u{3164}\u{FEFF}\u{FFA0}]|[\u{34F}\u{17B4}\u{17B5}]/gu;
-const ADDRESS_IN_NAME = /[^\s@<>"'(),;:]+@[^\s@<>"'(),;:]+\.[^\s@<>"'(),;:]+/;
-const DOMAIN_TOKEN = /^(?:[\p{L}\p{N}-]+\.)+\p{L}[\p{L}\p{N}-]{1,62}$/u;
-const MAX_CHECKED_NAME = 256;
-
-/** Spoofing hint for a From address: see `DisplayNameSpoof`. */
-export const displayNameSpoof: (from: Address | null) => DisplayNameSpoof | null = (from) => {
-  if (from === null || from.name === "" || from.name.length > MAX_CHECKED_NAME) return null;
-  const hidden = from.name.match(INVISIBLE);
-  if (hidden) {
-    const codes = [...new Set(hidden)].map(
-      (char) => `U+${(char.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`,
-    );
-    return { kind: "invisible", claimed: codes.join(" ") };
-  }
-  const claimedAddress = ADDRESS_IN_NAME.exec(from.name)?.[0].toLowerCase();
-  if (claimedAddress !== undefined) {
-    return claimedAddress === from.address ? null : { kind: "address", claimed: claimedAddress };
-  }
-  const senderDomain = domainOf(from.address);
-  for (const token of from.name.split(/\s+/)) {
-    const domain = token.replace(/^[("'[]+|[)"'\],.:;!?]+$/g, "");
-    if (!DOMAIN_TOKEN.test(domain)) continue;
-    const claimed = domainOf(`x@${domain}`);
-    if (claimed === null || senderDomain === null) continue;
-    const related =
-      claimed === senderDomain ||
-      senderDomain.endsWith(`.${claimed}`) ||
-      claimed.endsWith(`.${senderDomain}`);
-    if (!related) return { kind: "domain", claimed };
-  }
-  return null;
-};
-
-function domainOf(address: string) {
-  const domain = address.slice(address.lastIndexOf("@") + 1);
-  try {
-    return new URL(`http://${domain}`).hostname;
-  } catch {
-    return null;
-  }
-}
-
-const MESSAGE_ID = /<[^<>\s]+>/g;
-
-const messageIds: (value: string | string[] | undefined) => string[] = (value) => {
-  const joined = Array.isArray(value) ? value.join(" ") : (value ?? "");
-  const bracketed = joined.match(MESSAGE_ID);
-  if (bracketed) return [...new Set(bracketed)];
-  return [...new Set(joined.split(/\s+/).filter((id) => id.includes("@")))].map((id) => `<${id}>`);
-};
-
-function firstMessageId(value: string | undefined) {
-  return messageIds(value)[0] ?? null;
-}
-
-const addresses: (value: AddressObject | AddressObject[] | undefined) => Address[] = (value) => {
-  if (!value) return [];
-  const flat: (list: EmailAddress[]) => EmailAddress[] = (list) =>
-    list.flatMap((entry) => (entry.group ? flat(entry.group) : [entry]));
-  return (Array.isArray(value) ? value : [value])
-    .flatMap((object) => flat(object.value))
-    .filter((entry): entry is EmailAddress & { address: string } => Boolean(entry.address))
-    .map((entry) => ({ name: entry.name, address: entry.address.toLowerCase() }));
-};
-
-function header(lines: HeaderLines, key: string) {
-  const line = lines.find((entry) => entry.key === key)?.line;
-  if (line === undefined) return null;
-  return line
-    .slice(line.indexOf(":") + 1)
-    .replace(/\r?\n[ \t]+/g, " ")
-    .trim();
-}
-
-function signals(lines: HeaderLines) {
-  const unsubscribe = header(lines, "list-unsubscribe");
-  return {
-    listId: header(lines, "list-id"),
-    listUnsubscribe: [...(unsubscribe ?? "").matchAll(/<([^<>]+)>/g)].map((m) => m[1] ?? ""),
-    listUnsubscribeOneClick: /List-Unsubscribe=One-Click/i.test(
-      header(lines, "list-unsubscribe-post") ?? "",
-    ),
-    precedence: header(lines, "precedence")?.toLowerCase() ?? null,
-    autoSubmitted: header(lines, "auto-submitted")?.toLowerCase() ?? null,
-  } satisfies Omit<TriageSignals, "displayNameSpoof">;
-}
-
-const RETURNED_PARTS = new Set(["text/rfc822-headers", "message/rfc822"]);
-
 const automated: (mail: ParsedMail, from: Address | null) => Automated | null = (mail, from) => {
   const kind = automatedKind((key) => header(mail.headerLines, key), from?.address ?? null);
   if (kind === null) return null;
-  if (kind !== "bounce") return { kind, bouncedMessageId: null };
+  if (kind !== "bounce") return { kind };
   const returned = mail.attachments
     .filter((a) => RETURNED_PARTS.has(a.contentType.toLowerCase()))
     .map((a) => a.content.toString("latin1"));
   return { kind, bouncedMessageId: bouncedMessageId([...returned, mail.text ?? ""]) };
 };
-
-async function synthesizeMessageId(
-  lines: HeaderLines,
-  text: string | undefined,
-  html: string | false | undefined,
-) {
-  const keyHeaders = ["from", "to", "cc", "date", "subject"]
-    .map((key) => `${key}:${header(lines, key) ?? ""}`)
-    .join("\n");
-  return hashedMessageId(`${keyHeaders}\n\n${text ?? ""}\n\n${html || ""}`);
-}
-
-async function hashedMessageId(input: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
-  const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-  return `<${hex.slice(0, 40)}@omni.invalid>`;
-}
-
-const INDEXABLE_ID_BYTES = 2600;
-
-async function boundedId(id: string) {
-  if (Buffer.byteLength(id) <= INDEXABLE_ID_BYTES) return id;
-  return hashedMessageId(id);
-}
-
-const HASHED_BEFORE_BYTES = 998;
-
-async function idAliases(id: string) {
-  const bytes = Buffer.byteLength(id);
-  if (bytes <= HASHED_BEFORE_BYTES) return [];
-  return bytes <= INDEXABLE_ID_BYTES ? [await hashedMessageId(id)] : [id];
-}
-
-async function boundedIds(ids: string[]) {
-  return [...new Set(await Promise.all(ids.map(boundedId)))];
-}

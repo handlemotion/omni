@@ -1,3 +1,5 @@
+import { isForwardSubject } from "./subject.ts";
+
 export interface ForwardedMessage {
   from: string | null;
   date: string | null;
@@ -58,7 +60,7 @@ const forwardStart: (
 ) => { noteEnd: number; headersStart: number } | null = (lines, subject) => {
   const marker = lines.findIndex((line) => FORWARD_MARKER.test(line));
   if (marker !== -1) return { noteEnd: marker, headersStart: marker + 1 };
-  if (/^\s*(?:fwd?|wg|tr|rv|enc|vs)\s*[:：]/i.test(subject)) {
+  if (isForwardSubject(subject)) {
     const block = outlookHeaderStart(lines);
     if (block !== null) return { noteEnd: block.cut, headersStart: block.from };
   }

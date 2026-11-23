@@ -1,3 +1,5 @@
+import { escapeHtml } from "./escape-html.ts";
+
 /** The variables a template may use, by name. Unknown names render empty and are reported. */
 export const TEMPLATE_VARIABLES = [
   "customer.name",
@@ -16,15 +18,6 @@ export type TemplateValues = Partial<Record<TemplateVariable, string | null>>;
 
 const PATTERN = /\{\{([^{}|]*)(?:\|([^{}]*))?\}\}/g;
 const NAME = /^[a-z_]+(?:\.[a-z_]+)*$/i;
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 /** The first word of a name, for `first_name`: "Luis Pérez" → "Luis". */
 export function firstName(name: string | null | undefined) {

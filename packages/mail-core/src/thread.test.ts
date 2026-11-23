@@ -1,13 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
+import { addedRecipients } from "./display";
 import { parseMessage } from "./parse";
-import {
-  addedRecipients,
-  decideThread,
-  normalizeSubject,
-  participants,
-  type ThreadCandidate,
-} from "./thread";
+import { normalizeSubject } from "./subject";
+import { decideThread, participants, type ThreadCandidate } from "./thread";
 
 const parse = async (name: string) =>
   (await parseMessage(readFileSync(new URL(`../../../fixtures/eml/${name}`, import.meta.url))))

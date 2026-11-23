@@ -1,3 +1,5 @@
+import { dayOf, instantOf, nextDay, wallClockAt } from "./calendar/zones.ts";
+
 export interface BusinessHoursWindow {
   /** 0 is Sunday. */
   day: 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -40,14 +42,13 @@ export const addBusinessMinutes: (
 
   let cursor = start.getTime();
   let remaining = minutes * MINUTE;
-  let day = localDate(start, schedule.timezone);
+  let day = dayOf(wallClockAt(start, schedule.timezone));
   for (let closed = 0; closed < MAX_CLOSED_DAYS; closed++, day = nextDay(day)) {
-    const iso = isoDate(day);
-    if (holidays.has(iso)) continue;
-    const weekday = new Date(Date.UTC(day.y, day.m - 1, day.d)).getUTCDay();
+    if (holidays.has(day)) continue;
+    const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
     for (const window of byDay.get(weekday) ?? []) {
-      const opens = Math.max(cursor, zonedTime(day, window.start, schedule.timezone));
-      const closes = zonedTime(day, window.end, schedule.timezone);
+      const opens = Math.max(cursor, epochMsAtMinuteOfDay(day, window.start, schedule.timezone));
+      const closes = epochMsAtMinuteOfDay(day, window.end, schedule.timezone);
       if (opens >= closes) continue;
       if (remaining <= closes - opens) return new Date(opens + remaining);
       remaining -= closes - opens;
@@ -58,88 +59,20 @@ export const addBusinessMinutes: (
   return null;
 };
 
-/** Whether `zone` is an IANA time zone this runtime knows. */
-export function isTimeZone(zone: string) {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-interface LocalDate {
-  y: number;
-  m: number;
-  d: number;
-}
-
 function minutesOf(hhmm: string) {
   const [h, m] = hhmm.split(":").map(Number);
   return h! * 60 + m!;
 }
 
-function isoDate({ y, m, d }: LocalDate) {
-  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-}
-
-function nextDay({ y, m, d }: LocalDate) {
-  const next = new Date(Date.UTC(y, m - 1, d + 1));
-  return {
-    y: next.getUTCFullYear(),
-    m: next.getUTCMonth() + 1,
-    d: next.getUTCDate(),
-  } satisfies LocalDate;
-}
-
-const formatters = new Map<string, Intl.DateTimeFormat>();
-
-function wallClock(at: number, zone: string) {
-  let format = formatters.get(zone);
-  if (!format) {
-    format = new Intl.DateTimeFormat("en-US", {
-      timeZone: zone,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-    });
-    formatters.set(zone, format);
-  }
-  const parts: Record<string, number> = {};
-  for (const part of format.formatToParts(new Date(at))) {
-    if (part.type !== "literal") parts[part.type] = Number(part.value);
-  }
-  return parts as {
-    year: number;
-    month: number;
-    day: number;
-    hour: number;
-    minute: number;
-    second: number;
+function epochMsAtMinuteOfDay(day: string, minutes: number, zone: string) {
+  const [year = 1970, month = 1, date = 1] = day.split("-").map(Number);
+  const clock = {
+    year,
+    month,
+    day: date,
+    hour: Math.floor(minutes / 60),
+    minute: minutes % 60,
+    second: 0,
   };
-}
-
-function localDate(at: Date, zone: string) {
-  const p = wallClock(at.getTime(), zone);
-  return { y: p.year, m: p.month, d: p.day } satisfies LocalDate;
-}
-
-function offsetAt(at: number, zone: string) {
-  const p = wallClock(at, zone);
-  return (
-    Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(at / 1000) * 1000
-  );
-}
-
-function zonedTime(day: LocalDate, minutes: number, zone: string) {
-  const wall = Date.UTC(day.y, day.m - 1, day.d) + minutes * MINUTE;
-  const candidates = [
-    ...new Set([12, -12].map((h) => wall - offsetAt(wall + h * 3_600_000, zone))),
-  ];
-  const real = candidates.filter((at) => at + offsetAt(at, zone) === wall);
-  return real.length ? Math.min(...real) : Math.max(...candidates);
+  return instantOf(clock, zone).getTime();
 }

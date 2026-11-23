@@ -1,4 +1,3 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { z } from "zod";
 import type { ModelClient, Usage } from "./types.ts";
@@ -25,14 +24,11 @@ export const callStructured: <S extends z.ZodType>(
     messages: [{ role: "user", content: request.user }],
   });
 
-  const usage = usageOf(message);
+  const usage = usageOf(message.usage);
   if (message.stop_reason === "refusal") return { ok: false, reason: "refusal", usage };
   if (message.stop_reason === "max_tokens") return { ok: false, reason: "max_tokens", usage };
 
-  const text = message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
+  const text = textOf(message.content);
   try {
     return { ok: true, data: format.parse(text), usage };
   } catch {
@@ -40,11 +36,24 @@ export const callStructured: <S extends z.ZodType>(
   }
 };
 
-function usageOf(message: Anthropic.Message) {
-  const u = message.usage;
+/** What a response spent. Cache writes and reads count as input: they are billed as input. */
+export function usageOf(u: {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+}) {
   return {
     tokensIn:
       u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
     tokensOut: u.output_tokens,
   } satisfies Usage;
+}
+
+/** A response's text blocks, joined. Thinking and other blocks are left out. */
+export function textOf(content: readonly { type: string }[]) {
+  return content
+    .filter((block): block is { type: "text"; text: string } => block.type === "text")
+    .map((block) => block.text)
+    .join("");
 }

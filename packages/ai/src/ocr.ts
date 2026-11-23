@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { textOf, usageOf } from "./model.ts";
 import { AI_MODEL, type ModelClient, type Usage } from "./types.ts";
 
 /** Most text one transcription writes; a file with more comes back cut and marked truncated. */
@@ -63,17 +64,8 @@ export const transcribe: (
   options?: { model?: string },
 ) => Promise<Transcript> = async (client, source, options = {}) => {
   const message = await client.messages.create(ocrRequest(source, options.model));
-  const u = message.usage;
-  const usage = {
-    tokensIn:
-      u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
-    tokensOut: u.output_tokens,
-  } satisfies Usage;
+  const usage = usageOf(message.usage);
   if (message.stop_reason === "refusal") return { text: "", truncated: false, usage };
-  const text = message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("")
-    .trim();
+  const text = textOf(message.content).trim();
   return { text, truncated: message.stop_reason === "max_tokens", usage };
 };

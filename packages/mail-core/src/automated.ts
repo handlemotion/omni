@@ -5,11 +5,13 @@
  */
 export type AutomatedKind = "bounce" | "auto-reply" | "auto-generated";
 
-export interface Automated {
-  kind: AutomatedKind;
-  /** For a bounce: the Message-ID (`<id@host>`) of the message that failed, when the report names it. */
-  bouncedMessageId: string | null;
-}
+export type Automated =
+  | {
+      kind: "bounce";
+      /** The Message-ID (`<id@host>`) of the message that failed, when the report names it. */
+      bouncedMessageId: string | null;
+    }
+  | { kind: Exclude<AutomatedKind, "bounce"> };
 
 /**
  * Reads one top-level header by lowercase name: the unfolded value of its first occurrence,

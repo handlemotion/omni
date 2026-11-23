@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { BLOCKED_SRC_ATTR, cleanMessage, isLongForm, sanitizeHtml } from "./html.ts";
 import { parseMessage } from "./parse.ts";
-import { normalizeSubject } from "./thread.ts";
+import { normalizeSubject } from "./subject.ts";
 
 const read = (name: string) =>
   readFileSync(new URL(`../../../fixtures/eml/${name}`, import.meta.url));
@@ -133,6 +133,12 @@ describe("clean_text", () => {
         text: "Filing 2026/88412 was received and is under review.",
       },
     });
+  });
+
+  test("an Outlook forward with a counted prefix (FW[2]:) is still a forward", async () => {
+    const message = await parse("outlook-forward.eml");
+    const forward = cleanMessage({ ...message, subject: "FW[2]: Filing confirmation" });
+    expect(forward).toEqual(cleanMessage(message));
   });
 });
 

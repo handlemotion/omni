@@ -1,4 +1,4 @@
-import { ask, JevError, NoulAnswer, type JevClient } from "./jev.ts";
+import { ask, type JevClient } from "./jev.ts";
 import { truncateToTokens } from "./policy.ts";
 import {
   FILE_RELEVANCE_CRITERIA,
@@ -91,32 +91,65 @@ function threadFacts(candidate: SearchCandidate, now: Date) {
   };
 }
 
-/** The exact body sent to `POST /v1/systemone`. Exported so callers can log or replay it. */
-export function jevSearchRequest(
+function relevanceRequest<C>(
+  kind: {
+    note: string;
+    instructions: string;
+    criteria: Record<string, string>;
+    facts: { name: "thread" | "file"; of: (candidate: C, now: Date) => object };
+  },
   query: string,
-  candidates: readonly SearchCandidate[],
+  candidates: readonly C[],
   options: { now: Date; model?: string },
 ) {
   return {
     model: options.model ?? JEV_MODEL,
-    state: {
-      search_note: SEARCH_NOTE.replace("{today}", longDate.format(options.now)),
-      query,
-    },
+    state: { search_note: kind.note.replace("{today}", longDate.format(options.now)), query },
     questions: Object.fromEntries(
       candidates.map((candidate, i) => [
         questionId(i),
         {
           type: "noul",
           instructions: {
-            question: RELEVANCE_INSTRUCTIONS,
-            thread: threadFacts(candidate, options.now),
+            question: kind.instructions,
+            [kind.facts.name]: kind.facts.of(candidate, options.now),
           },
-          criteria: RELEVANCE_CRITERIA,
+          criteria: kind.criteria,
         },
       ]),
     ),
   };
+}
+
+async function judge(
+  client: JevClient,
+  body: ReturnType<typeof relevanceRequest>,
+  candidates: readonly { id: string }[],
+  signal: AbortSignal | undefined,
+) {
+  if (candidates.length === 0) return { relevance: new Map(), model: client.model, tokensIn: 0 };
+  const response = await ask(client, body, signal);
+  const relevance = new Map<string, number>();
+  candidates.forEach((candidate, i) => {
+    relevance.set(candidate.id, response.nouls[questionId(i)] ?? 0);
+  });
+  return { relevance, model: response.model, tokensIn: response.usage.input_tokens };
+}
+
+const THREAD_RELEVANCE = {
+  note: SEARCH_NOTE,
+  instructions: RELEVANCE_INSTRUCTIONS,
+  criteria: RELEVANCE_CRITERIA,
+  facts: { name: "thread", of: threadFacts },
+} as const;
+
+/** The exact body sent to `POST /v1/systemone`. Exported so callers can log or replay it. */
+export function jevSearchRequest(
+  query: string,
+  candidates: readonly SearchCandidate[],
+  options: { now: Date; model?: string },
+) {
+  return relevanceRequest(THREAD_RELEVANCE, query, candidates, options);
 }
 
 /**
@@ -134,16 +167,8 @@ export const judgeRelevance: (
   candidates,
   options,
 ) => {
-  if (candidates.length === 0) return { relevance: new Map(), model: client.model, tokensIn: 0 };
   const body = jevSearchRequest(query, candidates, { now: options.now, model: client.model });
-  const response = await ask(client, body, options.signal);
-  const relevance = new Map<string, number>();
-  candidates.forEach((candidate, i) => {
-    const answer = NoulAnswer.safeParse(response.answers[questionId(i)]);
-    if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${questionId(i)}`);
-    relevance.set(candidate.id, answer.data.noul);
-  });
-  return { relevance, model: response.model, tokensIn: response.usage.input_tokens };
+  return judge(client, body, candidates, options.signal);
 };
 
 /** A Drive file a search found or a recent one, as the person would see it. */
@@ -167,32 +192,20 @@ function fileFacts(candidate: FileCandidate, now: Date) {
   };
 }
 
+const FILE_RELEVANCE = {
+  note: FILE_SEARCH_NOTE,
+  instructions: FILE_RELEVANCE_INSTRUCTIONS,
+  criteria: FILE_RELEVANCE_CRITERIA,
+  facts: { name: "file", of: fileFacts },
+} as const;
+
 /** The exact Drive relevance body sent to `POST /v1/systemone`. */
 export function jevFileSearchRequest(
   query: string,
   candidates: readonly FileCandidate[],
   options: { now: Date; model?: string },
 ) {
-  return {
-    model: options.model ?? JEV_MODEL,
-    state: {
-      search_note: FILE_SEARCH_NOTE.replace("{today}", longDate.format(options.now)),
-      query,
-    },
-    questions: Object.fromEntries(
-      candidates.map((candidate, i) => [
-        questionId(i),
-        {
-          type: "noul",
-          instructions: {
-            question: FILE_RELEVANCE_INSTRUCTIONS,
-            file: fileFacts(candidate, options.now),
-          },
-          criteria: FILE_RELEVANCE_CRITERIA,
-        },
-      ]),
-    ),
-  };
+  return relevanceRequest(FILE_RELEVANCE, query, candidates, options);
 }
 
 /** Jev's probability, per file id, that the file is what the query looks for. Throws `JevError`. */
@@ -207,16 +220,8 @@ export const judgeFileRelevance: (
   candidates,
   options,
 ) => {
-  if (candidates.length === 0) return { relevance: new Map(), model: client.model, tokensIn: 0 };
   const body = jevFileSearchRequest(query, candidates, { now: options.now, model: client.model });
-  const response = await ask(client, body, options.signal);
-  const relevance = new Map<string, number>();
-  candidates.forEach((candidate, i) => {
-    const answer = NoulAnswer.safeParse(response.answers[questionId(i)]);
-    if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${questionId(i)}`);
-    relevance.set(candidate.id, answer.data.noul);
-  });
-  return { relevance, model: response.model, tokensIn: response.usage.input_tokens };
+  return judge(client, body, candidates, options.signal);
 };
 
 /**

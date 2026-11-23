@@ -36,7 +36,7 @@ describe("fixtures", () => {
     ["bounce-dsn-postfix.eml", "<3a9f1c7e-5b2d-4e8a-9c6f-0d4b2e8a1c37@example.com>"],
     ["bounce-exim-plain.eml", "<b6d2e8f4-1a3c-4b7e-9f5d-2c8a6e4b0d19@example.com>"],
   ])("%s names the message that bounced", async (name, id) => {
-    expect((await parse(name)).automated?.bouncedMessageId).toBe(id);
+    expect((await parse(name)).automated).toEqual({ kind: "bounce", bouncedMessageId: id });
   });
 });
 

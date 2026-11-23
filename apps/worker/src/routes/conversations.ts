@@ -19,7 +19,8 @@ import {
   updateTag,
   type ConversationChange,
 } from "@omni/db";
-import { isTimeZone, type BusinessHoursWindow } from "@omni/mail-core/business-hours";
+import type { BusinessHoursWindow } from "@omni/mail-core/business-hours";
+import { isIanaZone } from "@omni/mail-core/calendar";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -104,7 +105,7 @@ const slaPolicyBody = z.object({
 });
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, "HH:MM");
 const businessHoursBody = z.object({
-  timezone: z.string().refine(isTimeZone, "an IANA time zone, e.g. America/Mexico_City"),
+  timezone: z.string().refine(isIanaZone, "an IANA time zone, e.g. America/Mexico_City"),
   windows: z
     .array(
       z
