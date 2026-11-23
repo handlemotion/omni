@@ -1,6 +1,7 @@
 /* oxlint-disable no-console -- a CLI report */
 import { writeFileSync } from "node:fs";
-import { createJevClient, jevTriageRequest, triage } from "../src/index.ts";
+import { createJevClient, jevTriageRequest } from "../src/jev.ts";
+import { triage } from "../src/triage.ts";
 import { helpdeskRecordingUrl, helpdeskSteps } from "./helpdesk-scenarios.ts";
 
 const apiKey = process.env.TYPESAFE_API_KEY;

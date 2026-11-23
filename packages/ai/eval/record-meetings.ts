@@ -1,17 +1,11 @@
 /* oxlint-disable no-console -- a CLI report */
 import { writeFileSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
-import {
-  askMeetings,
-  askPrompt,
-  groupPrompt,
-  nameSpeakers,
-  namingPrompt,
-  notesPrompt,
-  renderTranscript,
-  summarizeGroup,
-  writeNotes,
-} from "../src/index.ts";
+import { askMeetings, askPrompt } from "../src/meetings/ask.ts";
+import { groupPrompt, summarizeGroup } from "../src/meetings/group.ts";
+import { nameSpeakers, namingPrompt } from "../src/meetings/naming.ts";
+import { notesPrompt, writeNotes } from "../src/meetings/notes.ts";
+import { renderTranscript } from "../src/meetings/render.ts";
 import {
   askScenarios,
   groupScenarios,
