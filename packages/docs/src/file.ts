@@ -1,6 +1,7 @@
 /**
  * An Omni doc's type. Its body is Markdown, so search, agents, history and sync read it as text,
- * but it is a doc of its own: named without an extension, shown and opened as a page.
+ * but it is a doc of its own: named without an extension, shown and opened as a page. The database
+ * and Worker read the same type and rule from `@omni/contracts` (`STORAGE_DOC_TYPE`, `opensAsDoc`).
  */
 export const DOC_TYPE = "text/vnd.omni.doc";
 

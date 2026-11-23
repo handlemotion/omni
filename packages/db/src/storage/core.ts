@@ -5,8 +5,6 @@ import type { Db } from "../client.ts";
 import { storageLocks, storageNodes, storageUsage, storageVersions } from "../schema/storage.ts";
 import { leaveTombstones, nextRevision } from "./revision.ts";
 
-export { isUniqueViolation } from "../pg.ts";
-
 /** Folders nest this deep at most where people create or move them. */
 export const STORAGE_MAX_DEPTH = 32;
 /**

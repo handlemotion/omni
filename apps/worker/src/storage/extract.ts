@@ -1,5 +1,6 @@
 import { canvasText, sceneFromJson } from "@omni/canvas";
 import { CANVAS_TYPE } from "@omni/canvas/file";
+import { baseMimeType } from "@omni/contracts";
 import { unzipSync, type UnzipFileInfo } from "fflate";
 import { fileIndexText, parseSheet, SHEET_TYPE } from "@omni/sheets";
 import { extractText } from "unpdf";
@@ -82,7 +83,7 @@ export const readerFor: (name: string, mimeType: string | null) => Reader | null
   name,
   mimeType,
 ) => {
-  const type = mimeType?.split(";")[0]!.trim().toLowerCase() ?? "";
+  const type = baseMimeType(mimeType);
   if (type === CANVAS_TYPE) return "canvas";
   if (type === SHEET_TYPE) return "sheet";
   const dot = name.lastIndexOf(".");
@@ -344,7 +345,7 @@ const PICTURE_EXTENSIONS = new Set(["avif", "gif", "heic", "heif", "jpg", "jpeg"
 
 /** A picture whose words only OCR reads, by type first and name second. */
 export const isPicture = (name: string, mimeType: string | null) => {
-  const type = mimeType?.split(";")[0]!.trim().toLowerCase() ?? "";
+  const type = baseMimeType(mimeType);
   if (type) return PICTURE_TYPES.has(type);
   const dot = name.lastIndexOf(".");
   return dot > 0 && PICTURE_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
