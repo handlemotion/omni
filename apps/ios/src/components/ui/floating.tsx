@@ -1,4 +1,3 @@
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import type { ComponentType, ReactNode } from "react";
 import {
   Pressable,
@@ -17,29 +16,7 @@ export const compactControl = space(11);
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;
 
-const HAS_GLASS = isLiquidGlassAvailable();
-
-function GlassSurface({
-  style,
-  interactive = false,
-  children,
-}: {
-  style?: StyleProp<ViewStyle>;
-  interactive?: boolean;
-  children: ReactNode;
-}) {
-  if (HAS_GLASS) {
-    return (
-      <GlassView
-        glassEffectStyle="regular"
-        colorScheme="light"
-        isInteractive={interactive}
-        style={[styles.glass, style]}
-      >
-        {children}
-      </GlassView>
-    );
-  }
+function Surface({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {
   return <View style={[styles.surface, style]}>{children}</View>;
 }
 
@@ -62,8 +39,8 @@ export interface FloatingButtonProps extends Omit<PressableProps, "children" | "
 }
 
 /**
- * A round button floating over the page: native Liquid Glass on iOS 26+ (or flat white surface
- * with 1pt border elsewhere), or the brand fill for the main action. Squeezes to 0.97 while
+ * A round button floating over the page: a solid light-grey fill, or the brand fill for the main
+ * action. Squeezes to 0.97 while
  * pressed.
  */
 export function FloatingButton({
@@ -103,19 +80,13 @@ export function FloatingButton({
         pressed && styles.pressed,
       ]}
     >
-      {primary ? (
-        content
-      ) : (
-        <GlassSurface interactive style={shape}>
-          {content}
-        </GlassSurface>
-      )}
+      {primary ? content : <Surface style={shape}>{content}</Surface>}
     </Pressable>
   );
 }
 
 /**
- * The floating bar's wide search pill, at rest: native Liquid Glass on iOS 26+, its glyph at the
+ * The floating bar's wide search pill, at rest: a solid light-grey fill, its glyph at the
  * left, the placeholder centred, and an optional trailing action (dictation) at the right; a tap
  * opens the live field (`FloatingField`), where text sits at the left.
  */
@@ -140,7 +111,7 @@ export function FloatingPill({
       onPress={onPress}
       style={({ pressed }) => [styles.pillWrap, pressed && styles.pressed]}
     >
-      <GlassSurface interactive style={[styles.pill, compact && styles.compact]}>
+      <Surface style={[styles.pill, compact && styles.compact]}>
         <Icon size={iconSize.md} strokeWidth={2} color={colors.foreground} />
         <Text
           size="body"
@@ -162,18 +133,18 @@ export function FloatingPill({
         ) : (
           <View style={styles.glyphSlot} />
         )}
-      </GlassSurface>
+      </Surface>
     </Pressable>
   );
 }
 
-/** The pill holding a live field: native Liquid Glass, the glyph, then `children` (a bare `TextField`). */
+/** The pill holding a live field: a solid light-grey fill, the glyph, then `children` (a bare `TextField`). */
 export function FloatingField({ icon: Icon, children }: { icon: Glyph; children: ReactNode }) {
   return (
-    <GlassSurface interactive style={[styles.pill, styles.field]}>
+    <Surface style={[styles.pill, styles.field]}>
       <Icon size={iconSize.md} strokeWidth={2} color={colors.foreground} />
       {children}
-    </GlassSurface>
+    </Surface>
   );
 }
 
@@ -185,8 +156,8 @@ export interface FloatingGroupAction {
 }
 
 /**
- * Related actions in one floating pill (a conversation's Reply, Reply all, Forward): native Liquid
- * Glass on iOS 26+, each a 44pt glyph. One without `onPress` is dimmed.
+ * Related actions in one floating pill (a conversation's Reply, Reply all, Forward): a solid
+ * light-grey fill, each a 44pt glyph. One without `onPress` is dimmed.
  */
 export function FloatingGroup({
   actions,
@@ -197,7 +168,7 @@ export function FloatingGroup({
   compact?: boolean;
 }) {
   return (
-    <GlassSurface style={[styles.group, compact && styles.compactGroup]}>
+    <Surface style={[styles.group, compact && styles.compactGroup]}>
       {actions.map(({ icon: Icon, label, onPress }) => (
         <Pressable
           key={label}
@@ -216,21 +187,15 @@ export function FloatingGroup({
           <Icon size={iconSize.md} color={colors.foreground} />
         </Pressable>
       ))}
-    </GlassSurface>
+    </Surface>
   );
 }
 
 const styles = StyleSheet.create({
-  glass: {
-    height: floatingControl,
-    borderRadius: radius.full,
-  },
   surface: {
     height: floatingControl,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.well,
   },
   pillWrap: { flex: 1, minWidth: 0 },
   round: { width: floatingControl, alignItems: "center", justifyContent: "center" },
