@@ -47,7 +47,7 @@ export const NAV_BAR = space(12);
 const NAV_HANDLE = space(5);
 const SIDE = space(11);
 const GAP = space(3);
-const EDGE = space(5);
+const EDGE = space(6.5);
 const SWIPE = 30;
 const SPRING = { damping: 18, stiffness: 260, mass: 0.6 };
 /** The rail's whole height: its handle and its row. */
