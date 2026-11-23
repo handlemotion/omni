@@ -24,6 +24,7 @@ import {
   unchanged,
   type Applied,
 } from "./conversation-steps.ts";
+import { grantInOrg } from "./grants.ts";
 import { setSlaClocks } from "./sla.ts";
 
 interface ChangeContext {
@@ -46,14 +47,8 @@ async function canSee(tx: Tx, memberId: string, mailboxId: string, orgId: string
   const [row] = await tx
     .select({ one: sql`1` })
     .from(mailboxAccess)
-    .innerJoin(members, eq(members.id, mailboxAccess.memberId))
-    .where(
-      and(
-        eq(mailboxAccess.mailboxId, mailboxId),
-        eq(mailboxAccess.memberId, memberId),
-        eq(members.organizationId, orgId),
-      ),
-    );
+    .innerJoin(members, grantInOrg(orgId))
+    .where(and(eq(mailboxAccess.mailboxId, mailboxId), eq(mailboxAccess.memberId, memberId)));
   return row !== undefined;
 }
 

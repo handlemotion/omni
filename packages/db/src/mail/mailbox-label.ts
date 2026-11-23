@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 import { ownedPersonalMailbox } from "./forwarding.ts";
 
 /**
@@ -43,10 +44,7 @@ export async function mailboxSenderName(db: Db, memberId: string, mailboxId: str
       mailboxAccess,
       and(eq(mailboxAccess.mailboxId, mailboxes.id), eq(mailboxAccess.memberId, memberId)),
     )
-    .innerJoin(
-      members,
-      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailboxes.orgId)),
-    )
+    .innerJoin(members, grantInOrg(mailboxes.orgId))
     .where(eq(mailboxes.id, mailboxId));
   return row?.senderName ?? null;
 }

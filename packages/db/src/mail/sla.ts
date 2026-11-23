@@ -18,6 +18,7 @@ import {
   threads,
   type BusinessHoursWindow,
 } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Executor = Db | Tx;
@@ -409,13 +410,7 @@ export const emitSlaAlerts: (db: Db, now: Date, limit?: number) => Promise<SlaAl
             await tx
               .select({ id: mailboxAccess.memberId })
               .from(mailboxAccess)
-              .innerJoin(
-                members,
-                and(
-                  eq(members.id, mailboxAccess.memberId),
-                  eq(members.organizationId, alert.row.orgId),
-                ),
-              )
+              .innerJoin(members, grantInOrg(alert.row.orgId))
               .where(eq(mailboxAccess.mailboxId, alert.row.mailboxId))
           ).map((m) => m.id);
       if (recipients.length === 0) return [];

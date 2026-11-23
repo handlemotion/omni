@@ -1,5 +1,6 @@
 import { and, asc, eq, ne } from "drizzle-orm";
 import { mailboxAccess, mailboxes, members } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 import type { ConversationRow, Executor, Tx } from "./conversation-core.ts";
 
 /**
@@ -22,10 +23,7 @@ export async function nextInTurn(tx: Tx, row: ConversationRow) {
     await tx
       .select({ id: mailboxAccess.memberId })
       .from(mailboxAccess)
-      .innerJoin(
-        members,
-        and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, row.orgId)),
-      )
+      .innerJoin(members, grantInOrg(row.orgId))
       .where(eq(mailboxAccess.mailboxId, row.mailboxId))
       .orderBy(asc(mailboxAccess.memberId))
   ).map((m) => m.id);

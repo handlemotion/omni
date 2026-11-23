@@ -2,6 +2,7 @@ import { and, asc, eq, exists, inArray, isNull, notExists, sql } from "drizzle-o
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members, teamMembers, teams, users } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 
 async function membershipKey(teamId: string, userId: string) {
   const bytes = new TextEncoder().encode(JSON.stringify([teamId, userId]));
@@ -94,10 +95,7 @@ export async function ensureMailboxTeam(db: Db, mailboxId: string) {
     const granted = await tx
       .select({ userId: members.userId })
       .from(mailboxAccess)
-      .innerJoin(
-        members,
-        and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailbox.orgId)),
-      )
+      .innerJoin(members, grantInOrg(mailbox.orgId))
       .where(eq(mailboxAccess.mailboxId, mailbox.id));
     await addTeamUsers(
       tx,

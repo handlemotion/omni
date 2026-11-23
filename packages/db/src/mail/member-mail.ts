@@ -14,6 +14,7 @@ import {
   triageBucket,
   triageFeedback,
 } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 
 /** `exists` subquery: `memberId` has a grant on the row's mailbox, in the row's org. */
 export function grantFor(db: Db, memberId: string, mailboxId: AnyColumn, orgId: AnyColumn) {
@@ -49,10 +50,7 @@ export async function listMemberMailboxes(db: Db, memberId: string) {
       mailboxAccess,
       and(eq(mailboxAccess.mailboxId, mailboxes.id), eq(mailboxAccess.memberId, memberId)),
     )
-    .innerJoin(
-      members,
-      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailboxes.orgId)),
-    )
+    .innerJoin(members, grantInOrg(mailboxes.orgId))
     .orderBy(asc(mailboxes.address));
 }
 

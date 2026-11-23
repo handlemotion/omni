@@ -20,6 +20,14 @@ export interface Participant {
 }
 
 /**
+ * The join condition for the member holding a `mailbox_access` grant, only when they belong to
+ * `orgId` (the mailbox's org): a grant never reaches across orgs.
+ */
+export function grantInOrg(orgId: AnyColumn | string) {
+  return and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, orgId));
+}
+
+/**
  * The joins and columns every member read shares. `access` inner-joins `mailbox_access` for the
  * grantees and `members` to require the row's org to be the member's org, so a missing grant or
  * a grant that crosses orgs returns nothing.
@@ -31,7 +39,7 @@ export function grantScope(db: Db, isGrantee: IsGrantee) {
         mailboxAccess,
         and(eq(mailboxAccess.mailboxId, mailboxId), isGrantee(mailboxAccess.memberId)),
       ],
-      [members, and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, orgId))],
+      [members, grantInOrg(orgId)],
     ] as const;
   const [threadGrant, threadOrg] = access(threads.mailboxId, threads.orgId);
   const [messageGrant, messageOrg] = access(messages.mailboxId, messages.orgId);

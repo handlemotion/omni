@@ -12,7 +12,7 @@ import {
   threads,
   users,
 } from "../schema/index.ts";
-import { visibleMailbox, type GrantScope } from "./grants.ts";
+import { visibleMailbox, type GrantScope, grantInOrg } from "./grants.ts";
 
 /** One shared conversation and what a helpdesk shows around it: tags, SLA settings, teammates. */
 export function conversationReadQueries(scope: GrantScope) {
@@ -144,10 +144,7 @@ export function conversationReadQueries(scope: GrantScope) {
       const rows = await db
         .select({ memberId: mailboxAccess.memberId })
         .from(mailboxAccess)
-        .innerJoin(
-          members,
-          and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, thread.orgId)),
-        )
+        .innerJoin(members, grantInOrg(thread.orgId))
         .where(eq(mailboxAccess.mailboxId, thread.mailboxId));
       return { mailboxId: thread.mailboxId, memberIds: rows.map((r) => r.memberId) };
     },
