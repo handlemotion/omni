@@ -20,8 +20,9 @@ import { colors, radius, space } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
 import { useReduceMotion } from "./use-reduce-motion.ts";
 
-const INSET = space(2);
-const CORNER = space(9);
+const INSET = space(2.5);
+const SCREEN_CORNER = space(14);
+const CORNER = SCREEN_CORNER - INSET;
 const MAX_SHARE = 0.8;
 const OPEN_MS = 360;
 const CLOSE_MS = 240;
@@ -88,7 +89,7 @@ export function BottomSheet({
   const anchor = useSharedValue(0);
   if (isOpen && !mounted) setMounted(true);
   const measured = height > 0;
-  const bottom = Math.max(insets.bottom - space(4), INSET);
+  const bottom = INSET;
 
   useEffect(() => {
     if (isOpen && !measured) return;
@@ -180,7 +181,9 @@ export function BottomSheet({
                 bounces={false}
                 onScroll={onScroll}
                 scrollEventThrottle={16}
-                contentContainerStyle={styles.rows}
+                contentContainerStyle={{
+                  paddingBottom: Math.max(insets.bottom - INSET, 0) + space(2),
+                }}
               >
                 {children}
               </Animated.ScrollView>
@@ -214,5 +217,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.hairlineLine,
   },
   title: { height: space(11), justifyContent: "center", paddingHorizontal: space(3.5) },
-  rows: { paddingBottom: space(4) },
 });
