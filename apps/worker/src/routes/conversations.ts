@@ -32,6 +32,7 @@ import {
   notifyMembers,
   withdrawNotifications,
 } from "../realtime-announce.ts";
+import { cursorParam, encodeCursor } from "../cursor.ts";
 import { zValidator } from "../validator.ts";
 import {
   applyChange,
@@ -44,32 +45,17 @@ const idempotencyHeader = z.object({
   "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
 });
 
-const cursorParam = z
-  .string()
-  .transform((value, ctx) => {
-    try {
-      const json = JSON.parse(atob(value.replaceAll("-", "+").replaceAll("_", "/")));
-      const parsed = z.object({ t: z.iso.datetime(), id: z.string().min(1) }).parse(json);
-      return { at: parsed.t, id: parsed.id };
-    } catch {
-      ctx.addIssue({ code: "custom", message: "invalid cursor" });
-      return z.NEVER;
-    }
-  })
+const cursorQuery = cursorParam(z.object({ t: z.iso.datetime(), id: z.string().min(1) }))
+  .transform((parsed) => ({ at: parsed.t, id: parsed.id }))
   .optional();
 
-function encodeCursor(at: string, id: string) {
-  return btoa(JSON.stringify({ t: at, id }))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
+const pageCursor = (at: string, id: string) => encodeCursor({ t: at, id });
 
 const listQuery = z.object({
   mailboxId: z.string().min(1),
   view: z.enum(CONVERSATION_VIEWS).default("open"),
   tagId: z.string().min(1).optional(),
-  cursor: cursorParam,
+  cursor: cursorQuery,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
@@ -80,7 +66,7 @@ const noteBody = z.object({
 const notePatchBody = z.object({ body: z.string().trim().min(1).max(NOTE_MAX_LENGTH) });
 const notificationsQuery = z.object({
   unread: z.enum(["true", "false"]).default("false"),
-  cursor: cursorParam,
+  cursor: cursorQuery,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 const readBody = z.object({ ids: z.array(z.string().min(1)).min(1).max(500).optional() });
@@ -209,7 +195,7 @@ export const conversations = new Hono<AppEnv>()
     });
     const last = rows.at(-1);
     const nextCursor =
-      last && rows.length === query.limit ? encodeCursor(last.pageAt, last.id) : null;
+      last && rows.length === query.limit ? pageCursor(last.pageAt, last.id) : null;
     return c.json({ conversations: rows.map(({ pageAt: _pageAt, ...row }) => row), nextCursor });
   })
 
@@ -401,7 +387,7 @@ export const conversations = new Hono<AppEnv>()
       unread: page.unread,
       notifications: page.notifications.map(({ pageAt: _pageAt, ...row }) => row),
       nextCursor:
-        last && page.notifications.length === limit ? encodeCursor(last.pageAt, last.id) : null,
+        last && page.notifications.length === limit ? pageCursor(last.pageAt, last.id) : null,
     });
   })
 

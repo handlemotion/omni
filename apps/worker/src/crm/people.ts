@@ -12,15 +12,8 @@ import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
-import {
-  announce,
-  encodeCursor,
-  listInput,
-  memberCrm,
-  refused,
-  wireDeal,
-  wirePerson,
-} from "./http.ts";
+import { announce, listInput, memberCrm, refused, wireDeal, wirePerson } from "./http.ts";
+import { encodeCursor } from "../cursor.ts";
 
 export const people = new Hono<AppEnv>()
   .get("/people", zValidator("query", crmPeopleQuerySchema), async (c) => {

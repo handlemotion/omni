@@ -14,7 +14,6 @@ import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
   announce,
-  encodeCursor,
   listInput,
   memberCrm,
   refused,
@@ -22,6 +21,7 @@ import {
   wireDeal,
   wirePerson,
 } from "./http.ts";
+import { encodeCursor } from "../cursor.ts";
 
 export const companies = new Hono<AppEnv>()
   .get("/companies", zValidator("query", crmCompaniesQuerySchema), async (c) => {

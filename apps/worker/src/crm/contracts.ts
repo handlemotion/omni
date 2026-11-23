@@ -14,7 +14,8 @@ import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { sendFileForSignature, voidSignatureRequest } from "../storage/signing.ts";
 import { zValidator } from "../validator.ts";
-import { announce, decodeCursor, encodeCursor, memberCrm, refused, wireContract } from "./http.ts";
+import { announce, memberCrm, refused, wireContract } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 
 const contractCursor = z.object({ at: z.iso.datetime(), id: z.string().min(1) });
 

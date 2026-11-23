@@ -26,7 +26,8 @@ import { systemMailSender, type AppEnv } from "../context.ts";
 import { checkRateLimit, longestWait, tooManyRequests } from "../rate-limiter.ts";
 import { wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
-import { decodeCursor, encodeCursor, memberStorage, refused } from "./http.ts";
+import { memberStorage, refused } from "./http.ts";
+import { decodeCursor, encodeCursor } from "../cursor.ts";
 import { realtimeOf } from "../realtime-announce.ts";
 
 const sharedCursor = z.object({ sharedAt: z.coerce.date(), id: z.string().min(1) });

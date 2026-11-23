@@ -30,29 +30,16 @@ import {
   type ThreadWriter,
   type TriagePatch,
 } from "../thread-writes.ts";
+import { cursorParam, encodeCursor } from "../cursor.ts";
 import { zValidator } from "../validator.ts";
 
 const cursorSchema = z.object({ t: z.iso.datetime(), id: z.string().min(1) });
 
-function encodeCursor(thread: { lastMessageAt: Date; id: string }) {
-  return btoa(JSON.stringify({ t: thread.lastMessageAt.toISOString(), id: thread.id }))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
+const threadCursor = (thread: { lastMessageAt: Date; id: string }) =>
+  encodeCursor({ t: thread.lastMessageAt.toISOString(), id: thread.id });
 
-const cursorParam = z
-  .string()
-  .transform((value, ctx) => {
-    try {
-      const json = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-      const parsed = cursorSchema.parse(JSON.parse(json));
-      return { lastMessageAt: new Date(parsed.t), id: parsed.id };
-    } catch {
-      ctx.addIssue({ code: "custom", message: "invalid cursor" });
-      return z.NEVER;
-    }
-  })
+const cursorQuery = cursorParam(cursorSchema)
+  .transform((parsed) => ({ lastMessageAt: new Date(parsed.t), id: parsed.id }))
   .optional();
 
 const scopeParam = z.enum(["workspace", "all"]).default("workspace");
@@ -69,7 +56,7 @@ const listQuery = z.object({
     .enum([...THREAD_VIEWS, "queue"])
     .transform((view) => (view === "queue" ? "later" : view))
     .default("inbox"),
-  cursor: cursorParam,
+  cursor: cursorQuery,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
@@ -234,7 +221,7 @@ export const mail = new Hono<AppEnv>()
     const last = threads.at(-1);
     return c.json({
       threads,
-      nextCursor: last && threads.length === query.limit ? encodeCursor(last) : null,
+      nextCursor: last && threads.length === query.limit ? threadCursor(last) : null,
     });
   })
 

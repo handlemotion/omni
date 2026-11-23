@@ -17,7 +17,6 @@ import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
   announce,
-  encodeCursor,
   listInput,
   memberCrm,
   refused,
@@ -25,6 +24,7 @@ import {
   wireDeal,
   wirePerson,
 } from "./http.ts";
+import { encodeCursor } from "../cursor.ts";
 
 const iconKey = (orgId: string, dealId: string, iconId: string) =>
   `crm/deal-icons/${orgId}/${dealId}/${iconId}`;
