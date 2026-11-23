@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/wokshop/omni/compare/ios-v0.4.0...ios-v0.5.0) (2026-11-23)
+
+
+### Features
+
+* **ios:** add EAS Update for ~30s OTA updates ([#895](https://github.com/wokshop/omni/issues/895)) ([c6988d5](https://github.com/wokshop/omni/commit/c6988d58333dfab0aa8f5b3898ade02a3e1affdd))
+
 ## [0.4.0](https://github.com/wokshop/omni/compare/ios-v0.3.0...ios-v0.4.0) (2026-11-22)
 
 
