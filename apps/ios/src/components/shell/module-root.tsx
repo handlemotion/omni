@@ -31,7 +31,10 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
   return (
     <RootPlace value={{ module, params }}>
       <ScrollEdge.Provider
-        value={(event) => shell.setScrolled(event.nativeEvent.contentOffset.y > 0)}
+        value={(event) => {
+          const { contentOffset, contentInset } = event.nativeEvent;
+          shell.setScrolled(contentOffset.y + contentInset.top > 0);
+        }}
       >
         <View style={styles.page}>
           <TopInset value={shell.searching ? statusBar + space(4) : shellTop}>{children}</TopInset>
