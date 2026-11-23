@@ -1,4 +1,5 @@
 import {
+  baseMimeType,
   STORAGE_PART_BYTES,
   STORAGE_THUMBNAIL_SIZES,
   type StorageNode,
@@ -225,8 +226,8 @@ const PLAYABLE_TYPES = new Set([
 
 /** The type a file leaves with: its own for playable media, `application/octet-stream` else. */
 export function servedType(mimeType: string | null) {
-  const type = mimeType?.split(";")[0]!.trim().toLowerCase();
-  return type && PLAYABLE_TYPES.has(type) ? type : "application/octet-stream";
+  const type = baseMimeType(mimeType);
+  return PLAYABLE_TYPES.has(type) ? type : "application/octet-stream";
 }
 
 const CONDITIONS = ["if-match", "if-none-match", "if-modified-since", "if-unmodified-since"];

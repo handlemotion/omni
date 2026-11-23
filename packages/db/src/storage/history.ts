@@ -1,3 +1,4 @@
+import { STORAGE_DOC_TYPE, STORAGE_MARKDOWN_NAME } from "@omni/contracts";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
@@ -53,8 +54,8 @@ export async function docsOwedJournal(db: Db, limit = 20) {
         isNull(storageNodes.trashedAt),
         sql`${storageContents.writtenAt} > now() - interval '1 day'`,
         or(
-          sql`split_part(lower(${storageNodes.mimeType}), ';', 1) = 'text/vnd.omni.doc'`,
-          sql`${storageNodes.name} ~* '\\.(md|markdown)$'`,
+          sql`split_part(lower(${storageNodes.mimeType}), ';', 1) = ${STORAGE_DOC_TYPE}`,
+          sql`${storageNodes.name} ~* ${STORAGE_MARKDOWN_NAME}`,
         ),
         or(
           isNull(storageDocJournals.nodeId),

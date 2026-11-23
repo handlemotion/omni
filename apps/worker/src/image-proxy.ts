@@ -1,3 +1,5 @@
+import { baseMimeType } from "@omni/contracts";
+
 const MAX_REDIRECTS = 3;
 const MAX_BYTES = 5 * 1024 * 1024;
 const TIMEOUT_MS = 8_000;
@@ -45,7 +47,7 @@ export function imageHeaders(contentType: string) {
 }
 
 export function isProxiableImageType(contentType: string | null) {
-  return IMAGE_TYPES.has((contentType ?? "").split(";")[0]!.trim().toLowerCase());
+  return IMAGE_TYPES.has(baseMimeType(contentType));
 }
 
 /** Serves `target` through the Cache API, fetching and checking it on a miss. */
@@ -129,7 +131,7 @@ export const fetchImage: (
 
     return new Response(body, {
       headers: {
-        ...imageHeaders(contentType!.split(";")[0]!.trim().toLowerCase()),
+        ...imageHeaders(baseMimeType(contentType)),
         "content-length": String(body.byteLength),
         "cache-control": `private, max-age=${CACHE_SECONDS}`,
       },

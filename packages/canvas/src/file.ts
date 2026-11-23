@@ -1,6 +1,7 @@
 /**
  * An Omni canvas's type. Its body is a JSON scene, so search, agents, history and sync read it as
- * text, but it is a board of its own: named without an extension, opened in its own editor.
+ * text, but it is a board of its own: named without an extension, opened in its own editor. The
+ * database reads the same type from `@omni/contracts` (`STORAGE_CANVAS_TYPE`).
  */
 export const CANVAS_TYPE = "text/vnd.omni.canvas";
 

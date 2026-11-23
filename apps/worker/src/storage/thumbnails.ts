@@ -1,4 +1,8 @@
-import { STORAGE_THUMBNAIL_MAX_SOURCE_BYTES, storageThumbnailQuerySchema } from "@omni/contracts";
+import {
+  baseMimeType,
+  STORAGE_THUMBNAIL_MAX_SOURCE_BYTES,
+  storageThumbnailQuerySchema,
+} from "@omni/contracts";
 import type { FileResult } from "@omni/db";
 import type { Context } from "hono";
 import type { AppEnv } from "../context.ts";
@@ -19,7 +23,7 @@ const DRAWN_TYPES = new Set([
 const drawable = (file: { size: number; mimeType: string | null }) =>
   file.size > 0 &&
   file.size <= STORAGE_THUMBNAIL_MAX_SOURCE_BYTES &&
-  DRAWN_TYPES.has(file.mimeType?.split(";")[0]!.trim().toLowerCase() ?? "");
+  DRAWN_TYPES.has(baseMimeType(file.mimeType));
 
 const noThumbnail = (c: Context<AppEnv>) =>
   apiError(c, "no_thumbnail", "this file has no thumbnail");

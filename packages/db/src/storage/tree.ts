@@ -1,5 +1,7 @@
+import { baseMimeType, opensAsDoc, STORAGE_CANVAS_TYPE } from "@omni/contracts";
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { isUniqueViolation } from "../pg.ts";
 import { storageLocks, storageNodes } from "../schema/storage.ts";
 import { editsContent, type Access, type Door, type StorageRole } from "./access.ts";
 import {
@@ -12,7 +14,6 @@ import {
   insertNode,
   isInside,
   isSubtree,
-  isUniqueViolation,
   listChildren,
   lockTree,
   orgOfNode,
@@ -182,10 +183,8 @@ export async function resolvePlace(ex: Db, door: Door, place: StoragePlace) {
   };
 }
 
-const PAGE_TYPES = new Set(["text/vnd.omni.doc", "text/vnd.omni.canvas"]);
 const holdsImages = (node: { name: string; mimeType: string | null }) =>
-  PAGE_TYPES.has(node.mimeType?.split(";")[0]?.trim().toLowerCase() ?? "") ||
-  /\.(md|markdown)$/i.test(node.name);
+  opensAsDoc(node.name, node.mimeType) || baseMimeType(node.mimeType) === STORAGE_CANVAS_TYPE;
 const isImageName = (name: string) => /\.(png|jpe?g|gif|webp)$/i.test(name);
 
 /**
