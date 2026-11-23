@@ -1,6 +1,4 @@
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { router } from "expo-router";
-import { Pressable, StyleSheet, View } from "react-native";
 import { useAddActions } from "@/components/drive/add-menu.tsx";
 import {
   IconBell,
@@ -9,20 +7,23 @@ import {
   IconFolderPlus,
   IconImage,
   IconPlus,
+  IconSearch,
 } from "@/components/icons.ts";
 import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
-import { FloatingGroup, type FloatingGroupAction } from "@/components/ui/floating.tsx";
-import { Text } from "@/components/ui/text.tsx";
+import {
+  FloatingButton,
+  FloatingGroup,
+  type FloatingGroupAction,
+} from "@/components/ui/floating.tsx";
 import type { CrmPage } from "@/lib/crm.ts";
 import type { DrivePlace } from "@/lib/drive-actions.ts";
 import { DRIVE_PAGES, useTeamspaces } from "@/lib/drive.ts";
-import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
+import { iconSize } from "@/theme/tokens.ts";
+import { SEARCH_PLACEHOLDER } from "./bottom-bar.tsx";
 import type { FloatingBarAction } from "./floating-bar.tsx";
 import { useMenu } from "./menu-context.tsx";
 import { useMenuPlace, type Module } from "./menu-nav.ts";
 import { MenuRow } from "./menu-row.tsx";
-
-const HAS_GLASS = isLiquidGlassAvailable();
 
 const NEW_RECORD: Record<CrmPage, { kind: string; label: string }> = {
   companies: { kind: "company", label: "New company" },
@@ -123,58 +124,24 @@ function useModuleAction() {
 }
 
 /**
- * The module's main action as a pill at the bottom-right of the left sidebar drawer: tinted
- * Liquid Glass on iOS 26+, the solid primary fill elsewhere.
- */
-export function ModuleActionPill() {
-  const { action, sheet } = useModuleAction();
-  if (!action) return null;
-
-  const Icon = action.icon;
-  const content = (
-    <View style={styles.row}>
-      <Icon size={action.glyphSize} color={colors.primaryForeground} />
-      <Text size="sm" weight="medium" tone="primaryForeground" numberOfLines={1}>
-        {action.title}
-      </Text>
-    </View>
-  );
-
-  return (
-    <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={action.label}
-        onPress={action.onPress}
-        style={({ pressed }) => [pressed && styles.pressed]}
-      >
-        {HAS_GLASS ? (
-          <GlassView
-            glassEffectStyle="regular"
-            tintColor={colors.primaryButton}
-            isInteractive
-            style={styles.pill}
-          >
-            {content}
-          </GlassView>
-        ) : (
-          <View style={[styles.pill, styles.fallback]}>{content}</View>
-        )}
-      </Pressable>
-      {sheet}
-    </>
-  );
-}
-
-/**
- * The top bar's right-hand group, opposite ☰: Mail's Notifications beside the module's main
- * action, in one Liquid Glass pill.
+ * The top bar's right-hand group, opposite the page title: the module's search and Mail's
+ * Notifications, in one Liquid Glass pill.
  */
 export function ModuleActions() {
-  const { action, sheet } = useModuleAction();
   const place = useMenuPlace();
-  const { close } = useMenu();
+  const { close, setQuery, setSearchIn } = useMenu();
   const group: FloatingGroupAction[] = [];
+  if (SEARCH_PLACEHOLDER[place.module]) {
+    group.push({
+      icon: IconSearch,
+      label: SEARCH_PLACEHOLDER[place.module] ?? "Search",
+      onPress: () => {
+        close();
+        setQuery("");
+        setSearchIn(place.module);
+      },
+    });
+  }
   if (place.module === "mail") {
     group.push({
       icon: IconBell,
@@ -185,35 +152,24 @@ export function ModuleActions() {
       },
     });
   }
-  if (action) group.push({ icon: action.icon, label: action.label, onPress: action.onPress });
   if (group.length === 0) return null;
+  return <FloatingGroup compact actions={group} />;
+}
+
+/** The module's main action (New message, New file…) as a round brand button on the page. */
+export function ModuleMainAction() {
+  const { action, sheet } = useModuleAction();
+  if (!action) return null;
   return (
     <>
-      <FloatingGroup compact actions={group} />
+      <FloatingButton
+        primary
+        icon={action.icon}
+        label={action.label}
+        glyph={iconSize.md}
+        onPress={action.onPress}
+      />
       {sheet}
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  pill: {
-    minHeight: space(10),
-    paddingHorizontal: space(4),
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fallback: {
-    backgroundColor: colors.primaryButton,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space(2),
-  },
-  pressed: {
-    transform: [{ scale: 0.97 }],
-  },
-});

@@ -25,7 +25,7 @@ const AVATAR = space(9);
 const SHEET_LEAD = space(9);
 
 /**
- * The left drawer's footer button: the active workspace's avatar alone.
+ * The top bar's workspace button: the active workspace's avatar alone.
  * A tap opens the workspace & account sheet (switch workspace, settings, connections, log out).
  */
 export function WorkspaceButton() {

@@ -1,9 +1,9 @@
+import { BlurView } from "expo-blur";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
-import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import { GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  Easing,
   Extrapolation,
   interpolate,
   useAnimatedStyle,
@@ -11,110 +11,77 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { scheduleOnRN } from "react-native-worklets";
+import { IconChevronDown } from "@/components/icons.ts";
+import { EdgeBlur } from "@/components/ui/edge-blur.tsx";
 import { ScrollEdge } from "@/components/ui/scroll-edge.tsx";
+import { Text } from "@/components/ui/text.tsx";
 import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
-import { colors, radius, space } from "@/theme/tokens.ts";
+import { colors, iconSize, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
-import { MenuDrawer } from "./menu-layer.tsx";
 import { RootPlace, TopInset, useShellTop, type Module } from "./menu-nav.ts";
+import {
+  CARD_PEEK,
+  ModuleSection,
+  SECTION_EASE,
+  SECTION_MS,
+  useSectionHeight,
+  useSectionPull,
+  useSectionTravel,
+} from "./module-panel.tsx";
+import { ModuleMainAction } from "./module-action.tsx";
+import { useModules } from "./modules.ts";
 import { ShellChrome } from "./shell.tsx";
 
-const DRAWER_MAX = 320;
-const DRAWER_RATIO = 0.82;
-const OPEN_SLOP = 20;
-const OPEN_MS = 280;
-const CLOSE_MS = 240;
-const FLING = 500;
-const EASE = Easing.out(Easing.cubic);
+const CARD_RADIUS = space(11);
+const BOTTOM_FADE = space(16);
 
 /**
- * A module's root page inside the reveal drawer shell: the module's nav menu sits underneath on
- * the left and fades/scales up as the current page slides right out of the way. Supports tapping
- * the top-left menu button, swiping right anywhere on the page (a row's own swipe, which starts
- * sooner, keeps its gesture), or tapping/swiping left on the
- * exposed page to close.
+ * A module's root page as a white card with round bottom corners and a hairline edge on the grey
+ * surface, its title
+ * and actions on top. Under the card sits the module section: the module dock, and below it the
+ * module's pages, which the card and dock slide up to show. While they are up, the card peeks
+ * under the status bar, blurred and dimmed behind a prompt; tapping or pulling it down slides it back.
+ * Swiping the pages sideways slides the page's contents inside the card with them.
  */
 export function ModuleRoot({ module, children }: { module: Module; children: ReactNode }) {
   const params = useLocalSearchParams<{ page?: string; space?: string; mailbox?: string }>();
   const shell = useMenu();
   const shellTop = useShellTop();
   const statusBar = useSafeAreaInsets().top;
-  const { width } = useWindowDimensions();
+  const section = useSectionHeight();
+  const travel = useSectionTravel();
   const still = useReduceMotion();
-  const drawerWidth = Math.min(Math.round(width * DRAWER_RATIO), DRAWER_MAX);
   const progress = useSharedValue(shell.isOpen ? 1 : 0);
-  const [mounted, setMounted] = useState(shell.isOpen);
+  const pull = useSectionPull(progress, travel);
+
+  const { remember } = shell;
+  useEffect(() => {
+    remember(module, { page: params.page, space: params.space, mailbox: params.mailbox });
+  }, [remember, module, params.page, params.space, params.mailbox]);
 
   useEffect(() => {
-    if (shell.isOpen) setMounted(true);
-    const target = shell.isOpen ? 1 : 0;
-    const duration = still ? 0 : shell.isOpen ? OPEN_MS : CLOSE_MS;
-    progress.value = withTiming(target, { duration, easing: EASE }, (finished) => {
-      if (finished && target === 0) scheduleOnRN(setMounted, false);
+    progress.value = withTiming(shell.isOpen ? 1 : 0, {
+      duration: still ? 0 : SECTION_MS,
+      easing: SECTION_EASE,
     });
   }, [shell.isOpen, still, progress]);
 
-  const beginDrag = () => setMounted(true);
-  const finishDrag = (open: boolean) => {
-    if (open) shell.open();
-    else shell.close();
-  };
-
-  const openSwipe = usePanGesture({
-    enabled: !shell.isOpen && !shell.searching,
-    activeOffsetX: OPEN_SLOP,
-    failOffsetY: [-10, 10],
-    onActivate: () => {
-      "worklet";
-      scheduleOnRN(beginDrag);
-    },
-    onUpdate: (e) => {
-      "worklet";
-      progress.value = Math.max(0, Math.min(1, e.translationX / drawerWidth));
-    },
-    onDeactivate: (e) => {
-      "worklet";
-      const shouldOpen = progress.value > 0.35 || e.velocityX > FLING;
-      const duration = still ? 0 : shouldOpen ? OPEN_MS : CLOSE_MS;
-      progress.value = withTiming(shouldOpen ? 1 : 0, { duration, easing: EASE }, (finished) => {
-        if (finished && !shouldOpen) scheduleOnRN(setMounted, false);
-      });
-      scheduleOnRN(finishDrag, shouldOpen);
-    },
-  });
-
-  const closeSwipe = usePanGesture({
-    enabled: shell.isOpen,
-    activeOffsetX: -10,
-    failOffsetY: [-10, 10],
-    onUpdate: (e) => {
-      "worklet";
-      progress.value = Math.max(0, Math.min(1, 1 + e.translationX / drawerWidth));
-    },
-    onDeactivate: (e) => {
-      "worklet";
-      const shouldClose = progress.value < 0.7 || e.velocityX < -FLING;
-      const duration = still ? 0 : shouldClose ? CLOSE_MS : OPEN_MS;
-      progress.value = withTiming(shouldClose ? 0 : 1, { duration, easing: EASE }, (finished) => {
-        if (finished && shouldClose) scheduleOnRN(setMounted, false);
-      });
-      scheduleOnRN(finishDrag, !shouldClose);
-    },
-  });
-
-  const pageShell = useAnimatedStyle(() => ({
-    transform: [{ translateX: progress.value * drawerWidth }],
+  const { width } = useWindowDimensions();
+  const modules = useModules();
+  const current = Math.max(
+    0,
+    modules.findIndex((entry) => entry.id === module),
+  );
+  const follow = useSharedValue(current);
+  const card = useAnimatedStyle(() => ({ transform: [{ translateY: -travel * progress.value }] }));
+  const slide = useAnimatedStyle(() => ({
+    transform: [{ translateX: (current - follow.value) * width }],
   }));
-
-  const pageClip = useAnimatedStyle(() => ({
-    borderRadius: interpolate(
-      progress.value,
-      [0, 0.15, 1],
-      [0, radius.sheet, radius.sheet],
-      Extrapolation.CLAMP,
-    ),
-    borderWidth: interpolate(progress.value, [0, 0.05, 1], [0, 1, 1], Extrapolation.CLAMP),
+  const wash = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0.2, 0.8], [0, 1], Extrapolation.CLAMP),
+  }));
+  const hint = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0.6, 1], [0, 1], Extrapolation.CLAMP),
   }));
 
   return (
@@ -123,38 +90,45 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
         value={(event) => shell.setScrolled(event.nativeEvent.contentOffset.y > 0)}
       >
         <View style={styles.root}>
-          {mounted ? (
-            <MenuDrawer
-              module={module}
-              width={drawerWidth}
-              progress={progress}
-              interactive={shell.isOpen}
-            />
-          ) : null}
-          <Animated.View style={[styles.pageShell, pageShell]}>
-            <Animated.View style={[styles.pageClip, pageClip]}>
-              <GestureDetector gesture={openSwipe}>
-                <View style={styles.page}>
-                  <TopInset value={shell.searching ? statusBar + space(4) : shellTop}>
-                    {children}
-                  </TopInset>
-                </View>
-              </GestureDetector>
+          <Animated.View
+            style={[styles.card, shell.searching ? styles.full : { bottom: section }, card]}
+          >
+            <Animated.View style={[StyleSheet.absoluteFill, slide]}>
+              <TopInset value={shell.searching ? statusBar + space(4) : shellTop}>
+                {children}
+              </TopInset>
+              {shell.searching ? null : (
+                <EdgeBlur edge="bottom" height={BOTTOM_FADE} intensity={6} smooth />
+              )}
               <ShellChrome />
-              {mounted ? (
-                <GestureDetector gesture={closeSwipe}>
-                  <View pointerEvents={shell.isOpen ? "auto" : "none"} style={styles.scrim}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Close menu"
-                      onPress={shell.close}
-                      style={styles.scrimHit}
-                    />
-                  </View>
-                </GestureDetector>
-              ) : null}
+              {shell.searching || shell.isOpen ? null : (
+                <View style={styles.main}>
+                  <ModuleMainAction />
+                </View>
+              )}
             </Animated.View>
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, wash]}>
+              <BlurView intensity={10} tint="light" style={StyleSheet.absoluteFill} />
+              <View style={styles.wash} />
+            </Animated.View>
+            <Animated.View pointerEvents="none" style={[styles.hint, hint]}>
+              <IconChevronDown size={iconSize.sm} color={colors.mutedForeground} />
+              <Text size="sm" tone="mutedForeground">
+                Swipe down to hide
+              </Text>
+            </Animated.View>
+            {shell.isOpen ? (
+              <GestureDetector gesture={pull}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Hide pages"
+                  onPress={shell.close}
+                  style={StyleSheet.absoluteFill}
+                />
+              </GestureDetector>
+            ) : null}
           </Animated.View>
+          <ModuleSection module={module} progress={progress} follow={follow} />
         </View>
       </ScrollEdge.Provider>
     </RootPlace>
@@ -162,15 +136,41 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.sidebar, overflow: "hidden" },
-  pageShell: { flex: 1 },
-  pageClip: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderColor: colors.border,
+  root: { flex: 1, backgroundColor: colors.under, overflow: "hidden" },
+  card: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     overflow: "hidden",
+    backgroundColor: colors.background,
+    borderColor: colors.underLine,
+    borderBottomWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomLeftRadius: CARD_RADIUS,
+    borderBottomRightRadius: CARD_RADIUS,
+    borderCurve: "continuous",
   },
-  page: { flex: 1, backgroundColor: colors.background },
-  scrim: { ...StyleSheet.absoluteFill },
-  scrimHit: { flex: 1 },
+  full: {
+    bottom: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+  },
+  main: { position: "absolute", right: space(4), bottom: space(5) },
+  wash: { ...StyleSheet.absoluteFill, backgroundColor: colors.background, opacity: 0.35 },
+  hint: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: CARD_PEEK,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space(1.5),
+  },
 });

@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { colors, space } from "@/theme/tokens.ts";
 
+const EASE_STEPS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+
 const MaskedView = MaskedViewClass as unknown as ComponentType<MaskedViewProps>;
 
 /**
@@ -20,6 +22,7 @@ export function EdgeBlur({
   solid = 0,
   intensity = 24,
   wash = true,
+  smooth = false,
 }: {
   edge: "top" | "bottom";
   height: number;
@@ -27,16 +30,23 @@ export function EdgeBlur({
   intensity?: number;
   /** Lay the canvas colour over the blur; off where the edge crosses other surfaces (the drawer). */
   wash?: boolean;
+  /** Ease the ramp out over many stops instead of three straight segments. */
+  smooth?: boolean;
 }) {
   const id = useId().replace(/:/g, "");
   const top = edge === "top";
   const hold = Math.min(1, solid / height);
   const at = (offset: number) => (top ? offset : 1 - offset);
   const stops = (opacities: [number, number][]) =>
-    (top ? opacities : [...opacities].reverse()).map(([offset, opacity]) => (
-      <Stop key={offset} offset={at(offset)} stopColor={colors.background} stopOpacity={opacity} />
+    (top ? opacities : [...opacities].reverse()).map(([offset, opacity], index) => (
+      <Stop key={index} offset={at(offset)} stopColor={colors.background} stopOpacity={opacity} />
     ));
   const ramp = (from: number) => hold + (1 - hold) * from;
+  const eased = [
+    [0, 1],
+    [hold, 1],
+    ...EASE_STEPS.map((t) => [ramp(t), 1 - t * t * (3 - 2 * t)] satisfies [number, number]),
+  ] satisfies [number, number][];
 
   return (
     <View pointerEvents="none" style={[styles.edge, top ? styles.top : styles.bottom, { height }]}>
@@ -46,11 +56,15 @@ export function EdgeBlur({
           <Svg width="100%" height="100%">
             <Defs>
               <LinearGradient id={`${id}m`} x1="0" y1="0" x2="0" y2="1">
-                {stops([
-                  [0, 1],
-                  [ramp(0.35), 1],
-                  [1, 0],
-                ])}
+                {stops(
+                  smooth
+                    ? eased
+                    : [
+                        [0, 1],
+                        [ramp(0.35), 1],
+                        [1, 0],
+                      ],
+                )}
               </LinearGradient>
             </Defs>
             <Rect width="100%" height="100%" fill={`url(#${id}m)`} />
@@ -64,12 +78,16 @@ export function EdgeBlur({
           <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <Defs>
               <LinearGradient id={`${id}w`} x1="0" y1="0" x2="0" y2="1">
-                {stops([
-                  [0, 1],
-                  [hold, 1],
-                  [ramp(0.45), 0.7],
-                  [1, 0],
-                ])}
+                {stops(
+                  smooth
+                    ? eased
+                    : [
+                        [0, 1],
+                        [hold, 1],
+                        [ramp(0.45), 0.7],
+                        [1, 0],
+                      ],
+                )}
               </LinearGradient>
             </Defs>
             <Rect width="100%" height="100%" fill={`url(#${id}w)`} />
@@ -87,6 +105,14 @@ export function StatusBarBlur() {
   return (
     <EdgeBlur edge="top" height={insets.top + space(4)} solid={insets.top * 0.5} wash={false} />
   );
+}
+
+/**
+ * The top of a module's root page under its title and actions: covered through the title, then
+ * easing out over a long ramp below it so rows scroll away under the title instead of behind it.
+ */
+export function TitleFade({ covered, ramp }: { covered: number; ramp: number }) {
+  return <EdgeBlur edge="top" height={covered + ramp} solid={covered} smooth />;
 }
 
 /**

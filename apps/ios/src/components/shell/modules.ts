@@ -4,6 +4,7 @@ import {
   IconCrmMark,
   IconDriveMark,
   IconMailMark,
+  IconMeetingsMark,
   type ModuleMarkProps,
 } from "@/components/brand/module-marks.tsx";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
@@ -22,6 +23,7 @@ const MODULES: readonly ModuleEntry[] = [
   { id: "drive", label: "Drive", mark: IconDriveMark, color: "moduleDrive" },
   { id: "crm", label: "CRM", mark: IconCrmMark, color: "moduleCrm" },
   { id: "calendar", label: "Calendar", mark: IconCalendarMark, color: "moduleCalendar" },
+  { id: "meetings", label: "Meetings", mark: IconMeetingsMark, color: "moduleMeetings" },
 ];
 
 /** The modules this workspace has, in desktop rail order: no CRM in a Personal space. */

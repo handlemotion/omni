@@ -173,6 +173,37 @@ export function IconCalendarMark({ size }: ModuleMarkProps) {
   );
 }
 
+/** A teal tile with a white microphone (ported from the web/desktop rail). */
+export function IconMeetingsMark({ size }: ModuleMarkProps) {
+  const id = useIds();
+  return (
+    <Mark size={size}>
+      <Defs>
+        <Fade id={`${id}b`} from="#3cc1c9" to="#0b6b74" />
+        <Fade id={`${id}m`} from="#ffffff" to="#dff3f4" />
+      </Defs>
+      <Rect x={2} y={2} width={16} height={16} rx={4} fill={`url(#${id}b)`} />
+      <Rect x={7.75} y={4.5} width={4.5} height={7.5} rx={2.25} fill={`url(#${id}m)`} />
+      <Path
+        d="M6 10a4 4 0 0 0 8 0M10 14v1.6M7.9 15.6h4.2"
+        stroke="#fff"
+        strokeWidth={1.1}
+        strokeLinecap="round"
+      />
+      <Rect
+        x={2.25}
+        y={2.25}
+        width={15.5}
+        height={15.5}
+        rx={3.75}
+        stroke="#064b52"
+        strokeOpacity={0.4}
+        strokeWidth={0.5}
+      />
+    </Mark>
+  );
+}
+
 const styles = StyleSheet.create({
   drop: {
     shadowColor: "#000000",

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { createContext, use, type ReactNode } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -7,6 +7,9 @@ import {
   type ViewStyle,
 } from "react-native";
 import { colors, gutter, radius, space } from "@/theme/tokens.ts";
+
+/** The fill of a pressed or current row; a surface that is itself grey sets white. */
+export const RowHighlight = createContext<string>(colors.accent);
 
 export interface PressableRowProps extends Omit<PressableProps, "children" | "style"> {
   children: ReactNode;
@@ -36,6 +39,7 @@ export function PressableRow({
   style,
   ...props
 }: PressableRowProps) {
+  const highlight = use(RowHighlight);
   return (
     <Pressable
       accessibilityRole="button"
@@ -46,7 +50,7 @@ export function PressableRow({
       style={({ pressed }) => [
         styles.row,
         styles[shape],
-        shape !== "bare" && (pressed || isCurrent) && styles.highlighted,
+        shape !== "bare" && (pressed || isCurrent) && { backgroundColor: highlight },
         style,
       ]}
     >
@@ -85,5 +89,4 @@ const styles = StyleSheet.create({
     borderRadius: radius.field,
   },
   bare: { alignItems: "flex-start", gap: space(3) },
-  highlighted: { backgroundColor: colors.accent },
 });

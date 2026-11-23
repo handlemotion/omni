@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import { createContext, use, type ComponentType, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import type { SvgProps } from "react-native-svg";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
@@ -8,6 +8,19 @@ import { colors, iconSize, space, type ColorToken } from "@/theme/tokens.ts";
 
 export const NAV_LEAD = space(9);
 export const NAV_PAD_LEFT = space(1.5);
+
+/** The rows sit on the surface under the page card: its ink, its hairlines, a little air. */
+export const MenuUnder = createContext(false);
+
+const UNDER: Partial<Record<ColorToken, ColorToken>> = {
+  foreground: "underForeground",
+  mutedForeground: "underMuted",
+};
+
+function useInk() {
+  const dark = use(MenuUnder);
+  return (tone: ColorToken) => (dark ? (UNDER[tone] ?? tone) : tone);
+}
 
 function rowInk(props: {
   destructive?: boolean;
@@ -45,7 +58,7 @@ export function MenuRow(props: {
   destructive?: boolean;
   /** The glyph's colour, over `muted`: a module's own (Drive's green, the CRM's purple). */
   tint?: ColorToken;
-  /** On the menu page: the glyph in a 44pt column under the top bar's ☰. */
+  /** On the menu page: the glyph in a 44pt column. */
   nav?: boolean;
   /** Muted text before the end (a Later choice's time). */
   detail?: string;
@@ -55,11 +68,14 @@ export function MenuRow(props: {
 }) {
   const Icon = props.icon;
   const current = !!props.isCurrent;
-  const ink = rowInk(props);
+  const on = useInk();
+  const dark = use(MenuUnder);
+  const ink = on(rowInk(props));
   return (
     <PressableRow
       shape={props.nav ? "nav" : "menu"}
       isCurrent={current}
+      style={dark ? styles.spaced : undefined}
       onPress={props.onPress}
       accessibilityLabel={[props.label, props.count].filter(Boolean).join(", ")}
     >
@@ -78,20 +94,20 @@ export function MenuRow(props: {
       <Text
         size={props.nav ? "body" : "md"}
         weight={current ? "semibold" : "regular"}
-        tone={props.destructive ? "danger" : props.accent ? "primary" : "foreground"}
+        tone={props.destructive ? "danger" : props.accent ? "primary" : on("foreground")}
         numberOfLines={1}
         style={styles.label}
       >
         {props.label}
       </Text>
       {props.detail || props.count ? (
-        <Text size="subhead" tone="mutedForeground" tabular>
+        <Text size="subhead" tone={on("mutedForeground")} tabular>
           {props.detail ?? props.count}
         </Text>
       ) : null}
       {props.trailing ??
         (props.chevron ? (
-          <IconChevronRight size={space(4)} color={colors.mutedForeground} />
+          <IconChevronRight size={space(4)} color={colors[on("mutedForeground")]} />
         ) : null)}
     </PressableRow>
   );
@@ -99,13 +115,14 @@ export function MenuRow(props: {
 
 /** A run of menu rows under its label (Views, Folders). */
 export function MenuSection({ label, children }: { label: string; children: ReactNode }) {
+  const on = useInk();
   return (
     <View>
       <View style={styles.heading}>
         <Text
           size="subhead"
           weight="medium"
-          tone="mutedForeground"
+          tone={on("mutedForeground")}
           numberOfLines={1}
           accessibilityRole="header"
         >
@@ -124,7 +141,8 @@ const SHEET_INSET = space(1.5);
 
 /** A hairline across the whole menu, edge to edge, between its groups. */
 export function MenuDivider() {
-  return <View style={styles.divider} />;
+  const dark = use(MenuUnder);
+  return <View style={[styles.divider, dark && styles.dividerUnder]} />;
 }
 
 /** A hairline across a whole sheet, edge to edge, between its groups of rows. */
@@ -147,6 +165,8 @@ const styles = StyleSheet.create({
     marginHorizontal: -MENU_INSET,
     backgroundColor: colors.border,
   },
+  dividerUnder: { backgroundColor: colors.underLine },
+  spaced: { marginVertical: 1 },
   sheetDivider: {
     height: StyleSheet.hairlineWidth,
     marginVertical: space(1.5),

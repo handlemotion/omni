@@ -197,7 +197,7 @@ export function FloatingGroup({
   compact?: boolean;
 }) {
   return (
-    <GlassSurface style={[styles.group, compact && styles.compact]}>
+    <GlassSurface style={[styles.group, compact && styles.compactGroup]}>
       {actions.map(({ icon: Icon, label, onPress }) => (
         <Pressable
           key={label}
@@ -208,6 +208,7 @@ export function FloatingGroup({
           onPress={onPress}
           style={({ pressed }) => [
             styles.groupButton,
+            compact && styles.compactButton,
             !onPress && styles.dimmed,
             pressed && styles.pressed,
           ]}
@@ -256,6 +257,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  compactGroup: { height: compactControl, paddingHorizontal: space(1) },
+  compactButton: { width: space(9.5) },
   dimmed: { opacity: 0.5 },
   pressed: { transform: [{ scale: 0.97 }] },
   shrink: { flexShrink: 1 },
