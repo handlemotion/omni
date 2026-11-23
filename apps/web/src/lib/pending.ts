@@ -28,7 +28,7 @@ export interface ActionFailure {
   at: string;
 }
 
-export function pendingFor(client: QueryClient, threadId: string) {
+function pendingFor(client: QueryClient, threadId: string) {
   return (client.getQueryData<PendingSend[]>(keys.pending(threadId)) ?? []) satisfies PendingSend[];
 }
 
@@ -103,7 +103,7 @@ export function dismissFailure(client: QueryClient, actionId: string) {
  * outside the query cache, so a workspace switch (which clears the cache) keeps waiting for it;
  * `resetSession` forgets them when the signed-in person changes or signs out.
  */
-export interface OutstandingSend {
+interface OutstandingSend {
   actionId: string;
   orgId: string;
   /** When it was recorded (ms), for the cap on how long anything waits. */

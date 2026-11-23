@@ -16,7 +16,7 @@ export type WatchTarget = { orgId: string; threadId?: string; panel?: boolean };
 
 const ONE_BY_ONE = 3;
 
-export interface WatchOptions {
+interface WatchOptions {
   /** The workspace's name, for a notification that sums up a burst. */
   nameOf: (orgId: string) => string | undefined;
   open: (target: WatchTarget) => void;

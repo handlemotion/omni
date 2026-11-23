@@ -9,7 +9,7 @@ type Notice = NotificationPage["notifications"][number];
 const STORAGE_KEY = "omni.desktop-notifications";
 
 /** `unsupported`: no Notification API. `blocked`: the browser denied it. Else on or off here. */
-export type DesktopNotificationState = "unsupported" | "blocked" | "on" | "off";
+type DesktopNotificationState = "unsupported" | "blocked" | "on" | "off";
 
 let known: DesktopNotificationState | null = null;
 const listeners = new Set<() => void>();

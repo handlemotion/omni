@@ -1,6 +1,8 @@
 /* oxlint-disable no-console -- a CLI report */
 import Anthropic from "@anthropic-ai/sdk";
-import { createJevClient, laneFor, triage, type TriageClient } from "../src/index.ts";
+import { createJevClient } from "../src/jev.ts";
+import { laneFor } from "../src/policy.ts";
+import { triage, type TriageClient } from "../src/triage.ts";
 import { threads } from "./threads.ts";
 
 const providers: Array<{ name: string; client: TriageClient }> = [];

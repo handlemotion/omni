@@ -10,7 +10,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { requireCap } from "./billing.ts";
 import type { AppEnv } from "./context.ts";
-import { callMailService, MailServiceError } from "./mail-service.ts";
+import { callMailService } from "./mail-service.ts";
 
 const server = z.object({
   host: z.string().trim().min(1).max(253),
@@ -40,13 +40,6 @@ const endpoint = (s: z.infer<typeof server>) => ({
   port: s.port,
   secure: s.port === 993 || s.port === 465,
 });
-
-export function fromMailService(error: unknown): never {
-  if (error instanceof MailServiceError) {
-    throw new HTTPException(error.status, { message: error.message });
-  }
-  throw error;
-}
 
 async function resolveAddress(c: Context<AppEnv>, placement: MailboxPlacement) {
   const setup = await findMemberDomain(c.var.db, c.var.member.id, placement.domainId);
@@ -152,5 +145,5 @@ export async function provisionMailbox(
       login,
     } satisfies ProvisionMailboxBody,
     provisionMailboxResultSchema,
-  ).catch(fromMailService);
+  );
 }

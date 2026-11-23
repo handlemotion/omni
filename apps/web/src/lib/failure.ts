@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/browser";
 import { onlineManager } from "@tanstack/react-query";
 import { ApiError } from "./api.ts";
 
-export type FailureKind =
+type FailureKind =
   | "stale_build"
   | "offline"
   | "unauthenticated"
@@ -36,7 +36,7 @@ const STALE_BUILD = [
   /Loading (CSS )?chunk [\w-]+ failed/i,
 ];
 
-export function isStaleBuild(error: unknown) {
+function isStaleBuild(error: unknown) {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
   return STALE_BUILD.some((pattern) => pattern.test(message));
 }

@@ -164,8 +164,6 @@ export function useFolderDrafts(source: {
   return { drafts: shown, start, finish, onType };
 }
 
-export type FolderDrafts = ReturnType<typeof useFolderDrafts>;
-
 function focusRow(id: string) {
   requestAnimationFrame(() => {
     const free = !document.activeElement || document.activeElement === document.body;

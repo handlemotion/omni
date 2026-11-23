@@ -6,6 +6,7 @@ import {
   pickTags,
   tagQuestions,
   teammateQuestions,
+  type PriorityJudgments,
 } from "./helpdesk.ts";
 import { truncateToTokens } from "./policy.ts";
 import {
@@ -131,30 +132,15 @@ export function jevTriageRequest(input: TriageInput, model = JEV_MODEL) {
   return { model, state: triageState(input), questions };
 }
 
-const NoulAnswer = z.object({ type: z.literal("noul"), noul: z.number().min(0).max(1) });
+export const NoulAnswer = z.object({ type: z.literal("noul"), noul: z.number().min(0).max(1) });
 const SystemOneResponse = z.object({
   model: z.string(),
   answers: z.record(z.string(), z.unknown()),
   usage: z.object({ input_tokens: z.number(), output_tokens: z.number() }),
 });
 
-/** A `POST /v1/systemone` body. Every question Omni asks is a Noul question. */
-export interface SystemOneRequest<K extends string> {
-  model: string;
-  state: unknown;
-  questions: Record<K, unknown>;
-}
-
-/**
- * One `POST /v1/systemone`, validated where it enters: the answer to every question asked is a
- * Noul in 0..1, by question key, or the call throws `JevError` and nothing is guessed. `signal`
- * cuts it short sooner than the client's own timeout.
- */
-export async function ask<K extends string>(
-  client: JevClient,
-  body: SystemOneRequest<K>,
-  signal?: AbortSignal,
-) {
+/** One `POST /v1/systemone`. `signal` cuts it short sooner than the client's own timeout. */
+export async function ask(client: JevClient, body: unknown, signal?: AbortSignal) {
   const timeout = AbortSignal.timeout(TIMEOUT_MS);
   let response: Response;
   try {
@@ -176,26 +162,26 @@ export async function ask<K extends string>(
   }
   const parsed = SystemOneResponse.safeParse(await response.json().catch(() => null));
   if (!parsed.success) throw new JevError("TypeSafe returned an unexpected response body");
-  const nouls = {} as Record<K, number>;
-  for (const key of Object.keys(body.questions) as K[]) {
-    const answer = NoulAnswer.safeParse(parsed.data.answers[key]);
-    if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${key}`);
-    nouls[key] = answer.data.noul;
-  }
-  return { model: parsed.data.model, nouls, usage: parsed.data.usage };
+  return parsed.data;
 }
 
-function pick<K extends string>(nouls: Record<string, number>, keys: readonly K[]) {
-  return Object.fromEntries(keys.map((key) => [key, nouls[key] ?? 0])) as Record<K, number>;
+/** Each key's Noul probability. A missing or malformed answer throws `JevError`. */
+export function nouls(response: { answers: Record<string, unknown> }, keys: readonly string[]) {
+  const judgments: Record<string, number> = {};
+  for (const key of keys) {
+    const answer = NoulAnswer.safeParse(response.answers[key]);
+    if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${key}`);
+    judgments[key] = answer.data.noul;
+  }
+  return judgments;
 }
 
 /** Triage through Jev's judgments and the truth table. Errors throw; there is no fallback. */
 export async function triageWithJev(client: JevClient, input: TriageInput) {
-  const response = await ask<string>(client, jevTriageRequest(input, client.model));
-  const { nouls } = response;
+  const response = await ask(client, jevTriageRequest(input, client.model));
   const { bucket, confidence }: Decision = input.latestFromUs
-    ? decideSent(pick(nouls, SENT_JUDGMENTS))
-    : decide(pick(nouls, JUDGMENTS));
+    ? decideSent(nouls(response, SENT_JUDGMENTS) as Parameters<typeof decideSent>[0])
+    : decide(nouls(response, JUDGMENTS) as Parameters<typeof decide>[0]);
   const result: TriageResult = {
     bucket,
     confidence,
@@ -205,16 +191,24 @@ export async function triageWithJev(client: JevClient, input: TriageInput) {
   };
   if (input.helpdesk && !input.latestFromUs) {
     const { asked } = tagQuestions(input.helpdesk.tags);
+    const tagNouls = nouls(
+      response,
+      asked.map((_, i) => `tag_${i}`),
+    );
     const team = teammateQuestions(input.helpdesk.teammates).asked;
+    const teamNouls = nouls(
+      response,
+      team.map((_, i) => `teammate_${i}`),
+    );
     result.helpdesk = {
-      priority: decidePriority(pick(nouls, PRIORITY_JUDGMENTS), bucket),
+      priority: decidePriority(nouls(response, PRIORITY_JUDGMENTS) as PriorityJudgments, bucket),
       tagIds: pickTags(
         asked,
-        asked.map((_, i) => nouls[`tag_${i}`] ?? 0),
+        asked.map((_, i) => tagNouls[`tag_${i}`] ?? 0),
       ),
       assigneeId: pickAssignee(
         team,
-        team.map((_, i) => nouls[`teammate_${i}`] ?? 0),
+        team.map((_, i) => teamNouls[`teammate_${i}`] ?? 0),
         bucket,
       ),
     };

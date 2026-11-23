@@ -1,7 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { findMemberDomain, orgDomainAdmins } from "@omni/db";
+import { HTTPException } from "hono/http-exception";
 import { openDb } from "./db.ts";
-import { advanceDomainStep, checkDomain, DomainError, domainView } from "./domains.ts";
+import { advanceDomainStep, checkDomain, domainView } from "./domains.ts";
 import { loadConfig } from "./env.ts";
 import { createLogger } from "./log.ts";
 import { realtimeOf } from "./realtime-announce.ts";
@@ -88,7 +89,7 @@ export class DomainWatch extends DurableObject<Env> {
         await advanceDomainStep(db, state.orgId, view);
         done = view.verified && view.challenge?.verified !== false;
       } catch (error) {
-        if (error instanceof DomainError && [404, 409, 410].includes(error.status)) done = true;
+        if (error instanceof HTTPException && [404, 409, 410].includes(error.status)) done = true;
         else log.warn("domain_watch.check_failed", { error });
       }
       const admins = await orgDomainAdmins(db, state.orgId);

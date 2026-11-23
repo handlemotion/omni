@@ -7,7 +7,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { crmCompaniesQuery, crmDealsQuery, crmFindQuery, crmPeopleQuery } from "../lib/crm.ts";
 import type { CrmCompany, CrmDeal, CrmPerson } from "../lib/crm.ts";
-import { crmTasksQuery, type CrmTask } from "../lib/crm-tasks.ts";
+import { crmTasksQuery, taskKeys, type CrmTask } from "../lib/crm-tasks.ts";
 import { threadsQuery } from "../lib/mail-queries.ts";
 import { keys } from "../lib/query-keys.ts";
 import { storageListQuery, type StorageNode } from "../lib/storage.ts";
@@ -156,7 +156,7 @@ function taskHits(
   answer: { found?: CrmTask[] | undefined; stale?: CrmTask[] | undefined },
 ) {
   const open = [
-    ...cached<CrmTask>(client, [...keys.crm(), "tasks", "list"], "tasks"),
+    ...cached<CrmTask>(client, taskKeys.lists(), "tasks"),
     ...(answer.stale ?? []),
   ].filter((task) => !task.completedAt);
   return pick(open, answer.found, needle, (task) => task.title);
@@ -198,7 +198,7 @@ export function useCommandSearch(text: string, company: boolean) {
     return {
       files: pick(
         [
-          ...cached<StorageNode>(client, [...keys.storage(), "list"], "nodes"),
+          ...cached<StorageNode>(client, keys.storageLists(), "nodes"),
           ...cached<SharedItem>(client, keys.storageSharedWithMe(), "items").flatMap((item) =>
             item.shareId ? [{ ...item.node, shareId: item.shareId }] : [],
           ),

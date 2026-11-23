@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  chooseTriageClient,
-  createJevClient,
-  JevError,
-  triage,
-  type ModelClient,
-  type TriageInput,
-} from "./index.ts";
+import { createJevClient, JevError } from "./jev.ts";
+import { chooseTriageClient, triage } from "./triage.ts";
+import type { ModelClient, TriageInput } from "./types.ts";
 import { JUDGMENTS, SENT_JUDGMENTS } from "./questions.ts";
 
 const thread: TriageInput = {

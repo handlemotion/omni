@@ -9,7 +9,7 @@ import {
 import { IconArrowUpRight, IconLink, IconCopy } from "@/components/icons/central";
 import { desktop } from "@/lib/desktop.ts";
 import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuSubMenu } from "./menu";
-import { appToast } from "./toast";
+import { copyText } from "@/hooks/use-clipboard.ts";
 
 type Icon = ComponentType<{ className?: string; "data-slot"?: string }>;
 
@@ -164,10 +164,6 @@ export function ContextMenuArea(props: {
   );
 }
 
-function copy(text: string, what: string) {
-  void navigator.clipboard.writeText(text).catch(() => appToast.error(`${what} was not copied`));
-}
-
 function openLink(url: URL) {
   if (url.origin === window.location.origin) window.location.assign(url.href);
   else if (desktop.isDesktop) desktop.openOutside(url.href);
@@ -190,8 +186,12 @@ function linkEntries(target: Element, view: Window) {
     outside && { icon: IconArrowUpRight, label: "Open link", onAction: () => openLink(outside) },
     outside &&
       (mail
-        ? { icon: IconCopy, label: "Copy address", onAction: () => copy(mail, "Address") }
-        : { icon: IconLink, label: "Copy link", onAction: () => copy(outside.href, "Link") }),
+        ? { icon: IconCopy, label: "Copy address", onAction: () => void copyText(mail, "Address") }
+        : {
+            icon: IconLink,
+            label: "Copy link",
+            onAction: () => void copyText(outside.href, "Link"),
+          }),
   ] satisfies ContextMenuEntry[];
 }
 
@@ -200,7 +200,7 @@ function selectionCopy(view: Window, within?: Element) {
   const text = selection?.toString() ?? "";
   if (!selection?.rangeCount || !text.trim()) return null;
   if (within && !within.contains(selection.getRangeAt(0).commonAncestorContainer)) return null;
-  return { icon: IconCopy, label: "Copy", onAction: () => copy(text, "Text") };
+  return { icon: IconCopy, label: "Copy", onAction: () => void copyText(text) };
 }
 
 function fallbackEntries(target: Element, view: Window) {

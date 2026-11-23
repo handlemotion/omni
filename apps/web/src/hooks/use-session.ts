@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { organizationsQuery } from "../lib/org-queries.ts";
 import {
   acceptInvitation,
   deviceSessionsQuery,
@@ -14,7 +13,6 @@ import {
   sendEmailOtp,
   sessionQuery,
   signInMethodsQuery,
-  signInWithApple,
   signInWithEmailOtp,
   signInWithGoogle,
   signInWithPasskey,
@@ -80,13 +78,6 @@ export function useSignInGoogle() {
   });
 }
 
-/** `mutate({ redirect? })` leaves for Apple; after consent the browser lands on `redirect` signed in. */
-export function useSignInApple() {
-  return useMutation({
-    mutationFn: ({ redirect, callback }: SignInTarget) => signInWithApple(redirect, callback),
-  });
-}
-
 /** `mutate()` signs in with a passkey; on success, navigate to where the user was going. */
 export function useSignInPasskey() {
   const client = useQueryClient();
@@ -99,11 +90,6 @@ export function useSignOut() {
   const client = useQueryClient();
   const router = useRouter();
   return useMutation({ mutationFn: () => signOut(client, router) });
-}
-
-/** Organizations the user belongs to. */
-export function useOrganizations() {
-  return useQuery(organizationsQuery());
 }
 
 /** `mutate(invitationId)` joins the organization and switches into it. */

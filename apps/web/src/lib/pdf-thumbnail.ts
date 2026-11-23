@@ -34,7 +34,7 @@ function drawnOffThread<T>(open: () => T) {
 }
 
 /** Where a file's bytes are, and which version: a new version is another document. */
-export interface PdfSource {
+interface PdfSource {
   url: string;
   version: string;
 }

@@ -13,6 +13,7 @@ import { withReply } from "@/lib/reply.ts";
 import type { Assignee, Thread } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { useComposerState } from "./composer-state.tsx";
+import { copyText } from "@/hooks/use-clipboard.ts";
 
 const nameOf = (person: Assignee) => person.name || person.email;
 
@@ -121,7 +122,7 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
     const mentions = picked.filter((p) => written.includes(`@${nameOf(p)}`)).map((p) => p.memberId);
     addNote.mutateAsync({ threadId: thread.id, body, mentions }).catch((error: Error) => {
       if (textarea.current?.value.trim()) {
-        void navigator.clipboard?.writeText(body).catch(() => undefined);
+        void copyText(body, "Message");
         appToast.error(error.message, { description: "The message is on your clipboard." });
       } else {
         setText(written);

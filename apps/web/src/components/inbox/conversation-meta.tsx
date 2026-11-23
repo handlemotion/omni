@@ -3,6 +3,7 @@ import { IconPaperclip } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import type { ConversationStatus, Priority } from "@/lib/types.ts";
+import { rowTime } from "@/lib/dates.ts";
 
 export interface ConversationRowInfo {
   /** Shown only on views that mix statuses (Mine, a tag). */
@@ -76,15 +77,6 @@ function SlaTimer({ due }: { due: string }) {
       {span(left)}
     </span>
   );
-}
-
-const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-
-/** Today: the time. Before: the day. */
-export function rowTime(iso: string) {
-  const date = new Date(iso);
-  return (new Date().toDateString() === date.toDateString() ? TIME : DAY).format(date);
 }
 
 export function ConversationMeta({ info }: { info: ConversationRowInfo }) {

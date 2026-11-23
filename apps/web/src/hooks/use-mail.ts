@@ -2,7 +2,6 @@ import {
   useInfiniteQuery,
   useQuery,
   useQueryClient,
-  useSuspenseQuery,
   keepPreviousData,
 } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
@@ -53,13 +52,6 @@ export function useThreads(filter: ThreadFilter) {
  */
 export function useThread(threadId: string) {
   const query = useQuery(threadQuery(threadId));
-  const pending = usePendingSends(threadId);
-  return { ...query, thread: query.data, pending };
-}
-
-/** Like `useThread`, but suspends until loaded: for route components whose loader fetched it. */
-export function useSuspenseThread(threadId: string) {
-  const query = useSuspenseQuery(threadQuery(threadId));
   const pending = usePendingSends(threadId);
   return { ...query, thread: query.data, pending };
 }

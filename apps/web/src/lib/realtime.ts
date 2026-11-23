@@ -16,12 +16,12 @@ import {
   outstandingSends,
   settleOutstanding,
 } from "./pending.ts";
+import { classify, reportFailure } from "./failure.ts";
 import { applyFilePresence, clearFilePresence } from "./file-presence.ts";
-import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
-import { calendarChanged, calendarKeys } from "./calendar.ts";
+import { calendarChangedElsewhere } from "./calendar.ts";
 import { calendarTaskKeys } from "./calendar-tasks.ts";
-import { meetingKeys, meetingsChanged } from "./meetings.ts";
+import { meetingsChangedElsewhere } from "./meetings.ts";
 import { crmChangedElsewhere } from "./crm-cache.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
@@ -34,7 +34,6 @@ const TITLE_BAR_MIN = 768;
 const FLUSH_MS = 150;
 const MAX_HOLD_MS = 3_000;
 
-let status: RealtimeStatus = "closed";
 let sockets = new Map<string, Realtime>();
 const openListeners = new Set<(orgId: string) => void>();
 type MergedEvent = Extract<RealtimeEvent, { type: "merged" }>;
@@ -55,7 +54,6 @@ type DocEvent = Extract<
 const docListeners = new Set<(event: DocEvent) => void>();
 type TalkMessageEvent = Extract<RealtimeEvent, { type: "talk.message" }>;
 const talkListeners = new Set<(event: TalkMessageEvent) => void>();
-const listeners = new Set<() => void>();
 
 type DriveEvent = Extract<RealtimeEvent, { type: "storage.changed" | "storage.teamspaces" }>;
 type FileEvent = DocEvent | Extract<RealtimeEvent, { type: "file.presence" }>;
@@ -74,13 +72,15 @@ function onFileEvent(orgId: string, event: FileEvent) {
   for (const listener of docListeners) listener(event);
 }
 
+const reportFetchFailure = (error: unknown) => reportFailure(classify(error));
+
 function talkChanged(client: QueryClient, event: Extract<TalkEvent, { type: "talk.changed" }>) {
   if (event.read) return threadRead(client, event.threadId, event.readAt);
   const { reactions } = event;
   if (reactions) {
     const { messageId, version } = reactions;
     if (setReactions(client, event.threadId, messageId, reactions.reactions, version)) return;
-    return void fetchNewest(client, event.threadId).catch(() => {});
+    return void fetchNewest(client, event.threadId).catch(reportFetchFailure);
   }
   void client.invalidateQueries({ queryKey: keys.talkPeople() });
   void client.invalidateQueries({ queryKey: keys.talkMessages(event.threadId) });
@@ -96,20 +96,6 @@ function crmChanged(client: QueryClient, kind: CrmEvent["kind"]) {
   if (kind === "task") void client.invalidateQueries({ queryKey: calendarTaskKeys.all() });
   crmChangedElsewhere(client);
 }
-
-function setStatus(next: RealtimeStatus) {
-  status = next;
-  for (const listener of listeners) listener();
-}
-
-/** For `useSyncExternalStore`: the socket's state, shared by every component. */
-export const realtimeStatus = {
-  get: () => status,
-  subscribe(listener: () => void) {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  },
-};
 
 /** The sockets one signed-in shell keeps: the active org's, and the others it follows. */
 export interface RealtimeConnections {
@@ -189,10 +175,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
 
   const onModuleChange = (orgId: string, event: ModuleChange) => {
     if (orgId !== activeOrgId) return;
-    if (event.type === "calendar.changed") {
-      if (client.isMutating({ mutationKey: calendarKeys.writes() }) > 0) return;
-      return void calendarChanged(client);
-    }
+    if (event.type === "calendar.changed") return calendarChangedElsewhere(client);
     return crmChanged(client, event.kind);
   };
 
@@ -201,8 +184,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     else if (event.type === "crm.changed" || event.type === "calendar.changed") {
       onModuleChange(orgId, event);
     } else if (event.type === "meetings.changed") {
-      const writing = client.isMutating({ mutationKey: meetingKeys.writes() }) > 0;
-      if (orgId === activeOrgId && !writing) void meetingsChanged(client);
+      if (orgId === activeOrgId) meetingsChangedElsewhere(client);
     } else if (!isTalkEvent(event)) return false;
     else if (orgId === activeOrgId) onTalk(event);
     return true;
@@ -222,8 +204,6 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       case "merged":
         for (const listener of mergeListeners) listener(event);
         return changed(event.mailboxId, [event.intoThreadId, ...event.fromThreadIds]);
-      case "presence":
-        return applyPresence(orgId, event);
       case "notification":
       case "notification.removed":
         return void client.invalidateQueries({ queryKey: keys.notifications() });
@@ -246,7 +226,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
     if (event.type === "talk.online") return setOnline(client, event.memberId, event.online);
     if (event.type === "talk.changed") return talkChanged(client, event);
     if (event.message) addMessage(client, { reactionsVersion: 0, ...event.message });
-    else void fetchNewest(client, event.threadId).catch(() => {});
+    else void fetchNewest(client, event.threadId).catch(reportFetchFailure);
     const looking = talkWindow.get() === event.fromMemberId && !inBackground();
     noteWentBy(client, { ...event, createdAt: event.message?.createdAt }, looking);
     for (const listener of talkListeners) listener(event);
@@ -261,11 +241,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       onStatus: (next, { reconnected, resumed }) => onStatus(orgId, next, reconnected && !resumed),
     });
   const onStatus = (orgId: string, next: RealtimeStatus, missed: boolean) => {
-    if (orgId === activeOrgId) setStatus(next);
-    if (next === "closed") {
-      clearPresence(orgId);
-      clearFilePresence(orgId);
-    }
+    if (next === "closed") clearFilePresence(orgId);
     if (next !== "open") return;
     for (const listener of openListeners) listener(orgId);
     void recheckOutstanding(client, orgId);
@@ -307,7 +283,6 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
         if (id === activeOrgId || wanted.has(id)) continue;
         connection.close();
         connections.delete(id);
-        clearPresence(id);
         clearFilePresence(id);
       }
       for (const id of wanted) if (!connections.has(id)) connections.set(id, connect(id));
@@ -319,9 +294,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       wide.removeEventListener("change", reconnectActive);
       if (sockets === connections) sockets = new Map();
       for (const connection of connections.values()) connection.close();
-      clearPresence();
       clearFilePresence();
-      setStatus("closed");
     },
   } satisfies RealtimeConnections;
 }

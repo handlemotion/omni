@@ -5,7 +5,7 @@ import type { StorageNode, StoragePlace } from "./storage.ts";
 import { withRetry, type Slots } from "./storage-upload-net.ts";
 
 /** A file to upload, and the folders between where it was dropped and the file (may be none). */
-export interface PickedFile {
+interface PickedFile {
   file: File;
   dir: string[];
 }

@@ -39,6 +39,7 @@ import { useComposerState, type ReplyKind } from "./composer-state.tsx";
 import { RecipientField } from "./recipient-field.tsx";
 import { Toolbar } from "./toolbar.tsx";
 import { offerUndoSend } from "./undo-send.ts";
+import { copyText } from "@/hooks/use-clipboard.ts";
 
 const SIG_SEPARATOR = "-- \n";
 
@@ -311,7 +312,7 @@ function ModeComposer(props: {
     const restore = () => {
       if (!alive.current && state.handBack({ mode, sourceId, ...before })) return;
       if (!alive.current || hasWords(current.current, signature)) {
-        void navigator.clipboard?.writeText(before.text).catch(() => undefined);
+        void copyText(before.text, "Message");
         appToast.message("Send stopped", { description: "Its text is on your clipboard." });
         return;
       }
@@ -636,7 +637,7 @@ function NewMessage(props: {
             offerUndoSend(queued, async () => {
               const stopped = await cancelSend(queued.actionId);
               if (stopped && !onUndone?.({ mailboxId, ...before })) {
-                void navigator.clipboard?.writeText(before.text).catch(() => undefined);
+                void copyText(before.text, "Message");
                 appToast.message("Send stopped", { description: "Its text is on your clipboard." });
               }
               return stopped;

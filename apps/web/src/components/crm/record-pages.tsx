@@ -27,14 +27,14 @@ import { byAddress } from "@/components/avatar/sender-avatar";
 import { MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
 import { DealMark } from "./deal-mark.tsx";
 import { DetailSection, RecordLayout, RecordState } from "./record-layout.tsx";
-import { DAY } from "./record-list.tsx";
 import { AddressesSection, DealsSection, PeopleSection } from "./record-sections.tsx";
 import { useMeetingsEnabled } from "@/hooks/use-meetings.ts";
 import { DealMeetings } from "./record-meetings.tsx";
 import { RecordTasks } from "./tasks.tsx";
 import { Timeline } from "./timeline.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
-const day = (iso: string | null) => (iso ? DAY.format(new Date(iso)) : null);
+const day = (iso: string | null) => (iso ? DAY_YEAR.format(new Date(iso)) : null);
 const onFail = (fallback: string) => ({
   onError: (error: unknown) => crmErrorToast(error, fallback),
 });
