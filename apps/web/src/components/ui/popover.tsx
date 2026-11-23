@@ -93,7 +93,7 @@ export function Popover({
       {...toSideAlign(placement)}
       sideOffset={offset ?? (arrow ? 12 : 8)}
       collisionPadding={collisionPadding}
-      className={cn("group/popover flex flex-col", popupSurface, className)}
+      className={cn("group/popover fixed flex flex-col", popupSurface, className)}
       {...props}
     >
       {arrow && (

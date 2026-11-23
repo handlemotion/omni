@@ -173,6 +173,7 @@ export function SelectContent<T extends object>({
       align={align}
       sideOffset={4}
       className={cn(
+        "fixed",
         popupSurface,
         "grid w-max max-w-80 min-w-(--anchor-width) auto-rows-min grid-cols-[auto_1fr] content-start gap-y-1 overflow-y-auto p-1",
         popover?.className,
