@@ -4,18 +4,16 @@ import {
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
-import { WORKSPACE_HEADER, type Api } from "@omni/client";
+import type { Api } from "@omni/client";
 import { daysAgo, listTime } from "@omni/mail-core/list-dates";
 import type { InferResponseType } from "hono/client";
-import { api, auth, call } from "./api.ts";
+import { api, call, sessionHeaders } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import type { SymbolName } from "./symbols.ts";
-import { currentWorkspaceId } from "./workspace-id.ts";
 
 const PAGE_SIZE = 100;
 
-/** A file or folder, as `/api/storage` answers it. */
-export type DriveNode = InferResponseType<Api["storage"]["nodes"]["$get"], 200>["nodes"][number];
+export type { DriveNode } from "@omni/client";
 
 /** A workspace teamspace, as `/api/storage/teamspaces` answers it. */
 export type DriveTeamspace = InferResponseType<
@@ -127,26 +125,10 @@ export const useTeamspaces = () => useQuery(teamspacesQuery());
 export const useRecentFiles = () => useQuery(recentFilesQuery());
 
 /** The headers a request the app makes outside `call()` needs: the session and the workspace. */
-export async function storageHeaders(workspace = currentWorkspaceId()) {
-  const headers: Record<string, string> = {};
-  const cookie = await auth.getCookie();
-  if (cookie) headers.cookie = cookie;
-  if (workspace) headers[WORKSPACE_HEADER] = workspace;
-  return headers;
-}
+export const storageHeaders = sessionHeaders;
 
-const UNITS = ["B", "KB", "MB", "GB", "TB"];
-
-/** A file's size as people read it: 1.2 MB. */
-export function fileSize(bytes: number) {
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1000 && unit < UNITS.length - 1) {
-    value /= 1000;
-    unit += 1;
-  }
-  return `${unit === 0 ? value : value.toFixed(value < 10 ? 1 : 0)} ${UNITS[unit]}`;
-}
+/** A file's size as people read it: 1.2 MB, in binary units. */
+export { formatBytes as fileSize } from "@omni/client";
 
 /** When a file changed, as its row says it: Today, Yesterday, then the list's weekday or date. */
 export function fileDay(iso: string, now = new Date()) {

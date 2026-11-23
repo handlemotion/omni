@@ -9,7 +9,13 @@ import {
   type QueryClient,
   type QueryKey,
 } from "@tanstack/react-query";
-import type { Mailbox, SearchResult, Thread, ThreadPage } from "@omni/client";
+import {
+  idempotencyHeader,
+  type Mailbox,
+  type SearchResult,
+  type Thread,
+  type ThreadPage,
+} from "@omni/client";
 import { useCallback, useMemo } from "react";
 import type { SymbolName } from "./symbols.ts";
 import { ApiError, api, call, inWorkspace, isAuthError } from "./api.ts";
@@ -226,7 +232,7 @@ export function useMarkRead() {
     mutationFn: ({ threadId, key, workspace }: MarkRead & { workspace: string | null }) =>
       call(
         api.threads[":id"].state.$patch(
-          { param: { id: threadId }, header: { "idempotency-key": key }, json: { read: true } },
+          { param: { id: threadId }, header: idempotencyHeader(key), json: { read: true } },
           inWorkspace(workspace),
         ),
       ),

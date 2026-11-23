@@ -1,6 +1,6 @@
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
-import type { InferRequestType, InferResponseType } from "hono/client";
+import type { Api, CrmDeliverable, CrmMilestone, CrmPlan, CrmProjectAccess } from "@omni/client";
+import type { InferRequestType } from "hono/client";
 import { api, call } from "./api.ts";
 import { dropCrmEntity, optimisticCrm, setCrmFields, settleCrm } from "./crm-cache.ts";
 import { currentId, pendingFailed, pendingMade, settledId } from "./crm-pending.ts";
@@ -9,19 +9,13 @@ import { keys } from "./query-keys.ts";
 type Crm = Api["crm"];
 type Json<T> = T extends { json: infer J } ? J : never;
 
-export type CrmPlan = InferResponseType<Crm["deals"][":id"]["plan"]["$get"], 200>;
-export type CrmMilestone = CrmPlan["milestones"][number];
-export type CrmDeliverable = CrmPlan["deliverables"][number];
+export type { CrmDeliverable, CrmMilestone, CrmPlan, CrmProjectAccess } from "@omni/client";
 export type CrmMilestoneStatus = CrmMilestone["status"];
 export type CrmDeliverableStatus = CrmDeliverable["status"];
 export type MilestoneChange = Json<InferRequestType<Crm["milestones"][":id"]["$patch"]>>;
 export type NewMilestone = Json<InferRequestType<Crm["deals"][":id"]["milestones"]["$post"]>>;
 export type DeliverableChange = Json<InferRequestType<Crm["deliverables"][":id"]["$patch"]>>;
 export type NewDeliverable = Json<InferRequestType<Crm["deals"][":id"]["deliverables"]["$post"]>>;
-export type CrmProjectAccess = InferResponseType<
-  Crm["deals"][":id"]["access"]["$get"],
-  200
->["access"][number];
 export type CrmProjectScope = CrmProjectAccess["scope"];
 
 export const MILESTONE_STATUSES: { id: CrmMilestoneStatus; label: string }[] = [

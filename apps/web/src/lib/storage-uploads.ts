@@ -1,10 +1,11 @@
+import { errorCode, isTransient } from "@omni/client";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { api, ApiError, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import type { Session } from "./session.ts";
 import { storageChanged, type StorageNode, type StoragePlace } from "./storage.ts";
 import { abortUpload, uploadFile } from "./storage-upload.ts";
-import { isTransient, Slots } from "./storage-upload-net.ts";
+import { Slots } from "./storage-upload-net.ts";
 import { forgetUpload, resumeKey, savedUpload, saveUpload } from "./storage-upload-resume.ts";
 import { FolderMaker, type Picked } from "./storage-upload-tree.ts";
 import { storageFolderMade, storageListsRefresh, storageNodesChanged } from "./storage-cache.ts";
@@ -94,11 +95,6 @@ const STOPS_BATCH = new Set([
   "parent_trashed",
   "not_found",
 ]);
-
-const codeOf = (error: unknown) => {
-  const code = (error as { code?: unknown } | null)?.code;
-  return typeof code === "string" ? code : undefined;
-};
 
 interface Batch {
   client: QueryClient;
@@ -232,7 +228,7 @@ function fail(job: Job, error: unknown) {
   const { batch } = job;
   job.status = "failed";
   job.error = error;
-  if (STOPS_BATCH.has(codeOf(error) ?? "")) {
+  if (STOPS_BATCH.has(errorCode(error) ?? "")) {
     for (const other of jobs) {
       if (other.batch !== batch || other.status !== "queued") continue;
       other.status = "failed";
@@ -243,7 +239,7 @@ function fail(job: Job, error: unknown) {
 }
 
 function tell(batch: Batch, name: string, error: unknown) {
-  const cause = codeOf(error) ?? `status:${error instanceof ApiError ? error.status : "?"}`;
+  const cause = errorCode(error) ?? `status:${error instanceof ApiError ? error.status : "?"}`;
   if (batch.told.has(cause)) return;
   batch.told.add(cause);
   batch.onFailed(name, error);

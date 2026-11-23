@@ -1,17 +1,9 @@
-import type { Api } from "@omni/client";
+import type { CrmDeliverable, CrmMilestone } from "@omni/client";
 import { useQuery } from "@tanstack/react-query";
-import type { InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
-type Crm = Api["crm"];
-export type CrmPlan = InferResponseType<Crm["deals"][":id"]["plan"]["$get"], 200>;
-export type CrmMilestone = CrmPlan["milestones"][number];
-export type CrmDeliverable = CrmPlan["deliverables"][number];
-export type CrmProjectAccess = InferResponseType<
-  Crm["deals"][":id"]["access"]["$get"],
-  200
->["access"][number];
+export type { CrmDeliverable, CrmMilestone, CrmPlan, CrmProjectAccess } from "@omni/client";
 
 const MILESTONE_STATUS: Record<CrmMilestone["status"], string> = {
   planned: "Planned",

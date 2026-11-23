@@ -1,22 +1,13 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
+import type { Api, CrmContract, CrmRecordKind } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
 type Crm = Api["crm"];
 
-export type CrmCompanyPage = InferResponseType<Crm["companies"]["$get"], 200>;
-export type CrmCompany = CrmCompanyPage["companies"][number];
-export type CrmPersonPage = InferResponseType<Crm["people"]["$get"], 200>;
-export type CrmPerson = CrmPersonPage["people"][number];
-export type CrmDealPage = InferResponseType<Crm["deals"]["$get"], 200>;
-export type CrmDeal = CrmDealPage["deals"][number];
 export type CrmCompanyDetail = InferResponseType<Crm["companies"][":id"]["$get"], 200>;
 export type CrmDealDetail = InferResponseType<Crm["deals"][":id"]["$get"], 200>;
-export type CrmStage = InferResponseType<Crm["stages"]["$get"], 200>["stages"][number];
-export type CrmStageKind = CrmStage["kind"];
-export type CrmContract = InferResponseType<Crm["contracts"]["$get"], 200>["contracts"][number];
 export type CrmContractStatus = CrmContract["status"];
 type TimelinePage = InferResponseType<Crm["companies"][":id"]["timeline"]["$get"], 200>;
 type KnownTimelineItem = TimelinePage["items"][number];
@@ -38,8 +29,20 @@ export interface CrmActivityItem {
 }
 export type CrmTimelineItem = KnownTimelineItem | CrmActivityItem;
 
-/** The three records, as the API's paths name them. */
-export type CrmRecordKind = "companies" | "people" | "deals";
+export {
+  formatMoney,
+  parseMoney,
+  type CrmCompany,
+  type CrmCompanyPage,
+  type CrmContract,
+  type CrmDeal,
+  type CrmDealPage,
+  type CrmPerson,
+  type CrmPersonPage,
+  type CrmRecordKind,
+  type CrmStage,
+  type CrmStageKind,
+} from "@omni/client";
 
 export {
   crmCompaniesQuery,
@@ -150,22 +153,6 @@ export function lastContactedAt(record: object) {
   return typeof value === "string" ? value : null;
 }
 
-/** "€12,500": minor units in their currency, whole units when there are no cents. */
-export function formatMoney(minor: number | null, currency: string | null) {
-  if (minor === null) return null;
-  const amount = minor / 100;
-  if (!currency) return new Intl.NumberFormat(undefined).format(amount);
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-    }).format(amount);
-  } catch {
-    return `${amount} ${currency}`;
-  }
-}
-
 /** The currency a new value is in: the deal's, the workspace's, then the browser's. */
 export function valueCurrency(
   deal: string | null | undefined,
@@ -207,12 +194,4 @@ export function localeCurrency() {
 /** Every currency the browser knows, by code. */
 export function currencyCodes() {
   return Intl.supportedValuesOf("currency");
-}
-
-/** "12500.50" or "12,500" typed by a person, as minor units; null when it is not a number. */
-export function parseMoney(text: string) {
-  const cleaned = text.replace(/[^\d.,-]/g, "").replace(/,(?=\d{3}(\D|$))/g, "");
-  if (!cleaned) return null;
-  const value = Number(cleaned.replace(",", "."));
-  return Number.isFinite(value) ? Math.round(value * 100) : null;
 }

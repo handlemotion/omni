@@ -1,5 +1,5 @@
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
+import { idempotencyHeader, retryUnreached, type Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, ApiError, call } from "./api.ts";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
@@ -25,10 +25,9 @@ export type SendAttachment = NonNullable<
 /** What every send answers: the outbox action and until when it can still be stopped. */
 export type Queued = InferResponseType<Api["send"]["$post"], 202>;
 
-const retry = (failureCount: number, error: Error) =>
-  error instanceof ApiError && error.status === 0 && failureCount < 10;
+const retry = retryUnreached(10);
 const scope = { id: "mail-actions" };
-const header = (key: string) => ({ "idempotency-key": key });
+const header = idempotencyHeader;
 
 /**
  * Streams one file into R2 for a later send. XHR rather than fetch: only XHR reports upload

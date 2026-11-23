@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { reportDriveFailure } from "./telemetry.ts";
-import type { ErrorCode, Member } from "@omni/client";
+import { STORAGE_ERROR_TEXT, errorText, type Member } from "@omni/client";
 import * as Sharing from "expo-sharing";
 import { Alert } from "react-native";
-import { ApiError, api, call } from "./api.ts";
+import { api, call } from "./api.ts";
 import { driveNodeChanged, driveNodeRemoved } from "./drive-cache.ts";
 import { localFile, type FileSource } from "./drive-files.ts";
 import { sourceOf } from "./drive-preview.ts";
@@ -28,41 +28,14 @@ export const placeOf = (node: DriveNode) =>
 /** What a new folder is called when it is left unnamed, as on the web. */
 export const NEW_FOLDER_NAME = "Untitled folder";
 
-const BY_CODE: Partial<Record<ErrorCode, string>> = {
-  storage_full: "Storage is full",
-  billing_inactive: "This workspace is read-only",
-  file_too_large: "That file is too large",
-  invalid_name: "That name can't be used",
-  name_taken: "That name is taken",
-  forbidden: "You can't change this",
-  not_found: "That's no longer here",
-  too_deep: "Folders can't nest that deep",
-  cycle: "A folder can't move into itself",
-  parent_trashed: "Its folder is in Trash",
-  invalid_email: "That isn't an email address",
-  locked: "That file is locked",
-  rate_limited: "Too many at once. Try again in a minute",
-};
+export { canRetryUpload } from "@omni/client";
 
-const FINAL = new Set<string>(["storage_full", "billing_inactive", "file_too_large", "locked"]);
+/** Why `error` refused the action, or `fallback`. */
+export const driveErrorText = (error: unknown, fallback: string) =>
+  errorText(STORAGE_ERROR_TEXT, error, fallback);
 
-const codeOf = (error: unknown) => (error instanceof ApiError ? error.code : undefined);
-
-/** Why `error` refused the action, or `fallback`: the web's `storageErrorText`. */
-export function driveErrorText(error: unknown, fallback: string) {
-  const code = codeOf(error);
-  return (code && BY_CODE[code as ErrorCode]) || fallback;
-}
-
-/** The web's toast, as a native alert. */
 export const driveErrorAlert = (fallback: string) => (error: unknown) =>
   Alert.alert(driveErrorText(error, fallback));
-
-/** Whether trying an upload again may work: anything but a refusal that would repeat. */
-export const canRetryUpload = (error: unknown) => {
-  const code = codeOf(error);
-  return !code || !FINAL.has(code);
-};
 
 /** The member the app is signed in as here: their id and role decide who may trash what. */
 export const useMe = () =>

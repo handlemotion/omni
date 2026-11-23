@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@better-auth/passkey": "^1.7.27",
+    "@omni/docs": "workspace:*",
     "better-auth": "^1.7.27",
     "hono": "^4.13.19"
   },
