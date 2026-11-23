@@ -18,6 +18,7 @@ import {
   SYSTEM_MAIL_FROM,
   type TestDb,
 } from "../../worker/e2e/support.ts";
+import { openSpace } from "./spaces.ts";
 
 const DOT_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -58,7 +59,8 @@ afterAll(async () => {
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 test("a file larger than one part uploads from the page and downloads byte for byte", async () => {
-  const page = await signedIn(`files-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`files-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
 
   const bytes = randomBytes(2 * 16 * 1024 * 1024 + 1234);
   const parts: string[] = [];
@@ -88,7 +90,8 @@ test("a file larger than one part uploads from the page and downloads byte for b
 });
 
 test("a doc exported as Word keeps its headings, to-dos, marks, table and images", async () => {
-  const page = await signedIn(`word-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`word-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -140,7 +143,8 @@ test("a doc exported as Word keeps its headings, to-dos, marks, table and images
 });
 
 test("a link open to anyone downloads its file, byte for byte, for someone signed out", async () => {
-  const page = await signedIn(`link-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`link-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   const bytes = randomBytes(300_000);
   await page
     .getByRole("button", { name: "Upload", exact: true })
@@ -181,7 +185,8 @@ test("a link open to anyone downloads its file, byte for byte, for someone signe
 });
 
 test("an XLSX opens to its visible sheets' cells as the workbook shows them", async () => {
-  const page = await signedIn(`xlsx-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`xlsx-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   const book = utils.book_new();
   const pipeline = utils.aoa_to_sheet([
     ["Region", "Revenue"],
@@ -226,7 +231,8 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
     ownerEmail: email,
   });
   await db.insert(schema.orgSetup).values({ orgId: acme.orgId, step: "complete" });
-  const page = await signedIn(email, "/files/my");
+  const page = await signedIn(email, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -277,7 +283,8 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
 });
 
 test("New folder is named in place, and each name creates one folder", async () => {
-  const page = await signedIn(`folders-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`folders-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   const newFolder = {
     click: async () => {
       await page.getByRole("button", { name: "New", exact: true }).first().click();
@@ -316,7 +323,8 @@ test("New folder is named in place, and each name creates one folder", async () 
 });
 
 test("Rename changes a name in place on a row and a card, once", async () => {
-  const page = await signedIn(`rename-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`rename-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -361,7 +369,8 @@ test("Rename changes a name in place on a row and a card, once", async () => {
 });
 
 test("a Markdown file is edited as a page, saves itself as Markdown, and a newer save is never overwritten unasked", async () => {
-  const page = await signedIn(`edit-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`edit-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -457,7 +466,8 @@ test("a Markdown file is edited as a page, saves itself as Markdown, and a newer
 });
 
 test("a Markdown file the page cannot keep whole edits as text, and saves every line", async () => {
-  const page = await signedIn(`edit-table-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`edit-table-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -492,7 +502,8 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
 });
 
 test("picking another file while a text file has unsaved edits asks first and keeps the edits", async () => {
-  const page = await signedIn(`edit-leave-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`edit-leave-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -520,7 +531,8 @@ test("picking another file while a text file has unsaved edits asks first and ke
 });
 
 test("leaving a doc with unsaved typing goes at once, to the last place picked, and the typing is saved", async () => {
-  const page = await signedIn(`edit-away-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`edit-away-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -562,7 +574,8 @@ test("leaving a doc with unsaved typing goes at once, to the last place picked, 
 });
 
 test("switching docs while the first is still saving saves both, each to its own file", async () => {
-  const page = await signedIn(`edit-switch-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`edit-switch-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -616,7 +629,8 @@ test("switching docs while the first is still saving saves both, each to its own
 });
 
 test("closing a doc returns to the folder where it was scrolled", async () => {
-  const page = await signedIn(`scroll-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`scroll-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()

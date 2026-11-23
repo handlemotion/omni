@@ -79,7 +79,7 @@ test("a right-click between a folder's items offers New folder, and it starts on
   const person = await account(`ctx-bg-${Date.now()}@gmail.test`);
   const folder = await person.folder("Pitch");
   await person.upload({ parentId: folder }, "notes.txt", "hello");
-  const page = await person.page(`/files/my/${folder}`);
+  const page = await person.page(await person.space(folder));
   await page.getByRole("row", { name: /notes\.txt/ }).waitFor({ timeout: 30_000 });
 
   const at = await beside(page, /notes\.txt/);
@@ -118,7 +118,7 @@ test("a right-click on a file opens its own actions, and Move to trash from it t
   const person = await account(`ctx-file-${Date.now()}@gmail.test`);
   const folder = await person.folder("Docs");
   const file = await person.upload({ parentId: folder }, "brief.txt", "brief");
-  const page = await person.page(`/files/my/${folder}`);
+  const page = await person.page(await person.space(folder));
   const row = page.getByRole("row", { name: /brief\.txt/ });
   await row.waitFor({ timeout: 30_000 });
 
@@ -141,7 +141,7 @@ test("a right-click on a file opens its own actions, and Move to trash from it t
 test("a sidebar folder's right-click offers its actions; a place with none shows no system menu", async () => {
   const person = await account(`ctx-side-${Date.now()}@gmail.test`);
   await person.folder("Clients");
-  const page = await person.page("/files/my");
+  const page = await person.page(await person.space());
   const link = page.getByRole("link", { name: "Clients" }).first();
   await link.waitFor({ timeout: 30_000 });
 
@@ -172,15 +172,17 @@ test("a sidebar folder's right-click offers its actions; a place with none shows
 test("the sidebar's New folder on the space already open starts the folder there", async () => {
   const person = await account(`ctx-here-${Date.now()}@gmail.test`);
   await person.folder("Archive");
-  const page = await person.page("/files/my");
+  const page = await person.page(await person.space());
   await page.getByRole("row", { name: /Archive/ }).waitFor({ timeout: 30_000 });
 
-  await page.getByRole("link", { name: "Personal" }).first().click({ button: "right" });
+  await page.getByRole("link", { name: SPACE }).first().click({ button: "right" });
   await page.getByRole("menuitem", { name: "New folder" }).click();
   const field = page.getByRole("textbox", { name: "Folder name" });
   await field.waitFor();
   expect(await field.evaluate((input) => input === document.activeElement)).toBe(true);
 });
+
+const SPACE = "Studio";
 
 async function account(email: string) {
   const origin = String(worker.url);
@@ -200,9 +202,18 @@ async function account(email: string) {
     // oxlint-disable-next-line typescript/no-explicit-any -- test reads of JSON answers
     return (text ? JSON.parse(text) : null) as any;
   };
+  let made: Promise<string> | undefined;
+  const teamspace = () =>
+    (made ??= api("POST", "/teamspaces", { name: SPACE, private: true }).then(
+      (answer: { teamspace: { id: string } }) => answer.teamspace.id,
+    ));
   return {
+    async space(folderId?: string) {
+      const top = `/files/t/${encodeURIComponent(await teamspace())}`;
+      return folderId ? `${top}/${encodeURIComponent(folderId)}` : top;
+    },
     async folder(name: string, parentId?: string) {
-      const place = parentId ? { parentId } : { space: "personal" };
+      const place = parentId ? { parentId } : { teamspaceId: await teamspace() };
       return (await api("POST", "/folders", { name, ...place })).node.id as string;
     },
     async upload(place: { parentId: string }, name: string, content: string | Uint8Array) {

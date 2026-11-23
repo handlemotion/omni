@@ -57,7 +57,7 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
   const page = await context.newPage();
   const menu = page.getByRole("dialog", { name: "Search and commands" });
 
-  await page.goto(new URL("/menu/files/my", origin).toString());
+  await page.goto(new URL("/menu/files", origin).toString());
   await page.getByRole("main").waitFor();
   await page.keyboard.press("Control+k");
   await menu.waitFor();
@@ -98,24 +98,25 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
   await page.getByRole("main").waitFor();
   await expect.poll(() => page.getByText("Quarterly freight rates").count()).toBe(0);
 
-  await page.goto(new URL("/menu/files/my", origin).toString());
+  await page.goto(new URL("/menu/files", origin).toString());
   await page.getByRole("main").waitFor();
-  const chowId = await page.evaluate(async () => {
-    const post = async (body: object) => {
-      const res = await fetch("/api/storage/folders", {
+  const [spaceId, chowId] = await page.evaluate(async () => {
+    const post = async (path: string, body: object) => {
+      const res = await fetch(`/api/storage/${path}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      return ((await res.json()) as { node: { id: string } }).node.id;
+      return (await res.json()) as { node: { id: string } } & { teamspace: { id: string } };
     };
-    const recipes = await post({ name: "Recipes", space: "personal" });
-    return post({ name: "Chow Mein", parentId: recipes });
+    const space = (await post("teamspaces", { name: "Kitchen", private: true })).teamspace.id;
+    const recipes = (await post("folders", { name: "Recipes", teamspaceId: space })).node.id;
+    return [space, (await post("folders", { name: "Chow Mein", parentId: recipes })).node.id];
   });
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await menu.getByRole("radio", { name: "Drive", checked: true }).waitFor();
   await page.keyboard.type("chow");
   await menu.getByRole("option", { name: "Chow Mein" }).click();
-  await page.waitForURL(new RegExp(`/files/my/${chowId}$`));
+  await page.waitForURL(new RegExp(`/files/t/${spaceId}/${chowId}$`));
   await context.close();
 });
