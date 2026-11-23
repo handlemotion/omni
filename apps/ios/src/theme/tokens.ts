@@ -54,7 +54,7 @@ export const colors = {
   /** Labels, section names and resting glyphs on `under`. */
   underMuted: "#858585",
   /** The current or pressed row and the current module's pill on `under`. */
-  underFill: "#ffffff",
+  underFill: "#e8e8e8",
   /** Hairlines between groups on `under`, and the page card's edge. */
   underLine: "#e5e5e5",
   /** `--tooltip`: dark surface behind code card previews. */
