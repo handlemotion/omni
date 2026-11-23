@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  storageGrantRoleSchema,
   storageLinkPasswordSchema,
   storageLinkSchema,
   storagePolicySchema,
@@ -17,20 +18,23 @@ export const storageSpaceSchema = z.enum(["personal", "shared"]);
  * The drive a node is in: `personal` and `shared` as above, or `teamspace`, one of the
  * workspace's teamspaces (`teamspaceId`, `docs/spec/teamspaces.md`).
  */
-export const storageNodeSpaceSchema = z.enum(["personal", "shared", "teamspace"]);
-export const storageNodeKindSchema = z.enum(["folder", "file"]);
+export const STORAGE_NODE_SPACES = ["personal", "shared", "teamspace"] as const;
+export const storageNodeSpaceSchema = z.enum(STORAGE_NODE_SPACES);
+/** In this order: a folder lists before a file. */
+export const STORAGE_NODE_KINDS = ["folder", "file"] as const;
+export const storageNodeKindSchema = z.enum(STORAGE_NODE_KINDS);
 /**
  * `member` is someone in the node's space; the others come from a grant or a link. A `commenter`
  * reads and writes comments; absent from a Worker older than comments.
  */
 export const storageRoleSchema = z.enum(["member", "editor", "commenter", "viewer"]);
-export const storageGrantRoleSchema = z.enum(["viewer", "commenter", "editor"]);
 /**
  * Who a link opens for besides the people it is shared with: nobody (`restricted`), any
  * signed-in member of the node's workspace (`workspace`), or anyone holding it. `workspace` is
  * absent from a Worker older than link settings.
  */
-export const storageLinkAccessSchema = z.enum(["restricted", "anyone", "workspace"]);
+export const STORAGE_LINK_ACCESSES = ["restricted", "anyone", "workspace"] as const;
+export const storageLinkAccessSchema = z.enum(STORAGE_LINK_ACCESSES);
 
 const isoDate = z.iso.datetime();
 const id = z.string().min(1);

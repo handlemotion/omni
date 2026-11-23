@@ -13,7 +13,18 @@ export const STORAGE_SIGNING_CONSENT = {
   text: "I agree to sign this document electronically, and that my typed name is my signature on it.",
 } as const;
 
-export const storageSignatureStatusSchema = z.enum(["sent", "completed", "voided"]);
+export const STORAGE_SIGNATURE_STATUSES = ["sent", "completed", "voided"] as const;
+export const storageSignatureStatusSchema = z.enum(STORAGE_SIGNATURE_STATUSES);
+
+export const STORAGE_SIGNATURE_EVENT_KINDS = [
+  "sent",
+  "viewed",
+  "code_sent",
+  "code_verified",
+  "signed",
+  "completed",
+  "voided",
+] as const;
 
 /**
  * `POST /files/:id/signatures`: sends a PDF the member reaches to these addresses, in this order.
@@ -31,7 +42,7 @@ export const storageSendForSignatureBodySchema = z.object({
 });
 
 const storageSignatureEventSchema = z.object({
-  kind: z.enum(["sent", "viewed", "code_sent", "code_verified", "signed", "completed", "voided"]),
+  kind: z.enum(STORAGE_SIGNATURE_EVENT_KINDS),
   email: z.string(),
   ip: z.string().nullable(),
   userAgent: z.string().nullable(),

@@ -18,7 +18,6 @@ import {
   replaceFolders,
   resetFolder,
   saveFolderPosition,
-  type schema,
   setLocationFlags,
   upsertMessage,
 } from "@omni/db";
@@ -42,10 +41,6 @@ import type {
 } from "./ports.ts";
 import { assignThread, followProviderThread, type ThreadingDeps } from "./threading.ts";
 
-/** The schema stores every role the engine detects. */
-type StoredRole = (typeof schema.mailboxFolders.$inferSelect)["role"];
-const storedRole = (role: FolderRole) => role satisfies StoredRole;
-
 interface MailboxRow {
   orgId: string;
   address: string;
@@ -59,7 +54,7 @@ export interface IngestedMessage {
   threadId: string;
   /** Null for a sent message indexed before its Sent copy exists. */
   folder: string | null;
-  folderRole: StoredRole;
+  folderRole: FolderRole;
 }
 
 export interface PgMailStoreOptions {
@@ -116,7 +111,7 @@ export class PgMailStore implements MailStore {
     await replaceFolders(this.db, {
       orgId,
       mailboxId,
-      folders: folders.map((f) => ({ path: f.path, role: storedRole(f.role) })),
+      folders,
     });
   }
 

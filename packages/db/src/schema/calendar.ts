@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
 import {
+  CALENDAR_ATTENDEE_ROLES,
+  CALENDAR_EVENT_SOURCES,
+  CALENDAR_EVENT_STATUSES,
+  CALENDAR_RESPONSES,
+} from "@omni/contracts";
+import {
   boolean,
   check,
   foreignKey,
@@ -23,25 +29,10 @@ import { mailboxes } from "./mail/mailboxes.ts";
  * An event comes from an invitation in mail, from Omni, or from a connected Google account's own
  * calendar ("Google calendars").
  */
-export const calendarEventSource = pgEnum("calendar_event_source", ["invite", "omni", "google"]);
-export const calendarEventStatus = pgEnum("calendar_event_status", [
-  "confirmed",
-  "tentative",
-  "cancelled",
-]);
-export const calendarAttendeeRole = pgEnum("calendar_attendee_role", [
-  "chair",
-  "required",
-  "optional",
-  "none",
-]);
-export const calendarResponse = pgEnum("calendar_response", [
-  "needs_action",
-  "accepted",
-  "declined",
-  "tentative",
-  "delegated",
-]);
+export const calendarEventSource = pgEnum("calendar_event_source", CALENDAR_EVENT_SOURCES);
+export const calendarEventStatus = pgEnum("calendar_event_status", CALENDAR_EVENT_STATUSES);
+export const calendarAttendeeRole = pgEnum("calendar_attendee_role", CALENDAR_ATTENDEE_ROLES);
+export const calendarResponse = pgEnum("calendar_response", CALENDAR_RESPONSES);
 /** What one `text/calendar` part did when the sweep applied it. */
 export const calendarPartOutcome = pgEnum("calendar_part_outcome", [
   "applied",

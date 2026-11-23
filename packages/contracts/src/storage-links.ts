@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+/** In this order: `max()` over a person's grants is the strongest one. */
+export const STORAGE_GRANT_ROLES = ["viewer", "commenter", "editor"] as const;
+export const storageGrantRoleSchema = z.enum(STORAGE_GRANT_ROLES);
+
 const isoDate = z.iso.datetime();
 
 /**
@@ -17,7 +21,7 @@ export const storageLinkSchema = z.object({
    * What anyone holding the link may do: view, or for a doc comment, or edit it live with
    * everyone in it (`docs/spec/live-sharing.md`). Absent from a Worker older than link roles.
    */
-  role: z.enum(["viewer", "commenter", "editor"]).optional(),
+  role: storageGrantRoleSchema.optional(),
 });
 
 /**

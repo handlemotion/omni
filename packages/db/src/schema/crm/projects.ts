@@ -1,5 +1,10 @@
 import { sql } from "drizzle-orm";
 import {
+  CRM_DELIVERABLE_STATUSES,
+  CRM_MILESTONE_STATUSES,
+  CRM_PROJECT_SCOPES,
+} from "@omni/contracts";
+import {
   boolean,
   date,
   foreignKey,
@@ -22,7 +27,7 @@ const memberRef = (name: string) =>
  * How far someone outside the team reaches into one project (`docs/spec/crm.md`, "Project
  * access"): a `freelancer` works on it in the app, a `client` sees it on the portal.
  */
-export const crmProjectScope = pgEnum("crm_project_scope", ["freelancer", "client"]);
+export const crmProjectScope = pgEnum("crm_project_scope", CRM_PROJECT_SCOPES);
 
 /**
  * Someone added to one project (a deal) by address, so they can be added before they have an
@@ -52,11 +57,7 @@ export const crmProjectMembers = pgTable(
   ],
 );
 
-export const crmMilestoneStatus = pgEnum("crm_milestone_status", [
-  "planned",
-  "in_progress",
-  "done",
-]);
+export const crmMilestoneStatus = pgEnum("crm_milestone_status", CRM_MILESTONE_STATUSES);
 
 /** A checkpoint on a project, in the order the team set, with a target day. */
 export const crmMilestones = pgTable(
@@ -87,12 +88,7 @@ export const crmMilestones = pgTable(
   ],
 );
 
-export const crmDeliverableStatus = pgEnum("crm_deliverable_status", [
-  "draft",
-  "in_review",
-  "approved",
-  "changes_requested",
-]);
+export const crmDeliverableStatus = pgEnum("crm_deliverable_status", CRM_DELIVERABLE_STATUSES);
 
 /**
  * Something the project hands over, maybe under a milestone and maybe a Drive file. The client

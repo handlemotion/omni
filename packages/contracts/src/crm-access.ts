@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-export const crmProjectScopeSchema = z.enum(["freelancer", "client"]);
+export const CRM_PROJECT_SCOPES = ["freelancer", "client"] as const;
+export const crmProjectScopeSchema = z.enum(CRM_PROJECT_SCOPES);
 
 /** Someone outside the team on a project. Teammates are never listed: they see every project. */
 export const crmProjectAccessSchema = z.object({

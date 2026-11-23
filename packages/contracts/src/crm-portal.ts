@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { crmDeliverableStatusSchema, crmMilestoneStatusSchema } from "./crm-plan.ts";
+import { crmStageKindSchema } from "./crm.ts";
 
 const id = z.string().min(1).max(64);
 const isoDate = z.iso.datetime();
@@ -13,7 +14,7 @@ export const portalProjectSchema = z.object({
   /** The studio's workspace. */
   workspaceName: z.string(),
   companyName: z.string().nullable(),
-  stage: z.object({ name: z.string(), kind: z.enum(["open", "won", "done", "lost"]) }),
+  stage: z.object({ name: z.string(), kind: crmStageKindSchema }),
 });
 
 export const portalFileSchema = z.object({

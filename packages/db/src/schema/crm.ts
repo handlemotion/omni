@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { CRM_CONTRACT_STATUSES, CRM_STAGE_KINDS } from "@omni/contracts";
 import {
   type AnyPgColumn,
   bigint,
@@ -52,13 +53,8 @@ const folderRef = (name: string) =>
   text(name).references(() => storageNodes.id, { onDelete: "set null" });
 
 /** What a stage means; its name is the workspace's. Code reads the kind, never the name. */
-export const crmStageKind = pgEnum("crm_stage_kind", ["open", "won", "done", "lost"]);
-export const crmContractStatus = pgEnum("crm_contract_status", [
-  "draft",
-  "sent",
-  "signed",
-  "ended",
-]);
+export const crmStageKind = pgEnum("crm_stage_kind", CRM_STAGE_KINDS);
+export const crmContractStatus = pgEnum("crm_contract_status", CRM_CONTRACT_STATUSES);
 
 export const crmCompanies = pgTable(
   "crm_companies",

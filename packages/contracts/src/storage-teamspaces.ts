@@ -5,8 +5,12 @@ const id = z.string().min(1);
 const isoDate = z.iso.datetime();
 const name = z.string().trim().min(1).max(255);
 
-/** A member's role in a teamspace: an `owner` manages it. */
-export const storageTeamspaceRoleSchema = z.enum(["member", "owner"]);
+/**
+ * A member's role in a teamspace: an `owner` manages it. In this order: `max()` over a member's
+ * rows is the strongest.
+ */
+export const STORAGE_TEAMSPACE_ROLES = ["member", "owner"] as const;
+export const storageTeamspaceRoleSchema = z.enum(STORAGE_TEAMSPACE_ROLES);
 
 /** A teamspace as the caller sees it (`docs/spec/teamspaces.md`). */
 export const storageTeamspaceSchema = z.object({

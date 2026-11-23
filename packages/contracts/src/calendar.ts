@@ -10,18 +10,23 @@ export const CALENDAR_GUESTS_MAX = 100;
 export const CALENDAR_TITLE_MAX = 500;
 export const CALENDAR_TEXT_MAX = 20_000;
 
-export const calendarResponseSchema = z.enum([
+export const CALENDAR_EVENT_SOURCES = ["invite", "omni", "google"] as const;
+export const CALENDAR_EVENT_STATUSES = ["confirmed", "tentative", "cancelled"] as const;
+export const CALENDAR_ATTENDEE_ROLES = ["chair", "required", "optional", "none"] as const;
+export const CALENDAR_RESPONSES = [
   "needs_action",
   "accepted",
   "declined",
   "tentative",
   "delegated",
-]);
+] as const;
+
+export const calendarResponseSchema = z.enum(CALENDAR_RESPONSES);
 
 export const calendarAttendeeSchema = z.object({
   address: z.string(),
   name: z.string().nullable(),
-  role: z.enum(["chair", "required", "optional", "none"]),
+  role: z.enum(CALENDAR_ATTENDEE_ROLES),
   response: calendarResponseSchema,
 });
 
@@ -52,8 +57,8 @@ export const calendarEventSchema = z.object({
   recurrenceId: isoDate.nullable(),
   recurring: z.boolean(),
   /** `invite` came by mail; `omni` was made in Omni and may be changed by its organizer. */
-  source: z.enum(["invite", "omni", "google"]),
-  status: z.enum(["confirmed", "tentative", "cancelled"]),
+  source: z.enum(CALENDAR_EVENT_SOURCES),
+  status: z.enum(CALENDAR_EVENT_STATUSES),
   busy: z.boolean(),
   title: z.string(),
   description: z.string().nullable(),

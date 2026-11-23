@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { forMember, forUser, type CrmDeal, type CrmRecordRef } from "@omni/db";
+import { CRM_PROJECT_SCOPES, MAILBOX_KINDS } from "@omni/contracts";
 import { z } from "zod";
 import {
   companyRow,
@@ -52,7 +53,7 @@ const accessSchema = z
       email: z.string(),
       name: z.string().nullable().describe("Once the address belongs to an Omni account."),
       scope: z
-        .enum(["freelancer", "client"])
+        .enum(CRM_PROJECT_SCOPES)
         .describe(
           "freelancer: works on the project in Omni. client: reviews deliverables on the portal.",
         ),
@@ -80,7 +81,7 @@ const threadSchema = z.object({
 const activitySchema = z.object({
   key: z.string().describe("Stable and opaque; not a thread id."),
   mailbox: z.object({
-    kind: z.enum(["personal", "shared"]),
+    kind: z.enum(MAILBOX_KINDS),
     name: z.string().describe("The teammate who owns it, or the shared inbox."),
   }),
   last_message_at: z.string(),
