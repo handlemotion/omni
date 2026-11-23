@@ -1,5 +1,4 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import { schema } from "@omni/db";
 import { MEETINGS_ACCESSES } from "@omni/contracts";
 import { z } from "zod";
 import { result, toolError } from "../format.ts";
@@ -9,27 +8,11 @@ import {
   meetingUrl,
   NO_MEETING,
   openMeeting,
-  type MeetingsWorkspace,
 } from "../meetings.ts";
-import { guarded, type ToolContext } from "../server.ts";
+import { guarded, recordMcpWrite, type ToolContext } from "../server.ts";
 
 const EDITORS_ONLY = "Only the meeting's editors and its owner can do that.";
 const SHARE_MAX = 20;
-
-const audit = (
-  context: ToolContext,
-  workspace: MeetingsWorkspace,
-  action: string,
-  meetingId: string,
-  data: Record<string, unknown>,
-) =>
-  context.db.insert(schema.auditEvents).values({
-    orgId: workspace.orgId,
-    actorMemberId: workspace.memberId,
-    action,
-    subject: meetingId,
-    data: { via: "mcp", clientId: context.caller.clientId, ...data },
-  });
 
 async function editable(context: ToolContext, workspace: string | undefined, meetingId: string) {
   const wait = await context.rateLimit("actions");
@@ -82,7 +65,7 @@ async function rename(context: ToolContext, input: z.infer<typeof renameInput>) 
       "That meeting has no speaker with that label. Labels come from `meetings_fetch`.",
     );
   }
-  await audit(context, workspace, "mcp.meetings_rename_speaker", input.meeting_id, {
+  await recordMcpWrite(context, workspace, "mcp.meetings_rename_speaker", input.meeting_id, {
     speaker: input.speaker,
   });
   return result({
@@ -166,7 +149,7 @@ async function share(context: ToolContext, input: z.infer<typeof shareInput>) {
   }
   const now = await meetings.get(input.meeting_id);
   if (now.status !== "ok" || !now.sharing) return toolError(NO_MEETING);
-  await audit(context, workspace, "mcp.meetings_share", input.meeting_id, {
+  await recordMcpWrite(context, workspace, "mcp.meetings_share", input.meeting_id, {
     people: input.people,
     access: input.access ?? null,
   });

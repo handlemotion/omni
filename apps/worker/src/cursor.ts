@@ -8,7 +8,11 @@ export function encodeCursor(cursor: unknown) {
   return toBase64Url(new TextEncoder().encode(JSON.stringify(cursor)));
 }
 
-function readCursor<T extends z.ZodType>(value: string, schema: T) {
+/**
+ * Reads a cursor `encodeCursor` made, or null when it is not one. Takes base64url and standard
+ * base64 alike, with or without padding, so cursors handed out before base64url still decode.
+ */
+export function readCursor<T extends z.ZodType>(value: string, schema: T) {
   try {
     const binary = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
     const json = new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));

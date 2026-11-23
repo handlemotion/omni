@@ -23,7 +23,7 @@ import { companySchema, personSchema, writeCompany, writePerson } from "../crm-w
 import { outputSchema, type Output, type Written } from "../crm-write/shared.ts";
 import { taskSchema, writeTask } from "../crm-write/task.ts";
 import { result, toolError } from "../format.ts";
-import { guarded, type ToolContext } from "../server.ts";
+import { guarded, mcpAuditRow, type ToolContext } from "../server.ts";
 
 const inputSchema = z.object({
   person: personSchema.optional(),
@@ -110,13 +110,7 @@ async function claim(context: ToolContext, workspace: CrmWorkspace, key: string)
   if (found) return found;
   const [row] = await context.db
     .insert(schema.auditEvents)
-    .values({
-      orgId: workspace.orgId,
-      actorMemberId: workspace.memberId,
-      action: CLAIM,
-      subject: key,
-      data: { via: "mcp", clientId: context.caller.clientId },
-    })
+    .values(mcpAuditRow(context, workspace, CLAIM, key))
     .returning({ id: schema.auditEvents.id });
   return { id: row?.id ?? "" };
 }
@@ -137,19 +131,13 @@ async function audit(
 ) {
   if (!written.ids.length) return;
   await context.db.insert(schema.auditEvents).values(
-    written.ids.map((subject) => ({
-      orgId: workspace.orgId,
-      actorMemberId: workspace.memberId,
-      action: "mcp.crm_write",
-      subject,
-      data: {
-        via: "mcp",
-        clientId: context.caller.clientId,
+    written.ids.map((subject) =>
+      mcpAuditRow(context, workspace, "mcp.crm_write", subject, {
         kind: written.kind,
         write,
         result: written.output.result,
-      },
-    })),
+      }),
+    ),
   );
 }
 

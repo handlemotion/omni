@@ -15,9 +15,8 @@ import { z } from "zod";
 import { createSheet, editSheet, type OpenSheet } from "../../storage/sheets.ts";
 import { driveFor, item, itemSchema } from "../drive.ts";
 import { result, toolError } from "../format.ts";
-import { guarded, type ToolContext } from "../server.ts";
+import { guarded, recordMcpWrite, type ToolContext } from "../server.ts";
 import {
-  audit as auditWrite,
   placeFor,
   placeInput,
   ready,
@@ -211,7 +210,7 @@ const refusal = (reason: string) =>
   toolError(REFUSED[reason] ?? "Omni could not write the sheet this time. Try again in a moment.");
 
 const audit = (context: ToolContext, writer: Writer, subject: string, kind: string) =>
-  auditWrite(context, writer, "mcp.drive_sheet", subject, kind);
+  recordMcpWrite(context, writer, "mcp.drive_sheet", subject, { kind });
 
 function shownSheet(sheet: OpenSheet) {
   const text = agentText(evaluateDoc(sheet.doc));

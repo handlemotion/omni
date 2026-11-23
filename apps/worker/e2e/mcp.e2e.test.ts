@@ -640,6 +640,18 @@ describe("finding and reading mail", () => {
     expect(second.data.next_cursor).toBeUndefined();
   });
 
+  test("a cursor handed out as standard base64, before base64url, still pages", async () => {
+    const first = await tool<SearchResult>(token, "search", { query: "", view: "all", limit: 2 });
+    const cursor = first.data.next_cursor ?? "";
+    const legacy = btoa(Buffer.from(cursor, "base64url").toString());
+    const ask = { query: "", view: "all", limit: 2 };
+    const current = await tool<SearchResult>(token, "search", { ...ask, cursor });
+    const old = await tool<SearchResult>(token, "search", { ...ask, cursor: legacy });
+    expect(old.isError).toBeFalsy();
+    expect(old.data.results.map((r) => r.id)).toEqual(current.data.results.map((r) => r.id));
+    expect(old.data.results).toHaveLength(1);
+  });
+
   test("fetch reads a batch of the person's threads and nobody else's", async () => {
     const { data } = await tool<FetchResult>(token, "fetch", {
       id: invoice,

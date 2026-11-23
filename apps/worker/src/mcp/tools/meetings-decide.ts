@@ -12,7 +12,7 @@ import {
   type MeetingsWorkspace,
 } from "../meetings.ts";
 import { readsFor } from "../scope.ts";
-import { guarded, type ToolContext } from "../server.ts";
+import { guarded, recordMcpWrite, type ToolContext } from "../server.ts";
 
 const AUDIT = "mcp.meetings_decide";
 
@@ -121,13 +121,8 @@ function decideAndRecord(
       { accept: input.decision === "accept", taskId: made.taskId },
     );
     if (decided.status !== "ok") return decided;
-    await tx.insert(schema.auditEvents).values({
-      orgId: workspace.orgId,
-      actorMemberId: workspace.memberId,
-      action: AUDIT,
-      subject: input.action_id,
-      data: { via: "mcp", clientId: context.caller.clientId, decision: input.decision, ...made },
-    });
+    const data = { decision: input.decision, ...made };
+    await recordMcpWrite(context, workspace, AUDIT, input.action_id, data, tx as Db);
     return decided;
   });
 }

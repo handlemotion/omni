@@ -5,7 +5,6 @@ import { z } from "zod";
 import { createDoc, editDoc } from "../../storage/docs.ts";
 import { driveFor, item, itemSchema } from "../drive.ts";
 import {
-  audit as auditWrite,
   placeFor,
   placeInput,
   ready,
@@ -14,7 +13,7 @@ import {
   type Writer,
 } from "../drive-write.ts";
 import { result, toolError } from "../format.ts";
-import { guarded, type ToolContext } from "../server.ts";
+import { guarded, recordMcpWrite, type ToolContext } from "../server.ts";
 
 const MAX_MARKDOWN = 200_000;
 const SHOWN_ON_MISS = 20_000;
@@ -72,7 +71,7 @@ const refusal = (reason: string) =>
   toolError(REFUSED[reason] ?? "Omni could not write the doc this time. Try again in a moment.");
 
 const audit = (context: ToolContext, writer: Writer, subject: string, kind: string) =>
-  auditWrite(context, writer, "mcp.drive_doc", subject, kind);
+  recordMcpWrite(context, writer, "mcp.drive_doc", subject, { kind });
 
 async function answer(context: ToolContext, drive: StorageContext, nodeId: string) {
   const [found] = await drive.read([nodeId]);
