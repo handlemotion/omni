@@ -49,7 +49,6 @@ export const NAV_BAR = space(12);
 const NAV_HANDLE = space(5);
 const SIDE = space(11);
 const GAP = space(3);
-const PAGE = space(13);
 /** The rail's whole height: its handle and its row. */
 export const RAIL_BLOCK = NAV_HANDLE + NAV_BAR;
 
@@ -198,7 +197,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: space(5),
   },
   sideStart: { overflow: "hidden", alignItems: "flex-start" },
   sideEnd: { overflow: "hidden", alignItems: "flex-end" },
@@ -213,6 +212,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   pages: {
+    flex: 1,
+    minWidth: 0,
     height: NAV_BAR,
     flexDirection: "row",
     alignItems: "center",
@@ -223,7 +224,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   page: {
-    width: PAGE,
+    flex: 1,
+    minWidth: 0,
     height: "100%",
     borderRadius: radius.full,
     alignItems: "center",

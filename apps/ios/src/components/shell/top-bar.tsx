@@ -70,6 +70,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIDE,
     minHeight: SHELL_CONTROL,
   },
-  end: { flexDirection: "row", alignItems: "center", gap: space(1) },
+  end: { flexDirection: "row", alignItems: "center", gap: space(3) },
   title: { flexShrink: 1, paddingLeft: space(1) },
 });

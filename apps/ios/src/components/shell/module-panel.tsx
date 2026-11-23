@@ -46,14 +46,14 @@ const RAIL_GAP = space(2);
 
 /**
  * Where the rail floats and how far things slide: the rail and the pages under it rise by `lift`,
- * the page card by `cardLift`, so the card stops just above the rail, peeking under the status bar.
+ * the page card by `cardLift`, so its content stops just above the rail, peeking under the status bar.
  */
 export function useRailLayout() {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const railBottom = Math.max(insets.bottom - space(3), space(2));
   const lift = height - insets.top - CARD_PEEK - railBottom - RAIL_BLOCK - RAIL_GAP;
-  return { railBottom, lift, cardLift: lift + railBottom + RAIL_BLOCK + RAIL_GAP };
+  return { railBottom, lift, cardLift: lift + railBottom + RAIL_GAP };
 }
 
 /** A vertical drag that follows the finger and settles the section open or closed. */
