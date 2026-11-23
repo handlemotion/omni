@@ -9,9 +9,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { IconArrowUp, IconX } from "@/components/icons.ts";
+import { IconArrowUp, IconChevronLeft } from "@/components/icons.ts";
 import { FloatingButton } from "@/components/ui/floating.tsx";
-import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
+import { colors, iconSize, space } from "@/theme/tokens.ts";
 
 function useKeyboardShown() {
   const [shown, setShown] = useState(false);
@@ -32,11 +32,11 @@ function useKeyboardShown() {
 }
 
 /**
- * The composer's sheet: a grabber, a header row (a round Close, `from` in the middle, a round
- * blue Send), the fields scrolling under it, and `toolbar` riding on the keyboard over a hairline.
- * While `dirty`, the sheet won't swipe away.
+ * The composer as a page, like a conversation: a header row (a round Back, `from` in the middle,
+ * a round blue Send), the fields scrolling under it, and `toolbar` riding on the keyboard over a
+ * hairline. While `dirty`, the page won't swipe back; Back asks before throwing the draft away.
  */
-export function ComposeSheet(props: {
+export function ComposePage(props: {
   dirty: boolean;
   from: ReactNode;
   canSend: boolean;
@@ -50,16 +50,14 @@ export function ComposeSheet(props: {
   const keyboard = useKeyboardShown();
   return (
     <KeyboardAvoidingView
-      style={styles.sheet}
+      style={styles.page}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={insets.top}
     >
       <Stack.Screen options={{ gestureEnabled: !props.dirty }} />
-      <View style={styles.grabber} />
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + space(2) }]}>
         <FloatingButton
-          icon={IconX}
-          label="Close"
+          icon={IconChevronLeft}
+          label="Back"
           compact
           glyph={iconSize.field}
           onPress={props.onClose}
@@ -80,11 +78,13 @@ export function ComposeSheet(props: {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         contentContainerStyle={styles.content}
-        style={styles.sheet}
+        style={styles.page}
       >
         {props.children}
       </ScrollView>
-      <View style={[styles.toolbar, { paddingBottom: keyboard ? space(2) : insets.bottom }]}>
+      <View
+        style={[styles.toolbar, { paddingBottom: keyboard ? space(2) : insets.bottom + space(2) }]}
+      >
         {props.toolbar}
       </View>
     </KeyboardAvoidingView>
@@ -92,15 +92,7 @@ export function ComposeSheet(props: {
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1, backgroundColor: colors.background },
-  grabber: {
-    alignSelf: "center",
-    width: space(9),
-    height: space(1.25),
-    marginTop: space(2),
-    borderRadius: radius.full,
-    backgroundColor: colors.hairlineLine,
-  },
+  page: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",

@@ -28,7 +28,7 @@ import { useMailboxes } from "@/lib/mail.ts";
 import { currentWorkspaceId } from "@/lib/workspace-id.ts";
 import { gutter, space, text as type } from "@/theme/tokens.ts";
 import { AttachmentChips } from "./attachment-chips.tsx";
-import { ComposeSheet } from "./compose-sheet.tsx";
+import { ComposePage } from "./compose-page.tsx";
 import { FromPicker } from "./from-picker.tsx";
 import { HeaderRow } from "./header-field.tsx";
 import { RecipientField } from "./recipient-field.tsx";
@@ -238,7 +238,7 @@ function notSent(error: Error, sendAnyway?: () => void) {
   Alert.alert("Not sent", error.message);
 }
 
-/** The web's reply composer in a sheet: From, To (Cc, Bcc), the subject, the reply, files, Send. */
+/** The web's reply composer as a page: From, To (Cc, Bcc), the subject, the reply, files, Send. */
 export function ReplyComposer(props: { thread: Thread; replyAll: boolean }) {
   const [thread] = useState(props.thread);
   const [kind, setKind] = useState<Kind>(props.replyAll ? "replyAll" : "reply");
@@ -280,7 +280,7 @@ export function ReplyComposer(props: { thread: Thread; replyAll: boolean }) {
     );
   };
   return (
-    <ComposeSheet
+    <ComposePage
       dirty={dirty}
       from={
         <FromPicker
@@ -313,7 +313,7 @@ export function ReplyComposer(props: { thread: Thread; replyAll: boolean }) {
       <Subject subject={start.subject} />
       <Body label="Reply" value={text} onChange={setText} autoFocus />
       <AttachmentChips list={files.list} onRemove={files.remove} />
-    </ComposeSheet>
+    </ComposePage>
   );
 }
 
@@ -329,7 +329,7 @@ function Subject({ subject }: { subject: string }) {
 }
 
 /**
- * The web's forward composer in a sheet: From, an empty To (Cc, Bcc), the "Fwd:" subject, what
+ * The web's forward composer as a page: From, an empty To (Cc, Bcc), the "Fwd:" subject, what
  * the person adds, the original's files (each can come off), Send. The Worker quotes the original.
  */
 export function ForwardComposer(props: { thread: Thread }) {
@@ -368,7 +368,7 @@ export function ForwardComposer(props: { thread: Thread }) {
     );
   };
   return (
-    <ComposeSheet
+    <ComposePage
       dirty={dirty}
       from={
         <FromPicker
@@ -387,11 +387,11 @@ export function ForwardComposer(props: { thread: Thread }) {
       <Subject subject={start.subject} />
       <Body label="Message" value={text} onChange={setText} />
       <AttachmentChips list={files.list} onRemove={files.remove} />
-    </ComposeSheet>
+    </ComposePage>
   );
 }
 
-/** The web's new-message composer in a sheet: From, To (Cc, Bcc), Subject, the message, files, Send. */
+/** The web's new-message composer as a page: From, To (Cc, Bcc), Subject, the message, files, Send. */
 export function NewComposer(props: { mailboxes: Mailbox[]; mailboxId?: string }) {
   const { mailboxes } = props;
   const recipients = useRecipients({ to: [], cc: [] });
@@ -422,7 +422,7 @@ export function NewComposer(props: { mailboxes: Mailbox[]; mailboxId?: string })
     );
   };
   return (
-    <ComposeSheet
+    <ComposePage
       dirty={dirty}
       from={<FromPicker mailboxes={mailboxes} value={fromId} onChange={setFromId} />}
       canSend={canSend}
@@ -446,7 +446,7 @@ export function NewComposer(props: { mailboxes: Mailbox[]; mailboxId?: string })
       </HeaderRow>
       <Body label="Message" value={text} onChange={setText} />
       <AttachmentChips list={files.list} onRemove={files.remove} />
-    </ComposeSheet>
+    </ComposePage>
   );
 }
 
