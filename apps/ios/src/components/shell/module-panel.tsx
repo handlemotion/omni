@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import { usePanGesture } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   useAnimatedRef,
@@ -16,16 +16,15 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import { RowHighlight } from "@/components/ui/pressable-row.tsx";
-import { colors, radius, space } from "@/theme/tokens.ts";
+import { colors, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import type { Module } from "./menu-nav.ts";
 import { MENU_INSET, MenuUnder } from "./menu-row.tsx";
 import { CalendarMenu, CrmMenu, DriveMenu, MailMenu, MeetingsMenu } from "./menu-rows.tsx";
 import { RootPlace, useMenuPlace } from "./menu-nav.ts";
 import { useModules } from "./modules.ts";
-import { DOCK_HEIGHT, ModuleDock } from "./module-dock.tsx";
+import { RAIL_BLOCK } from "./nav-bar.tsx";
 
-const HANDLE = space(4);
 const EDGE_FADE = space(6);
 const FLING = 600;
 
@@ -44,16 +43,18 @@ const ROWS = {
   meetings: MeetingsMenu,
 } as const;
 
-/** The section is hidden below the screen until the page slides up: nothing of it shows closed. */
-export function useSectionHeight() {
-  return 0;
-}
+const RAIL_GAP = space(2);
 
-/** How far the page card and the dock slide up: until the card only peeks under the status bar. */
-export function useSectionTravel() {
+/**
+ * Where the rail floats and how far things slide: the rail and the pages under it rise by `lift`,
+ * the page card by `cardLift`, so the card stops just above the rail, peeking under the status bar.
+ */
+export function useRailLayout() {
   const { height } = useWindowDimensions();
-  const top = useSafeAreaInsets().top;
-  return height - useSectionHeight() - top - CARD_PEEK;
+  const insets = useSafeAreaInsets();
+  const railBottom = Math.max(insets.bottom - space(3), space(2));
+  const lift = height - insets.top - CARD_PEEK - railBottom - RAIL_BLOCK - RAIL_GAP;
+  return { railBottom, lift, cardLift: lift + railBottom + RAIL_BLOCK + RAIL_GAP };
 }
 
 /** A vertical drag that follows the finger and settles the section open or closed. */
@@ -81,12 +82,9 @@ export function useSectionPull(progress: SharedValue<number>, travel: number) {
 }
 
 /**
- * The section under a module's root page, on the grey surface, hidden below the screen until the page slides up: a handle, the module dock, and
- * under them the module's pages. Pulling the dock up (or tapping the handle) slides the page card
- * and the dock up until the card only peeks under the status bar; pulling down, tapping the card,
- * or picking a page slides them back. The pages of every module sit side by side: swiping them
- * sideways moves the dock's pill along and opens the module they land on, each page already
- * marking where that module opens. They fade out under the dock as they scroll.
+ * The module's pages under the rail, on the grey surface, hidden below the screen until the rail
+ * and page slide up. The pages of every module sit side by side: swiping them sideways opens the
+ * module they land on, each page already marking where that module opens.
  */
 export function ModuleSection({
   module,
@@ -95,7 +93,7 @@ export function ModuleSection({
 }: {
   module: Module;
   progress: SharedValue<number>;
-  /** Which module's pages are under the dock, fractional mid-swipe. */
+  /** Which module's pages show, fractional mid-swipe. */
   follow: SharedValue<number>;
 }) {
   const shell = useMenu();
@@ -103,9 +101,7 @@ export function ModuleSection({
   const modules = useModules();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const closed = useSectionHeight();
-  const travel = useSectionTravel();
-  const pull = useSectionPull(progress, travel);
+  const { lift: travel } = useRailLayout();
   const current = Math.max(
     0,
     modules.findIndex((entry) => entry.id === module),
@@ -133,21 +129,7 @@ export function ModuleSection({
 
   if (shell.searching) return null;
   return (
-    <Animated.View style={[styles.section, { top: height - closed }, lift]}>
-      <GestureDetector gesture={pull}>
-        <View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={shell.isOpen ? "Hide pages" : "Show pages"}
-            accessibilityState={{ expanded: shell.isOpen }}
-            onPress={shell.toggle}
-            style={styles.handle}
-          >
-            <View style={styles.grabber} />
-          </Pressable>
-          <ModuleDock follow={follow} />
-        </View>
-      </GestureDetector>
+    <Animated.View style={[styles.section, { top: height }, lift]}>
       <Animated.View
         pointerEvents={shell.isOpen ? "auto" : "none"}
         accessibilityElementsHidden={!shell.isOpen}
@@ -172,7 +154,7 @@ export function ModuleSection({
               <ScrollView
                 key={entry.id}
                 showsVerticalScrollIndicator={false}
-                style={{ width, height: travel - HANDLE - DOCK_HEIGHT }}
+                style={{ width, height: travel }}
                 contentContainerStyle={[styles.rows, { paddingBottom: insets.bottom + space(2) }]}
               >
                 <MenuUnder value>
@@ -209,14 +191,7 @@ export function ModuleSection({
 
 const styles = StyleSheet.create({
   section: { position: "absolute", left: 0, right: 0 },
-  handle: { height: HANDLE, alignItems: "center", justifyContent: "center" },
-  grabber: {
-    width: space(7),
-    height: space(0.75),
-    borderRadius: radius.full,
-    backgroundColor: colors.hairlineLine,
-  },
-  pages: { position: "absolute", top: HANDLE + DOCK_HEIGHT, left: 0, right: 0 },
+  pages: { position: "absolute", top: 0, left: 0, right: 0 },
   rows: { paddingHorizontal: MENU_INSET, paddingTop: EDGE_FADE },
   fade: { position: "absolute", top: 0, left: 0 },
 });

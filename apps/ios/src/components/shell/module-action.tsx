@@ -147,6 +147,7 @@ export function ModuleMainAction() {
     <>
       <FloatingButton
         primary
+        compact
         icon={action.icon}
         label={action.label}
         glyph={iconSize.md}

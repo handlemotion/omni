@@ -1,11 +1,10 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import type { SvgProps } from "react-native-svg";
 import {
   IconBubble,
   IconBuildings,
   IconChecklist,
-  IconChevronDown,
   IconClock,
   IconClock3,
   IconHandshake,
@@ -26,6 +25,13 @@ import { ModuleMainAction } from "./module-action.tsx";
 import { useModules } from "./modules.ts";
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;
+interface Pill {
+  id: string;
+  label: string;
+  here: boolean;
+  glyph: ReactNode;
+  open: () => void;
+}
 interface Shortcut {
   id: string;
   icon: Glyph;
@@ -34,7 +40,9 @@ interface Shortcut {
 
 /** The bar's height, and how far above the home indicator it floats. */
 export const NAV_BAR = space(12);
-export const NAV_CHEVRON = space(7);
+const NAV_HANDLE = space(4);
+/** The rail's whole height: its handle and its row. */
+export const RAIL_BLOCK = NAV_HANDLE + NAV_BAR;
 
 const MAIL: { id: MailPage; icon: Glyph }[] = [
   { id: "inbox", icon: IconInbox },
@@ -83,68 +91,99 @@ function useShortcuts() {
 }
 
 /**
- * The floating navigation on every page: the current module on the left (it opens the full
- * navigation), the module's main pages as glyphs in a pill in the middle, the module's main action
- * (compose, new file, new record) on the right, white pills with a hairline edge across the page's width, the current page marked in grey. A chevron under them slides the
- * page up onto the full navigation.
+ * The rail, on every page: a handle on top; the current module on the left; in the middle the
+ * module's main pages as glyphs, or the modules while the rail is up; the module's main action
+ * (compose, new file, new record) on the right. White pills with a hairline edge across the
+ * page's width, the current one marked in grey. Pulling the rail (it sits in the frame's pull)
+ * or tapping the handle or the module raises it, the page above, the module's pages beneath.
  */
-export function NavBar({ bottom }: { bottom: number }) {
+export function NavBar() {
   const shell = useMenu();
   const place = useMenuPlace();
-  const entry = useModules().find((m) => m.id === place.module);
+  const modules = useModules();
+  const entry = modules.find((m) => m.id === place.module);
   const shortcuts = useShortcuts();
   const Mark = entry?.mark;
+  const items: Pill[] = shell.isOpen
+    ? modules.map((m) => ({
+        id: m.id,
+        label: m.label,
+        here: m.id === place.module,
+        glyph: <m.mark size={22} />,
+        open: () => place.openModule(m.id),
+      }))
+    : shortcuts.items.map(({ id, icon: Icon, label }) => {
+        const here = id === shortcuts.current && place.onRoot;
+        return {
+          id,
+          label,
+          here,
+          glyph: (
+            <Icon size={iconSize.md} color={here ? colors.foreground : colors.mutedForeground} />
+          ),
+          open: () => shortcuts.open(id),
+        };
+      });
   return (
-    <View pointerEvents="box-none" style={[styles.wrap, { bottom }]}>
+    <View pointerEvents="box-none">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={shell.isOpen ? "Hide pages" : "All pages and modules"}
+        accessibilityState={{ expanded: shell.isOpen }}
+        hitSlop={space(2)}
+        onPress={shell.toggle}
+        style={styles.handle}
+      >
+        <View style={styles.grabber} />
+      </Pressable>
       <View pointerEvents="box-none" style={styles.row}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${entry?.label ?? "Modules"}, switch module`}
-          onPress={shell.open}
+          accessibilityLabel={`${entry?.label ?? "Modules"}, all pages and modules`}
+          onPress={shell.toggle}
           style={({ pressed }) => [styles.round, pressed && styles.pressed]}
         >
           {Mark ? <Mark size={22} /> : null}
         </Pressable>
-        {shortcuts.items.length ? (
+        {items.length ? (
           <View accessibilityRole="tablist" style={styles.pages}>
-            {shortcuts.items.map(({ id, icon: Icon, label }) => {
-              const here = id === shortcuts.current && place.onRoot;
-              return (
-                <Pressable
-                  key={id}
-                  accessibilityRole="tab"
-                  accessibilityLabel={label}
-                  accessibilityState={{ selected: here }}
-                  onPress={() => shortcuts.open(id)}
-                  style={[styles.page, here && styles.here]}
-                >
-                  <Icon
-                    size={iconSize.md}
-                    color={here ? colors.foreground : colors.mutedForeground}
-                  />
-                </Pressable>
-              );
-            })}
+            {items.map((item) => (
+              <Pressable
+                key={item.id}
+                accessibilityRole="tab"
+                accessibilityLabel={item.label}
+                accessibilityState={{ selected: item.here }}
+                onPress={item.open}
+                style={[styles.page, item.here && styles.here]}
+              >
+                {item.glyph}
+              </Pressable>
+            ))}
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.spacer} />
+        )}
         <ModuleMainAction />
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="All pages and modules"
-        hitSlop={space(2)}
-        onPress={shell.open}
-        style={styles.chevron}
-      >
-        <IconChevronDown size={iconSize.md} color={colors.mutedForeground} />
-      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: "absolute", left: 0, right: 0, paddingHorizontal: space(4) },
-  row: { flexDirection: "row", alignItems: "center", gap: space(2) },
+  handle: { height: NAV_HANDLE, alignItems: "center", justifyContent: "center" },
+  grabber: {
+    width: space(7),
+    height: space(0.75),
+    borderRadius: radius.full,
+    backgroundColor: colors.hairlineLine,
+  },
+  spacer: { flex: 1 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(2),
+    paddingHorizontal: space(4),
+  },
   round: {
     width: NAV_BAR,
     height: NAV_BAR,
@@ -174,6 +213,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   here: { backgroundColor: colors.well },
-  chevron: { height: NAV_CHEVRON, alignSelf: "center", justifyContent: "center" },
   pressed: { transform: [{ scale: 0.97 }] },
 });
