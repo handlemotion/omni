@@ -330,73 +330,95 @@ function jobRequestId(job: AiJob) {
   return job.requestId ?? job.jobId ?? crypto.randomUUID();
 }
 
+type AiThread = NonNullable<Awaited<ReturnType<typeof loadThreadForAi>>>;
+type AiMessage = AiThread["messages"][number];
+type AiHooks = {
+  outboxChanged?: () => Promise<unknown>;
+  assigned?: (orgId: string, memberIds: string[]) => Promise<unknown>;
+};
+type TriageResult = NonNullable<ReturnType<typeof triageByRule>>;
+
+async function modelGate(db: Db, config: Config, thread: AiThread, messageId: string) {
+  const gate = await gateTriage(db, config, { orgId: thread.orgId, messageId });
+  if (gate.run) return null;
+  if (gate.reason !== "allowance_reached") return "billing_inactive" satisfies AiJobOutcome;
+  await markTriagePaused(db, thread.id, gate.until);
+  return "triage_paused" satisfies AiJobOutcome;
+}
+
+async function applyHelpdeskResult(
+  db: Db,
+  thread: AiThread,
+  messageId: string,
+  result: TriageResult,
+  hooks: AiHooks,
+) {
+  if (!result.helpdesk) return;
+  const applied = await applyAiHelpdeskTriage(db, {
+    threadId: thread.id,
+    messageId,
+    changes: {
+      ...result.helpdesk,
+      resolveNoise: result.bucket === "noise" && result.confidence >= DEFAULT_AUTO_FILE_THRESHOLD,
+    },
+  });
+  if (!applied.applied) return;
+  if (applied.queuedActions > 0) await hooks.outboxChanged?.();
+  if (applied.notified.length > 0) await hooks.assigned?.(thread.orgId, applied.notified);
+}
+
+async function triageLatest(
+  run: { db: Db; models: { triage: TriageClient }; config: Config; hooks: AiHooks },
+  thread: AiThread,
+  latest: AiMessage,
+) {
+  const { db, models, config } = run;
+  const day = new Date().toISOString().slice(0, 10);
+  const triageEnabled = Boolean(config.TYPESAFE_API_KEY || config.ANTHROPIC_API_KEY);
+  const isUs = (address: string) => thread.selfAddresses.has(address.toLowerCase());
+  const input = triageInputFor(thread.messages, isUs);
+  const helpdesk = await helpdeskContextForAi(db, thread.mailboxId);
+  if (helpdesk) {
+    if (await awaitingIngest(db, latest.id)) return "ingesting" satisfies AiJobOutcome;
+    input.helpdesk = helpdesk;
+  }
+  const byRule = triageByRule(input);
+  if (triageEnabled && !byRule) {
+    const stopped = await modelGate(db, config, thread, latest.id);
+    if (stopped) return stopped;
+  }
+  const result = byRule ?? (triageEnabled ? await triage(models.triage, input) : null);
+  if (!result) return { triaged: false };
+  await addAiUsage(db, thread.orgId, day, result.usage);
+  await applyHelpdeskResult(db, thread, latest.id, result, run.hooks);
+  const saved = await saveTriage(db, thread.id, {
+    bucket: result.bucket,
+    confidence: result.confidence,
+    messageId: latest.id,
+  });
+  if (!saved) return "superseded" satisfies AiJobOutcome;
+  return { triaged: true };
+}
+
 export async function runAiJob(
   db: Db,
   models: { triage: TriageClient },
   config: Config,
   job: AiJob,
-  hooks: {
-    outboxChanged?: () => Promise<unknown>;
-    assigned?: (orgId: string, memberIds: string[]) => Promise<unknown>;
-  } = {},
+  hooks: AiHooks = {},
 ) {
   const thread = await loadThreadForAi(db, job.threadId);
   const latest = thread?.messages.at(-1);
   if (!thread || !latest) return "missing" satisfies AiJobOutcome;
   if (thread.summaryMessageId === latest.id) return "done_already" satisfies AiJobOutcome;
 
-  const triageEnabled = Boolean(config.TYPESAFE_API_KEY || config.ANTHROPIC_API_KEY);
-  const isUs = (address: string) => thread.selfAddresses.has(address.toLowerCase());
-  const day = new Date().toISOString().slice(0, 10);
-
-  let filed = thread.triage !== null || thread.triageMessageId !== null;
   let triaged = false;
   if (thread.triageMessageId !== latest.id) {
-    const input = triageInputFor(thread.messages, isUs);
-    const helpdesk = await helpdeskContextForAi(db, thread.mailboxId);
-    if (helpdesk) {
-      if (await awaitingIngest(db, latest.id)) return "ingesting" satisfies AiJobOutcome;
-      input.helpdesk = helpdesk;
-    }
-    const byRule = triageByRule(input);
-    if (triageEnabled && !byRule) {
-      const gate = await gateTriage(db, config, { orgId: thread.orgId, messageId: latest.id });
-      if (!gate.run) {
-        if (gate.reason === "allowance_reached") {
-          await markTriagePaused(db, thread.id, gate.until);
-          return "triage_paused" satisfies AiJobOutcome;
-        }
-        return "billing_inactive" satisfies AiJobOutcome;
-      }
-    }
-    const result = byRule ?? (triageEnabled ? await triage(models.triage, input) : null);
-    if (result) {
-      await addAiUsage(db, thread.orgId, day, result.usage);
-      if (result.helpdesk) {
-        const applied = await applyAiHelpdeskTriage(db, {
-          threadId: thread.id,
-          messageId: latest.id,
-          changes: {
-            ...result.helpdesk,
-            resolveNoise:
-              result.bucket === "noise" && result.confidence >= DEFAULT_AUTO_FILE_THRESHOLD,
-          },
-        });
-        if (applied.applied && applied.queuedActions > 0) await hooks.outboxChanged?.();
-        if (applied.applied && applied.notified.length > 0) {
-          await hooks.assigned?.(thread.orgId, applied.notified);
-        }
-      }
-      const saved = await saveTriage(db, thread.id, {
-        bucket: result.bucket,
-        confidence: result.confidence,
-        messageId: latest.id,
-      });
-      if (!saved) return "superseded" satisfies AiJobOutcome;
-      filed = true;
-      triaged = true;
-    }
+    const step = await triageLatest({ db, models, config, hooks }, thread, latest);
+    if (typeof step === "string") return step;
+    triaged = step.triaged;
   }
+  const filed = triaged || thread.triage !== null || thread.triageMessageId !== null;
   if (!filed) return "no_model" satisfies AiJobOutcome;
 
   const saved = await saveSummary(db, thread.id, {
