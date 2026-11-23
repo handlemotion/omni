@@ -61,7 +61,10 @@ test("the mail's link opens its request without an account, for that signer only
   const token = await linkIn(bob, requestId);
 
   const jar = new CookieJar();
-  expect((await stack.api(jar, "GET", `/signing/${requestId}`)).status).toBe(401);
+  expect(await stack.api(jar, "GET", `/signing/${requestId}`)).toMatchObject({
+    status: 401,
+    body: { error: "sign in first", code: "UNAUTHORIZED" },
+  });
   expect((await openLink(jar, requestId, "x".repeat(43))).status).toBe(404);
   expect(jar.cookies.size).toBe(0);
 

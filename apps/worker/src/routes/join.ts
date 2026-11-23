@@ -11,21 +11,19 @@ import {
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { requireCap } from "../billing.ts";
-import { resolveSession, type AppEnv } from "../context.ts";
+import { signedIn, type AppEnv } from "../context.ts";
 import { systemMailSender } from "../system-mail.ts";
 import { notifyMembers } from "../realtime-announce.ts";
 
 async function asker(c: Context<AppEnv>) {
-  const resolved = await resolveSession(c);
-  if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+  const resolved = await signedIn(c);
   const orgId = resolved.user.scopeOrgId;
   if (!orgId || resolved.member) throw new HTTPException(404, { message: "nothing to join" });
   return { user: resolved.user, orgId };
 }
 
 async function decider(c: Context<AppEnv>) {
-  const resolved = await resolveSession(c);
-  if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+  const resolved = await signedIn(c);
   const member = resolved.member;
   if (!member || !isManager(member.role)) {
     throw new HTTPException(403, { message: "only owners and admins decide on join requests" });

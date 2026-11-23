@@ -115,5 +115,8 @@ test("a client signs in with no workspace and reaches only their project on the 
   const carolJar = await signedIn(carol);
   expect((await call(carolJar, "GET", "/portal/projects")).body.projects).toEqual([]);
   expect((await call(carolJar, "GET", `/portal/projects/${website}`)).status).toBe(404);
-  expect((await call(new CookieJar(), "GET", "/portal/projects")).status).toBe(401);
+  expect(await call(new CookieJar(), "GET", "/portal/projects")).toMatchObject({
+    status: 401,
+    body: { error: "sign in first", code: "UNAUTHORIZED" },
+  });
 });
