@@ -8,6 +8,7 @@ import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import type { CalendarAnswer, CalendarEvent } from "@/lib/calendar.ts";
 import { ownEvent } from "./week-grid.tsx";
+import { TIME } from "@/lib/dates.ts";
 
 const ANSWERS: { response: CalendarAnswer; label: string }[] = [
   { response: "accepted", label: "Yes" },
@@ -30,7 +31,6 @@ const dayAndTime = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
   minute: "2-digit",
 });
-const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 const dayOnly = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
   month: "short",
@@ -45,7 +45,7 @@ export function whenOf(
     const [y = 0, m = 1, d = 1] = event.startDay.split("-").map(Number);
     return dayOnly.format(new Date(y, m - 1, d));
   }
-  return `${dayAndTime.format(new Date(event.start))} – ${clock.format(new Date(event.end))}`;
+  return `${dayAndTime.format(new Date(event.start))} – ${TIME.format(new Date(event.end))}`;
 }
 
 export const answerable = (event: CalendarEvent) =>

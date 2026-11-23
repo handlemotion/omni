@@ -16,18 +16,16 @@ import { storageChanged } from "./storage.ts";
 
 type Crm = Api["crm"];
 type Json<T> = T extends { json: infer J } ? J : never;
-export type NewCompany = Json<InferRequestType<Crm["companies"]["$post"]>>;
-export type NewPerson = Json<InferRequestType<Crm["people"]["$post"]>>;
-export type NewDeal = Json<InferRequestType<Crm["deals"]["$post"]>>;
+type NewCompany = Json<InferRequestType<Crm["companies"]["$post"]>>;
+type NewPerson = Json<InferRequestType<Crm["people"]["$post"]>>;
+type NewDeal = Json<InferRequestType<Crm["deals"]["$post"]>>;
 export type CompanyChange = Json<InferRequestType<Crm["companies"][":id"]["$patch"]>>;
-export type PersonChange = Json<InferRequestType<Crm["people"][":id"]["$patch"]>>;
-export type DealChange = Json<InferRequestType<Crm["deals"][":id"]["$patch"]>>;
-export type NewContract = Json<InferRequestType<Crm["contracts"]["$post"]>>;
+type PersonChange = Json<InferRequestType<Crm["people"][":id"]["$patch"]>>;
+type DealChange = Json<InferRequestType<Crm["deals"][":id"]["$patch"]>>;
+type NewContract = Json<InferRequestType<Crm["contracts"]["$post"]>>;
 export type ContractChange = Json<InferRequestType<Crm["contracts"][":id"]["$patch"]>>;
-export type ContractSigners = Json<
-  InferRequestType<Crm["contracts"][":id"]["send"]["$post"]>
->["signers"];
-export type SignedCopy = Json<InferRequestType<Crm["contracts"][":id"]["signed-copy"]["$post"]>>;
+type ContractSigners = Json<InferRequestType<Crm["contracts"][":id"]["send"]["$post"]>>["signers"];
+type SignedCopy = Json<InferRequestType<Crm["contracts"][":id"]["signed-copy"]["$post"]>>;
 export type StageInput = Json<InferRequestType<Crm["stages"]["$put"]>>["stages"][number];
 
 const settle = (client: QueryClient) => settleCrm(client);
@@ -361,7 +359,7 @@ export const deleteNoteMutation = (client: QueryClient) =>
     mutationFn: (id: string) => call(api.crm.notes[":id"].$delete({ param: { id } })),
     ...optimisticCrm(client, (id: string) =>
       client.setQueriesData<InfiniteData<TimelinePage>>(
-        { queryKey: [...keys.crm(), "timeline"] },
+        { queryKey: keys.crmTimelines() },
         (data) =>
           data && {
             ...data,

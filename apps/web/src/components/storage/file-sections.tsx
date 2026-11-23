@@ -25,10 +25,10 @@ import { NodeName, type ItemName } from "./name-field.tsx";
 import { DraftCard, DraftRow, type DraftHandlers } from "./folder-draft.tsx";
 import { TypeBadge } from "./file-glyph.tsx";
 import { RowTile } from "./row-tile.tsx";
-import { DAY } from "./file-table.tsx";
 import { useWarmOnHover } from "./preview/warm-preview.ts";
 import { GAP_MS, useDriveDrag } from "./drive-drag-state.ts";
 import { DROP_TARGET, GAP, LIFTED, useGapAt, useSurfaceDrag, type NodeDrag } from "./node-drag.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 export interface FileSectionsProps {
   label: string;
@@ -326,7 +326,7 @@ function FileRow(props: {
         data-drag-trim
         className="w-28 shrink-0 text-end text-muted-foreground tabular-nums @max-2xl:hidden"
       >
-        {DAY.format(new Date(node.updatedAt))}
+        {DAY_YEAR.format(new Date(node.updatedAt))}
       </span>
       <span
         {...KEEP_IN_MENU}

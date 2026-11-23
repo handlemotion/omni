@@ -17,6 +17,7 @@ import {
   type DnsRecordFilter,
   type DomainIssue,
 } from "@/components/domain/domain-registry-utils";
+import { COPIED_MS } from "@/hooks/use-clipboard.ts";
 
 export type DnsRecordCopyField = "name" | "value";
 
@@ -130,7 +131,7 @@ export function DnsRecordsTable({
     }
     setCopiedField(fieldKey(record, field));
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setCopiedField(undefined), 1800);
+    timerRef.current = setTimeout(() => setCopiedField(undefined), COPIED_MS);
     setAnnouncement(`Copied the ${field} for ${record.name}.`);
   }
 

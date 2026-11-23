@@ -28,7 +28,7 @@ import { formatMoney } from "@/lib/crm.ts";
 import { CloseDateDialog, ValueRangeDialog } from "./list-range-dialogs.tsx";
 import { EveryoneAvatar, MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
 import { useSelfMemberId } from "./task-dialog.tsx";
-import { DAY } from "./record-list.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 /** The filters a list offers, in the order its menu shows them. */
 export type FilterKind =
@@ -102,7 +102,7 @@ const isSet = (kind: FilterKind, values: FilterValues) => {
   }
 };
 
-const shortDay = (iso: string) => DAY.format(new Date(`${iso}T00:00:00`));
+const shortDay = (iso: string) => DAY_YEAR.format(new Date(`${iso}T00:00:00`));
 
 const range = (from: string | null, to: string | null) =>
   from && to ? `${from} – ${to}` : from ? `≥ ${from}` : `≤ ${to}`;

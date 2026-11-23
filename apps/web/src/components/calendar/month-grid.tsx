@@ -20,9 +20,9 @@ import { firstOf, monthOf } from "./month-span.ts";
 import { TodoChip } from "./todo-block.tsx";
 import { Chip, type WeekGridProps } from "./week-grid.tsx";
 import { selectedKey, useHandlers, type Handlers } from "./week-layout.ts";
+import { DAY } from "@/lib/dates.ts";
 
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
-const monthDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const WEEK_MS = 7 * 86_400_000;
 
 type MonthGridProps = WeekGridProps & {
@@ -410,7 +410,7 @@ const MonthDay = memo(function MonthDay(props: {
           props.today && "bg-module-calendar font-medium text-primary-foreground",
         )}
       >
-        {day.getDate() === 1 ? monthDay.format(day) : day.getDate()}
+        {day.getDate() === 1 ? DAY.format(day) : day.getDate()}
       </CanvasButton>
       {props.pieces.map((piece) => (
         <MonthPiece

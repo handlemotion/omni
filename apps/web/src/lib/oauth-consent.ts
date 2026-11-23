@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
-export interface OAuthClient {
+interface OAuthClient {
   client_id: string;
   client_name?: string;
   logo_uri?: string;

@@ -31,8 +31,9 @@ import { FullMessage } from "./full-message.tsx";
 import { MessageMenu, useMessageContextMenu } from "./message-menu.tsx";
 import { Unsubscribe } from "./unsubscribe.tsx";
 import { useYourMailbox } from "@/hooks/use-mailbox-identity.ts";
+import { TIME } from "@/lib/dates.ts";
+import { copyText } from "@/hooks/use-clipboard.ts";
 
-const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 const DAY_TIME = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
@@ -428,10 +429,7 @@ function Details(props: {
 
 function Recipient({ id, label }: { id: string; label: string }) {
   const copy = () =>
-    navigator.clipboard.writeText(id).then(
-      () => appToast.success("Address copied"),
-      () => appToast.error("The address could not be copied."),
-    );
+    copyText(id, "Address").then((copied) => copied && appToast.success("Address copied"));
   return (
     <Tag id={id} textValue={label} onAction={copy} className="cursor-pointer hover:bg-secondary">
       <TooltipTrigger delay={400}>

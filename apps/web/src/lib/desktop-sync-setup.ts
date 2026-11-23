@@ -10,7 +10,7 @@ import type { DesktopSyncStatus } from "@omni/client";
  */
 export type SyncSetupPhase = "fresh" | "signing-in" | "done";
 
-export type SyncSetupStep =
+type SyncSetupStep =
   | { kind: "connect"; orgIds: string[]; next: SyncSetupPhase }
   | { kind: "finish" }
   | { kind: "wait" };

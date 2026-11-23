@@ -47,6 +47,7 @@ import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
 import { SettingsConfirmDialog, SettingsFormDialog } from "./kit/settings-stacked-dialog";
 import { SettingsValueRow } from "./kit/settings-value-row";
+import { DAY, DAY_YEAR } from "@/lib/dates.ts";
 
 type Billing = NonNullable<ReturnType<typeof useBilling>["data"]>;
 type EnabledBilling = Extract<Billing, { enabled: true }>;
@@ -55,11 +56,9 @@ type Interval = EnabledBilling["intervals"][number];
 
 const RETURN_PATH = "/settings/billing";
 
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
-const SHORT_DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const NUMBER = new Intl.NumberFormat();
-const day = (iso: string) => DAY.format(new Date(iso));
-const shortDay = (iso: string) => SHORT_DAY.format(new Date(iso));
+const day = (iso: string) => DAY_YEAR.format(new Date(iso));
+const shortDay = (iso: string) => DAY.format(new Date(iso));
 
 const SAMPLE_PLAN: Billing = {
   enabled: true,

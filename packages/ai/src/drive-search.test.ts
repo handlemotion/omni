@@ -6,12 +6,8 @@ import {
   driveSearchNow,
   driveSearchRecordingUrl,
 } from "../eval/drive-search-scenarios.ts";
-import {
-  createJevClient,
-  jevFileSearchRequest,
-  judgeFileRelevance,
-  rankByRelevance,
-} from "./index.ts";
+import { createJevClient } from "./jev.ts";
+import { jevFileSearchRequest, judgeFileRelevance, rankByRelevance } from "./search.ts";
 
 function recorded(id: string) {
   return JSON.parse(readFileSync(driveSearchRecordingUrl(id), "utf8")) as {

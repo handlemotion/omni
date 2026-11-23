@@ -1,5 +1,5 @@
 import { normalizeAddress } from "@omni/mail-core/addresses";
-import { isAdmin, loadMemberRow } from "../roles.ts";
+import { isManager, loadMemberRow } from "../roles.ts";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import {
@@ -52,7 +52,7 @@ export type CrmSharingResult =
 async function memberOf(db: Db, memberId: string) {
   const row = await loadMemberRow(db, memberId);
   if (!row) return null;
-  return { orgId: row.orgId, admin: isAdmin(row.role) };
+  return { orgId: row.orgId, admin: isManager(row.role) };
 }
 
 async function mayManage(db: Db, memberId: string, mailboxId: string) {

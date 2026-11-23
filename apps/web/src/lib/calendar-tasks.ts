@@ -4,22 +4,22 @@ import {
   mutationOptions,
   queryOptions,
   type QueryClient,
-  type QueryKey,
 } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
+import { holdQueries, lastWrite, restoreQueries } from "./cache.ts";
 import { currentId, pendingFailed, pendingMade, settledId } from "./crm-pending.ts";
 import { keys } from "./query-keys.ts";
 
 type Tasks = Api["calendar"]["tasks"];
 type Json<T> = T extends { json: infer J } ? J : never;
 
-export type CalendarTaskPage = InferResponseType<Tasks["$get"], 200>;
+type CalendarTaskPage = InferResponseType<Tasks["$get"], 200>;
 /** A task as the calendar holds it: private while `record` is null. */
 export type CalendarTask = CalendarTaskPage["tasks"][number];
 export type NewCalendarTask = Json<InferRequestType<Tasks["$post"]>>;
-export type CalendarTaskChange = Json<InferRequestType<Tasks[":id"]["$patch"]>>;
+type CalendarTaskChange = Json<InferRequestType<Tasks[":id"]["$patch"]>>;
 /** What the calendar draws of a to-do, whichever list it came from. */
 export type Todo = Pick<CalendarTask, "id" | "title" | "dueAt" | "completedAt" | "record">;
 
@@ -69,25 +69,18 @@ export const calendarTaskQuery = (id: string) =>
       ),
   });
 
-const TASK_WRITE = ["calendar-task-write"] as const;
+const writes = () => [...calendarTaskKeys.all(), "write"] as const;
 
 const settle = (client: QueryClient) => ({
-  mutationKey: TASK_WRITE,
+  mutationKey: writes(),
   onSettled: () => {
-    if (client.isMutating({ mutationKey: TASK_WRITE }) > 1) return;
+    if (!lastWrite(client, writes())) return;
     void client.invalidateQueries({ queryKey: calendarTaskKeys.all() });
-    void client.invalidateQueries({ queryKey: [...keys.crm(), "tasks"] });
+    void client.invalidateQueries({ queryKey: keys.crmTasks() });
   },
 });
 
-async function hold(client: QueryClient) {
-  await client.cancelQueries({ queryKey: calendarTaskKeys.all() });
-  return client.getQueriesData({ queryKey: calendarTaskKeys.all() }) as [QueryKey, unknown][];
-}
-
-function restore(client: QueryClient, snapshot: [QueryKey, unknown][] | undefined) {
-  for (const [key, data] of snapshot ?? []) client.setQueryData(key, data);
-}
+const hold = (client: QueryClient) => holdQueries(client, calendarTaskKeys.all());
 
 type Pages = InfiniteData<CalendarTaskPage>;
 
@@ -216,7 +209,7 @@ export const updateCalendarTaskMutation = (client: QueryClient, self: string) =>
       }));
       return { snapshot };
     },
-    onError: (_error, _change, context) => restore(client, context?.snapshot),
+    onError: (_error, _change, context) => restoreQueries(client, context?.snapshot),
     ...settle(client),
   });
 
@@ -231,6 +224,6 @@ export const deleteCalendarTaskMutation = (client: QueryClient) =>
       dropTask(client, currentId(id));
       return { snapshot };
     },
-    onError: (_error, _id, context) => restore(client, context?.snapshot),
+    onError: (_error, _id, context) => restoreQueries(client, context?.snapshot),
     ...settle(client),
   });

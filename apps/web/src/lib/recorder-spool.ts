@@ -5,7 +5,7 @@ const RECORDINGS = "recordings";
 const CHUNKS = "chunks";
 
 /** A browser recording this computer still holds: going, or stopped and not yet sent whole. */
-export interface SpooledRecording {
+interface SpooledRecording {
   meetingId: string;
   memberId: string;
   startedAt: number;

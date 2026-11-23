@@ -1,16 +1,18 @@
-import { isAdmin, recordInboxEvent, type InboxAuditAction } from "@omni/db";
+import { isManager, recordInboxEvent, type InboxAuditAction } from "@omni/db";
 import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./context.ts";
 
-/** Owners and admins of the workspace; a member gets 403. */
-export const requireManager = createMiddleware<AppEnv>(async (c, next) => {
-  if (!isAdmin(c.var.member.role)) {
-    throw new HTTPException(403, { message: "only owners and admins manage inboxes" });
-  }
-  await next();
-});
+/** Owners and admins of the workspace; a member gets 403 with `refusal`. */
+export function managersOnly(refusal: string) {
+  return createMiddleware<AppEnv>(async (c, next) => {
+    if (!isManager(c.var.member.role)) throw new HTTPException(403, { message: refusal });
+    await next();
+  });
+}
+
+export const requireManager = managersOnly("only owners and admins manage inboxes");
 
 /** Records an inbox action by the signed-in owner or admin. */
 export function logInboxAction(
@@ -27,6 +29,3 @@ export function logInboxAction(
     data,
   });
 }
-
-/** Owner or admin of the workspace. */
-export const canManage = isAdmin;

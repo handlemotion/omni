@@ -6,6 +6,7 @@ import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { quoteText } from "@/lib/reply.ts";
 import { menuButtonClass } from "../chat/chat-message.tsx";
 import { useComposerState } from "../compose/composer-state.tsx";
+import { copyText } from "@/hooks/use-clipboard.ts";
 
 /**
  * The ⋯ beside a message or note in the timeline: reply to it in a hidden note (shared inboxes) or
@@ -104,7 +105,7 @@ export function useMessageContextMenu(props: {
       selected.trim() && {
         icon: IconCopy,
         label: "Copy",
-        onAction: () => void navigator.clipboard?.writeText(selected).catch(() => undefined),
+        onAction: () => void copyText(selected),
       },
       "separator",
       canReply && {

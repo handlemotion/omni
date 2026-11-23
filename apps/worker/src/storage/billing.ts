@@ -11,13 +11,12 @@ import {
 } from "@omni/db";
 import { Effect } from "effect";
 import type Stripe from "stripe";
+import type { BillingRun, StripePacer } from "../billing-run.ts";
 import { type JobError, Permanent, Retryable, retried } from "../job-effects.ts";
-import type { Logger } from "../log.ts";
 import { billsOverage, extraGb } from "./core.ts";
 
 const GB = 1024 ** 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const STRIPE_REQUEST_INTERVAL_MS = 100;
 const STRIPE_TIMEOUT_MS = 20_000;
 const ITEM_KEPT_MS = 7 * DAY_MS;
 
@@ -65,7 +64,7 @@ export async function meterEventIdentifier(input: {
 }
 
 async function billWorkspace(
-  input: Pick<BillingRun, "db" | "stripe" | "storage" | "now">,
+  input: Pick<StorageRun, "db" | "stripe" | "storage" | "now">,
   workspace: StorageBilledWorkspace & { stripeCustomerId: string; stripeSubscriptionId: string },
   period: { start: Date; peakBytes: number },
   result: StorageBillingResult,
@@ -123,27 +122,21 @@ async function billWorkspace(
   result.reported++;
 }
 
-interface BillingRun {
+interface StorageRun {
   db: Db;
   stripe: Stripe;
   storage: NonNullable<BillingConfig["storage"]>;
   now: Date;
   result: StorageBillingResult;
-  pace: { next: number };
+  pace: StripePacer;
 }
 
 /**
  * The daily job. Nothing to do when the plan has no storage allowance. A workspace that fails
  * is logged and left for the next run: the peak only rises, and the meter keeps the last value.
  */
-export function billStorage(input: {
-  db: Db;
-  stripe: Stripe;
-  billing: BillingConfig;
-  log: Logger;
-  now?: Date;
-}) {
-  const { db, stripe, billing, log, now = new Date() } = input;
+export function billStorage(input: BillingRun & { now?: Date }) {
+  const { db, stripe, billing, log, pace, now = new Date() } = input;
   return Effect.gen(function* () {
     const storage = billing.storage;
     if (!storage) return null;
@@ -154,7 +147,7 @@ export function billStorage(input: {
       itemsRemoved: 0,
       errors: 0,
     };
-    const run: BillingRun = { db, stripe, storage, now, result, pace: { next: 0 } };
+    const run: StorageRun = { db, stripe, storage, now, result, pace };
     const workspaces = yield* retried("billed_workspaces", () => storageBilledWorkspaces(db));
     yield* Effect.forEach(
       workspaces,
@@ -175,11 +168,12 @@ export function billStorage(input: {
         ),
       { concurrency: 1, discard: true },
     );
+    log.info("storage.billed", { ...result });
     return result;
   }) satisfies Effect.Effect<StorageBillingResult | null, JobError>;
 }
 
-function billOne(run: BillingRun, workspace: StorageBilledWorkspace) {
+function billOne(run: StorageRun, workspace: StorageBilledWorkspace) {
   const { db, result, now } = run;
   return Effect.gen(function* () {
     const { periodStart } = workspace;
@@ -198,9 +192,7 @@ function billOne(run: BillingRun, workspace: StorageBilledWorkspace) {
     result.workspaces++;
     const { stripeCustomerId } = workspace;
     if (!stripeCustomerId || !billsOverage(workspace)) return;
-    const wait = run.pace.next - Date.now();
-    if (wait > 0) yield* Effect.sleep(wait);
-    run.pace.next = Date.now() + STRIPE_REQUEST_INTERVAL_MS;
+    yield* Effect.promise(run.pace);
     yield* retried("stripe", () =>
       billWorkspace(run, { ...workspace, stripeCustomerId }, { start, peakBytes }, result),
     );

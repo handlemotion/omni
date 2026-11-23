@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { hasRole, isAdmin, loadMemberRow } from "../roles.ts";
+import { hasRole, isManager, loadMemberRow } from "../roles.ts";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
 import { storageGrants, storagePolicies, type StorageGuest } from "../schema/storage.ts";
@@ -104,7 +104,7 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
 ) => {
   const row = await loadMemberRow(ex, memberId);
   if (!row) return null;
-  const admin = isAdmin(row.role);
+  const admin = isManager(row.role);
   const freelancer = !admin && hasRole(row.role, "freelancer");
   return {
     id: row.id,

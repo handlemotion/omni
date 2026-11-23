@@ -65,7 +65,7 @@ const readAll: (
   }
 };
 
-export interface LiveDocOptions {
+interface LiveDocOptions {
   orgId: string;
   /**
    * Opened through a share link by someone outside the workspace: its own socket, and a reader

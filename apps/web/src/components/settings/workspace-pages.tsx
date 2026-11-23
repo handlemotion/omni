@@ -68,8 +68,7 @@ import {
   SettingsListDialog,
 } from "./kit/settings-stacked-dialog";
 import { SettingsValueRow } from "./kit/settings-value-row";
-
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+import { DAY } from "@/lib/dates.ts";
 
 function roleLabel(role: string) {
   const first = role.split(",")[0]?.trim() ?? role;

@@ -7,9 +7,12 @@ const rolesOf = (role: string) => role.split(",").map((one) => one.trim());
 /** Better Auth stores a member's roles as one comma-separated string in `members.role`. */
 export const hasRole = (role: string, wanted: string) => rolesOf(role).includes(wanted);
 
+/** The roles that manage a workspace: its inboxes, domains, billing and settings. */
+export const MANAGER_ROLES = ["owner", "admin"] as const;
+
 /** Owner or admin of the workspace. */
-export const isAdmin = (role: string) =>
-  rolesOf(role).some((one) => one === "owner" || one === "admin");
+export const isManager = (role: string) =>
+  rolesOf(role).some((one) => (MANAGER_ROLES as readonly string[]).includes(one));
 
 /** Any role but a freelancer's alone. Owners and admins are teammates. */
 export const isTeammate = (role: string) => rolesOf(role).some((one) => one !== "freelancer");

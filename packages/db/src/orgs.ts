@@ -3,6 +3,8 @@ import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { members, organizations, users } from "./schema/index.ts";
 
+export { isManager, MANAGER_ROLES } from "./roles.ts";
+
 /** Lowercase, ASCII letters and digits joined by single dashes. */
 export function slugify(name: string) {
   return name

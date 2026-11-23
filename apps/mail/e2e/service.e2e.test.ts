@@ -22,7 +22,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { sealCredentials } from "../src/credentials.ts";
 import { createLogger } from "../src/log.ts";
 import { deterministicMessageId } from "../src/outbox.ts";
-import { type MailService, type ServiceConfig, startService } from "../src/service.ts";
+import { type MailService, startService } from "../src/service.ts";
 import {
   actionRow,
   createTestDatabase,
@@ -39,6 +39,7 @@ import {
 } from "./support/db.ts";
 import { deliver, GREENMAIL_PASSWORD, mailbox, otherClient, waitFor } from "./support/greenmail.ts";
 import { createTestBucket } from "./support/objects.ts";
+import { testServiceConfig } from "./support/service-config.ts";
 
 const secret = randomBytes(32).toString("hex");
 const keyringSecret = `k1:${randomBytes(32).toString("base64")}`;
@@ -139,24 +140,17 @@ afterEach(async () => {
   await stopService();
 });
 
-async function startMailService(overrides: Partial<ServiceConfig> = {}) {
-  const config: ServiceConfig = {
-    DATABASE_URL: database.url,
-    MAIL_CREDENTIALS_KEY: keyring,
-    MAIL_SERVICE_HMAC_SECRET: secret,
-    WORKER_URL: workerUrl,
-    S3_ENDPOINT: bucket.options.endpoint,
-    S3_BUCKET: bucket.options.bucket,
-    S3_ACCESS_KEY_ID: bucket.options.accessKeyId,
-    S3_SECRET_ACCESS_KEY: bucket.options.secretAccessKey,
-    S3_REGION: bucket.options.region,
-    IMAGE_PROXY_URL: "/api/image-proxy",
-    ATTACHMENT_URL: "/api/attachments",
-    SYNC_INTERVAL_MS: 60 * 60_000,
-    OUTBOX_INTERVAL_MS: 60 * 60_000,
-    MAILBOX_CONCURRENCY: 4,
-    ...overrides,
-  };
+async function startMailService(env: NodeJS.ProcessEnv = {}) {
+  const config = testServiceConfig(
+    {
+      databaseUrl: database.url,
+      credentialsKey: keyringSecret,
+      hmacSecret: secret,
+      workerUrl,
+      bucket: bucket.options,
+    },
+    env,
+  );
   drained = new Set();
   service = await startService(config, serviceLogger);
   const server = serve({ fetch: service.app.fetch, port: 0, hostname: "127.0.0.1" });

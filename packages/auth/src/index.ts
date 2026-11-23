@@ -16,7 +16,13 @@ import {
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
-import { billingConfig, billingFields, checkBillingEnv, optionalText } from "./billing-env.ts";
+import {
+  hasPendingInvitation,
+  mayCreateOrganization,
+  mayManageBilling,
+  maySignIn,
+} from "./access.ts";
+import type { AuthConfig, BillingConfig } from "./env.ts";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { planCapHooks } from "./plan-caps.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
@@ -41,10 +47,18 @@ import { emailOTP } from "better-auth/plugins/email-otp";
 import { multiSession } from "better-auth/plugins/multi-session";
 import { organization } from "better-auth/plugins/organization";
 import { adminAc, defaultAc, memberAc, ownerAc } from "better-auth/plugins/organization/access";
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import Stripe from "stripe";
 import { uuidv7 } from "uuidv7";
-import { z } from "zod";
+
+export {
+  authEnvSchema,
+  parseAuthEnv,
+  type AuthConfig,
+  type BillingConfig,
+  type SignUp,
+} from "./env.ts";
+export { mayCreateOrganization, mayManageBilling, maySignIn } from "./access.ts";
 
 /** `email`: where the sign-in code is mailed. `signInAs`: the address it signs in. */
 export type EmailOtpSender = (message: {
@@ -65,127 +79,19 @@ export interface InvitationMessage {
 
 export type InvitationSender = (message: InvitationMessage) => Promise<void>;
 
-const commaList = z
-  .string()
-  .optional()
-  .transform((value) =>
-    value
-      ? value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [],
-  );
-
-/** Auth variables, documented in `packages/auth/.env.example`. */
-export const authEnvSchema = z
-  .object({
-    BETTER_AUTH_SECRET: z.string().min(32),
-    BETTER_AUTH_URL: z.url(),
-    AUTH_TRUSTED_ORIGINS: commaList,
-    AUTH_PASSKEY_RP_ID: optionalText,
-    APP_NAME: optionalText,
-    WEB_APP_URL: optionalText.pipe(z.url().optional()),
-    /** Google OAuth client. Both set turns on "Sign in with Google"; neither leaves it off. */
-    GOOGLE_CLIENT_ID: optionalText,
-    GOOGLE_CLIENT_SECRET: optionalText,
-    /** Apple OAuth client. Both set turns on "Sign in with Apple"; neither leaves it off. */
-    APPLE_CLIENT_ID: optionalText,
-    APPLE_CLIENT_SECRET: optionalText,
-    APPLE_APP_BUNDLE_IDENTIFIER: optionalText,
-    /**
-     * Who may have an account. `open` (default): anyone with a verified email signs up
-     * and creates their own workspace in onboarding. `invitation`: sign-up needs a pending
-     * invitation, and only people who already own a workspace create another (the first comes
-     * from the `org:create` CLI).
-     */
-    SIGN_UP: optionalText.pipe(z.enum(["open", "invitation"]).default("open")),
-    /**
-     * Hosts whose OAuth client metadata documents agents may sign in with. Empty:
-     * Claude's and ChatGPT's (`claude.ai`, `chatgpt.com`).
-     */
-    MCP_CIMD_HOSTS: commaList,
-    ...billingFields,
-  })
-  .refine((env) => !env.GOOGLE_CLIENT_ID === !env.GOOGLE_CLIENT_SECRET, {
-    path: ["GOOGLE_CLIENT_SECRET"],
-    message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET together, or neither",
-  })
-  .refine((env) => !env.APPLE_CLIENT_ID === !env.APPLE_CLIENT_SECRET, {
-    path: ["APPLE_CLIENT_SECRET"],
-    message: "set APPLE_CLIENT_ID and APPLE_CLIENT_SECRET together, or neither",
-  })
-  .superRefine(checkBillingEnv)
-  .transform((env) => ({
-    secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL,
-    trustedOrigins: env.AUTH_TRUSTED_ORIGINS,
-    passkeyRpId: env.AUTH_PASSKEY_RP_ID,
-    appName: env.APP_NAME ?? "Omni",
-    webAppURL: env.WEB_APP_URL ?? env.BETTER_AUTH_URL,
-    google:
-      env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-        ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
-        : undefined,
-    apple:
-      env.APPLE_CLIENT_ID && env.APPLE_CLIENT_SECRET
-        ? {
-            clientId: env.APPLE_CLIENT_ID,
-            clientSecret: env.APPLE_CLIENT_SECRET,
-            ...(env.APPLE_APP_BUNDLE_IDENTIFIER
-              ? { appBundleIdentifier: env.APPLE_APP_BUNDLE_IDENTIFIER }
-              : {}),
-          }
-        : undefined,
-    signUp: env.SIGN_UP,
-    cimdHosts: env.MCP_CIMD_HOSTS,
-    billing: billingConfig(env),
-  }));
-
-export type AuthConfig = z.output<typeof authEnvSchema>;
-
-/** Validates auth config from the environment at startup; throws listing every bad variable. */
-export function parseAuthEnv(env: Record<string, unknown>) {
-  return authEnvSchema.parse(env) satisfies AuthConfig;
-}
-
-export type SignUp = AuthConfig["signUp"];
-
-/** Present only when billing is on (`STRIPE_SECRET_KEY` and friends set). */
-export type BillingConfig = NonNullable<AuthConfig["billing"]>;
-
 export { planOfPrice, planPriceIds, type PlanPrices } from "./billing-env.ts";
-
-/** Who may start checkout or open the portal for a workspace. */
-export const BILLING_ROLES = ["owner", "admin"] as const;
 
 /** A Stripe client that works on Workers (fetch, Web Crypto) and in Node. */
 export function createStripeClient(secretKey: string) {
   return new Stripe(secretKey, { httpClient: Stripe.createFetchHttpClient() });
 }
 
-/** Whether `userId` is an owner or admin of `orgId`: the people who manage its billing. */
-export async function mayManageBilling(db: Db, userId: string, orgId: string) {
-  const [member] = await db
-    .select({ id: schema.members.id })
-    .from(schema.members)
-    .where(
-      and(
-        eq(schema.members.userId, userId),
-        eq(schema.members.organizationId, orgId),
-        inArray(schema.members.role, [...BILLING_ROLES]),
-      ),
-    )
-    .limit(1);
-  return member !== undefined;
-}
-
-function billingPlugin(env: AuthEnv, billing: BillingConfig) {
+function billingPlugin(db: Db, billing: BillingConfig, billingLog?: BillingLog) {
   const stripeClient = createStripeClient(billing.secretKey);
   return stripe({
     stripeClient,
     stripeWebhookSecret: billing.webhookSecret,
-    onEvent: (event) => cancelDuplicateSubscriptions(stripeClient, env.db, event, env.billingLog),
+    onEvent: (event) => cancelDuplicateSubscriptions(stripeClient, db, event, billingLog),
     createCustomerOnSignUp: false,
     organization: { enabled: true },
     subscription: {
@@ -195,7 +101,7 @@ function billingPlugin(env: AuthEnv, billing: BillingConfig) {
         priceId: prices.monthlyPriceId,
         annualDiscountPriceId: prices.yearlyPriceId,
       })),
-      authorizeReference: ({ user, referenceId }) => mayManageBilling(env.db, user.id, referenceId),
+      authorizeReference: ({ user, referenceId }) => mayManageBilling(db, user.id, referenceId),
       getCheckoutSessionParams: () => ({
         params: {
           allow_promotion_codes: true,
@@ -247,53 +153,6 @@ export interface AuthEnv extends Partial<
    * The Worker passes its `modules.ts` list; required so a caller cannot drop them by accident.
    */
   modules: readonly ModuleLifecycle[];
-}
-
-/**
- * Who gets a magic link. With open sign-up, anyone: the link proves the address, and a new
- * address becomes a user with no workspace. With `invitation`, any of a known user's
- * sign-in emails, or an unknown email while it holds a pending, unexpired invitation.
- */
-export async function maySignIn(db: Db, email: string, policy: SignUp = "open") {
-  if (policy === "open") return true;
-  const address = email.toLowerCase();
-  return (await findEmailOwner(db, address)) !== null || (await hasPendingInvitation(db, address));
-}
-
-/**
- * Whether `userId` may create an organization in the app under `policy`. `open`: anyone signed
- * in (a new account's first step is its own workspace). `invitation`: only someone who already
- * owns one (they set up a second workspace); everyone else joins by invitation.
- */
-export async function mayCreateOrganization(db: Db, userId: string, policy: SignUp = "open") {
-  if (policy === "open") return true;
-  const [owned] = await db
-    .select({ id: schema.members.id })
-    .from(schema.members)
-    .where(
-      and(
-        eq(schema.members.userId, userId),
-        eq(schema.members.role, "owner"),
-        isCompany(db, schema.members.organizationId),
-      ),
-    )
-    .limit(1);
-  return owned !== undefined;
-}
-
-async function hasPendingInvitation(db: Db, email: string) {
-  const [invitation] = await db
-    .select({ id: schema.invitations.id })
-    .from(schema.invitations)
-    .where(
-      and(
-        eq(sql`lower(${schema.invitations.email})`, email.toLowerCase()),
-        eq(schema.invitations.status, "pending"),
-        gt(schema.invitations.expiresAt, new Date()),
-      ),
-    )
-    .limit(1);
-  return invitation !== undefined;
 }
 
 const freelancerAc = defaultAc.newRole({ ...memberAc.statements });
@@ -462,11 +321,7 @@ export function createAuth(env: AuthEnv) {
         teams: { enabled: true, defaultTeam: { enabled: false } },
         roles: { owner: ownerAc, admin: adminAc, member: memberAc, freelancer: freelancerAc },
         organizationHooks: {
-          ...(env.billing && {
-            beforeCreateInvitation: planCapHooks(env.db).beforeCreateInvitation,
-            beforeAddMember: planCapHooks(env.db).beforeAddMember,
-            beforeAcceptInvitation: planCapHooks(env.db).beforeAcceptInvitation,
-          }),
+          ...(env.billing && planCapHooks(env.db)),
           beforeDeleteOrganization: async (input) => {
             await endScopedSessions(env.db, input.organization.id);
             await beforeDeleteWorkspace(env.db, env.modules)(input);
@@ -523,7 +378,7 @@ export function createAuth(env: AuthEnv) {
             webAppURL: env.webAppURL,
             cimdHosts: env.cimdHosts,
           })),
-      ...(env.billing ? [billingPlugin(env, env.billing)] : []),
+      ...(env.billing ? [billingPlugin(env.db, env.billing, env.billingLog)] : []),
     ],
   });
 }

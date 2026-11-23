@@ -122,9 +122,7 @@ export async function storageNodesChanged(
     nodes.flatMap((node) => (node.orgId === workspace ? [] : [node.orgId])),
   );
   await Promise.all(
-    [...elsewhere].map((orgId) =>
-      client.invalidateQueries({ queryKey: [...keys.root, orgId, "storage"] }),
-    ),
+    [...elsewhere].map((orgId) => client.invalidateQueries({ queryKey: keys.storageIn(orgId) })),
   );
   const mine = nodes.filter((node) => node.orgId === workspace);
   const found = new Map<string, QueryKey>();

@@ -6,12 +6,6 @@ import { authCall } from "./session.ts";
 
 type Role = "member" | "admin" | "owner";
 
-export const organizationsQuery = () =>
-  queryOptions({
-    queryKey: keys.organizations(),
-    queryFn: ({ signal }) => authCall(auth.organization.list({ fetchOptions: { signal } })),
-  });
-
 const organizationId = () => currentWorkspaceId();
 
 /** Members of this tab's workspace. */

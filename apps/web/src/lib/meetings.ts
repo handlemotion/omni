@@ -15,14 +15,12 @@ type Meetings = Api["meetings"];
 type Json<T> = T extends { json: infer J } ? J : never;
 
 export type MeetingGroup = InferResponseType<Meetings["groups"]["$get"], 200>["groups"][number];
-export type MeetingGroupPage = InferResponseType<Meetings["groups"][":key"]["$get"], 200>;
 export type Meeting = InferResponseType<Meetings[":id"]["$get"], 200>;
 export type MeetingSegment = InferResponseType<
   Meetings[":id"]["transcript"]["$get"],
   200
 >["segments"][number];
 export type MeetingAction = Meeting["actions"][number];
-export type MeetingSpeaker = Meeting["speakers"][number];
 export type MeetingChange = Json<InferRequestType<Meetings[":id"]["$patch"]>>;
 export type StartMeeting = Json<InferRequestType<Meetings["$post"]>>;
 
@@ -160,6 +158,12 @@ export const meetingAudioUrl = (id: string) =>
 /** Every meetings read is stale after a write or a `meetings.changed`. */
 export const meetingsChanged = (client: QueryClient) =>
   client.invalidateQueries({ queryKey: meetingKeys.all() });
+
+/** A meetings change heard on the socket: refetches unless a write of ours is in flight. */
+export function meetingsChangedElsewhere(client: QueryClient) {
+  if (client.isMutating({ mutationKey: meetingKeys.writes() }) > 0) return;
+  void meetingsChanged(client);
+}
 
 const write = <I, R>(client: QueryClient, fn: (input: I) => Promise<R>) =>
   mutationOptions({

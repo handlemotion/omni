@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { helpdeskRecordingUrl, helpdeskSteps } from "../eval/helpdesk-scenarios.ts";
 import { recordingUrl, scenarioSteps } from "../eval/scenarios.ts";
-import { createJevClient, jevTriageRequest, laneFor, triage } from "./index.ts";
+import { createJevClient, jevTriageRequest } from "./jev.ts";
+import { laneFor } from "./policy.ts";
+import { triage } from "./triage.ts";
 
 const steps = await scenarioSteps();
 

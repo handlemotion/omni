@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import type { Ex } from "../pg.ts";
-import { hasRole, isAdmin, loadMemberRow } from "../roles.ts";
+import { hasRole, isManager, loadMemberRow } from "../roles.ts";
 import { members } from "../schema/auth.ts";
 import { crmEvents, crmProjectMembers } from "../schema/crm.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
@@ -64,7 +64,7 @@ export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | nu
 ) => {
   const row = await loadMemberRow(ex, memberId);
   if (!row) return null;
-  const admin = isAdmin(row.role);
+  const admin = isManager(row.role);
   const projects =
     !admin && hasRole(row.role, FREELANCER_ROLE)
       ? await projectsOf(ex, row.orgId, row.userId)
@@ -84,7 +84,7 @@ export async function teammateFor(ex: Ex, orgId: string, preferred: string | nul
     .from(members)
     .where(eq(members.organizationId, orgId))
     .orderBy(asc(members.createdAt), asc(members.id));
-  const admin = rows.find((row) => isAdmin(row.role));
+  const admin = rows.find((row) => isManager(row.role));
   return admin ? loadCrmMember(ex, admin.id) : null;
 }
 

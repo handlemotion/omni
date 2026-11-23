@@ -16,7 +16,6 @@ import {
   googleConnectBodySchema,
   type GoogleDisconnectBody,
   googleDisconnectBodySchema,
-  HOSTED_DISCONNECT_PATH,
   MAILBOX_DISCONNECT_PATH,
   type HostedDisconnectBody,
   hostedDisconnectBodySchema,
@@ -103,8 +102,7 @@ export interface HttpDeps {
   googleCalendarEvents?(input: GoogleCalendarEventsBody): Promise<GoogleCalendarEventsResult>;
   /** A Gmail inbox's Google calendar list, for the Worker's sync. Absent: 404. */
   googleCalendarList?(input: GoogleCalendarListBody): Promise<GoogleCalendarListResult>;
-  /** Disconnects an Omni-hosted mailbox, keeping its mail at the host. Absent: 404. */
-  disconnectHosted?(input: HostedDisconnectBody): Promise<{ mailboxId: string }>;
+  /** Disconnects any mailbox of an org, keeping its mail at the host. Absent: 404. */
   disconnectMailbox?(input: HostedDisconnectBody): Promise<{ mailboxId: string }>;
   /** Authoritative DNS lookups for domain verification. Absent: that route answers 404. */
   dns?: DnsLookup;
@@ -189,11 +187,6 @@ export function createApp(deps: HttpDeps) {
     GOOGLE_CALENDAR_LIST_PATH,
     googleCalendarListBodySchema,
     deps.googleCalendarList?.bind(deps),
-  );
-  signedRoute(
-    HOSTED_DISCONNECT_PATH,
-    hostedDisconnectBodySchema,
-    deps.disconnectHosted?.bind(deps),
   );
   signedRoute(
     MAILBOX_DISCONNECT_PATH,

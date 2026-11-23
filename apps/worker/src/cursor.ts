@@ -39,3 +39,13 @@ export function cursorParam<T extends z.ZodType>(schema: T) {
     return z.NEVER;
   });
 }
+
+/**
+ * A page of rows ordered by a time then an id (conversations, notifications): the optional
+ * `cursor` query field reads `{ at, id }`, and `timePageCursor` makes the next one.
+ */
+export const timePageQuery = cursorParam(z.object({ t: z.iso.datetime(), id: z.string().min(1) }))
+  .transform((parsed) => ({ at: parsed.t, id: parsed.id }))
+  .optional();
+
+export const timePageCursor = (at: string, id: string) => encodeCursor({ t: at, id });

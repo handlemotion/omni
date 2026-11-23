@@ -6,8 +6,7 @@ import { StorageFrame } from "@/components/storage/storage-frame";
 import { useMeetingGroup, useMeetingGroups, useMeetingList } from "@/hooks/use-meetings.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { groupTitle } from "@/lib/meetings.ts";
-
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+import { DAY } from "@/lib/dates.ts";
 
 /** A series or a client's meetings as one page: where things stand, and what was decided when. */
 export function GroupPage({ groupKey }: { groupKey: string }) {

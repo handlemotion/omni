@@ -10,6 +10,7 @@ import { useDeleteCalendarTask } from "@/hooks/use-calendar-tasks.ts";
 import { useDeleteTask, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { updateCalendarTaskMutation, type CalendarTask } from "@/lib/calendar-tasks.ts";
+import { lastWrite } from "@/lib/cache.ts";
 import { CRM_WRITE } from "@/lib/crm-cache.ts";
 import { stableId } from "@/lib/crm-pending.ts";
 import {
@@ -24,10 +25,10 @@ import {
 } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "@/components/crm/crm-errors.ts";
 import { DayValue, FieldRow, LinkValue, PlainValue } from "@/components/crm/record-fields.tsx";
-import { DAY } from "@/components/crm/record-list.tsx";
 import { AssigneePicker, RecordPicker, useMemberNames } from "@/components/crm/task-dialog.tsx";
 import { CHECK_CELL, Subtasks } from "@/components/crm/task-subtasks.tsx";
 import { TaskMeeting } from "@/components/meetings/event-recording.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 const TITLE_MAX = 500;
 const BODY_MAX = 20_000;
@@ -47,7 +48,7 @@ export function useSaveTask(id: string) {
     mutationKey,
     scope: { id: `crm-task:${queue}` },
     onSettled: (...args) => {
-      if (client.isMutating({ mutationKey }) > 1) return;
+      if (!lastWrite(client, mutationKey)) return;
       if (args[0]) client.setQueryData(taskKeys.one(args[0].task.id), args[0]);
       return base.onSettled?.(...args);
     },
@@ -238,7 +239,7 @@ export function TaskDetails(props: {
   return (
     <>
       <PlainValue label="Status">
-        {task.completedAt ? `Done ${DAY.format(new Date(task.completedAt))}` : "Open"}
+        {task.completedAt ? `Done ${DAY_YEAR.format(new Date(task.completedAt))}` : "Open"}
       </PlainValue>
       <DayValue
         label="Due"
@@ -294,7 +295,7 @@ export function TaskDetails(props: {
       )}
       <TaskMeeting taskId={task.id} />
       <PlainValue label="Created by">{nameOf(task.createdByMemberId)}</PlainValue>
-      <PlainValue label="Created">{DAY.format(new Date(task.createdAt))}</PlainValue>
+      <PlainValue label="Created">{DAY_YEAR.format(new Date(task.createdAt))}</PlainValue>
     </>
   );
 }

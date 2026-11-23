@@ -12,12 +12,13 @@ import { IconArrowUpRight, IconCopy } from "@/components/icons/central";
 import { FileGlyph } from "@/components/storage/file-glyph";
 import { Button } from "@/components/ui/button";
 import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
-import { appToast } from "@/components/ui/toast";
 import { Link } from "@/components/ui/link";
 import { useReact } from "@/hooks/use-talk.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { fileUrl, imageUrl, isImage, reacting, type TalkMessage } from "@/lib/talk.ts";
 import { isPending } from "@/lib/talk-cache.ts";
+import { DAY, TIME } from "@/lib/dates.ts";
+import { copyText } from "@/hooks/use-clipboard.ts";
 
 const GAP_MS = 60 * 60_000;
 const QUICK = ["👍", "❤️", "😂", "🎉"];
@@ -40,9 +41,6 @@ function emojiIcon(emoji: string) {
   return icon;
 }
 
-const copy = (text: string) =>
-  void navigator.clipboard.writeText(text).catch(() => appToast.error("Text was not copied"));
-
 function useNoteMenu(message: TalkMessage, meId: string, react: SetReaction) {
   const { has, set } = useToggle(message, meId, react);
   const file = message.file?.nodeId ? fileUrl(message.id) : undefined;
@@ -50,7 +48,7 @@ function useNoteMenu(message: TalkMessage, meId: string, react: SetReaction) {
     const selected = window.getSelection()?.toString().trim();
     const text = selected || message.body;
     return [
-      text && { icon: IconCopy, label: "Copy", onAction: () => copy(text) },
+      text && { icon: IconCopy, label: "Copy", onAction: () => void copyText(text) },
       file && {
         icon: IconArrowUpRight,
         label: "Open file",
@@ -66,13 +64,10 @@ function useNoteMenu(message: TalkMessage, meId: string, react: SetReaction) {
   }, "Note actions");
 }
 
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-const dayFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-
 const timeLine = (at: Date, now = new Date()) => {
-  const time = timeFormat.format(at);
+  const time = TIME.format(at);
   if (at.toDateString() === now.toDateString()) return time;
-  return `${dayFormat.format(at)}, ${time}`;
+  return `${DAY.format(at)}, ${time}`;
 };
 
 const bytes = (size: number) =>

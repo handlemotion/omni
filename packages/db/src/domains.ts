@@ -11,6 +11,7 @@ import {
   TransactionRollbackError,
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import { MANAGER_ROLES } from "./roles.ts";
 import { countMailboxesOnDomain, type InboxAuditAction } from "./mail.ts";
 import {
   auditEvents,
@@ -21,9 +22,6 @@ import {
   members,
   users,
 } from "./schema/index.ts";
-
-/** Roles that may set up domains and mailboxes for their org. */
-export const DOMAIN_ADMIN_ROLES = ["owner", "admin"] as const;
 
 /** How long a pending claim can wait for its challenge. Claiming again starts a new one. */
 export const PENDING_CLAIM_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -184,7 +182,7 @@ export async function orgDomainAdmins(db: Db, orgId: string) {
   const rows = await db
     .select({ id: members.id })
     .from(members)
-    .where(and(eq(members.organizationId, orgId), inArray(members.role, DOMAIN_ADMIN_ROLES)));
+    .where(and(eq(members.organizationId, orgId), inArray(members.role, MANAGER_ROLES)));
   return rows.map((r) => r.id) satisfies string[];
 }
 
@@ -437,7 +435,7 @@ const adminOf = (
   and(
     eq(members.id, memberId),
     eq(members.organizationId, orgColumn),
-    inArray(members.role, DOMAIN_ADMIN_ROLES),
+    inArray(members.role, MANAGER_ROLES),
   );
 
 /** The member's org's domains, each with its claim and lock, oldest first. */

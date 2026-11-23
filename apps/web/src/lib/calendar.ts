@@ -2,17 +2,17 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
+import { lastWrite } from "./cache.ts";
 import { keys } from "./query-keys.ts";
 
 type Calendar = Api["calendar"];
 type Json<T> = T extends { json: infer J } ? J : never;
 
-export type CalendarList = InferResponseType<Calendar["calendars"]["$get"], 200>["calendars"];
+type CalendarList = InferResponseType<Calendar["calendars"]["$get"], 200>["calendars"];
 export type CalendarItem = CalendarList[number];
 export type CalendarEvent = InferResponseType<Calendar["events"]["$get"], 200>["events"][number];
-export type CalendarInvite = InferResponseType<Calendar["invites"]["$get"], 200>["invites"][number];
-export type NewCalendarEvent = Json<InferRequestType<Calendar["events"]["$post"]>>;
-export type CalendarEventChange = Json<InferRequestType<Calendar["events"][":id"]["$patch"]>>;
+type NewCalendarEvent = Json<InferRequestType<Calendar["events"]["$post"]>>;
+type CalendarEventChange = Json<InferRequestType<Calendar["events"][":id"]["$patch"]>>;
 export type CalendarAnswer = "accepted" | "declined" | "tentative";
 
 export const calendarKeys = {
@@ -59,13 +59,6 @@ export const warmCalendarWindow = (client: QueryClient, from: Date, to: Date) =>
     staleTime: Infinity,
   });
 
-export const calendarEventQuery = (id: string) =>
-  queryOptions({
-    queryKey: calendarKeys.event(id),
-    queryFn: ({ signal }) =>
-      call(api.calendar.events[":id"].$get({ param: { id } }, { init: { signal } })),
-  });
-
 export const threadInvitesQuery = (threadId: string) =>
   queryOptions({
     queryKey: calendarKeys.invites(threadId),
@@ -77,6 +70,16 @@ export const threadInvitesQuery = (threadId: string) =>
 /** Every calendar read is stale after a write or a `calendar.changed`. */
 export const calendarChanged = (client: QueryClient) =>
   client.invalidateQueries({ queryKey: calendarKeys.all() });
+
+/**
+ * A calendar change heard on the socket: the calendar refetches, unless a write of ours is still
+ * in flight. That write refetches when it answers, and a refetch now would undo its optimistic
+ * change until then.
+ */
+export function calendarChangedElsewhere(client: QueryClient) {
+  if (client.isMutating({ mutationKey: calendarKeys.writes() }) > 0) return;
+  void calendarChanged(client);
+}
 
 export const answerMutation = (client: QueryClient) =>
   mutationOptions({
@@ -199,7 +202,7 @@ export const calendarPrefsMutation = (client: QueryClient) =>
       );
     },
     onSettled: () => {
-      if (client.isMutating({ mutationKey: calendarKeys.writes() }) > 1) return;
+      if (!lastWrite(client, calendarKeys.writes())) return;
       return calendarChanged(client);
     },
   });

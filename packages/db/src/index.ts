@@ -1,6 +1,5 @@
 export { createDb, type Db } from "./client.ts";
 export { forMember, forUser } from "./for-member.ts";
-export { isAdmin } from "./roles.ts";
 export * from "./mail.ts";
 export * as schema from "./schema/index.ts";
 export * from "./orgs.ts";

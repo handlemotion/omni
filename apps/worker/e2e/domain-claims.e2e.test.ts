@@ -23,7 +23,7 @@ const check = (jar: Parameters<typeof api>[0], id: string) =>
 
 async function mailTo(to: string) {
   return (await sentMail(stack.worker, to)).filter(
-    (m) => m.from.includes(SYSTEM_MAIL_FROM) && !m.subject.startsWith("Sign in"),
+    (m) => m.from.includes(SYSTEM_MAIL_FROM) && !m.subject.includes("sign-in code"),
   );
 }
 

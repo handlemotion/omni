@@ -205,7 +205,7 @@ export async function inGoodStanding(db: Db, config: Config, orgId: string) {
 /** What a write in a workspace without a plan in good standing is told (`billing_inactive`). */
 export const READ_ONLY_MESSAGE = "this workspace is read-only until it has an active plan";
 
-export const READ_ONLY_ALLOWED = [
+const READ_ONLY_ALLOWED = [
   { path: "/api/billing", reason: "checkout and the portal are how a workspace becomes paid" },
   { path: "/api/workspace/members", reason: "giving a member an inbox is setup, not mail" },
   { path: "/api/workspace/shared-inboxes", reason: "who can see a mailbox is access, not mail" },
@@ -223,6 +223,15 @@ export const READ_ONLY_ALLOWED = [
   {
     path: "/api/storage/shared",
     reason: "gated in storage/shared.ts by the shared node's workspace, not the visitor's own",
+  },
+  {
+    path: "/api/meetings/shared",
+    reason: "Ask takes its assist from the meetings' workspace (ask.ts), never the asker's own",
+  },
+  {
+    path: "/api/booking",
+    reason:
+      "a visitor booking; calendar/booking.ts answers 404 while the link's workspace is unpaid",
   },
   {
     path: "/api/storage/signing",

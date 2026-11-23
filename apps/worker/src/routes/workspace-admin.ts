@@ -1,6 +1,7 @@
 import {
   addMailboxMember,
   hasSharedGrant,
+  isManager,
   listMailboxMembers,
   listWorkspaceMailboxes,
   listWorkspaceMembers,
@@ -14,7 +15,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { canManage, logInboxAction, requireManager } from "../inbox-admin.ts";
+import { logInboxAction, requireManager } from "../inbox-admin.ts";
 import { mailboxPlacement, provisionMailbox } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
@@ -132,7 +133,7 @@ export const workspaceAdmin = new Hono<AppEnv>()
 
   .get("/workspace/shared-inboxes/:id/people", async (c) => {
     const { id, orgId, role } = c.var.member;
-    const actor = { memberId: id, orgId, manage: canManage(role) };
+    const actor = { memberId: id, orgId, manage: isManager(role) };
     const people = await listMailboxMembers(c.var.db, actor, c.req.param("id"));
     if (!people) throw new HTTPException(404, { message: "not found" });
     return c.json({ people });
