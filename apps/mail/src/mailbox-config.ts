@@ -28,6 +28,35 @@ export type MailAuth = { kind: "password"; pass: string } | { kind: "oauth2"; to
 /** Who hosts a mailbox, as stored on its row. */
 export type MailProvider = (typeof schema.mailboxes.$inferSelect)["provider"];
 
+/**
+ * The product rules that differ by provider, in one place. These follow the stored provider (what
+ * Omni promised the person); what the IMAP server can do is a separate signal, `Capabilities`
+ * (`X-GM-EXT-1` for Gmail's extension), and a branch picks one or the other on purpose.
+ */
+export interface ProviderTraits {
+  /**
+   * Gmail's read is Omni's Done: a read or unread change reaches the server only with Done, and
+   * the inbox is reconciled with stored flags after its first sync (mail read before Omni).
+   */
+  readIsDone: boolean;
+  /** Imports only the last `GMAIL_SYNC_DAYS` of mail rather than the whole history. */
+  syncWindow: boolean;
+  /** Omni holds the host account: a rejected login mints a new app password, disconnect revokes it. */
+  hostedLogin: boolean;
+  /** A Google account, whose grant also reads its Google Calendar. */
+  googleAccount: boolean;
+}
+
+export function providerTraits(provider: MailProvider | undefined) {
+  const gmail = provider === "gmail";
+  return {
+    readIsDone: gmail,
+    syncWindow: gmail,
+    hostedLogin: provider === "purelymail",
+    googleAccount: gmail,
+  } satisfies ProviderTraits;
+}
+
 /** A mailbox with its decrypted login. Lives only inside the mail service. */
 export interface MailboxConfig {
   id: string;

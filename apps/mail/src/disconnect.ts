@@ -11,6 +11,7 @@ import {
 import { openCredentials } from "./credentials.ts";
 import type { MailHost } from "./hosting/mail-host.ts";
 import type { Logger } from "./log.ts";
+import { providerTraits } from "./mailbox-config.ts";
 import { revokeGoogleToken } from "./providers/gmail.ts";
 import { ProvisionError } from "./provisioning.ts";
 
@@ -25,17 +26,6 @@ type DisconnectDeps = {
 };
 
 type StoredMailbox = NonNullable<Awaited<ReturnType<typeof findOrgMailboxById>>>;
-
-/** Removes an Omni-hosted mailbox only; any other kind answers 404. */
-export const disconnectHostedMailbox: (
-  deps: DisconnectDeps,
-  input: HostedDisconnectBody,
-) => Promise<{ mailboxId: string }> = async (deps, input) => {
-  const mailbox = await findOrgMailboxById(deps.db, input.orgId, input.mailboxId);
-  if (!mailbox) return { mailboxId: input.mailboxId };
-  if (mailbox.provider !== "purelymail") throw new ProvisionError(404, "No such hosted mailbox");
-  return remove(deps, input.orgId, mailbox);
-};
 
 /**
  * Removes any mailbox of the org from Omni, whatever its provider: stops it, revokes
@@ -88,7 +78,7 @@ async function remove(deps: DisconnectDeps, orgId: string, mailbox: StoredMailbo
   try {
     const login = await openCredentials(deps.keyring, mailbox.id, mailbox.credentialsEnc);
     if ("oauth" in login) await revokeGoogleToken(login.refreshToken);
-    else if (mailbox.provider === "purelymail")
+    else if (providerTraits(mailbox.provider).hostedLogin)
       await deps.host?.revokeLogin(login.user, login.pass);
   } catch (error) {
     logger.warn("mailbox.disconnect_revoke_failed", { mailboxId: mailbox.id, error });
