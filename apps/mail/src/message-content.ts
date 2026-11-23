@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
+import { mailObjectKeys } from "@omni/db";
 import { type ParsedMessage, parseMessage, parseMessageStream } from "@omni/mail-core";
 import { sanitizeHtml } from "@omni/mail-core/clean";
 import type { ObjectStore } from "./objects.ts";
@@ -61,14 +62,15 @@ export async function writeMessageContent(
 ) {
   const { message } = parsed;
   const rawHash = isSpooled(raw) ? raw.sha256 : sha256(raw);
-  const r2Key = `${prefix}/raw/${rawHash}.eml`;
+  const keys = mailObjectKeys(prefix);
+  const r2Key = keys.raw(rawHash);
   await put(objects, r2Key, raw, "message/rfc822");
 
   const files = await Promise.all(
     message.attachments.map(async (meta, i) => {
       const content = parsed.attachments[i] ?? new Uint8Array();
       const hash = isSpooled(content) ? content.sha256 : sha256(content);
-      const key = `${prefix}/att/${hash}`;
+      const key = keys.attachment(hash);
       await put(objects, key, content, meta.mimeType);
       return { meta, hash, key };
     }),
@@ -88,7 +90,7 @@ export async function writeMessageContent(
       },
     });
     remoteImageCount = sanitized.remoteImageCount;
-    htmlR2Key = `${prefix}/html/${rawHash}.html`;
+    htmlR2Key = keys.html(rawHash);
     await objects.put(htmlR2Key, sanitized.html, "text/html; charset=utf-8");
   }
 

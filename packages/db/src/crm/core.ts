@@ -7,7 +7,6 @@ import { crmEvents, crmProjectMembers } from "../schema/crm.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
 
 export type { Ex } from "../pg.ts";
-export { isForeignKeyViolation } from "../pg.ts";
 
 export type NotFound = { status: "not_found" };
 /** A Personal space, or a member who is gone: there is no CRM to reach. */

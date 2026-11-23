@@ -90,7 +90,16 @@ export { replaceMailboxCredentials } from "./mail/mailbox-credentials.ts";
 export { type MergedThreads, mergeThreads } from "./mail/thread-merge.ts";
 export { pendingMailEventRows, deletePendingMailEvents } from "./mail/pending-mail-events.ts";
 export { mailboxAudience, pushTokensFor } from "./mail/system.ts";
-export * from "./mail/member-mail.ts";
+export {
+  listMemberMailboxes,
+  threadActionTargets,
+  setThreadArchived,
+  findMemberAttachmentByHash,
+  findMemberAttachment,
+  findMemberMessageHtml,
+  resortThread,
+} from "./mail/member-mail.ts";
+export { mailObjectKeys } from "./schema/mail/messages.ts";
 export {
   loadThreadForAi,
   saveTriage,
@@ -192,7 +201,12 @@ export {
   deleteBusinessHours,
   emitSlaAlerts,
 } from "./mail/sla.ts";
-export * from "./mail/forwarding.ts";
+export {
+  forwardTarget,
+  forwardCopySource,
+  enqueueForwardCopies,
+  forwardingFor,
+} from "./mail/forwarding.ts";
 export { setInboxNames, mailboxSenderName } from "./mail/mailbox-label.ts";
 export { recordDeadLetter, listDeadLetters } from "./mail/dead-letters.ts";
 export {
