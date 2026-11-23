@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0](https://github.com/wokshop/omni/compare/ios-v0.5.0...ios-v0.6.0) (2026-11-23)
+
+
+### Features
+
+* **auth:** replace magic link with email OTP, add Apple OAuth, and native iOS sign-in ([#899](https://github.com/wokshop/omni/issues/899)) ([7ecb860](https://github.com/wokshop/omni/commit/7ecb86050597a924319a67798055d28ac698d922))
+* **ios:** bottom module dock, reveal drawer, calendar placeholder, and sign-in refresh ([#897](https://github.com/wokshop/omni/issues/897)) ([2cac6bf](https://github.com/wokshop/omni/commit/2cac6bf49677f99abca34191408a0c25c6ffffef))
+* **ios:** Liquid Glass search tab, top-right action pill, drawer footer workspace switcher, and stroke spinner ([#900](https://github.com/wokshop/omni/issues/900)) ([82ea397](https://github.com/wokshop/omni/commit/82ea3971d584932072fef0a1416bd242d75b51d8))
+
 ## [0.5.0](https://github.com/wokshop/omni/compare/ios-v0.4.0...ios-v0.5.0) (2026-11-23)
 
 

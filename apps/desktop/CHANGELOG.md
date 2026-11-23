@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/wokshop/omni/compare/desktop-v0.6.0...desktop-v0.7.0) (2026-11-23)
+
+
+### Features
+
+* **ios:** bottom module dock, reveal drawer, calendar placeholder, and sign-in refresh ([#897](https://github.com/wokshop/omni/issues/897)) ([2cac6bf](https://github.com/wokshop/omni/commit/2cac6bf49677f99abca34191408a0c25c6ffffef))
+
 ## [0.6.0](https://github.com/wokshop/omni/compare/desktop-v0.5.0...desktop-v0.6.0) (2026-11-23)
 
 
