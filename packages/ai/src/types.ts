@@ -40,6 +40,9 @@ export interface Usage {
 
 export const NO_USAGE: Usage = { tokensIn: 0, tokensOut: 0 };
 
+export const addUsage = (a: Usage, b: Usage) =>
+  ({ tokensIn: a.tokensIn + b.tokensIn, tokensOut: a.tokensOut + b.tokensOut }) satisfies Usage;
+
 /** Signals from list and automation headers. All optional; absent means not present. */
 export interface ListSignals {
   listUnsubscribe?: boolean;

@@ -3,6 +3,7 @@ import { convert } from "html-to-text";
 import { JSDOM } from "jsdom";
 import type { ParsedMessage } from "./parse.ts";
 import { CSS_UNSAFE, dropUnsafeRules, removeImports, replaceUrls } from "./css.ts";
+import { messageDisplay } from "./display.ts";
 import { stripReply, type StrippedText } from "./reply.ts";
 import {
   attribute,
@@ -155,12 +156,9 @@ export const cleanMessage: (
   return stripReply(htmlToPlainText(stripQuotedHtml(message.html)), message.subject);
 };
 
-const LONG_FORM_WORDS = 120;
-
 /** Spec rendering rule: long (over ~120 words) or tabular messages render as cards, not bubbles. */
 export function isLongForm(message: { cleanText: string; html: string | null }) {
-  const words = message.cleanText.split(/\s+/).filter(Boolean).length;
-  if (words > LONG_FORM_WORDS) return true;
+  if (messageDisplay(message.cleanText) === "card") return true;
   if (message.html === null) return false;
   const body = newContent(message.html);
   if (body === null) return true;

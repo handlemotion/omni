@@ -10,6 +10,21 @@ test("reply and forward subjects never stack a prefix a client already added, in
   expect(forwardSubject("Re: Invoice")).toBe("Fwd: Re: Invoice");
 });
 
+test.each([
+  ["reply", "RE[2]: Invoice"],
+  ["reply", "Re(3): Invoice"],
+  ["reply", "Re：会議の日程"],
+  ["reply", "Odp: Faktura"],
+  ["reply", "YNT: Fatura"],
+  ["reply", "RES: Nota fiscal"],
+  ["forward", "RV: Factura"],
+  ["forward", "Enc: Nota fiscal"],
+  ["forward", "VS: Faktura"],
+  ["forward", "Fw[2]: Invoice"],
+] as const)("a %s keeps %j as threading reads it: no second prefix", (kind, subject) => {
+  expect((kind === "reply" ? replySubject : forwardSubject)(subject)).toBe(subject);
+});
+
 test("a forward's HTML escapes the original's sender, subject and text", () => {
   const { text, html } = forwardBody(
     { text: "FYI, see below.", html: "<p>FYI, see below.</p>" },

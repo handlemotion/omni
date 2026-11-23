@@ -1,16 +1,5 @@
 import type { Address, ParsedMessage } from "./parse.ts";
-
-const PREFIX =
-  /^\s*(?:re|fwd?|aw|wg|sv|vs|tr|rv|enc|antw|odp|ynt|res)\s*(?:\[\d+\]|\(\d+\))?\s*[:：]/i;
-
-/** Subject with reply/forward prefixes removed, lowercased and whitespace-collapsed. */
-export function normalizeSubject(subject: string) {
-  let rest = subject.trim();
-  for (let match = PREFIX.exec(rest); match; match = PREFIX.exec(rest)) {
-    rest = rest.slice(match[0].length).trim();
-  }
-  return rest.replace(/\s+/g, " ").toLowerCase();
-}
+import { normalizeSubject } from "./subject.ts";
 
 export interface ThreadCandidate {
   threadId: string;
@@ -84,5 +73,3 @@ export function participants(message: ParsedMessage) {
     ...new Set(all.filter((a): a is Address => a !== null).map((a) => a.address)),
   ] satisfies string[];
 }
-
-export { addedRecipients } from "./display.ts";

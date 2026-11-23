@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { callStructured } from "../model.ts";
-import { AI_MODEL, type ModelClient, type Usage } from "../types.ts";
+import { addUsage, AI_MODEL, NO_USAGE, type ModelClient, type Usage } from "../types.ts";
 import { parseClock, renderTranscript, splitLines } from "./render.ts";
 import type { Person } from "./speakers.ts";
 import type { Turn } from "./transcript.ts";
@@ -191,11 +191,6 @@ const combinePrompt = (input: WriteNotesInput, parts: NotesAnswer[]) =>
   notesPrompt(input, "(written up in parts; their notes follow)") +
   `\n\nNotes of each part, in order, as JSON:\n${JSON.stringify(parts)}\n\nWrite the notes of the whole meeting from them.`;
 
-const add = (a: Usage, b: Usage) => ({
-  tokensIn: a.tokensIn + b.tokensIn,
-  tokensOut: a.tokensOut + b.tokensOut,
-});
-
 /**
  * The meeting's notes. A long transcript is written up in parts, then the parts' notes together.
  * `ok: false` keeps the usage so the job still records what it spent; API errors throw so the
@@ -224,16 +219,16 @@ export async function writeNotes(
       ? { ok: true as const, notes: cleanNotes(result.data, input), usage: result.usage }
       : { ok: false as const, reason: result.reason, usage: result.usage };
   }
-  let usage: Usage = { tokensIn: 0, tokensOut: 0 };
+  let usage: Usage = NO_USAGE;
   const answers: NotesAnswer[] = [];
   for (const [i, transcript] of parts.entries()) {
     const result = await call(notesPrompt(input, transcript, { n: i + 1, of: parts.length }));
-    usage = add(usage, result.usage);
+    usage = addUsage(usage, result.usage);
     if (!result.ok) return { ok: false as const, reason: result.reason, usage };
     answers.push(result.data);
   }
   const whole = await call(combinePrompt(input, answers));
-  usage = add(usage, whole.usage);
+  usage = addUsage(usage, whole.usage);
   return whole.ok
     ? { ok: true as const, notes: cleanNotes(whole.data, input), usage }
     : { ok: false as const, reason: whole.reason, usage };

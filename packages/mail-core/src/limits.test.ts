@@ -7,7 +7,8 @@ import {
   sanitizeHtml,
   stripQuotedHtml,
 } from "./html.ts";
-import { displayNameSpoof, parseMessage } from "./parse.ts";
+import { parseMessage } from "./parse.ts";
+import { displayNameSpoof } from "./parse/spoof.ts";
 import { stripReply } from "./reply.ts";
 
 const options = {
