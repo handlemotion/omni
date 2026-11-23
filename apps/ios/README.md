@@ -20,12 +20,16 @@ returns to the app from the sheet, and a magic link opens in Safari and returns 
 ```bash
 pnpm ios:dev             # Simulator, Metro hot reload
 pnpm ios:dev --device    # a plugged-in iPhone, same Metro
+pnpm ios:dev --metro     # skip the native check/build, just start Metro
 pnpm ios:dev --rebuild   # force a native rebuild
 ```
 
 `scripts/dev.sh` builds a Debug development build ("Omni Dev", bundle id
 `app.omnidirectional.ios.dev`, set with `OMNI_IOS_DEV_BUNDLE_ID`), installs it and starts Metro;
-saving a file reloads the app. It rebuilds only when `package.json` or `app.config.ts` change.
+saving a file reloads the app. It fingerprints native inputs with `@expo/fingerprint` and caches
+build stamps per Simulator/iPhone in `~/.cache/omni-ios/`, so reruns across worktrees and on a
+physical iPhone reuse the installed build and only rebuild when native config or native
+dependencies change.
 The API is `EXPO_PUBLIC_OMNI_API_URL` from `.env`: `http://localhost:8787` for the local stack,
 `https://omnidirectional.app` for real data. Screenshot the Simulator with
 `xcrun simctl io booted screenshot shot.png`.
