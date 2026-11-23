@@ -16,7 +16,7 @@ import { attachmentOf, editingOf, type Editing } from "./realtime-files.ts";
  */
 export const OUTSIDE_HEADER = "x-omni-outside";
 
-export const outsideTag = (nodeId: string) => `out:${nodeId}`;
+const outsideTag = (nodeId: string) => `out:${nodeId}`;
 const whoTag = (by: string) => `who:${by}`;
 
 /** Within this long of its last check, an outsider's message is taken on that check. */

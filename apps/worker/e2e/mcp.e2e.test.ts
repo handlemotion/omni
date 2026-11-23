@@ -996,6 +996,52 @@ describe("changing mail", () => {
     }
   });
 
+  test("with only mail:read, every tool but inbox, search and fetch asks to step up", async () => {
+    const client = await agent(readOnly);
+    const names = (await client.listTools()).tools.map((t) => t.name);
+    await client.close();
+    expect(names).toEqual(expect.arrayContaining(["inbox", "search", "fetch"]));
+    const gated = names.filter((name) => !["inbox", "search", "fetch"].includes(name));
+    for (const name of gated) {
+      const response = await legacyCall(readOnly, {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name, arguments: {} },
+      });
+      expect({ name, status: response.status }).toEqual({ name, status: 403 });
+      expect(challenged(response)?.[0]).toBe("mail:read");
+      expect(challenged(response)).toHaveLength(2);
+    }
+  });
+
+  test("a batch cannot carry a tool call past its scope", async () => {
+    const response = await legacyCall(readOnly, [
+      { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "inbox", arguments: {} } },
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "triage",
+          arguments: { changes: [{ thread_id: personal.threadId, read: false }] },
+        },
+      },
+    ]);
+    expect(response.status).toBe(403);
+    expect(challenged(response)).toEqual(["mail:read", "mail:triage"]);
+  });
+
+  test("a call to a tool Omni does not have is refused", async () => {
+    const response = await legacyCall(token, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "constructor", arguments: {} },
+    });
+    expect(response.status).toBe(400);
+  });
+
   test("draft_reply saves a reply for the person to send, addressed like a reply", async () => {
     const { data, isError } = await tool<{ draft_id: string; to: string[]; subject: string }>(
       token,
