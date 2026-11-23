@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { LoadingPage } from "@/components/ui/loading-page.tsx";
-import { useScrollEdge } from "@/components/ui/scroll-edge.tsx";
+import { insetBelow, useScrollEdge } from "@/components/ui/scroll-edge.tsx";
 import {
   DRIVE_PAGES,
   drivePageIn,
@@ -139,13 +139,14 @@ function Recents() {
   return (
     <FlashList
       contentInsetAdjustmentBehavior={headerSpace > 0 ? "never" : "automatic"}
+      {...insetBelow(headerSpace)}
       onScroll={onScroll}
       scrollEventThrottle={16}
       data={rows}
       keyExtractor={(row) => row.key}
       renderItem={({ item }) => <DriveCardsRow nodes={item.nodes} />}
       contentContainerStyle={{
-        paddingTop: headerSpace + space(2),
+        paddingTop: space(2),
         paddingBottom: space(8) + CLEAR_OF_FADE,
       }}
       refreshControl={

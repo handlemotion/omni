@@ -9,7 +9,7 @@ import { EmptyState } from "./empty-state.tsx";
 import { ListSkeleton } from "./list-skeleton.tsx";
 import { LoadingPage } from "./loading-page.tsx";
 import { useTopInset } from "@/components/shell/menu-nav.ts";
-import { useScrollEdge } from "./scroll-edge.tsx";
+import { insetBelow, useScrollEdge } from "./scroll-edge.tsx";
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;
 
@@ -66,6 +66,7 @@ export function InfiniteList<T, R = T>(props: Paged<T, R>) {
   return (
     <FlashList
       contentInsetAdjustmentBehavior={inset > 0 ? "never" : "automatic"}
+      {...insetBelow(inset)}
       onScroll={onScroll}
       scrollEventThrottle={16}
       data={rows}
@@ -74,7 +75,7 @@ export function InfiniteList<T, R = T>(props: Paged<T, R>) {
       renderItem={({ item }) => props.renderItem(item)}
       contentContainerStyle={{
         ...styles.list,
-        paddingTop: space(1) + inset,
+        paddingTop: space(1),
         paddingBottom: space(8) + (props.footerSpace ?? 0),
       }}
       onEndReached={() => {

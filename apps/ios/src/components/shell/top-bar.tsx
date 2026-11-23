@@ -8,19 +8,16 @@ import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
 import { space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import { SHELL_CONTROL } from "./menu-nav.ts";
-import { WorkspaceButton } from "./menu-workspace.tsx";
-import { ModuleActions } from "./module-action.tsx";
+import { ModuleSearch } from "./module-action.tsx";
 import { usePageTitle } from "./page-title.ts";
 
 const SIDE = space(4);
-const TITLE_BOTTOM = space(9);
-const FADE_RAMP = space(20);
+const FADE_RAMP = SHELL_CONTROL + space(6);
 const FADE_MS = 200;
 
 /**
- * The shell's top bar on a module's root page: the page's title on the left, the module's actions
- * and the workspace on the right. Once the page scrolls, it is covered down to the title's baseline
- * and eases out over a long ramp below it, so rows never run behind the title.
+ * The shell's top bar on a module's root page: the page's title, small, and the module's search glyph opposite it. Once the page scrolls, it is covered behind the status bar and eases out through the title
+ * and eases out through the title, so rows soften as they pass under it.
  */
 export function TopBar() {
   const shell = useMenu();
@@ -37,22 +34,19 @@ export function TopBar() {
   return (
     <>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fade]}>
-        <TitleFade covered={top + TITLE_BOTTOM} ramp={FADE_RAMP} />
+        <TitleFade covered={top} ramp={FADE_RAMP} />
       </Animated.View>
       <View style={[styles.bar, { paddingTop: top }]} pointerEvents="box-none">
         <Text
-          size="heading"
-          weight="semibold"
+          size="lg"
+          weight="medium"
           numberOfLines={1}
           accessibilityRole="header"
           style={styles.title}
         >
           {title}
         </Text>
-        <View style={styles.end} pointerEvents="box-none">
-          <ModuleActions />
-          <WorkspaceButton />
-        </View>
+        <ModuleSearch />
       </View>
     </>
   );
@@ -72,5 +66,4 @@ const styles = StyleSheet.create({
     minHeight: SHELL_CONTROL,
   },
   title: { flexShrink: 1, paddingLeft: space(1) },
-  end: { flexDirection: "row", alignItems: "center", gap: space(2) },
 });

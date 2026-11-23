@@ -25,10 +25,10 @@ const AVATAR = space(9);
 const SHEET_LEAD = space(9);
 
 /**
- * The top bar's workspace button: the active workspace's avatar alone.
+ * The workspace button: the active workspace's avatar alone, at the end of the module rail.
  * A tap opens the workspace & account sheet (switch workspace, settings, connections, log out).
  */
-export function WorkspaceButton() {
+export function WorkspaceButton({ size = AVATAR }: { size?: number }) {
   const { active, all } = useWorkspace();
   const name = useSession().data?.user.name;
   const sheet = useSheet();
@@ -48,7 +48,7 @@ export function WorkspaceButton() {
     <>
       <AvatarButton
         name={label}
-        size={AVATAR}
+        size={size}
         photo={logo}
         inverse
         label={`Workspace, ${label}`}

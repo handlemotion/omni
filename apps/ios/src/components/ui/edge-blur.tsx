@@ -112,7 +112,7 @@ export function StatusBarBlur() {
  * easing out over a long ramp below it so rows scroll away under the title instead of behind it.
  */
 export function TitleFade({ covered, ramp }: { covered: number; ramp: number }) {
-  return <EdgeBlur edge="top" height={covered + ramp} solid={covered} smooth />;
+  return <EdgeBlur edge="top" height={covered + ramp} solid={covered} intensity={10} smooth />;
 }
 
 /**

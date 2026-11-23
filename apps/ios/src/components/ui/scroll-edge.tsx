@@ -11,3 +11,16 @@ export const ScrollEdge = createContext<OnScroll | undefined>(undefined);
 
 /** The page's scroll listener, for a list to pass as `onScroll`. */
 export const useScrollEdge = () => useContext(ScrollEdge);
+
+/**
+ * Where a list under chrome starts: below `top`, as the scroll view's own content inset rather
+ * than padding, so pull to refresh draws its spinner there and not behind the title.
+ */
+export function insetBelow(top: number) {
+  return {
+    contentInset: { top },
+    contentOffset: { x: 0, y: -top },
+    scrollIndicatorInsets: { top },
+    automaticallyAdjustContentInsets: false,
+  };
+}
