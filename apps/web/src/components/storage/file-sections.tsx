@@ -1,3 +1,4 @@
+import { fileType, formatBytes } from "@omni/client";
 import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Selection } from "react-aria-components";
 import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
@@ -17,8 +18,7 @@ import type { FolderDraft } from "@/hooks/use-folder-drafts.ts";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
 import { useStorageView, type StorageView } from "@/hooks/use-storage-view.ts";
-import { fileType } from "@/lib/file-kind.ts";
-import { formatBytes, type StorageNode } from "@/lib/storage.ts";
+import { type StorageNode } from "@/lib/storage.ts";
 import { CARDS_LAYOUT, CardsLayout } from "./cards-layout.ts";
 import { FileCard, FileCardBones, KEEP_IN_MENU } from "./file-card.tsx";
 import { NodeName, type ItemName } from "./name-field.tsx";

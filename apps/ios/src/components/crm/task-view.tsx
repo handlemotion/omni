@@ -1,3 +1,4 @@
+import { isNotFound, dueLabel, type CrmTask } from "@omni/client";
 import { Stack, router } from "expo-router";
 import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
@@ -9,18 +10,15 @@ import { ItemRow } from "@/components/ui/item-row.tsx";
 import { LoadingPage } from "@/components/ui/loading-page.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
-import { isNotFound } from "@/lib/api.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
 import { useMemberNames } from "@/lib/crm-timeline.ts";
 import {
   DUE_CHOICES,
   dueIn,
-  dueLabel,
   taskRecord,
   useDeleteTask,
   useTask,
   useUpdateTask,
-  type CrmTask,
   type TaskChange,
 } from "@/lib/crm-tasks.ts";
 import { gutter, space, text } from "@/theme/tokens.ts";

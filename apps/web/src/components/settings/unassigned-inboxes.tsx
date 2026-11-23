@@ -1,10 +1,10 @@
+import type { OrgMailbox } from "@omni/client";
 import { IconTrash, IconUserRound, IconUsers } from "@/components/icons/central";
 import { useState } from "react";
 import { appToast } from "@/components/ui/toast";
 import { useWorkspaceMailboxes } from "@/hooks/use-mailbox-members.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useGiveInbox, useRemoveInbox, useShareInbox } from "@/hooks/use-workspace-admin.ts";
-import type { OrgMailbox } from "@/lib/types.ts";
 import { SettingsGroup, SettingsSection } from "./kit/settings-layout";
 import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";

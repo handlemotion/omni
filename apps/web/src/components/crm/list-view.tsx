@@ -1,5 +1,5 @@
+import type { CrmRecordKind } from "@omni/client";
 import { useMemo, useState } from "react";
-import type { CrmRecordKind } from "@/lib/crm.ts";
 import { BulkBar } from "./bulk-bar.tsx";
 import { sortOf, sortParams } from "./list-sort.tsx";
 import { useSetListSearch, type ListSearch } from "./list-toolbar.tsx";

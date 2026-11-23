@@ -6,7 +6,6 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import {
-  onRecord,
   recordFilter as filterForRecord,
   type Api,
   type CrmRecordKind,
@@ -15,13 +14,12 @@ import {
 } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
+import { holdQueries, restoreQueries } from "./cache.ts";
 import {
   dropCrmEntity,
   dropFromPages,
   findCrmEntity,
-  holdCrm,
   patchCrmEntity,
-  restoreCrm,
   setCrmFields,
   settleCrm,
 } from "./crm-cache.ts";
@@ -35,7 +33,6 @@ type Json<T> = T extends { json: infer J } ? J : never;
 /** A task's place in the workspace: open beside everyone's tasks. */
 export const taskPath = (id: string) => `/crm/tasks?assignee=anyone&task=${encodeURIComponent(id)}`;
 
-export type { CrmTask, CrmTaskPage } from "@omni/client";
 export type CrmTaskCounts = InferResponseType<Tasks["counts"]["$get"], 200>["counts"];
 export type NewTask = Json<InferRequestType<Tasks["$post"]>>;
 export type TaskChange = Json<InferRequestType<Tasks[":id"]["$patch"]>>;
@@ -51,15 +48,6 @@ export interface TaskFilter {
   q?: string;
 }
 
-/** Query keys for tasks: every list, one list, one task. */
-export const taskKeys = {
-  all: () => [...keys.crm(), "tasks"] as const,
-  lists: () => [...keys.crm(), "tasks", "list"] as const,
-  list: (filter: TaskFilter) => [...keys.crm(), "tasks", "list", filter] as const,
-  one: (id: string) => [...keys.crm(), "tasks", "one", id] as const,
-  counts: () => [...keys.crm(), "tasks", "counts"] as const,
-};
-
 const clean = (filter: TaskFilter) =>
   Object.fromEntries(Object.entries(filter).filter(([, value]) => value)) as TaskFilter;
 
@@ -73,7 +61,7 @@ const fetchTasks = (filter: TaskFilter, cursor: string | null, signal?: AbortSig
 
 export const crmTasksQuery = (filter: TaskFilter) =>
   infiniteQueryOptions({
-    queryKey: taskKeys.list(clean(filter)),
+    queryKey: keys.crmTaskList(clean(filter)),
     queryFn: ({ pageParam, signal }) => fetchTasks(filter, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.nextCursor,
@@ -95,14 +83,14 @@ export const MY_TODOS = { status: "open", assignee: "me" } satisfies TaskFilter;
 
 export const crmTaskQuery = (id: string) =>
   queryOptions({
-    queryKey: taskKeys.one(id),
+    queryKey: keys.crmTask(id),
     queryFn: async ({ signal }) =>
       call(api.crm.tasks[":id"].$get({ param: { id: await settledId(id) } }, { init: { signal } })),
   });
 
 export const crmTaskCountsQuery = () =>
   queryOptions({
-    queryKey: taskKeys.counts(),
+    queryKey: keys.crmTaskCounts(),
     queryFn: ({ signal }) => call(api.crm.tasks.counts.$get(undefined, { init: { signal } })),
     select: (data) => data.counts,
   });
@@ -124,21 +112,21 @@ export const createTaskMutation = (client: QueryClient, self: string | null = nu
     mutationFn: ({ pendingId: _pending, ...json }: PendingTask) =>
       call(api.crm.tasks.$post({ json })),
     onMutate: async (input) => {
-      await client.cancelQueries({ queryKey: taskKeys.all() });
+      await client.cancelQueries({ queryKey: keys.crmTasks() });
       const task = draftTask(client, input, self);
       showInLists(client, task, self);
-      client.setQueryData(taskKeys.one(task.id), { task });
+      client.setQueryData(keys.crmTask(task.id), { task });
     },
     onSuccess: ({ task }, { pendingId }) => {
       pendingMade(pendingId, task.id);
       patchCrmEntity(client, pendingId, (shown) => ({ ...shown, ...madeFields(task) }));
       const shown = findCrmEntity(client, task.id) ?? task;
-      client.setQueryData(taskKeys.one(task.id), { task: shown });
+      client.setQueryData(keys.crmTask(task.id), { task: shown });
     },
     onError: (error, { pendingId }) => {
       pendingFailed(pendingId, error);
       dropCrmEntity(client, pendingId);
-      client.removeQueries({ queryKey: taskKeys.one(pendingId) });
+      client.removeQueries({ queryKey: keys.crmTask(pendingId) });
     },
     ...settle(client),
   });
@@ -212,7 +200,7 @@ const dueBefore = (task: CrmTask, row: CrmTask) =>
 
 function showInLists(client: QueryClient, task: CrmTask, self: string | null) {
   for (const [key, data] of client.getQueriesData<InfiniteData<CrmTaskPage>>({
-    queryKey: taskKeys.lists(),
+    queryKey: keys.crmTaskLists(),
   })) {
     const filter = key.at(-1) as TaskFilter;
     if (!data?.pages.length || !fitsFilter(filter, task, self)) continue;
@@ -247,7 +235,7 @@ export const updateTaskMutation = (client: QueryClient, completedBy: string | nu
     mutationFn: async ({ id, ...json }: TaskChange & { id: string }) =>
       call(api.crm.tasks[":id"].$patch({ param: { id: await settledId(id) }, json })),
     onMutate: async ({ id, done, ...change }) => {
-      const snapshot = await holdCrm(client);
+      const snapshot = await holdQueries(client, keys.crm());
       setCrmFields(client, currentId(id), {
         title: change.title,
         body: change.body,
@@ -265,7 +253,7 @@ export const updateTaskMutation = (client: QueryClient, completedBy: string | nu
       if (task) showInLists(client, task, completedBy);
       return { snapshot };
     },
-    onError: (_error, _change, context) => restoreCrm(client, context?.snapshot),
+    onError: (_error, _change, context) => restoreQueries(client, context?.snapshot),
     ...settle(client),
   });
 
@@ -276,18 +264,15 @@ export const deleteTaskMutation = (client: QueryClient) =>
     mutationFn: async (id: string) =>
       call(api.crm.tasks[":id"].$delete({ param: { id: await settledId(id) } })),
     onMutate: async (id) => {
-      const snapshot = await holdCrm(client);
-      dropFromPages(client, taskKeys.lists(), "tasks", new Set([id, currentId(id)]));
+      const snapshot = await holdQueries(client, keys.crm());
+      dropFromPages(client, keys.crmTaskLists(), "tasks", new Set([id, currentId(id)]));
       return { snapshot };
     },
-    onError: (_error, _id, context) => restoreCrm(client, context?.snapshot),
+    onError: (_error, _id, context) => restoreQueries(client, context?.snapshot),
     ...settle(client),
   });
 
-/** The filter for a record's own tasks. */
 export const recordFilter: (kind: CrmRecordKind, id: string) => TaskFilter = filterForRecord;
-
-export { onRecord };
 
 /** The record a task is on, as a link names it. */
 export function taskRecord(task: CrmTask) {
@@ -299,13 +284,3 @@ export function taskRecord(task: CrmTask) {
   if (task.dealId) return { kind: "deals" as const, id: task.dealId, name };
   return null;
 }
-
-export {
-  DUE_GROUPS,
-  dayOf,
-  dueAtOf,
-  dueGroup,
-  dueLabel,
-  dueOnDrop,
-  type DueGroup,
-} from "@omni/client";

@@ -3,8 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
-export type { CrmDeliverable, CrmMilestone, CrmPlan, CrmProjectAccess } from "@omni/client";
-
 const MILESTONE_STATUS: Record<CrmMilestone["status"], string> = {
   planned: "Planned",
   in_progress: "In progress",

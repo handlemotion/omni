@@ -1,3 +1,4 @@
+import { dayOf, dueAtOf, onRecord, type CrmTask } from "@omni/client";
 import { useState } from "react";
 import { IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
@@ -13,16 +14,8 @@ import { updateCalendarTaskMutation, type CalendarTask } from "@/lib/calendar-ta
 import { lastWrite } from "@/lib/cache.ts";
 import { CRM_WRITE } from "@/lib/crm-cache.ts";
 import { stableId } from "@/lib/crm-pending.ts";
-import {
-  dayOf,
-  dueAtOf,
-  onRecord,
-  taskKeys,
-  taskRecord,
-  updateTaskMutation,
-  type CrmTask,
-  type TaskChange,
-} from "@/lib/crm-tasks.ts";
+import { taskRecord, updateTaskMutation, type TaskChange } from "@/lib/crm-tasks.ts";
+import { keys } from "@/lib/query-keys.ts";
 import { crmErrorToast } from "@/components/crm/crm-errors.ts";
 import { DayValue, FieldRow, LinkValue, PlainValue } from "@/components/crm/record-fields.tsx";
 import { AssigneePicker, RecordPicker, useMemberNames } from "@/components/crm/task-dialog.tsx";
@@ -49,7 +42,7 @@ export function useSaveTask(id: string) {
     scope: { id: `crm-task:${queue}` },
     onSettled: (...args) => {
       if (!lastWrite(client, mutationKey)) return;
-      if (args[0]) client.setQueryData(taskKeys.one(args[0].task.id), args[0]);
+      if (args[0]) client.setQueryData(keys.crmTask(args[0].task.id), args[0]);
       return base.onSettled?.(...args);
     },
   });

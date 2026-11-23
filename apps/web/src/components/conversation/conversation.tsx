@@ -1,3 +1,4 @@
+import type { Conversation as HelpdeskState, Message, Thread } from "@omni/client";
 import type { FetchStatus } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -34,7 +35,6 @@ import {
   useMoveToLater,
 } from "@/hooks/use-mail-actions.ts";
 import { classify } from "@/lib/failure.ts";
-import type { Conversation as HelpdeskState, Message, Thread } from "@/lib/types.ts";
 import { ChatDock } from "../compose/chat-composer.tsx";
 import { ReplyComposer } from "../compose/composer.tsx";
 import { ComposerProvider, useComposerState } from "../compose/composer-state.tsx";

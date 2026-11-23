@@ -1,3 +1,4 @@
+import { fileType } from "@omni/client";
 import { useState } from "react";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
@@ -18,7 +19,6 @@ import { SearchField, SearchInput } from "@/components/ui/search-field";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
 import { useTeamFiles } from "@/hooks/use-team-files.ts";
 import { IconCheck } from "@/components/icons/central";
-import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 
 type Crumb = { id: string; name: string };

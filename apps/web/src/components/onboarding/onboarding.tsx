@@ -1,3 +1,4 @@
+import type { DnsRecord, Onboarding as OnboardingStatus, OnboardingDomain } from "@omni/client";
 import { Cloudflare, Google } from "@ridemountainpig/svgl-react";
 import { useNavigate } from "@tanstack/react-router";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
@@ -67,7 +68,6 @@ import {
 } from "@/lib/onboarding";
 import { useRealtimeConnection } from "@/hooks/use-realtime";
 import { useSession, useSignOut } from "@/hooks/use-session";
-import type { DnsRecord, Onboarding as OnboardingStatus, OnboardingDomain } from "@/lib/types";
 
 export function Onboarding() {
   const status = useOnboarding();

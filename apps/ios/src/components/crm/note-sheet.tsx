@@ -1,9 +1,10 @@
+import type { CrmRecordKind } from "@omni/client";
 import { router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet } from "react-native";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
-import { useCreateNote, useEditNote, type CrmRecordKind } from "@/lib/crm-mutations.ts";
+import { useCreateNote, useEditNote } from "@/lib/crm-mutations.ts";
 import { useTimeline } from "@/lib/crm-timeline.ts";
 import { space } from "@/theme/tokens.ts";
 import { SheetForm } from "./sheet-form.tsx";

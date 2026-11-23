@@ -1,3 +1,4 @@
+import { parseMoney } from "@omni/client";
 import { parseDate, type CalendarDate } from "@internationalized/date";
 import { useMemo, useState, type ReactNode } from "react";
 import { IconCalendar } from "@/components/icons/central";
@@ -7,7 +8,7 @@ import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
-import { currencyCodes, parseMoney } from "@/lib/crm.ts";
+import { currencyCodes } from "@/lib/crm.ts";
 import { Link } from "@/components/ui/link";
 import { ItemLabel } from "@/components/ui/dropdown";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";

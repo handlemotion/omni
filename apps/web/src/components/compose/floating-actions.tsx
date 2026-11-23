@@ -1,9 +1,9 @@
+import type { Thread } from "@omni/client";
 import { verificationCode } from "@omni/mail-core/verification-code";
 import { type ReactNode, useMemo } from "react";
 import { IconCheck, IconCopy, IconPencil } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { useClipboard } from "@/hooks/use-clipboard";
-import type { Thread } from "@/lib/types.ts";
 import { useComposerState } from "./composer-state.tsx";
 
 const FLOAT = "shadow-(--shadow-overlay)";

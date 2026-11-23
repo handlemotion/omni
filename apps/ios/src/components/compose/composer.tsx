@@ -1,4 +1,4 @@
-import type { Mailbox, Thread } from "@omni/client";
+import { type Mailbox, type Thread, ApiError } from "@omni/client";
 import { router } from "expo-router";
 import { useRef, useState, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, StyleSheet, View } from "react-native";
@@ -13,7 +13,6 @@ import { ChipButton } from "@/components/ui/chip-button.tsx";
 import { IconButton } from "@/components/ui/icon-button.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
-import { ApiError } from "@/lib/api.ts";
 import {
   forwardStart,
   notAddresses,

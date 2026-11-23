@@ -1,7 +1,15 @@
+import {
+  codeTones,
+  docPage,
+  grid,
+  textLines,
+  type CodeTone,
+  SHEET_PREVIEW_MAX_BYTES,
+  type FileType,
+} from "@omni/client";
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import { useCardSheets, useCardText } from "@/hooks/use-storage-preview.ts";
-import { codeTones, csvGrid, docPage, grid, textLines, type CodeTone } from "@/lib/card-page.ts";
-import { SHEET_PREVIEW_MAX_BYTES, type FileType } from "@/lib/file-kind.ts";
+import { csvGrid } from "@/lib/card-page.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { useSeen } from "../file-card.tsx";
 import { FileGlyph } from "../file-glyph.tsx";

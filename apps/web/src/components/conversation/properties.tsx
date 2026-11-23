@@ -1,3 +1,4 @@
+import type { Assignee, ConversationStatus, Priority, Thread } from "@omni/client";
 import type { ReactNode } from "react";
 import type { ComponentType } from "react";
 import {
@@ -25,7 +26,6 @@ import {
   useTags,
   useToggleTag,
 } from "@/hooks/use-conversation.ts";
-import type { Assignee, ConversationStatus, Priority, Thread } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 
 type Glyph = ComponentType<{ className?: string; "data-slot"?: string }>;

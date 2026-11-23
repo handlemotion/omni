@@ -1,3 +1,4 @@
+import type { Workspace } from "@omni/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useParams, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
@@ -12,7 +13,6 @@ import {
   warmWorkspaces,
   workspacesQuery,
 } from "../lib/workspaces.ts";
-import type { Workspace } from "../lib/types.ts";
 
 /**
  * `{ activeOrganizationId, workspaces: [{ id, name, slug, logo, role, setup, mailboxes:

@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { FlashList } from "@shopify/flash-list";
 import { router, Stack } from "expo-router";
@@ -12,7 +13,7 @@ import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { useLinkFiles, type FileRecordKind } from "@/lib/crm-files.ts";
 import { driveErrorAlert } from "@/lib/drive-actions.ts";
-import { folderQuery, useDriveSearch, type DriveNode } from "@/lib/drive.ts";
+import { folderQuery, useDriveSearch } from "@/lib/drive.ts";
 import { useDebounced } from "@/lib/use-debounced.ts";
 import { colors, gutter, iconSize, space } from "@/theme/tokens.ts";
 

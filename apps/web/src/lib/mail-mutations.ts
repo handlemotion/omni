@@ -119,20 +119,6 @@ export const undoneMutation = (client: QueryClient) =>
     })),
   });
 
-export const archiveMutation = (client: QueryClient) =>
-  mutationOptions({
-    mutationKey: [...keys.mail(), "archive"],
-    retry,
-    scope,
-    mutationFn: ({ threadId, key }: Keyed & { threadId: string }) =>
-      call(api.threads[":id"].archive.$post({ param: { id: threadId }, header: header(key) })),
-    ...optimistic(client, ({ threadId }: Keyed & { threadId: string }) => ({
-      threadId,
-      patch: { archived: true },
-      leaves: (view) => leavesView("archive", view),
-    })),
-  });
-
 /** Moves every copy of the thread to the mailbox's Trash; it leaves the Inbox for everyone. */
 export const trashMutation = (client: QueryClient) =>
   mutationOptions({
@@ -146,27 +132,6 @@ export const trashMutation = (client: QueryClient) =>
       patch: { archived: true },
       leaves: (view) => leavesView("trash", view),
     })),
-  });
-
-/** Moves the thread's messages to another IMAP folder. Not optimistic: no list shows folders. */
-export const moveMutation = (client: QueryClient) =>
-  mutationOptions({
-    mutationKey: [...keys.mail(), "move"],
-    retry,
-    scope,
-    mutationFn: ({
-      threadId,
-      destination,
-      key,
-    }: Keyed & { threadId: string; destination: string }) =>
-      call(
-        api.threads[":id"].move.$post({
-          param: { id: threadId },
-          header: header(key),
-          json: { destination },
-        }),
-      ),
-    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
   });
 
 export interface ReplyVariables extends Keyed {
@@ -214,30 +179,6 @@ export const replyMutation = (client: QueryClient) =>
     onError: (error, { threadId, key }) => {
       updatePending(client, threadId, key, { status: "failed", error: error.message });
     },
-  });
-
-export interface SendVariables extends Keyed {
-  mailboxId: string;
-  to: string[];
-  cc?: string[] | undefined;
-  bcc?: string[] | undefined;
-  subject: string;
-  text: string;
-  html?: string | undefined;
-}
-
-/**
- * Sends a new message. It has no thread until the mail service files it, so there is no pending
- * bubble; a later failure arrives as an action failure (`useActionFailures`).
- */
-export const sendMutation = (client: QueryClient) =>
-  mutationOptions({
-    mutationKey: [...keys.mail(), "send"],
-    retry,
-    scope,
-    mutationFn: ({ key, ...json }: SendVariables) =>
-      call(api.send.$post({ header: header(key), json })),
-    onSuccess: () => void client.invalidateQueries({ queryKey: keys.threadLists() }),
   });
 
 /**

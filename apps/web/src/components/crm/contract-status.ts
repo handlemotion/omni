@@ -1,4 +1,4 @@
-import type { CrmContract } from "@/lib/crm.ts";
+import type { CrmContract } from "@omni/client";
 import { DAY_YEAR } from "@/lib/dates.ts";
 
 type Intent = "secondary" | "info" | "success" | "warning" | "outline";

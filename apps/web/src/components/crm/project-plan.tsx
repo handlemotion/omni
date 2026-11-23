@@ -1,3 +1,4 @@
+import { dueLabel, type CrmDeliverable, type CrmMilestone } from "@omni/client";
 import { useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -26,13 +27,10 @@ import {
   useUpdateDeliverable,
   useUpdateMilestone,
 } from "@/hooks/use-crm-project.ts";
-import { dueLabel } from "@/lib/crm-tasks.ts";
 import {
   DELIVERABLE_STATUSES,
   MILESTONE_STATUSES,
-  type CrmDeliverable,
   type CrmDeliverableStatus,
-  type CrmMilestone,
   type CrmMilestoneStatus,
 } from "@/lib/crm-project.ts";
 import { crmErrorToast } from "./crm-errors.ts";

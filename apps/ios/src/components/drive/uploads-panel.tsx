@@ -1,9 +1,10 @@
+import { canRetryUpload } from "@omni/client";
 import { FlatList, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { IconArrowRotateClockwise, IconX } from "@/components/icons.ts";
 import { IconButton } from "@/components/ui/icon-button.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { canRetryUpload, driveErrorText } from "@/lib/drive-actions.ts";
+import { driveErrorText } from "@/lib/drive-actions.ts";
 import { removeUpload, retryUpload, useUploads, type UploadItem } from "@/lib/drive-uploads.ts";
 import { colors, radius, shadowRaised, space } from "@/theme/tokens.ts";
 

@@ -21,8 +21,6 @@ export { CRM_PAGES, isCrmPage, type CrmPage } from "./crm-lists.ts";
 const PAGE_SIZE = "100";
 const BOARD_PAGE_SIZE = "200";
 
-export type { CrmCompany, CrmDeal, CrmPerson } from "@omni/client";
-
 const paged = (pageParam: string | null, size = PAGE_SIZE) => ({
   limit: size,
   ...(pageParam ? { cursor: pageParam } : {}),

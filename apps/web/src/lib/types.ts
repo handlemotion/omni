@@ -1,36 +1,6 @@
 import type { Api, Conversation } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 
-export type {
-  DnsRecord,
-  InvitationStatus,
-  Mailbox,
-  Member,
-  Onboarding,
-  OnboardingDomain,
-  OrgMailbox,
-  Message,
-  PendingInvitation,
-  SearchResult,
-  Assignee,
-  Conversation,
-  ConversationStatus,
-  Notification,
-  NotificationPage,
-  Priority,
-  Tag,
-  Thread,
-  ThreadPage,
-  ThreadSummary,
-  RealtimeEvent,
-  RealtimeStatus,
-  SetupStep,
-  Workspace,
-  WorkspaceMailbox,
-  WorkspaceMember,
-  Workspaces,
-} from "@omni/client";
-
 type ThreadListQuery = InferRequestType<Api["threads"]["$get"]>["query"];
 
 /** Triage lane filter. `unsure` is AI triage below the auto-file confidence. */

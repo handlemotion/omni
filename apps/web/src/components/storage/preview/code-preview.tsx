@@ -1,8 +1,8 @@
+import type { FileKind } from "@omni/client";
 import { memo, useEffect, useMemo, useState } from "react";
 import type { GrammarState, HighlighterCore, LanguageInput, ThemedToken } from "shiki/core";
 import { SkeletonBox } from "skullet/react";
 import { useFileText } from "@/hooks/use-storage-preview.ts";
-import type { FileKind } from "@/lib/file-kind.ts";
 import type { PreviewSource } from "@/lib/storage-preview.ts";
 import { NoPreview, StageLoading } from "./shared.tsx";
 

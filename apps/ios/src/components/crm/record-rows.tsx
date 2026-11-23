@@ -1,9 +1,10 @@
+import type { CrmCompany, CrmDeal, CrmPerson } from "@omni/client";
 import { router } from "expo-router";
 import type { ComponentProps } from "react";
 import { Avatar } from "@/components/ui/avatar.tsx";
 import { ItemRow } from "@/components/ui/item-row.tsx";
 import { IconHandshake } from "@/components/icons.ts";
-import { dealValue, type CrmCompany, type CrmDeal, type CrmPerson } from "@/lib/crm.ts";
+import { dealValue } from "@/lib/crm.ts";
 
 /** What a native `Link` hands the row it wraps (its press), over the row's own tap. */
 type Pass = Omit<ComponentProps<typeof ItemRow>, "title">;

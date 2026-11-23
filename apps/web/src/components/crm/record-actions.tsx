@@ -1,3 +1,4 @@
+import type { CrmRecordKind } from "@omni/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { IconArchive, IconEllipsis, IconRestore, IconTrash } from "@/components/icons/central";
@@ -13,7 +14,6 @@ import {
 import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { useCanDeleteForever, useRecordLifecycle } from "@/hooks/use-crm.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
-import type { CrmRecordKind } from "@/lib/crm.ts";
 import type { RecordLifecycle } from "@/lib/crm-mutations.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 

@@ -1,3 +1,4 @@
+import type { WorkspaceMailbox } from "@omni/client";
 import { CheckIcon } from "@heroicons/react/20/solid";
 import { useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
@@ -12,7 +13,6 @@ import { SidebarItemTrigger } from "@/components/ui/sidebar";
 import { appToast } from "@/components/ui/toast";
 import { useMember } from "@/hooks/use-session.ts";
 import { useOpenMailbox, useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
-import type { WorkspaceMailbox } from "@/lib/types.ts";
 
 const ROW = "min-h-12 rounded-sm ps-2.25 pe-4.5 py-2";
 const ROW_CONTENT = "col-span-full flex min-w-0 items-center gap-3";

@@ -6,19 +6,18 @@ import {
   type QueryClient,
   type QueryKey,
 } from "@tanstack/react-query";
-import { idempotencyHeader, retryUnreached } from "@omni/client";
+import {
+  idempotencyHeader,
+  retryUnreached,
+  type Assignee,
+  type Conversation,
+  type Priority,
+} from "@omni/client";
 import { api, call } from "./api.ts";
 import { removeFromLists } from "./cache.ts";
 import { FIRST_PAGE_SIZE, OLDER_PAGE_SIZE } from "./mail-queries.ts";
 import { conversationFilterOf, keys } from "./query-keys.ts";
-import type {
-  Assignee,
-  Conversation,
-  ConversationFilter,
-  ConversationPage,
-  ConversationSummary,
-  Priority,
-} from "./types.ts";
+import type { ConversationFilter, ConversationPage, ConversationSummary } from "./types.ts";
 
 /** One helpdesk list, paged by an opaque cursor kept in the cache. `sla_at_risk` is soonest due first. */
 export const conversationsQuery = (filter: ConversationFilter) =>

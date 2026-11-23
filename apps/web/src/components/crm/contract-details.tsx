@@ -1,3 +1,4 @@
+import type { CrmContract } from "@omni/client";
 import { IconDownload, IconSignature, IconUpload } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { useUpdateContract, useVoidContract } from "@/hooks/use-crm.ts";
 import { useFreelancer } from "@/hooks/use-freelancer.ts";
-import type { CrmContract } from "@/lib/crm.ts";
 import { downloadFile } from "@/lib/download.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import { ContractPeopleField } from "./contract-people.tsx";

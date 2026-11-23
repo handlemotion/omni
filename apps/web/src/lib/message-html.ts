@@ -1,4 +1,4 @@
-import type { Message, Thread } from "./types.ts";
+import type { Message, Thread } from "@omni/client";
 import { messageHtmlUrl } from "./urls.ts";
 
 /**

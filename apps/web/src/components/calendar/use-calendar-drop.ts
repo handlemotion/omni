@@ -1,3 +1,4 @@
+import { dueAtOf } from "@omni/client";
 import { useRef } from "react";
 import { crmErrorToast } from "@/components/crm/crm-errors.ts";
 import { useUpdateCalendarTask } from "@/hooks/use-calendar-tasks.ts";
@@ -5,7 +6,6 @@ import type { CalendarEvent } from "@/lib/calendar.ts";
 import { atMinutes, dropStart, type Dragged, type Drop } from "@/lib/calendar-drag.ts";
 import { dayKey, parseDayKey } from "@/lib/calendar-grid.ts";
 import type { Todo } from "@/lib/calendar-tasks.ts";
-import { dueAtOf } from "@/lib/crm-tasks.ts";
 import { ownEvent } from "./week-grid.tsx";
 
 const DAY_MINUTES = 24 * 60;

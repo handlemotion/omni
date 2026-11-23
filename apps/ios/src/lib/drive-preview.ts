@@ -1,8 +1,9 @@
+import { ApiError, type DriveNode } from "@omni/client";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ApiError, api } from "./api.ts";
+import { api } from "./api.ts";
 import { config } from "./config.ts";
 import { localFile, type FileSource } from "./drive-files.ts";
-import { folderQuery, storageHeaders, type DriveNode } from "./drive.ts";
+import { folderQuery, storageHeaders } from "./drive.ts";
 import { previewKindOf } from "./file-kind.ts";
 import { keys } from "./query-keys.ts";
 

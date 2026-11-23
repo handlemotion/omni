@@ -1,3 +1,4 @@
+import { isNotFound } from "@omni/client";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Linking, ScrollView, StyleSheet, View } from "react-native";
@@ -10,7 +11,6 @@ import { LoadingPage } from "@/components/ui/loading-page.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { isNotFound } from "@/lib/api.ts";
 import type { LogoFor } from "@/lib/sender-logo.ts";
 import { gutter, space } from "@/theme/tokens.ts";
 

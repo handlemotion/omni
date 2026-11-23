@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -10,7 +11,7 @@ import { ItemRow } from "@/components/ui/item-row.tsx";
 import { ListSkeleton } from "@/components/ui/list-skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { driveErrorAlert, useChangeNode, useNode } from "@/lib/drive-actions.ts";
-import { DRIVE_PAGES, useFolder, type DriveNode } from "@/lib/drive.ts";
+import { DRIVE_PAGES, useFolder } from "@/lib/drive.ts";
 import { keys } from "@/lib/query-keys.ts";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 import { colors, space } from "@/theme/tokens.ts";

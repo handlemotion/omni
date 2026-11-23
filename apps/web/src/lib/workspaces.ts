@@ -1,4 +1,4 @@
-import { WORKSPACE_HEADER } from "@omni/client";
+import { WORKSPACE_HEADER, type Member, type Workspace, type Workspaces } from "@omni/client";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
 import { currentWorkspaceId, setCurrentWorkspaceId } from "./current-workspace.ts";
@@ -6,7 +6,6 @@ import { needsSetup } from "./onboarding.ts";
 import { keys } from "./query-keys.ts";
 import { authCall, sessionQuery } from "./session.ts";
 import { cancelUploads } from "./storage-uploads.ts";
-import type { Member, Workspace, Workspaces } from "./types.ts";
 
 /**
  * `{ activeOrganizationId, workspaces }`: every org the user belongs to with its setup step and

@@ -1,3 +1,4 @@
+import type { CrmTask } from "@omni/client";
 import { useNavigate } from "@tanstack/react-router";
 import {
   IconArrowUpRight,
@@ -11,7 +12,7 @@ import {
 import type { ContextMenuEntry } from "@/components/ui/context-menu";
 import { useDeleteTask, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
-import { taskRecord, type CrmTask } from "@/lib/crm-tasks.ts";
+import { taskRecord } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 
 const RECORD_ICON = { companies: IconBuildings, people: IconUserRound, deals: IconHandshake };

@@ -1,8 +1,8 @@
 import { mutationOptions, type InfiniteData, type QueryClient } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
+import type { Api, CrmRecordKind, CrmStage } from "@omni/client";
 import type { InferRequestType } from "hono/client";
 import { api, call } from "./api.ts";
-import type { CrmContractStatus, CrmRecordKind, CrmStage } from "./crm.ts";
+import type { CrmContractStatus } from "./crm.ts";
 import {
   dropFromPages,
   findCrmEntity,

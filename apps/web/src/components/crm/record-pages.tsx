@@ -1,3 +1,4 @@
+import { formatMoney } from "@omni/client";
 import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import { CreateMenu } from "./create-menu.tsx";
 import { useState } from "react";
@@ -12,7 +13,7 @@ import {
   useUpdateDeal,
   useUpdatePerson,
 } from "@/hooks/use-crm.ts";
-import { formatMoney, lastContactedAt, valueCurrency } from "@/lib/crm.ts";
+import { lastContactedAt, valueCurrency } from "@/lib/crm.ts";
 import { Contracts } from "./contracts.tsx";
 import { AccessSection } from "./project-access.tsx";
 import { ProjectPlan } from "./project-plan.tsx";

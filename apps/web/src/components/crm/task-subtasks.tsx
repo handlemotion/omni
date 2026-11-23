@@ -1,10 +1,11 @@
+import type { CrmTask } from "@omni/client";
 import { useState, useSyncExternalStore } from "react";
 import { IconCircle, IconCircleCheck, IconPlus, IconTrash } from "@/components/icons/central";
 import { contextMenuProps } from "@/components/ui/context-menu";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
-import type { CrmTask, TaskChange } from "@/lib/crm-tasks.ts";
+import type { TaskChange } from "@/lib/crm-tasks.ts";
 
 type Step = NonNullable<CrmTask["subtasks"]>[number];
 

@@ -1,3 +1,4 @@
+import type { CrmContract } from "@omni/client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { IconPlus, IconX } from "@/components/icons/central";
@@ -12,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
 import { useSendContract } from "@/hooks/use-crm.ts";
-import { crmDealQuery, type CrmContract } from "@/lib/crm.ts";
+import { crmDealQuery } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 
 interface Draft {

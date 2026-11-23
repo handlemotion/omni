@@ -1,3 +1,11 @@
+import {
+  type CrmCompany,
+  type CrmDeal,
+  type CrmPerson,
+  type CrmTask,
+  fileType,
+  type ThreadSummary,
+} from "@omni/client";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import {
   IconBuildings,
@@ -8,12 +16,9 @@ import {
 import { IconEmail } from "@/components/icons/sidebar";
 import { FileGlyph } from "@/components/storage/file-glyph.tsx";
 import { CommandDetail, CommandGroup, CommandItem } from "@/components/ui/command";
-import type { CrmCompany, CrmDeal, CrmPerson } from "@/lib/crm.ts";
-import { taskPath, type CrmTask } from "@/lib/crm-tasks.ts";
-import { fileType } from "@/lib/file-kind.ts";
+import { taskPath } from "@/lib/crm-tasks.ts";
 import type { CommandHits, FileHit } from "@/hooks/use-command-search.ts";
 import { senderLabel } from "@/lib/threads.ts";
-import type { ThreadSummary } from "@/lib/types.ts";
 
 /**
  * The records each pill shows. Before a query, Mail's pill lists the inbox; after one, mail found

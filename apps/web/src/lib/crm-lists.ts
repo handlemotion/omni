@@ -94,7 +94,6 @@ export const dealsFilter = (search: DealParams) =>
   }) satisfies CrmDealFilter;
 
 /** What counts as a project: a lead (`open`) or a won deal, by stage kind, never by stage name. */
-export { PROJECT_KINDS };
 export const isProject = (kind: CrmStageKind | undefined) => !!kind && PROJECT_KINDS.includes(kind);
 
 /** The Projects table's filter: the board's deals, with a stage filter and any sort. */

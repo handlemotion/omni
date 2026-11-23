@@ -1,3 +1,4 @@
+import type { Message, Thread } from "@omni/client";
 import type { NewMessageDraft } from "@/hooks/use-compose-pane.ts";
 import { forwardSubject, replySubject } from "@omni/mail-core/compose";
 import { useYourMailboxes } from "@/hooks/use-mailbox-identity.ts";
@@ -32,7 +33,6 @@ import {
   type ComposerFile,
   type Draft,
 } from "@/hooks/use-compose.ts";
-import type { Message, Thread } from "@/lib/types.ts";
 import { CannedPicker } from "./canned-picker.tsx";
 import { AttachButton, ComposerFiles } from "./composer-files.tsx";
 import { useComposerState, type ReplyKind } from "./composer-state.tsx";

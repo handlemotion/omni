@@ -1,7 +1,8 @@
+import type { CrmDeal } from "@omni/client";
 import { IconBuildings, IconHandshake, IconProjects, IconUsers } from "@/components/icons.ts";
 import { FLOATING_BAR_SPACE } from "@/components/shell/floating-bar.tsx";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
-import { useCompanies, useDeals, usePeople, useStageNames, type CrmDeal } from "@/lib/crm.ts";
+import { useCompanies, useDeals, usePeople, useStageNames } from "@/lib/crm.ts";
 import { CRM_PAGES, filterCount, type CrmPage, type ListView } from "@/lib/crm-lists.ts";
 import { CompanyRow, DealRow, PersonRow } from "./record-rows.tsx";
 import { RecordListItem } from "./record-list-item.tsx";

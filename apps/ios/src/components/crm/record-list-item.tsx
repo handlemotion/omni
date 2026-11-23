@@ -1,11 +1,12 @@
+import type { CrmRecordKind, CrmStage } from "@omni/client";
 import { Link } from "expo-router";
 import type { ReactElement } from "react";
 import { IconArchive, IconArrowRotateClockwise } from "@/components/icons.ts";
 import { SwipeRow } from "@/components/ui/swipe-row.tsx";
 import { confirmDeleteForever, useIsAdmin, useRecordMove, useSetOwner } from "@/lib/crm-actions.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
-import { useMoveDeal, type CrmRecordKind } from "@/lib/crm-mutations.ts";
-import { useMemberNames, useStages, type CrmStage } from "@/lib/crm-timeline.ts";
+import { useMoveDeal } from "@/lib/crm-mutations.ts";
+import { useMemberNames, useStages } from "@/lib/crm-timeline.ts";
 
 const PATH = {
   companies: "/crm/company/[id]",

@@ -1,16 +1,11 @@
+import { type CrmCompany, type CrmDeal, type CrmPerson, parseMoney } from "@omni/client";
 import { router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet } from "react-native";
 import { TextField } from "@/components/ui/text-field.tsx";
-import type { CrmCompany, CrmDeal, CrmPerson } from "@/lib/crm.ts";
 import { isCurrencyCode, useDealCurrency } from "@/lib/crm-currency.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
-import {
-  parseMoney,
-  useUpdateCompany,
-  useUpdateDeal,
-  useUpdatePerson,
-} from "@/lib/crm-mutations.ts";
+import { useUpdateCompany, useUpdateDeal, useUpdatePerson } from "@/lib/crm-mutations.ts";
 import { space } from "@/theme/tokens.ts";
 import { CompanyField, type CompanyChoice } from "./company-field.tsx";
 import { CloseDateField, OwnerField, ValueField } from "./form-fields.tsx";

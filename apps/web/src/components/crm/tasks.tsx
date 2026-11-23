@@ -1,4 +1,13 @@
 import {
+  type CrmRecordKind,
+  DUE_GROUPS,
+  dueGroup,
+  dueLabel,
+  dueOnDrop,
+  type CrmTask,
+  type DueGroup,
+} from "@omni/client";
+import {
   DndContext,
   DragOverlay,
   PointerSensor,
@@ -27,20 +36,8 @@ import { IconChecklist } from "@/components/icons/central";
 import { useTaskMenu } from "./task-menu.ts";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
-import type { CrmRecordKind } from "@/lib/crm.ts";
 import { currentId, stableId } from "@/lib/crm-pending.ts";
-import {
-  DUE_GROUPS,
-  dueGroup,
-  dueLabel,
-  dueOnDrop,
-  recordFilter,
-  taskRecord,
-  taskPath,
-  type CrmTask,
-  type DueGroup,
-  type TaskFilter,
-} from "@/lib/crm-tasks.ts";
+import { recordFilter, taskRecord, taskPath, type TaskFilter } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { RecordMark } from "./record-list.tsx";
 import type { FilterKind } from "./list-filters.tsx";

@@ -1,6 +1,6 @@
+import { ApiError } from "@omni/client";
 import * as Sentry from "@sentry/browser";
 import { onlineManager } from "@tanstack/react-query";
-import { ApiError } from "./api.ts";
 
 type FailureKind =
   | "stale_build"

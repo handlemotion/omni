@@ -1,6 +1,6 @@
+import { fileType } from "@omni/client";
 import { useCallback, useEffect, useRef } from "react";
 import { useReadAhead } from "@/hooks/use-storage-preview.ts";
-import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { previewThumbnail } from "../thumbnail-image.tsx";
 import { loadPreviewCode } from "./preview-code.ts";

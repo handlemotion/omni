@@ -1,8 +1,9 @@
+import { dueLabel, type CrmTask } from "@omni/client";
 import { router } from "expo-router";
 import { CheckCircle } from "@/components/ui/check-circle.tsx";
 import { ItemRow } from "@/components/ui/item-row.tsx";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
-import { dueLabel, isOverdue, useUpdateTask, type CrmTask } from "@/lib/crm-tasks.ts";
+import { isOverdue, useUpdateTask } from "@/lib/crm-tasks.ts";
 
 /**
  * A task in a list: its check, its title, the record it is on (and who has it, where the list

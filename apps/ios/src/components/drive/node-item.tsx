@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { Link } from "expo-router";
 import { FileCard } from "@/components/drive/file-card.tsx";
 import { FolderCard } from "@/components/drive/folder-card.tsx";
@@ -15,7 +16,6 @@ import {
   useTrashNode,
 } from "@/lib/drive-actions.ts";
 import { openDriveSheet } from "@/lib/drive-sheets.ts";
-import type { DriveNode } from "@/lib/drive.ts";
 
 /**
  * A file or folder in a space or a folder; a long press opens its actions in the screen's one

@@ -1,13 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { reportDriveFailure } from "./telemetry.ts";
-import { STORAGE_ERROR_TEXT, errorText, type Member } from "@omni/client";
+import { STORAGE_ERROR_TEXT, errorText, type Member, type DriveNode } from "@omni/client";
 import * as Sharing from "expo-sharing";
 import { Alert } from "react-native";
 import { api, call } from "./api.ts";
 import { driveNodeChanged, driveNodeRemoved } from "./drive-cache.ts";
 import { localFile, type FileSource } from "./drive-files.ts";
 import { sourceOf } from "./drive-preview.ts";
-import type { DriveNode } from "./drive.ts";
 import { keys } from "./query-keys.ts";
 import { cacheEpoch } from "./workspace-id.ts";
 
@@ -27,8 +26,6 @@ export const placeOf = (node: DriveNode) =>
 
 /** What a new folder is called when it is left unnamed, as on the web. */
 export const NEW_FOLDER_NAME = "Untitled folder";
-
-export { canRetryUpload } from "@omni/client";
 
 /** Why `error` refused the action, or `fallback`. */
 export const driveErrorText = (error: unknown, fallback: string) =>

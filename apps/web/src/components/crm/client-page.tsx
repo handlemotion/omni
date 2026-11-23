@@ -1,3 +1,4 @@
+import { formatMoney, type CrmDeal } from "@omni/client";
 import { useSearch } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "@/components/icons/central";
@@ -12,7 +13,7 @@ import {
   useCrmStages,
   useUpdateCompany,
 } from "@/hooks/use-crm.ts";
-import { formatMoney, lastContactedAt, valueCurrency, type CrmDeal } from "@/lib/crm.ts";
+import { lastContactedAt, valueCurrency } from "@/lib/crm.ts";
 import { Contracts } from "./contracts.tsx";
 import { CreateMenu } from "./create-menu.tsx";
 import { crmErrorToast } from "./crm-errors.ts";

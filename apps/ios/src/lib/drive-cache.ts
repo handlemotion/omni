@@ -1,7 +1,6 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
+import type { Api, DriveNode } from "@omni/client";
 import type { InferResponseType } from "hono/client";
-import type { DriveNode } from "./drive.ts";
 import { keys } from "./query-keys.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
 

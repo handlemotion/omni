@@ -1,3 +1,4 @@
+import { isAuthError, type NotificationPage } from "@omni/client";
 import {
   infiniteQueryOptions,
   useInfiniteQuery,
@@ -6,8 +7,7 @@ import {
   type InfiniteData,
   type QueryKey,
 } from "@tanstack/react-query";
-import { api, call, inWorkspace, isAuthError } from "./api.ts";
-import type { NotificationPage } from "./notification-text.ts";
+import { api, call, inWorkspace } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
 

@@ -1,4 +1,4 @@
-import { fileType } from "@/lib/file-kind.ts";
+import { fileType } from "@omni/client";
 import type { StorageNode } from "@/lib/storage.ts";
 import { FileTile } from "./file-glyph.tsx";
 import { hasThumbnail, ThumbnailImage } from "./thumbnail-image.tsx";

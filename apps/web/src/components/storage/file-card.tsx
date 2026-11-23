@@ -1,3 +1,4 @@
+import { fileType, type FileType, formatBytes } from "@omni/client";
 import { useEffect, useState, type RefObject } from "react";
 import { SkeletonBox } from "skullet/react";
 import {
@@ -5,8 +6,7 @@ import {
   type SettingsRowMenuItem,
 } from "@/components/settings/kit/settings-row-menu";
 import { GridListItem } from "@/components/ui/grid-list";
-import { fileType, type FileType } from "@/lib/file-kind.ts";
-import { formatBytes, type StorageNode } from "@/lib/storage.ts";
+import { type StorageNode } from "@/lib/storage.ts";
 import { AudioArt, VideoArt } from "./card-art/media.tsx";
 import { FilePage, hasPage } from "./card-art/page.tsx";
 import { FileGlyph } from "./file-glyph.tsx";

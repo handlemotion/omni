@@ -1,4 +1,4 @@
-import type { RealtimeEvent } from "./types.ts";
+import type { RealtimeEvent } from "@omni/client";
 
 type FilePresenceEvent = Extract<RealtimeEvent, { type: "file.presence" }>;
 

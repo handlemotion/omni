@@ -15,7 +15,6 @@ import {
   storageNodeRemoved,
 } from "./storage-cache.ts";
 
-export type { StorageListPage } from "@omni/client";
 export type StorageNode = DriveNode;
 export type StorageFolderView = NonNullable<StorageListPage["folder"]>;
 export type StorageSpace = Exclude<StorageNode["space"], "teamspace">;
@@ -200,5 +199,3 @@ export const storageUsageQuery = () =>
     queryKey: keys.storageUsage(),
     queryFn: ({ signal }) => call(api.storage.usage.$get(undefined, { init: { signal } })),
   });
-
-export { formatBytes } from "@omni/client";

@@ -1,8 +1,7 @@
+import { notificationSubject, notificationTitle, type NotificationPage } from "@omni/client";
 import { useSyncExternalStore } from "react";
 import { currentWorkspaceId } from "./current-workspace.ts";
 import { desktop } from "./desktop.ts";
-import { notificationSubject, notificationTitle } from "./notification-text.ts";
-import type { NotificationPage } from "./types.ts";
 
 type Notice = NotificationPage["notifications"][number];
 

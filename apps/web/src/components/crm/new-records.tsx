@@ -1,3 +1,4 @@
+import { parseMoney } from "@omni/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
@@ -16,7 +17,7 @@ import {
   useCrmDefaultCurrency,
 } from "@/hooks/use-crm.ts";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
-import { currencyCodes, parseMoney, valueCurrency } from "@/lib/crm.ts";
+import { currencyCodes, valueCurrency } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { FieldRow } from "./record-fields.tsx";
 import { useRecordHref } from "./record-trail.tsx";

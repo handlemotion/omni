@@ -1,3 +1,4 @@
+import { ApiError } from "@omni/client";
 import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState, type ReactNode } from "react";
@@ -10,7 +11,6 @@ import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { ListSkeleton } from "@/components/ui/list-skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
-import { ApiError } from "@/lib/api.ts";
 import { driveErrorAlert, useNode } from "@/lib/drive-actions.ts";
 import {
   ACCESS,

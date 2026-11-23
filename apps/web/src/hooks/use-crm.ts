@@ -1,3 +1,4 @@
+import type { CrmRecordKind } from "@omni/client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import {
@@ -16,7 +17,6 @@ import {
   crmPersonQuery,
   crmStagesQuery,
   crmTimelineQuery,
-  type CrmRecordKind,
 } from "../lib/crm.ts";
 import {
   addDomainMutation,

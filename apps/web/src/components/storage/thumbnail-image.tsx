@@ -1,5 +1,5 @@
+import { fileType } from "@omni/client";
 import { useState } from "react";
-import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 
 type ThumbnailSize = 256 | 640;

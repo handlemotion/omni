@@ -1,3 +1,4 @@
+import { formatBytes, type DriveNode } from "@omni/client";
 import { createContext, use, useState, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import {
@@ -24,7 +25,7 @@ import {
 import { pinFile, unpinFile, usePinned } from "@/lib/drive-files.ts";
 import { sourceOf } from "@/lib/drive-preview.ts";
 import { openDriveSheet } from "@/lib/drive-sheets.ts";
-import { fileDay, fileSize, type DriveNode } from "@/lib/drive.ts";
+import { fileDay } from "@/lib/drive.ts";
 import { space } from "@/theme/tokens.ts";
 import { FileTile } from "./file-glyph.tsx";
 
@@ -47,7 +48,7 @@ export function NodeSheet(props: {
   const trash = useTrashNode().mutate;
   const pinned = usePinned(node.id);
   const file = node.kind === "file";
-  const meta = [fileDay(node.updatedAt), file ? fileSize(node.size) : null]
+  const meta = [fileDay(node.updatedAt), file ? formatBytes(node.size) : null]
     .filter(Boolean)
     .join(" · ");
   return (

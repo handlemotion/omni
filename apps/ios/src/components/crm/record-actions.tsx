@@ -1,9 +1,10 @@
+import type { CrmRecordKind, CrmStage } from "@omni/client";
 import { Stack, router } from "expo-router";
 import { Alert } from "react-native";
 import { confirmDeleteForever, useIsAdmin, useRecordMove } from "@/lib/crm-actions.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
-import { useAddDomain, useMoveDeal, type CrmRecordKind } from "@/lib/crm-mutations.ts";
-import { useStages, type CrmStage } from "@/lib/crm-timeline.ts";
+import { useAddDomain, useMoveDeal } from "@/lib/crm-mutations.ts";
+import { useStages } from "@/lib/crm-timeline.ts";
 import type { RecordFormKind } from "./record-form-sheet.tsx";
 import { openNewTask } from "./task-section.tsx";
 

@@ -1,3 +1,4 @@
+import type { CrmCompany, CrmDeal, CrmPerson, CrmTask, ThreadSummary } from "@omni/client";
 import {
   useInfiniteQuery,
   useQuery,
@@ -6,14 +7,12 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { crmCompaniesQuery, crmDealsQuery, crmFindQuery, crmPeopleQuery } from "../lib/crm.ts";
-import type { CrmCompany, CrmDeal, CrmPerson } from "../lib/crm.ts";
-import { crmTasksQuery, taskKeys, type CrmTask } from "../lib/crm-tasks.ts";
+import { crmTasksQuery } from "../lib/crm-tasks.ts";
 import { threadsQuery } from "../lib/mail-queries.ts";
 import { keys } from "../lib/query-keys.ts";
 import { storageListQuery, type StorageNode } from "../lib/storage.ts";
 import { storageSearchQuery } from "../lib/storage-find.ts";
 import { senderLabel } from "../lib/threads.ts";
-import type { ThreadSummary } from "../lib/types.ts";
 import { useDebouncedValue } from "./use-debounced-value.ts";
 
 const LIMIT = 8;
@@ -156,7 +155,7 @@ function taskHits(
   answer: { found?: CrmTask[] | undefined; stale?: CrmTask[] | undefined },
 ) {
   const open = [
-    ...cached<CrmTask>(client, taskKeys.lists(), "tasks"),
+    ...cached<CrmTask>(client, keys.crmTaskLists(), "tasks"),
     ...(answer.stale ?? []),
   ].filter((task) => !task.completedAt);
   return pick(open, answer.found, needle, (task) => task.title);

@@ -1,3 +1,4 @@
+import { ApiError, fileType, TEXT_PREVIEW_BYTES } from "@omni/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -5,10 +6,8 @@ import { SkeletonBox } from "skullet/react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useReportEditing } from "@/hooks/use-file-presence.ts";
-import { ApiError } from "@/lib/api.ts";
 import type { LiveDoc, SharedLive } from "@/lib/live-doc.ts";
 import { keys } from "@/lib/query-keys.ts";
-import { fileType, TEXT_PREVIEW_BYTES } from "@/lib/file-kind.ts";
 import { storageChanged, type StorageNode } from "@/lib/storage.ts";
 import { placeOf } from "@/lib/storage-cache.ts";
 import { previewTextQuery } from "@/lib/storage-preview.ts";

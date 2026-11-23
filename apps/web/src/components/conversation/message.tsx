@@ -1,3 +1,4 @@
+import type { Message } from "@omni/client";
 import { carriesInvite, InviteCard } from "@/components/calendar/invite-card";
 import { type ReactNode, useState } from "react";
 import { linkSegments } from "@omni/mail-core/links";
@@ -23,7 +24,6 @@ import { Toolbar } from "@/components/ui/toolbar";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { opensFull } from "@/lib/message-html.ts";
 import type { PendingSend } from "@/lib/pending.ts";
-import type { Message } from "@/lib/types.ts";
 import { AttachmentChips } from "./attachments.tsx";
 import { useComposerState } from "../compose/composer-state.tsx";
 import { REPLY_SOURCE } from "../compose/selection-reply.tsx";

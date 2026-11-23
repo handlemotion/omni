@@ -1,6 +1,6 @@
+import type { CrmRecordKind } from "@omni/client";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { NoteSheet } from "@/components/crm/note-sheet.tsx";
-import type { CrmRecordKind } from "@/lib/crm-mutations.ts";
 
 const isRecord = (record: string | undefined): record is CrmRecordKind =>
   record === "companies" || record === "people" || record === "deals";

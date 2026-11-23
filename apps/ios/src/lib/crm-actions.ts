@@ -1,8 +1,9 @@
+import type { CrmRecordKind } from "@omni/client";
 import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Alert } from "react-native";
 import { api, call } from "./api.ts";
 import { crmErrorAlert } from "./crm-errors.ts";
-import { crmChanged, type CrmRecordKind } from "./crm-mutations.ts";
+import { crmChanged } from "./crm-mutations.ts";
 import { useMe } from "./crm-timeline.ts";
 import { keys } from "./query-keys.ts";
 import { cacheEpoch } from "./workspace-id.ts";

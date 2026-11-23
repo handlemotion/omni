@@ -1,9 +1,9 @@
+import { commentTarget, type Notification } from "@omni/client";
 import { Stack, router } from "expo-router";
 import { useState } from "react";
 import { IconInbox } from "@/components/icons.ts";
 import { NotificationRow } from "@/components/notifications/notification-row.tsx";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
-import { commentTarget, type Notification } from "@/lib/notification-text.ts";
 import {
   useMarkNotificationsRead,
   useNotifications,

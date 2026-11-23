@@ -1,9 +1,9 @@
+import { ApiError } from "@omni/client";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { EmptyState } from "../components/empty/empty-state.tsx";
 import { DriveDragProvider } from "../components/storage/drive-drag.tsx";
 import { LinkFrame } from "../components/storage/link-frame.tsx";
 import { LinkPage, UnlockLink } from "../components/storage/link-page.tsx";
-import { ApiError } from "../lib/api.ts";
 import { linkSearch } from "../lib/search-params.ts";
 import { sessionQuery } from "../lib/session.ts";
 import { storageLinkQuery } from "../lib/storage-sharing.ts";

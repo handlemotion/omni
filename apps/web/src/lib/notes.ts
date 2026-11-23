@@ -1,8 +1,9 @@
+import type { Conversation } from "@omni/client";
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { holdQueries, restoreQueries } from "./cache.ts";
 import { keys } from "./query-keys.ts";
-import type { Conversation, Note } from "./types.ts";
+import type { Note } from "./types.ts";
 
 /** Marks a note shown before the server answered; its id is not a real note's yet. */
 export const PENDING_NOTE_PREFIX = "pending:";

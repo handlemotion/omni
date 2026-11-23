@@ -1,3 +1,4 @@
+import type { PendingInvitation } from "@omni/client";
 import { useNavigate } from "@tanstack/react-router";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,6 @@ import {
 } from "@/hooks/use-session";
 import { markInvitationsSeen } from "@/lib/invitations";
 import { workspaceHome } from "@/lib/workspaces";
-import type { PendingInvitation } from "@/lib/types";
 import { EntryCard, inviterName, roleLabel } from "./entry-card";
 
 /**

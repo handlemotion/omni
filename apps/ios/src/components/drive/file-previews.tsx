@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { useEvent } from "expo";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -16,7 +17,6 @@ import {
   useLocalCopy,
   useStorageHeaders,
 } from "@/lib/drive-preview.ts";
-import type { DriveNode } from "@/lib/drive.ts";
 import { colors, gutter, space } from "@/theme/tokens.ts";
 
 export function PreviewLoading() {

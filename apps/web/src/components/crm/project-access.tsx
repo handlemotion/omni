@@ -1,3 +1,4 @@
+import type { CrmProjectAccess } from "@omni/client";
 import { useState } from "react";
 import { IconTrash, IconUserCog } from "@/components/icons/central";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import { useGrantAccess, useProjectAccess, useRevokeAccess } from "@/hooks/use-crm-project.ts";
-import { PROJECT_SCOPES, type CrmProjectAccess, type CrmProjectScope } from "@/lib/crm-project.ts";
+import { PROJECT_SCOPES, type CrmProjectScope } from "@/lib/crm-project.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { DetailSection, NoneRow } from "./record-layout.tsx";
 import { AddButton, RowWithMenu } from "./record-sections.tsx";

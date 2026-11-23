@@ -1,8 +1,8 @@
+import { fileType } from "@omni/client";
 import { useId, useRef, useState, type CSSProperties } from "react";
 import { IconFolderFilled } from "@/components/icons/central";
 import { useStorageList } from "@/hooks/use-storage.ts";
 import { usePdfPages } from "@/hooks/use-storage-preview.ts";
-import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { useSeen } from "./file-card.tsx";
 import { FileGlyph } from "./file-glyph.tsx";

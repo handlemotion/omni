@@ -1,3 +1,4 @@
+import type { OnboardingDomain, Workspace, WorkspaceMember } from "@omni/client";
 import {
   IconPlus,
   IconCircleX,
@@ -45,7 +46,6 @@ import { useWorkspaceMembers } from "@/hooks/use-workspace-admin.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useRemoveWorkspaceLogo, useUploadWorkspaceLogo } from "@/hooks/use-pictures.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
-import type { OnboardingDomain, Workspace, WorkspaceMember } from "@/lib/types.ts";
 import { NameInputRow, PersonAvatar } from "./account-pages";
 import { MAILBOX_STATUS, useMailboxDomains } from "./mailbox-pages";
 import { type InboxOwner, NewMailboxDialog, useOwnInboxCreation } from "./new-mailbox-dialog";

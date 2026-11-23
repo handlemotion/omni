@@ -1,9 +1,9 @@
+import { formatBytes } from "@omni/client";
 import { Skeleton } from "skullet/react";
 import { SettingsGroup, SettingsSection } from "@/components/settings/kit/settings-layout";
 import { SettingsMeterRow } from "@/components/settings/kit/settings-meter-row";
 import { SettingsValueRow } from "@/components/settings/kit/settings-value-row";
 import { useStorageUsage } from "@/hooks/use-storage.ts";
-import { formatBytes } from "@/lib/storage.ts";
 
 const SAMPLE = {
   usedBytes: 1_200_000_000,

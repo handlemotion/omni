@@ -127,9 +127,6 @@ export const useRecentFiles = () => useQuery(recentFilesQuery());
 /** The headers a request the app makes outside `call()` needs: the session and the workspace. */
 export const storageHeaders = sessionHeaders;
 
-/** A file's size as people read it: 1.2 MB, in binary units. */
-export { formatBytes as fileSize } from "@omni/client";
-
 /** When a file changed, as its row says it: Today, Yesterday, then the list's weekday or date. */
 export function fileDay(iso: string, now = new Date()) {
   const ago = daysAgo(new Date(iso), now);

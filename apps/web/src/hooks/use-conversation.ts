@@ -1,3 +1,4 @@
+import type { Assignee, Conversation, Priority, Tag } from "@omni/client";
 import {
   useInfiniteQuery,
   useMutation,
@@ -26,7 +27,7 @@ import {
 import { idempotencyKey } from "../lib/api.ts";
 import { keys } from "../lib/query-keys.ts";
 import { offerUndo } from "../lib/undo.ts";
-import type { Assignee, Conversation, ConversationFilter, Priority, Tag } from "../lib/types.ts";
+import type { ConversationFilter } from "../lib/types.ts";
 import { useSession } from "./use-session.ts";
 
 type ConversationTag = Conversation["tags"][number];

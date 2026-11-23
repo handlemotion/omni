@@ -1,4 +1,4 @@
-import type { FileKind } from "@/lib/file-kind.ts";
+import type { FileKind } from "@omni/client";
 import { ExcelMark } from "./excel.tsx";
 import { PdfMark } from "./pdf.tsx";
 import { PowerPointMark } from "./powerpoint.tsx";

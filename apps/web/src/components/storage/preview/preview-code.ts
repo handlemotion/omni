@@ -1,4 +1,4 @@
-import type { PreviewKind } from "@/lib/file-kind.ts";
+import type { PreviewKind } from "@omni/client";
 
 /**
  * Each preview's code, its own chunk. `PreviewBody` loads it on first use; `loadPreviewCode` asks

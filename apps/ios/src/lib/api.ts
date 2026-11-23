@@ -47,7 +47,7 @@ export function inWorkspace(workspace: string | null) {
 /** Awaits a Hono RPC call and returns its typed body, or throws `ApiError`. */
 export const call = createCall();
 
-export { ApiError, isAuthError, isNotFound } from "@omni/client";
+export { ApiError } from "@omni/client";
 
 /**
  * The session and the workspace, for a request the app makes outside `call()`: a download, an

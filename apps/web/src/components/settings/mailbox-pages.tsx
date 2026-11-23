@@ -1,3 +1,4 @@
+import type { Mailbox, OrgMailbox } from "@omni/client";
 import { IconPlus, IconUserMinus } from "@/components/icons/central";
 import { lazy, useState } from "react";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
@@ -18,7 +19,7 @@ import {
 import { useOnboarding } from "@/hooks/use-onboarding.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
-import { LANES, type Lane, type Mailbox, type OrgMailbox } from "@/lib/types.ts";
+import { LANES, type Lane } from "@/lib/types.ts";
 import { PersonAvatar } from "./account-pages";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {

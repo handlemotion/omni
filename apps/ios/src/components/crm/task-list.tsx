@@ -1,3 +1,4 @@
+import { DUE_GROUPS, dueGroup, type CrmTask } from "@omni/client";
 import { useCallback, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { IconChecklist } from "@/components/icons.ts";
@@ -5,15 +6,7 @@ import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
 import { Segmented } from "@/components/ui/segmented.tsx";
 import { useMemberNames } from "@/lib/crm-timeline.ts";
-import {
-  DUE_GROUPS,
-  TASK_VIEWS,
-  dueGroup,
-  useTaskCounts,
-  useTasks,
-  type CrmTask,
-  type TaskView,
-} from "@/lib/crm-tasks.ts";
+import { TASK_VIEWS, useTaskCounts, useTasks, type TaskView } from "@/lib/crm-tasks.ts";
 import { gutter, space } from "@/theme/tokens.ts";
 import { TaskRow } from "./task-row.tsx";
 

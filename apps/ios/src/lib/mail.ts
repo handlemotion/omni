@@ -15,10 +15,12 @@ import {
   type SearchResult,
   type Thread,
   type ThreadPage,
+  ApiError,
+  isAuthError,
 } from "@omni/client";
 import { useCallback, useMemo } from "react";
 import type { SymbolName } from "./symbols.ts";
-import { ApiError, api, call, inWorkspace, isAuthError } from "./api.ts";
+import { api, call, inWorkspace } from "./api.ts";
 import { WARM_NEWEST, opensFull } from "./message-html.ts";
 import { keys } from "./query-keys.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";

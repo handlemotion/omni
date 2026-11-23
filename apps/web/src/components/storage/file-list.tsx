@@ -1,3 +1,4 @@
+import { fileType } from "@omni/client";
 import { useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -43,7 +44,6 @@ import { drivePath, SPACE_LABEL } from "./storage-nav.tsx";
 import { workspaceHref } from "@/lib/workspaces.ts";
 import { downloadFile, downloadZip } from "@/lib/download.ts";
 import { isOmniDoc } from "@omni/docs/file";
-import { fileType } from "@/lib/file-kind.ts";
 import type { DocExport } from "./editor/export-doc.ts";
 
 const EMPTY = {

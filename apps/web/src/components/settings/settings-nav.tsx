@@ -1,3 +1,4 @@
+import type { Workspace } from "@omni/client";
 import { useLocation } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { IconChevronLeft } from "@/components/icons/central";
@@ -17,7 +18,6 @@ import { rememberAppHref, settingsBackHref } from "@/hooks/use-settings.ts";
 import { useOpenWorkspace, useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { RailSidebar } from "@/components/shell/module-rail";
 import { workspaceHref } from "@/lib/workspaces.ts";
-import type { Workspace } from "@/lib/types.ts";
 import { matches, type PageDefinition, useAccountPages, useWorkspacePages } from "./settings-pages";
 
 export function SettingsNav() {

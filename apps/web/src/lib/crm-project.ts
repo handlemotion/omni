@@ -9,7 +9,6 @@ import { keys } from "./query-keys.ts";
 type Crm = Api["crm"];
 type Json<T> = T extends { json: infer J } ? J : never;
 
-export type { CrmDeliverable, CrmMilestone, CrmPlan, CrmProjectAccess } from "@omni/client";
 export type CrmMilestoneStatus = CrmMilestone["status"];
 export type CrmDeliverableStatus = CrmDeliverable["status"];
 export type MilestoneChange = Json<InferRequestType<Crm["milestones"][":id"]["$patch"]>>;

@@ -1,9 +1,9 @@
+import { isAuthError } from "@omni/client";
 import { QueryClient, focusManager, onlineManager, type Query } from "@tanstack/react-query";
 import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
 import { File, Paths } from "expo-file-system";
 import * as Network from "expo-network";
 import { AppState, Platform } from "react-native";
-import { isAuthError } from "./api.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
 
 focusManager.setEventListener((handleFocus) => {

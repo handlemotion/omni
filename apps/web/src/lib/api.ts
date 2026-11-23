@@ -19,7 +19,7 @@ export const auth = createAuth({
   fetch: (input, init) => takeStartupResponse(input, init) ?? fetch(input, init),
 });
 
-export { ApiError, isAuthError } from "@omni/client";
+export { ApiError } from "@omni/client";
 
 /**
  * Awaits a Hono RPC call and returns its typed success body, or throws `ApiError`. Pass

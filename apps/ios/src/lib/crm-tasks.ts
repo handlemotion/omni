@@ -23,7 +23,6 @@ import { cacheEpoch, currentWorkspaceId } from "./workspace-id.ts";
 
 type Tasks = Api["crm"]["tasks"];
 type Json<T> = T extends { json: infer J } ? J : never;
-export type { CrmTask } from "@omni/client";
 export type NewTask = Json<InferRequestType<Tasks["$post"]>>;
 export type TaskChange = Json<InferRequestType<Tasks[":id"]["$patch"]>>;
 
@@ -76,10 +75,7 @@ export const useTaskCounts = () =>
     select: (data) => data.counts,
   });
 
-/** The filter for a record's own tasks. */
 export const recordFilter: (kind: CrmRecordKind, id: string) => TaskFilter = filterForRecord;
-
-export { onRecord } from "@omni/client";
 
 /** The record a task is on, as a screen's route names it. */
 export function taskRecord(task: CrmTask) {
@@ -152,7 +148,6 @@ export function useUpdateTask() {
   );
 }
 
-/** `mutate({ id })` deletes a task. */
 export const useDeleteTask = () => {
   const client = useQueryClient();
   return named(
@@ -164,8 +159,6 @@ export const useDeleteTask = () => {
     }),
   );
 };
-
-export { DUE_GROUPS, dayOf, dueGroup, dueLabel, type DueGroup } from "@omni/client";
 
 /** The moment the API stores for a day `days` from today: the end of that day here. */
 export function dueIn(days: number, now = new Date()) {
@@ -180,6 +173,5 @@ export const DUE_CHOICES = [
   { label: "Next week", days: 7, icon: "calendar.badge.clock" },
 ] as const;
 
-/** An open task whose due time has passed. */
 export const isOverdue = (task: CrmTask, now = new Date()) =>
   !task.completedAt && !!task.dueAt && new Date(task.dueAt) < now;

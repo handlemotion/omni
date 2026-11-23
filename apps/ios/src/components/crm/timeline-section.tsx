@@ -1,3 +1,4 @@
+import type { CrmRecordKind, CrmStage } from "@omni/client";
 import { Link, router } from "expo-router";
 import type { ComponentType, ReactNode } from "react";
 import { Alert, StyleSheet, View } from "react-native";
@@ -8,7 +9,7 @@ import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
-import { useDeleteNote, type CrmRecordKind } from "@/lib/crm-mutations.ts";
+import { useDeleteNote } from "@/lib/crm-mutations.ts";
 import {
   contractVerb,
   eventText,
@@ -16,7 +17,6 @@ import {
   useMemberNames,
   useStages,
   useTimeline,
-  type CrmStage,
   type CrmTimelineItem,
 } from "@/lib/crm-timeline.ts";
 import { colors, iconSize, radius, space } from "@/theme/tokens.ts";

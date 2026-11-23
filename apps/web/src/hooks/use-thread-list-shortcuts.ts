@@ -1,14 +1,10 @@
+import type { ThreadSummary } from "@omni/client";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, type RefObject } from "react";
 import type { Selection } from "react-aria-components";
 import { applyChange, inView, type ConversationChange } from "../lib/conversations.ts";
 import { leavesView } from "../lib/threads.ts";
-import type {
-  ConversationFilter,
-  ConversationSummary,
-  ThreadSummary,
-  ThreadView,
-} from "../lib/types.ts";
+import type { ConversationFilter, ConversationSummary, ThreadView } from "../lib/types.ts";
 import { offerUndo } from "../lib/undo.ts";
 import { useBulkChange } from "./use-conversation.ts";
 import { usePrefetchThread } from "./use-mail.ts";

@@ -1,13 +1,13 @@
-import { Badge } from "@/components/ui/badge";
-import { useCrmCompanyIndex, useCrmStages, useOwners } from "@/hooks/use-crm.ts";
 import {
   formatMoney,
-  lastContactedAt,
   type CrmCompany,
   type CrmDeal,
   type CrmPerson,
   type CrmStage,
-} from "@/lib/crm.ts";
+} from "@omni/client";
+import { Badge } from "@/components/ui/badge";
+import { useCrmCompanyIndex, useCrmStages, useOwners } from "@/hooks/use-crm.ts";
+import { lastContactedAt } from "@/lib/crm.ts";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { Muted, RecordMark, type RecordColumn } from "./record-list.tsx";
 import { DAY_YEAR } from "@/lib/dates.ts";

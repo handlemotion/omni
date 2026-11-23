@@ -1,3 +1,4 @@
+import type { NotificationPage } from "@omni/client";
 import {
   infiniteQueryOptions,
   mutationOptions,
@@ -7,7 +8,6 @@ import {
 import { api, call } from "./api.ts";
 import { holdQueries, restoreQueries } from "./cache.ts";
 import { keys, notificationFilterOf } from "./query-keys.ts";
-import type { NotificationPage } from "./types.ts";
 
 /** Notifications per page. */
 export const NOTIFICATION_PAGE_SIZE = 30;

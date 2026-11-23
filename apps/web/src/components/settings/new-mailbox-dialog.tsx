@@ -1,3 +1,4 @@
+import type { OnboardingDomain } from "@omni/client";
 import { useState } from "react";
 import { Label } from "@/components/ui/field";
 import { Input, InputGroup } from "@/components/ui/input";
@@ -9,7 +10,6 @@ import { useMember } from "@/hooks/use-session.ts";
 import { useCreateSharedInbox, useIssueInbox } from "@/hooks/use-workspace-admin.ts";
 import { usePersonalWorkspace } from "@/hooks/use-workspaces.ts";
 import { type MailServer, parseServer } from "@/lib/onboarding.ts";
-import type { OnboardingDomain } from "@/lib/types.ts";
 import { useMailboxDomains } from "./mailbox-pages";
 import { SettingsFormDialog } from "./kit/settings-stacked-dialog";
 

@@ -1,3 +1,4 @@
+import { formatBytes, type DriveNode } from "@omni/client";
 import { FlashList } from "@shopify/flash-list";
 import { Stack, router } from "expo-router";
 import { useState } from "react";
@@ -19,7 +20,6 @@ import {
   type DriveLink,
   type DriveLinkUpload,
 } from "@/lib/drive-link.ts";
-import { fileSize, type DriveNode } from "@/lib/drive.ts";
 import { useSplashDone } from "@/lib/splash.ts";
 import { colors, radius, space } from "@/theme/tokens.ts";
 import { NodeRow } from "./node-row.tsx";
@@ -135,7 +135,7 @@ function SharedFile(props: { shareId: string; node: DriveNode; downloads: boolea
   return (
     <EmptyState icon={IconFile} title={props.node.name}>
       <Text size="sm" tone="mutedForeground" tabular>
-        {fileSize(props.node.size)}
+        {formatBytes(props.node.size)}
       </Text>
       {props.downloads ? (
         <Button intent="plain" label="Download" isPending={pending} onPress={download} />

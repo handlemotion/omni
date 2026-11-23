@@ -1,9 +1,9 @@
+import type { CrmRecordKind } from "@omni/client";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { Button } from "@/components/ui/button.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import type { CrmRecordKind } from "@/lib/crm-mutations.ts";
 import { useMemberNames } from "@/lib/crm-timeline.ts";
 import { recordFilter, useTasks } from "@/lib/crm-tasks.ts";
 import { gutter } from "@/theme/tokens.ts";

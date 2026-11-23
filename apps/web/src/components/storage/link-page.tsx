@@ -1,3 +1,4 @@
+import { fileType, formatBytes } from "@omni/client";
 import { useCallback, useMemo, useState } from "react";
 import {
   IconClock3,
@@ -15,8 +16,7 @@ import { EmptyState } from "@/components/empty/empty-state.tsx";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
 import { useLinkUploading, useStorageLink, useTrashNode } from "@/hooks/use-storage.ts";
-import { fileType } from "@/lib/file-kind.ts";
-import { formatBytes, type StorageNode } from "@/lib/storage.ts";
+import { type StorageNode } from "@/lib/storage.ts";
 import { unlockLink, type StorageLinkUpload } from "@/lib/storage-sharing.ts";
 import { sharedViewUrl, sharedFileUrl } from "@/lib/urls.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";

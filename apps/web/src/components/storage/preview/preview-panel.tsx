@@ -1,3 +1,4 @@
+import { fileType, formatBytes } from "@omni/client";
 import { useEffect, type ReactNode } from "react";
 import {
   IconCheck,
@@ -28,8 +29,7 @@ import { useFileEditors } from "@/hooks/use-file-presence.ts";
 import { useShowDetails } from "@/hooks/use-show-details.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
-import { fileType } from "@/lib/file-kind.ts";
-import { formatBytes, type StorageNode } from "@/lib/storage.ts";
+import { type StorageNode } from "@/lib/storage.ts";
 import { CommentsPanel } from "../comments-panel.tsx";
 import { TypeBadge } from "../file-glyph.tsx";
 import { FIELD_OFFSET, NameField } from "../name-field.tsx";

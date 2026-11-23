@@ -1,4 +1,4 @@
-import type { Thread } from "@omni/client";
+import type { Thread, Conversation, ConversationStatus, Priority } from "@omni/client";
 import type { ComponentType } from "react";
 import type { SvgProps } from "react-native-svg";
 import {
@@ -17,14 +17,7 @@ import {
 import { MenuRow } from "@/components/shell/menu-row.tsx";
 import { Avatar } from "@/components/ui/avatar.tsx";
 import { BottomSheet } from "@/components/ui/bottom-sheet.tsx";
-import {
-  useAssignees,
-  useConversationChange,
-  useTags,
-  type Conversation,
-  type ConversationStatus,
-  type Priority,
-} from "@/lib/conversation.ts";
+import { useAssignees, useConversationChange, useTags } from "@/lib/conversation.ts";
 import { usePictureSource } from "@/lib/picture.ts";
 import { colors, iconSize } from "@/theme/tokens.ts";
 

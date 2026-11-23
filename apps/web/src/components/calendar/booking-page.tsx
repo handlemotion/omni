@@ -1,3 +1,4 @@
+import { ApiError } from "@omni/client";
 import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
-import { ApiError } from "@/lib/api.ts";
 import { useBook, useBookingPage } from "@/hooks/use-booking.ts";
 import { TIME } from "@/lib/dates.ts";
 

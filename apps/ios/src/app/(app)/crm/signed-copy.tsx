@@ -1,3 +1,4 @@
+import type { CrmContract } from "@omni/client";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
@@ -14,7 +15,7 @@ import { TextField } from "@/components/ui/text-field.tsx";
 import { useQuery } from "@tanstack/react-query";
 import { api, call } from "@/lib/api.ts";
 import { dayText } from "@/lib/crm.ts";
-import { useSignedCopy, useContracts, type CrmContract } from "@/lib/crm-contracts.ts";
+import { useSignedCopy, useContracts } from "@/lib/crm-contracts.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
 import { useRecordFolder, type FileRecordKind } from "@/lib/crm-files.ts";
 import { driveErrorAlert } from "@/lib/drive-actions.ts";

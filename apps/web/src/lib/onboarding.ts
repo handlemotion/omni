@@ -1,9 +1,9 @@
+import type { Onboarding, OnboardingDomain, SetupStep, Workspace } from "@omni/client";
 import { cancelUploads } from "./storage-uploads.ts";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import { authCall, resetSession } from "./session.ts";
-import type { Onboarding, OnboardingDomain, SetupStep, Workspace } from "./types.ts";
 
 /** Where setup stands: may this user create a workspace, and what the active one has so far. */
 export const onboardingQuery = () =>

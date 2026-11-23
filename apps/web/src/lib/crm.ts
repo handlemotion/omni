@@ -30,21 +30,6 @@ export interface CrmActivityItem {
 export type CrmTimelineItem = KnownTimelineItem | CrmActivityItem;
 
 export {
-  formatMoney,
-  parseMoney,
-  type CrmCompany,
-  type CrmCompanyPage,
-  type CrmContract,
-  type CrmDeal,
-  type CrmDealPage,
-  type CrmPerson,
-  type CrmPersonPage,
-  type CrmRecordKind,
-  type CrmStage,
-  type CrmStageKind,
-} from "@omni/client";
-
-export {
   crmCompaniesQuery,
   crmCompanyIndexQuery,
   crmDealsQuery,

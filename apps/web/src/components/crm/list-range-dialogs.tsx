@@ -1,3 +1,4 @@
+import { parseMoney } from "@omni/client";
 import { parseDate, type CalendarDate } from "@internationalized/date";
 import { useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
@@ -5,7 +6,6 @@ import { DatePicker, DatePickerTrigger } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
-import { parseMoney } from "@/lib/crm.ts";
 
 const day = (iso: string | undefined) => (iso ? parseDate(iso) : null);
 
