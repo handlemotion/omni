@@ -1,4 +1,5 @@
 import { latestEpochStart, type StorageLiveEntry } from "@omni/contracts";
+import { toBase64 } from "@omni/crypto";
 import { isDocFile } from "@omni/docs";
 import {
   contentWriterOf,
@@ -29,13 +30,6 @@ type Timed = StorageLiveEntry & { at: number };
 type Deps = { db: Db; config: Config; log: Logger };
 type Doc = { id: string; orgId: string; contentVersion: number };
 
-const toBase64 = (bytes: Uint8Array) => {
-  let text = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(text);
-};
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 const memberOf = (by: string) =>

@@ -9,19 +9,13 @@ import {
   type StorageLiveEntry,
   type StorageLiveRecord,
 } from "@omni/contracts";
+import { toBase64 } from "@omni/crypto";
 import { liveMarkdown, rewriteLive } from "@omni/docs";
 import * as Y from "yjs";
 import { docStream } from "../realtime-docs.ts";
 import type { S2Basin } from "../s2.ts";
 import { latestLiveStart, readLive } from "./live-read.ts";
 
-const toBase64 = (bytes: Uint8Array) => {
-  let text = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(text);
-};
 const SNAP_MAX_CHARS = 850_000;
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 

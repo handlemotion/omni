@@ -1,14 +1,11 @@
+import { toBase64Url } from "@omni/crypto";
 import { z } from "zod";
 import { ApiFailure } from "./errors.ts";
 
 /** A page cursor travels as base64url JSON: opaque to the client, checked on the way back in. */
 export function encodeCursor(cursor: unknown) {
   if (!cursor) return null;
-  const bytes = new TextEncoder().encode(JSON.stringify(cursor));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
+  return toBase64Url(new TextEncoder().encode(JSON.stringify(cursor)));
 }
 
 function readCursor<T extends z.ZodType>(value: string, schema: T) {

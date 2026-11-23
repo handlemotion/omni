@@ -1,4 +1,5 @@
 import type { StorageDocEvent } from "@omni/contracts";
+import { toBase64 } from "@omni/crypto";
 import {
   decodePresence,
   encodePresence,
@@ -17,7 +18,6 @@ interface Peer {
 const peerOf = (socket: WebSocket) => (attachmentOf(socket)?.peer as Peer | undefined) ?? null;
 const clocks = new WeakMap<WebSocket, number>();
 
-const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 function onDoc(ctx: DurableObjectState, nodeId: string) {

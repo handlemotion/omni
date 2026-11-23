@@ -1,10 +1,4 @@
-import {
-  createAuth,
-  usesOAuthProvider,
-  type Auth,
-  type InvitationMessage,
-  type ModuleLifecycle,
-} from "@omni/auth";
+import { createAuth, usesOAuthProvider, type Auth, type ModuleLifecycle } from "@omni/auth";
 import { WORKSPACE_HEADER, WORKSPACE_PARAM } from "@omni/contracts/headers";
 import {
   ensurePersonalSpace,
@@ -25,6 +19,7 @@ import { loadConfig, type Config } from "./env.ts";
 import type { Logger } from "./log.ts";
 import { modules } from "./modules.ts";
 import { realtimeOf } from "./realtime-announce.ts";
+import { devLog, invitationMail, signInCodeMail, systemMailSender } from "./system-mail.ts";
 
 export interface Member {
   /** `members.id`: what `forMember` and every mail table key on. */
@@ -89,23 +84,13 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
       billingLog: (event, fields) => c.var.log.error(event, fields),
       modules: [...modules, leavesRealtime(c.env)],
       oauthProvider: usesOAuthProvider(new URL(c.req.url).pathname),
-      sendEmailOtp: async ({ email, signInAs, otp }) => {
-        devLog(config, { kind: "email-otp", email, otp });
-        const appName = config.auth.appName;
-        const as = signInAs.toLowerCase() === email ? "" : ` as ${signInAs}`;
-        await mail({
-          to: email,
-          subject: `${otp} is your ${appName} sign-in code${as}`,
-          text: `Your ${appName} sign-in code${as} is:\n\n${otp}\n\nIt expires in 10 minutes. If you did not ask for it, ignore this email.`,
-        });
+      sendEmailOtp: async (input) => {
+        devLog(config, { kind: "email-otp", email: input.email, otp: input.otp });
+        await mail(signInCodeMail(input, config.auth.appName));
       },
       sendInvitation: async (invite) => {
         devLog(config, { kind: "invitation", email: invite.email, url: invite.url });
-        await mail({
-          to: invite.email,
-          subject: `${invite.inviterName} invited you to ${invite.organizationName} on ${config.auth.appName}`,
-          text: invitationText(invite, config.auth.appName),
-        });
+        await mail(invitationMail(invite, config.auth.appName));
       },
     }),
   );
@@ -259,49 +244,6 @@ export const requireMember = memberMiddleware();
  * else the active member, and the route answers 404 for a thread none of them can see.
  */
 export const requireThreadMember = memberMiddleware("id");
-
-/**
- * Auth and notice mail (magic links, invitations, domain notices) goes out through Cloudflare Email
- * Sending (the `EMAIL` binding), from `SYSTEM_MAIL_FROM` under the app's name. It does not use a
- * mailbox, so a new install can sign people in before it has any.
- */
-export function systemMailSender(scope: { email: SendEmail; config: Config; log: Logger }) {
-  return async (message: { to: string; subject: string; text: string }) => {
-    const from = scope.config.SYSTEM_MAIL_FROM;
-    if (!from) throw new Error("SYSTEM_MAIL_FROM is not set: there is no address to send from");
-    try {
-      await scope.email.send({
-        from: { email: from, name: scope.config.auth.appName },
-        to: message.to,
-        subject: message.subject,
-        text: message.text,
-      });
-    } catch (error) {
-      scope.log.error("system_mail.failed", { code: (error as { code?: string }).code, error });
-      throw error;
-    }
-  };
-}
-
-function invitationText(invite: InvitationMessage, appName: string) {
-  return [
-    `${invite.inviterName} invited you to join ${invite.organizationName} on ${appName}.`,
-    "",
-    `Open this link to accept:`,
-    "",
-    invite.url,
-    "",
-    `It expires on ${invite.expiresAt.toUTCString()}. If you did not expect it, ignore this email.`,
-  ].join("\n");
-}
-
-function devLog(
-  config: Config,
-  payload: { kind: string; email: string; url?: string; otp?: string },
-) {
-  if (config.ENVIRONMENT !== "development") return;
-  console.log(JSON.stringify({ event: "auth.dev_link", ...payload }));
-}
 
 async function requestedMailbox(c: {
   req: {
