@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/wokshop/omni/compare/ios-v0.6.0...ios-v0.7.0) (2026-11-23)
+
+
+### Features
+
+* **ios:** Drive cards with content previews, spaces menu, and a fading top bar ([#901](https://github.com/wokshop/omni/issues/901)) ([7c54e20](https://github.com/wokshop/omni/commit/7c54e20fede63731db349168617574438e99f85a))
+* **ios:** module search bar over the dock, top-right action group, and one iOS 26 edge blur ([#903](https://github.com/wokshop/omni/issues/903)) ([f53ca5f](https://github.com/wokshop/omni/commit/f53ca5f5da52937aaeff7140dc017c1e15cb6aa7))
+
 ## [0.6.0](https://github.com/wokshop/omni/compare/ios-v0.5.0...ios-v0.6.0) (2026-11-23)
 
 

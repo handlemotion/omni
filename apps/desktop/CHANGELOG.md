@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/wokshop/omni/compare/desktop-v0.7.0...desktop-v0.8.0) (2026-11-23)
+
+
+### Features
+
+* **ios:** Drive cards with content previews, spaces menu, and a fading top bar ([#901](https://github.com/wokshop/omni/issues/901)) ([7c54e20](https://github.com/wokshop/omni/commit/7c54e20fede63731db349168617574438e99f85a))
+
 ## [0.7.0](https://github.com/wokshop/omni/compare/desktop-v0.6.0...desktop-v0.7.0) (2026-11-23)
 
 
