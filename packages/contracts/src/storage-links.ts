@@ -1,6 +1,13 @@
 import { z } from "zod";
 
+/** In this order: `max()` over a person's grants is the strongest one. */
+export const STORAGE_GRANT_ROLES = ["viewer", "commenter", "editor"] as const;
+export const storageGrantRoleSchema = z.enum(STORAGE_GRANT_ROLES);
+
 const isoDate = z.iso.datetime();
+
+/** A person's address as a grant stores it: trimmed and lowercase. `:email` in the sharing routes. */
+export const storageEmailSchema = z.string().trim().toLowerCase().pipe(z.email().max(320));
 
 /**
  * What a link does beyond who it opens for. None of it limits members or the people it is
@@ -17,7 +24,7 @@ export const storageLinkSchema = z.object({
    * What anyone holding the link may do: view, or for a doc comment, or edit it live with
    * everyone in it (`docs/spec/live-sharing.md`). Absent from a Worker older than link roles.
    */
-  role: z.enum(["viewer", "commenter", "editor"]).optional(),
+  role: storageGrantRoleSchema.optional(),
 });
 
 /**

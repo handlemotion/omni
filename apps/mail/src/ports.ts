@@ -1,6 +1,7 @@
+import type { FolderRole } from "@omni/contracts";
 import type { SpooledFile } from "./spool.ts";
 
-export type FolderRole = "inbox" | "sent" | "archive" | "trash" | "drafts" | "junk" | "other";
+export type { FolderRole } from "@omni/contracts";
 
 export interface FolderInfo {
   path: string;
@@ -87,25 +88,11 @@ export type {
   SendAttachment,
   SendPayload,
 } from "@omni/contracts";
-import type {
-  ForwardCopyPayload,
-  MessageTarget,
-  SendAttachment,
-  SendPayload,
-} from "@omni/contracts";
+import type { ActionPayload, MailActionKind, SendAttachment } from "@omni/contracts";
 
-export type MailAction =
-  | ActionBase<"send", SendPayload>
-  | ActionBase<"forward_copy", ForwardCopyPayload>
-  | ActionBase<"archive", MessageTarget>
-  | ActionBase<"move", MessageTarget & { destination: string }>
-  | ActionBase<"mark_read", MessageTarget & { done?: true | undefined }>
-  | ActionBase<"mark_unread", MessageTarget & { done?: true | undefined }>
-  | ActionBase<"trash", MessageTarget>
-  | ActionBase<"spam", MessageTarget>
-  | ActionBase<"not_spam", MessageTarget>;
+export type MailAction = { [K in MailActionKind]: ActionBase<K, ActionPayload<K>> }[MailActionKind];
 
-interface ActionBase<K extends string, P> {
+interface ActionBase<K extends MailActionKind, P> {
   id: string;
   orgId: string;
   mailboxId: string;

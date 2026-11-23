@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { crmTimelineMeetingItemSchema } from "./crm-meetings.ts";
+import { CRM_CONTRACT_STATUSES, CRM_STAGE_KINDS } from "./crm-values.ts";
 import { storageSendForSignatureBodySchema, storageSignatureStatusSchema } from "./storage.ts";
 
 const isoDate = z.iso.datetime();
@@ -8,8 +9,7 @@ const name = z.string().max(500);
 const address = z.string().min(1).max(320);
 const optionalText = z.string().max(2000).nullable().optional();
 
-/** What a stage means; the name is the workspace's. */
-export const crmStageKindSchema = z.enum(["open", "won", "done", "lost"]);
+export const crmStageKindSchema = z.enum(CRM_STAGE_KINDS);
 
 export const crmCompanySchema = z.object({
   id,
@@ -105,8 +105,7 @@ export const crmEventSchema = z.object({
 
 export const crmSettingsSchema = z.object({ defaultCurrency: z.string().nullable() });
 
-/** `draft` → `sent` → `signed` → `ended`; `draft` may go straight to `signed`, `sent` back. */
-export const crmContractStatusSchema = z.enum(["draft", "sent", "signed", "ended"]);
+export const crmContractStatusSchema = z.enum(CRM_CONTRACT_STATUSES);
 
 const day = z.iso.date();
 

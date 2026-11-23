@@ -7,13 +7,15 @@ const day = z.iso.date();
 export const CRM_PLAN_TITLE_MAX = 300;
 export const CRM_PLAN_DESCRIPTION_MAX = 20_000;
 
-export const crmMilestoneStatusSchema = z.enum(["planned", "in_progress", "done"]);
-export const crmDeliverableStatusSchema = z.enum([
+export const CRM_MILESTONE_STATUSES = ["planned", "in_progress", "done"] as const;
+export const crmMilestoneStatusSchema = z.enum(CRM_MILESTONE_STATUSES);
+export const CRM_DELIVERABLE_STATUSES = [
   "draft",
   "in_review",
   "approved",
   "changes_requested",
-]);
+] as const;
+export const crmDeliverableStatusSchema = z.enum(CRM_DELIVERABLE_STATUSES);
 
 export const crmMilestoneSchema = z.object({
   id,

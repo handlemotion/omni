@@ -7,6 +7,7 @@ import type {
   ListCompaniesInput,
   MemberCrm,
 } from "@omni/db";
+import { CRM_STAGE_KINDS } from "@omni/contracts";
 import { z } from "zod";
 import {
   companyRow,
@@ -33,7 +34,7 @@ const inputSchema = z.object({
     .describe("Words that start a name, an email address or a company's domain. Empty lists all."),
   kind: z.enum(["person", "company", "deal"]).optional().describe("Only this kind of record."),
   stage_kind: z
-    .enum(["open", "won", "done", "lost"])
+    .enum(CRM_STAGE_KINDS)
     .optional()
     .describe("Deals only: open, won (the running project), done (delivered) or lost."),
   owner: z

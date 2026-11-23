@@ -1,3 +1,4 @@
+import { CRM_STAGE_KINDS } from "@omni/contracts";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { crmDeals, crmSettings, crmStages } from "../schema/crm.ts";
 import {
@@ -27,7 +28,7 @@ export const STARTING_STAGES: readonly { name: string; kind: StageKind }[] = [
   { name: "Lost", kind: "lost" },
 ];
 
-export const STAGE_KINDS: readonly StageKind[] = ["open", "won", "done", "lost"];
+export const STAGE_KINDS: readonly StageKind[] = CRM_STAGE_KINDS;
 
 /** Makes the settings row and the starting stages the first time a workspace uses its CRM. */
 export async function ensureCrm(ex: Ex, orgId: string) {

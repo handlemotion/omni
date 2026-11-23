@@ -1,4 +1,4 @@
-import type { CrmChangedKind } from "@omni/contracts";
+import { CRM_STAGE_KINDS, type CrmChangedKind } from "@omni/contracts";
 import {
   forMember,
   type MemberCrm,
@@ -127,7 +127,7 @@ export const dealRowSchema = z.object({
   stage: z.object({
     id: z.string(),
     name: z.string(),
-    kind: z.enum(["open", "won", "done", "lost"]),
+    kind: z.enum(CRM_STAGE_KINDS),
   }),
   value: z
     .object({ amount_minor: z.number(), currency: z.string().nullable() })

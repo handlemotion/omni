@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { STORAGE_SIGNATURE_EVENT_KINDS, STORAGE_SIGNATURE_STATUSES } from "@omni/contracts";
 import {
   check,
   foreignKey,
@@ -14,21 +15,15 @@ import { members, users } from "../auth.ts";
 import { createdAt, id, orgId, timestamptz } from "../columns.ts";
 import { storageNodes } from "../storage.ts";
 
-export const storageSignatureStatus = pgEnum("storage_signature_status", [
-  "sent",
-  "completed",
-  "voided",
-]);
+export const storageSignatureStatus = pgEnum(
+  "storage_signature_status",
+  STORAGE_SIGNATURE_STATUSES,
+);
 
-export const storageSignatureEventKind = pgEnum("storage_signature_event_kind", [
-  "sent",
-  "viewed",
-  "code_sent",
-  "code_verified",
-  "signed",
-  "completed",
-  "voided",
-]);
+export const storageSignatureEventKind = pgEnum(
+  "storage_signature_event_kind",
+  STORAGE_SIGNATURE_EVENT_KINDS,
+);
 
 /**
  * A stronger proof attached to a sealed copy: an RFC 3161 timestamp, or in

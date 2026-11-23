@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { schema } from "@omni/db";
+import { MEETINGS_ACCESSES } from "@omni/contracts";
 import { z } from "zod";
 import { result, toolError } from "../format.ts";
 import {
@@ -125,7 +126,7 @@ const shareInput = z.object({
 const shareOutput = z.object({
   meeting_id: z.string(),
   url: z.string().describe("The meeting's link to send them."),
-  access: z.enum(["restricted", "workspace"]),
+  access: z.enum(MEETINGS_ACCESSES),
   people: z.array(
     z.object({
       address: z.string(),

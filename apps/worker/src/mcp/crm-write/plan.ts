@@ -1,3 +1,4 @@
+import { CRM_DELIVERABLE_STATUSES, CRM_MILESTONE_STATUSES } from "@omni/contracts";
 import { z } from "zod";
 import { crmOf, type CrmWorkspace } from "../crm.ts";
 import { deliverableRow, milestoneRow } from "../crm-plan.ts";
@@ -14,7 +15,7 @@ export const milestoneSchema = z
     title: z.string().min(1).max(300).optional(),
     description,
     target_on: day,
-    status: z.enum(["planned", "in_progress", "done"]).optional(),
+    status: z.enum(CRM_MILESTONE_STATUSES).optional(),
     position: z.number().int().min(0).max(1000).optional().describe("Move it to here, from 0."),
   })
   .describe("Add or change a milestone on a project. Adding needs `deal` and `title`.");
@@ -28,7 +29,7 @@ export const deliverableSchema = z
     milestone: z.string().min(1).nullable().optional().describe("A milestone of the same deal."),
     file: z.string().min(1).nullable().optional().describe("A Drive file id you can open."),
     due_on: day,
-    status: z.enum(["draft", "in_review", "approved", "changes_requested"]).optional(),
+    status: z.enum(CRM_DELIVERABLE_STATUSES).optional(),
     client_visible: z.boolean().optional().describe("Show it to the client on their portal."),
   })
   .describe("Add or change a deliverable on a project. Adding needs `deal` and `title`.");

@@ -1,6 +1,7 @@
 import { listUserWorkspaces, schema } from "@omni/db";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { eq } from "drizzle-orm";
+import { MAILBOX_KINDS } from "@omni/contracts";
 import { z } from "zod";
 import { result, threadSummary, threadSummarySchema, threadUrl, toolError } from "../format.ts";
 import { readsFor } from "../scope.ts";
@@ -24,7 +25,7 @@ const outputSchema = z.object({
     z.object({
       id: z.string(),
       address: z.string(),
-      kind: z.enum(["personal", "shared"]).describe("shared: a team inbox (helpdesk)."),
+      kind: z.enum(MAILBOX_KINDS).describe("shared: a team inbox (helpdesk)."),
       workspace: z.string(),
       status: z.string(),
       inbox: z.number(),

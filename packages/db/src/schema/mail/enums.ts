@@ -1,6 +1,7 @@
+import { FOLDER_ROLES, MAILBOX_KINDS, THREAD_LANES } from "@omni/contracts";
 import { pgEnum } from "drizzle-orm/pg-core";
 
-export const mailboxKind = pgEnum("mailbox_kind", ["personal", "shared"]);
+export const mailboxKind = pgEnum("mailbox_kind", MAILBOX_KINDS);
 
 export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft", "imap"]);
 
@@ -9,24 +10,11 @@ export const forwardScope = pgEnum("forward_scope", ["sent", "conversations", "a
 
 export const mailboxStatus = pgEnum("mailbox_status", ["pending", "active", "error", "disabled"]);
 
-export const folderRole = pgEnum("folder_role", [
-  "inbox",
-  "sent",
-  "archive",
-  "trash",
-  "other",
-  "junk",
-  "drafts",
-]);
+export const folderRole = pgEnum("folder_role", FOLDER_ROLES);
 
 export const mailboxAccessRole = pgEnum("mailbox_access_role", ["owner", "member"]);
 
-export const triageBucket = pgEnum("triage_bucket", [
-  "needs_reply",
-  "waiting_on_them",
-  "fyi",
-  "noise",
-]);
+export const triageBucket = pgEnum("triage_bucket", THREAD_LANES);
 
 export const triageSource = pgEnum("triage_source", ["ai", "person"]);
 

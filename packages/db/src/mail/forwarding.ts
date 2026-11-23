@@ -1,3 +1,4 @@
+import type { FolderRole } from "@omni/contracts";
 import { sameAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -7,12 +8,10 @@ import {
   mailboxes,
   members,
   messages,
-  type folderRole,
   type forwardScope,
 } from "../schema/index.ts";
 
 export type ForwardScope = (typeof forwardScope.enumValues)[number];
-type FolderRole = (typeof folderRole.enumValues)[number];
 
 const CLOCK_SLACK_MS = 5 * 60_000;
 

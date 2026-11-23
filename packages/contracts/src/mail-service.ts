@@ -24,7 +24,7 @@ const googleNoAccessSchema = z.object({
   reason: z.enum(["no_scope", "api_disabled", "revoked", "not_gmail"]),
 });
 
-export const folderRoleSchema = z.enum([
+export const FOLDER_ROLES = [
   "inbox",
   "sent",
   "archive",
@@ -32,7 +32,9 @@ export const folderRoleSchema = z.enum([
   "other",
   "junk",
   "drafts",
-]);
+] as const;
+export const folderRoleSchema = z.enum(FOLDER_ROLES);
+export type FolderRole = z.infer<typeof folderRoleSchema>;
 
 /**
  * A message row was created (never for a second copy of a known message). Delivery is at least
@@ -273,11 +275,13 @@ const serverSchema = z.object({
  * Create the mailbox and start syncing it. Idempotent on (orgId, address): a Purelymail mailbox
  * that exists is returned as is (no second app password); an IMAP one gets the new login.
  */
+export const MAILBOX_KINDS = ["personal", "shared"] as const;
+
 export const provisionMailboxBodySchema = z.object({
   orgId: z.string().min(1),
   /** Already normalized, on a domain the org has claimed. */
   address: z.string().min(3),
-  kind: z.enum(["personal", "shared"]),
+  kind: z.enum(MAILBOX_KINDS),
   /**
    * Gets an owner grant in `mailbox_access`. Null only for a personal inbox made with an
    * invitation: it waits with no owner until the person accepts.

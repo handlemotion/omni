@@ -1,3 +1,4 @@
+import { STORAGE_TEAMSPACE_ROLES } from "@omni/contracts";
 import {
   boolean,
   foreignKey,
@@ -11,8 +12,7 @@ import {
 import { members } from "../auth.ts";
 import { createdAt, id, orgId, updatedAt } from "../columns.ts";
 
-/** In this order: `max()` over a member's rows is the strongest. */
-export const storageTeamspaceRole = pgEnum("storage_teamspace_role", ["member", "owner"]);
+export const storageTeamspaceRole = pgEnum("storage_teamspace_role", STORAGE_TEAMSPACE_ROLES);
 
 /**
  * A place in a workspace's Drive that holds folders and files (`docs/spec/teamspaces.md`). Open,

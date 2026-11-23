@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
 import {
+  STORAGE_GRANT_ROLES,
+  STORAGE_LINK_ACCESSES,
+  STORAGE_NODE_KINDS,
+  STORAGE_NODE_SPACES,
+} from "@omni/contracts";
+import {
   bigint,
   boolean,
   check,
@@ -35,23 +41,15 @@ const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode
  * `personal` is a member's My files; `shared` is the company's one shared drive; `teamspace` is
  * one of the workspace's teamspaces (`teamspace_id`).
  */
-export const storageSpace = pgEnum("storage_space", ["personal", "shared", "teamspace"]);
-/** In this order: a folder lists before a file. */
-export const storageNodeKind = pgEnum("storage_node_kind", ["folder", "file"]);
+export const storageSpace = pgEnum("storage_space", STORAGE_NODE_SPACES);
+export const storageNodeKind = pgEnum("storage_node_kind", STORAGE_NODE_KINDS);
 /**
  * Who a node's link opens for: nobody beyond its grants (`restricted`), any signed-in member of
  * its workspace (`workspace`), or anyone holding it.
  */
-export const storageLinkAccess = pgEnum("storage_link_access", [
-  "restricted",
-  "anyone",
-  "workspace",
-]);
-/**
- * In this order: `max()` over a person's grants is the strongest one. A `commenter` reads and
- * writes comments.
- */
-export const storageGrantRole = pgEnum("storage_grant_role", ["viewer", "commenter", "editor"]);
+export const storageLinkAccess = pgEnum("storage_link_access", STORAGE_LINK_ACCESSES);
+/** A `commenter` reads and writes comments. */
+export const storageGrantRole = pgEnum("storage_grant_role", STORAGE_GRANT_ROLES);
 
 /**
  * Someone outside the workspace who edits or comments through a link, signed in to nothing: the

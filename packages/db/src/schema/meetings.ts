@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { MEETINGS_ACCESSES, MEETINGS_LINK_ACCESSES } from "@omni/contracts";
 import {
   check,
   foreignKey,
@@ -26,8 +27,8 @@ export const meetingsStatus = pgEnum("meetings_status", [
   "ready",
   "failed",
 ]);
-export const meetingsAccess = pgEnum("meetings_access", ["restricted", "workspace"]);
-export const meetingsLinkAccess = pgEnum("meetings_link_access", ["off", "signed_in", "anyone"]);
+export const meetingsAccess = pgEnum("meetings_access", MEETINGS_ACCESSES);
+export const meetingsLinkAccess = pgEnum("meetings_link_access", MEETINGS_LINK_ACCESSES);
 export const meetingsRole = pgEnum("meetings_role", ["owner", "editor", "viewer"]);
 export const meetingsSpeakerSource = pgEnum("meetings_speaker_source", [
   "mic",

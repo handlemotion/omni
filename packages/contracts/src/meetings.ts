@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const MEETINGS_ACCESSES = ["restricted", "workspace"] as const;
+export const MEETINGS_LINK_ACCESSES = ["off", "signed_in", "anyone"] as const;
+
 const address = z.email().max(320);
 const span = z.object({ startMs: z.number().int().min(0), endMs: z.number().int().min(0) });
 
@@ -88,8 +91,8 @@ export const stopMeetingBodySchema = z
 
 export const changeMeetingBodySchema = z.object({
   title: z.string().max(300).nullable().optional(),
-  access: z.enum(["restricted", "workspace"]).optional(),
-  linkAccess: z.enum(["off", "signed_in", "anyone"]).optional(),
+  access: z.enum(MEETINGS_ACCESSES).optional(),
+  linkAccess: z.enum(MEETINGS_LINK_ACCESSES).optional(),
   /** `null` takes it off every record; it is put on one through the CRM's routes. */
   record: z.null().optional(),
 });
