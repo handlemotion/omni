@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { applyAiHelpdeskTriage, awaitingIngest, INGEST_WAIT_MS } from "../src/mail/ai-helpdesk.ts";
-import { applyInboundMessage } from "../src/mail/conversations.ts";
+import { applyInboundMessage } from "../src/mail/conversation-inbound.ts";
 import { threads } from "../src/schema/index.ts";
 import { createThread, upsertMessage } from "../src/mail/writers.ts";
 import { createMailbox, createOrg, createTestDatabase } from "./support.ts";

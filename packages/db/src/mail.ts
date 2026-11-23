@@ -14,7 +14,17 @@ export {
   SLA_AT_RISK_MINUTES,
 } from "./mail/conversation-views.ts";
 export type { Participant } from "./mail/grants.ts";
-export type { Executor, NotificationKind } from "./mail/conversation-core.ts";
+export {
+  type ChangeFailure,
+  type ChangeResult,
+  type ConversationChange,
+  type ConversationRow,
+  type Executor,
+  type NotificationKind,
+  PRIORITIES,
+  type Priority,
+  type Status,
+} from "./mail/conversation-core.ts";
 export type { InboxAuditAction } from "./mail/inbox-admin.ts";
 export * from "./mail/writers.ts";
 export * from "./mail/mail-sync.ts";
@@ -39,6 +49,15 @@ export * from "./mail/customers.ts";
 export * from "./mail/arrivals.ts";
 export * from "./mail/drafts.ts";
 export * from "./mail/conversations.ts";
+export {
+  ARCHIVE_DELAY_SECONDS,
+  type Applied,
+  applyStatus,
+  assign,
+} from "./mail/conversation-steps.ts";
+export { applyInboundMessage, type InboundResult } from "./mail/conversation-inbound.ts";
+export * from "./mail/conversation-sweeps.ts";
+export { setAutoAssign } from "./mail/auto-assign.ts";
 export * from "./mail/handoff.ts";
 export * from "./mail/conversation-tags.ts";
 export * from "./mail/conversation-notes.ts";
