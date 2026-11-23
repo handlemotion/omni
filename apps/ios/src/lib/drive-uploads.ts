@@ -4,7 +4,7 @@ import { File } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { AppState } from "react-native";
 import { useEffect, useSyncExternalStore } from "react";
-import { ApiError } from "./api.ts";
+import { ApiError } from "@omni/client";
 import { driveNodeChanged } from "./drive-cache.ts";
 import { abortUpload, uploadFile, type PickedFile } from "./drive-upload.ts";
 import {
@@ -29,7 +29,6 @@ export interface UploadItem {
   id: number;
   name: string;
   size: number;
-  /** Bytes sent so far. */
   sent: number;
   status: "preparing" | "queued" | "uploading" | "failed";
   error?: unknown;
