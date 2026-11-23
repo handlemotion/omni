@@ -11,6 +11,7 @@ import {
   startMailServiceEndpoint,
   startWorker,
   SYSTEM_MAIL_FROM,
+  waitFor,
   WEB_ORIGIN,
 } from "./support.ts";
 
@@ -76,8 +77,6 @@ async function connect(cookie: string, query: Record<string, string> = {}) {
 }
 
 const since = (sync: Sync) => ({ since: `${sync.epoch}.${sync.seq}` });
-
-const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
 
 async function talk(cookie: string, method: string, path: string, body?: unknown) {
   const response = await fetch(new URL(`/api/talk${path}`, worker.url), {
@@ -198,9 +197,16 @@ test("a Talk note sent while its recipient was away reaches their Talk app when 
 
   const sent = await talk(anaCookie, "POST", `/threads/${threadId}/messages`, { body: "Back?" });
   expect(sent.status).toBe(201);
-  await settle();
 
-  const talkBack = await connect(benCookie, { talk: "1", ...since(benTalk.sync) });
+  const talkBack = await waitFor(
+    async () => {
+      const socket = await connect(benCookie, { talk: "1", ...since(benTalk.sync) });
+      if (socket.replayed().some((frame) => frame.type === "talk.message")) return socket;
+      await socket.close();
+    },
+    5_000,
+    { intervalMs: 50 },
+  );
   expect(talkBack.sync.resumed).toBe(true);
   expect(talkBack.replayed().filter((frame) => frame.type === "talk.message")).toMatchObject([
     { threadId, messageId: sent.body.message.id, fromMemberId: ana.id, preview: "Back?" },

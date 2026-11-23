@@ -31,6 +31,7 @@ import {
   startWorker,
   SYSTEM_MAIL_FROM,
   waitForEvents,
+  waitFor,
 } from "./support.ts";
 
 const fixtures = new URL("../../../fixtures/", import.meta.url);
@@ -181,13 +182,17 @@ async function setUpReader() {
   });
   await grant(db, org.id, id, member.id);
   await mail.service.reconcileMailboxes();
-  await waitUntil(async () => {
-    const [row] = await db
-      .select({ status: schema.mailboxes.status })
-      .from(schema.mailboxes)
-      .where(eq(schema.mailboxes.id, id));
-    return row?.status === "active";
-  });
+  await waitFor(
+    async () => {
+      const [row] = await db
+        .select({ status: schema.mailboxes.status })
+        .from(schema.mailboxes)
+        .where(eq(schema.mailboxes.id, id));
+      return row?.status === "active";
+    },
+    20_000,
+    { intervalMs: 100, detail: jevDetail },
+  );
   return { address, mailboxId: id, orgId: org.id, cookie: await signIn(worker, db, address) };
 }
 
@@ -241,40 +246,34 @@ async function readerSends(name: string, reader: { address: string }) {
   return header(raw, "Message-ID");
 }
 
-async function waitUntil<T>(check: () => Promise<T | false | undefined>, timeoutMs = 20_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > deadline) {
-      const extra = jev.unmatched.length
-        ? `; Jev requests with no recording: ${JSON.stringify(jev.unmatched).slice(0, 2_000)}`
-        : "";
-      throw new Error(`timed out after ${timeoutMs}ms${extra}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-}
+const jevDetail = () =>
+  jev.unmatched.length
+    ? `Jev requests with no recording: ${JSON.stringify(jev.unmatched).slice(0, 2_000)}`
+    : "";
 
 async function triagedOn(mailboxId: string, messageIdHeader: string) {
   const { db } = database;
-  return waitUntil(async () => {
-    const [message] = await db
-      .select({ id: schema.messages.id, threadId: schema.messages.threadId })
-      .from(schema.messages)
-      .where(
-        and(
-          eq(schema.messages.mailboxId, mailboxId),
-          eq(schema.messages.messageIdHeader, messageIdHeader),
-        ),
-      );
-    if (!message) return false;
-    const [thread] = await db
-      .select()
-      .from(schema.threads)
-      .where(eq(schema.threads.id, message.threadId));
-    return thread?.triageMessageId === message.id && { ...thread, messageId: message.id };
-  });
+  return waitFor(
+    async () => {
+      const [message] = await db
+        .select({ id: schema.messages.id, threadId: schema.messages.threadId })
+        .from(schema.messages)
+        .where(
+          and(
+            eq(schema.messages.mailboxId, mailboxId),
+            eq(schema.messages.messageIdHeader, messageIdHeader),
+          ),
+        );
+      if (!message) return false;
+      const [thread] = await db
+        .select()
+        .from(schema.threads)
+        .where(eq(schema.threads.id, message.threadId));
+      return thread?.triageMessageId === message.id && { ...thread, messageId: message.id };
+    },
+    20_000,
+    { intervalMs: 100, detail: jevDetail },
+  );
 }
 
 const LANES = ["needs_reply", "waiting_on_them", "fyi", "noise", "unsure"] as const;
@@ -334,13 +333,17 @@ test("an FYI and an automated receipt are triaged into no lane", async () => {
   for (const fixture of ["triage-inbound-fyi.eml", "triage-automated-receipt.eml"]) {
     const thread = await triagedOn(reader.mailboxId, await arrives(fixture, reader));
     expect(thread).toMatchObject({ triage: null, triageSource: "ai" });
-    const done = await waitUntil(async () => {
-      const [row] = await database.db
-        .select({ summaryMessageId: schema.threads.summaryMessageId })
-        .from(schema.threads)
-        .where(eq(schema.threads.id, thread.id));
-      return row?.summaryMessageId === thread.messageId;
-    });
+    const done = await waitFor(
+      async () => {
+        const [row] = await database.db
+          .select({ summaryMessageId: schema.threads.summaryMessageId })
+          .from(schema.threads)
+          .where(eq(schema.threads.id, thread.id));
+        return row?.summaryMessageId === thread.messageId;
+      },
+      20_000,
+      { intervalMs: 100, detail: jevDetail },
+    );
     expect(done).toBe(true);
     expect(await lanesOf(reader, thread.id)).toEqual([]);
   }

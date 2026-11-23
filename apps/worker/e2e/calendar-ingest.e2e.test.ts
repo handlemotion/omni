@@ -13,6 +13,7 @@ import {
   seedMessage,
   startMailServiceEndpoint,
   startWorker,
+  waitFor,
 } from "./support.ts";
 
 const MINUTE_CRON = "* * * * *";
@@ -84,15 +85,6 @@ const eventsOf = (orgId: string) =>
     .from(schema.calendarEvents)
     .where(eq(schema.calendarEvents.orgId, orgId));
 
-async function until<T>(read: () => Promise<T[]>, timeoutMs = 10_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const rows = await read();
-    if (rows.length > 0 || Date.now() > deadline) return rows;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-}
-
 test("an invitation is on the calendar within seconds of its arrival event", async () => {
   const { org, inbox, threadId, messageId } = await invitation();
   const started = Date.now();
@@ -109,7 +101,14 @@ test("an invitation is on the calendar within seconds of its arrival event", asy
     ],
   });
   expect(response.status).toBe(202);
-  const events = await until(() => eventsOf(org.id));
+  const events = await waitFor(
+    async () => {
+      const rows = await eventsOf(org.id);
+      return rows.length > 0 && rows;
+    },
+    10_000,
+    { intervalMs: 100 },
+  );
   expect(events).toEqual([
     { title: "Acme × Studio: kickoff", startsAt: new Date("2026-11-24T15:30:00Z") },
   ]);
@@ -150,11 +149,16 @@ test("an invitation that landed in Junk is recorded and kept off the calendar", 
       },
     ],
   });
-  const [part] = await until(() =>
-    database.db
-      .select()
-      .from(schema.calendarParts)
-      .where(eq(schema.calendarParts.attachmentId, attachment.id)),
+  const [part] = await waitFor(
+    async () => {
+      const rows = await database.db
+        .select()
+        .from(schema.calendarParts)
+        .where(eq(schema.calendarParts.attachmentId, attachment.id));
+      return rows.length > 0 && rows;
+    },
+    10_000,
+    { intervalMs: 100 },
   );
   expect(part).toMatchObject({ outcome: "ignored", reason: "junk" });
   expect(await eventsOf(org.id)).toEqual([]);

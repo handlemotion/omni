@@ -27,6 +27,7 @@ import {
   startWorker,
   waitForEvents,
   workerEvents,
+  waitFor,
 } from "./support.ts";
 
 const greenmail = {
@@ -88,16 +89,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-async function waitUntil<T>(check: () => Promise<T | false | undefined> | T, timeoutMs = 20_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > deadline) throw new Error(`timed out after ${timeoutMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-}
-
 async function setUpMember() {
   const { db } = database;
   const address = `trace-${randomUUID().slice(0, 8)}@omni.test`;
@@ -134,11 +125,14 @@ async function setUpMember() {
     text: "Can we meet Tuesday?",
   });
   transport.close();
-  const thread = await waitUntil(async () => {
+  const thread = await waitFor(async () => {
     const [row] = await db.select().from(schema.threads).where(eq(schema.threads.mailboxId, id));
     return row;
-  });
-  await waitUntil(() => mailLog.some((l) => l.event === "sync.all_done" && l.mailboxId === id));
+  }, 20_000);
+  await waitFor(
+    () => mailLog.some((l) => l.event === "sync.all_done" && l.mailboxId === id),
+    20_000,
+  );
   return {
     orgId: org.id,
     mailboxId: id,
@@ -179,7 +173,7 @@ test("a send's request ID is in the Worker's logs, the outbox row and the mail s
   expect(response.headers.get("x-request-id")).toBe(requestId);
   const { actionId } = (await response.json()) as { actionId: string };
 
-  await waitUntil(async () => (await action(actionId)).status === "done");
+  await waitFor(async () => (await action(actionId)).status === "done", 20_000);
   expect((await action(actionId)).requestId).toBe(requestId);
 
   const [request] = await waitForEvents(
@@ -236,7 +230,7 @@ test("an action that fails for good is listed by the dead-letter CLI with its er
   expect(response.status).toBe(200);
   const { actionIds } = (await response.json()) as { actionIds: string[] };
   expect(actionIds).toHaveLength(1);
-  await waitUntil(async () => (await action(actionIds[0]!)).status === "failed");
+  await waitFor(async () => (await action(actionIds[0]!)).status === "failed", 20_000);
 
   await waitForEvents(
     worker,

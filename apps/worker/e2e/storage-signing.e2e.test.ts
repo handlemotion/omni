@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { sha256, startStorageStack, type Person, type StorageStack } from "./storage-support.ts";
-import { CookieJar, sentMail, signIn, WEB_ORIGIN, workerEvents } from "./support.ts";
+import { CookieJar, sentMail, signIn, waitFor, WEB_ORIGIN, workerEvents } from "./support.ts";
 
 let stack: StorageStack;
 beforeAll(async () => {
@@ -194,15 +194,24 @@ test("only a real PDF is sent, once at a time, and a voided request closes to it
   expect((await send(ana, file, signers)).status).toBe(201);
 });
 
-async function sealedRequest(person: Person, fileId: string) {
-  for (let tries = 0; tries < 50; tries++) {
-    const listed = await stack.api(person.jar, "GET", `/files/${fileId}/signatures`);
-    const [request] = listed.body.requests;
-    if (request?.sealedNodeId) return request;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  const logs = workerEvents(stack.worker).filter((line) => String(line.event).includes("seal"));
-  throw new Error(`never sealed: ${JSON.stringify(logs)}`);
+function sealedRequest(person: Person, fileId: string) {
+  return waitFor(
+    async () => {
+      const listed = await stack.api(person.jar, "GET", `/files/${fileId}/signatures`);
+      const [request] = listed.body.requests;
+      return request?.sealedNodeId && request;
+    },
+    5_000,
+    {
+      intervalMs: 100,
+      detail: () => {
+        const logs = workerEvents(stack.worker).filter((line) =>
+          String(line.event).includes("seal"),
+        );
+        return `never sealed: ${JSON.stringify(logs)}`;
+      },
+    },
+  );
 }
 
 const signedMail = async (to: string) =>

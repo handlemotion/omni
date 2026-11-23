@@ -23,6 +23,7 @@ import {
   HMAC_SECRET,
   signIn,
   startWorker,
+  waitFor,
 } from "./support.ts";
 
 const greenmail = {
@@ -83,16 +84,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-async function waitUntil<T>(check: () => Promise<T | false | undefined> | T, timeoutMs = 20_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > deadline) throw new Error(`timed out after ${timeoutMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-}
-
 async function inboxSubjects(address: string) {
   const client = new ImapFlow({
     host: greenmail.host,
@@ -151,13 +142,13 @@ test("a cancelled send never leaves; one left alone goes out after the undo wind
   });
   await transport.sendMail({ from: customer, to: address, subject: "Order", text: "Where is it?" });
   transport.close();
-  const thread = await waitUntil(async () => {
+  const thread = await waitFor(async () => {
     const [row] = await db
       .select()
       .from(schema.threads)
       .where(eq(schema.threads.mailboxId, mailboxId));
     return row;
-  });
+  }, 20_000);
   const cookie = await signIn(worker, db, address);
   const reply = (text: string) =>
     fetch(new URL(`/api/threads/${thread.id}/reply`, worker.url), {
@@ -180,19 +171,19 @@ test("a cancelled send never leaves; one left alone goes out after the undo wind
   expect(kept.status).toBe(202);
   const { actionId, undoUntil } = (await kept.json()) as { actionId: string; undoUntil: string };
 
-  const sent = await waitUntil(async () => {
+  const sent = await waitFor(async () => {
     const [row] = await db
       .select()
       .from(schema.mailActions)
       .where(eq(schema.mailActions.id, actionId));
     return row?.status === "done" && row;
-  });
+  }, 20_000);
   expect(sent.runAfter.toISOString()).toBe(undoUntil);
   expect(sent.smtpAcceptedAt?.getTime()).toBeGreaterThanOrEqual(new Date(undoUntil).getTime());
-  const subjects = await waitUntil(async () => {
+  const subjects = await waitFor(async () => {
     const found = await inboxSubjects(customer);
     return found.length ? found : false;
-  });
+  }, 20_000);
   expect(subjects).toEqual(["Re: Order"]);
   const [gone] = await db
     .select()

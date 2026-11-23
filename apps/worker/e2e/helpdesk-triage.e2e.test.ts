@@ -28,6 +28,7 @@ import {
   startWorker,
   SYSTEM_MAIL_FROM,
   WEB_ORIGIN,
+  waitFor,
 } from "./support.ts";
 
 const fixtures = new URL("../../../fixtures/", import.meta.url);
@@ -140,17 +141,7 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-async function waitUntil<T>(check: () => Promise<T | false | undefined>, timeoutMs = 25_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > deadline) {
-      throw new Error(`timed out; Jev requests with no recording: ${jev.unmatched.length}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-}
+const jevDetail = () => `Jev requests with no recording: ${jev.unmatched.length}`;
 
 async function call(cookie: string, method: string, path: string, body?: unknown) {
   const response = await fetch(new URL(`/api${path}`, worker.url), {
@@ -245,13 +236,17 @@ async function setUpSupport() {
     team[key] = member.id;
   }
   await mail.service.reconcileMailboxes();
-  await waitUntil(async () => {
-    const [row] = await db
-      .select({ status: schema.mailboxes.status })
-      .from(schema.mailboxes)
-      .where(eq(schema.mailboxes.id, id));
-    return row?.status === "active";
-  });
+  await waitFor(
+    async () => {
+      const [row] = await db
+        .select({ status: schema.mailboxes.status })
+        .from(schema.mailboxes)
+        .where(eq(schema.mailboxes.id, id));
+      return row?.status === "active";
+    },
+    25_000,
+    { detail: jevDetail },
+  );
   const [user] = await db
     .select({ email: schema.users.email })
     .from(schema.users)
@@ -281,23 +276,31 @@ async function setUpSupport() {
 }
 
 async function threadOf(messageIdHeader: string) {
-  return waitUntil(async () => {
-    const [row] = await database.db
-      .select({ threadId: schema.messages.threadId, id: schema.messages.id })
-      .from(schema.messages)
-      .where(eq(schema.messages.messageIdHeader, messageIdHeader));
-    return row;
-  });
+  return waitFor(
+    async () => {
+      const [row] = await database.db
+        .select({ threadId: schema.messages.threadId, id: schema.messages.id })
+        .from(schema.messages)
+        .where(eq(schema.messages.messageIdHeader, messageIdHeader));
+      return row;
+    },
+    25_000,
+    { detail: jevDetail },
+  );
 }
 
 async function triagedFor(threadId: string, messageId: string) {
-  await waitUntil(async () => {
-    const [row] = await database.db
-      .select({ done: schema.threads.summaryMessageId })
-      .from(schema.threads)
-      .where(eq(schema.threads.id, threadId));
-    return row?.done === messageId;
-  });
+  await waitFor(
+    async () => {
+      const [row] = await database.db
+        .select({ done: schema.threads.summaryMessageId })
+        .from(schema.threads)
+        .where(eq(schema.threads.id, threadId));
+      return row?.done === messageId;
+    },
+    25_000,
+    { detail: jevDetail },
+  );
 }
 
 async function conversation(cookie: string, threadId: string) {
@@ -425,8 +428,9 @@ test("a newsletter to the support inbox is resolved as noise and archived out of
     }),
   );
   const subject = "5 tactics to triple your newsletter signups this week";
-  await waitUntil(
+  await waitFor(
     async () => !(await folderSubjects(support.inbox, "INBOX")).includes(subject),
     30_000,
+    { detail: jevDetail },
   );
 });

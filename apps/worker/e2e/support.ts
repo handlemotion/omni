@@ -496,6 +496,27 @@ export function workerEvents(worker: Harnessed) {
   });
 }
 
+/**
+ * Polls `check` until it returns a truthy value and returns that value. Throws once `timeoutMs`
+ * has passed, with `detail()` appended to the error when given.
+ */
+export async function waitFor<T>(
+  check: () => Promise<T | undefined | false> | T | undefined | false,
+  timeoutMs = 15_000,
+  { intervalMs = 200, detail }: { intervalMs?: number; detail?: () => string } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = await check();
+    if (value) return value;
+    if (Date.now() > deadline) {
+      const extra = detail?.();
+      throw new Error(`timed out after ${timeoutMs}ms${extra ? `; ${extra}` : ""}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
 /** Waits until the Worker has logged `count` events matching `match`. */
 export async function waitForEvents(
   worker: Harnessed,
