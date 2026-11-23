@@ -1,3 +1,4 @@
+import { mailboxName } from "@omni/client";
 import { cn } from "cn";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,6 @@ import { GridList, GridListHeader, GridListItem, GridListSection } from "@/compo
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { SearchField } from "@/components/ui/search-field";
-import { mailboxName } from "@/components/shell/mailbox-switcher";
 import { useCalendars, useCalendarWrites } from "@/hooks/use-calendar.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";

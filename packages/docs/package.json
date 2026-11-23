@@ -10,6 +10,7 @@
     "./presence": "./src/presence.ts"
   },
   "dependencies": {
+    "@omni/contracts": "workspace:*",
     "@tiptap/core": "3.35.0",
     "@tiptap/extension-details": "3.35.0",
     "@tiptap/extension-image": "3.35.0",

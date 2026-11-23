@@ -24,7 +24,15 @@ export {
   type Keyring,
 } from "./credentials.ts";
 export { signDomainConnectQuery } from "./domain-connect.ts";
-export { randomToken, sha256, sha256Hex, toBase64, toBase64Url, toHex } from "./encoding.ts";
+export {
+  decodeBase64,
+  randomToken,
+  sha256,
+  sha256Hex,
+  toBase64,
+  toBase64Url,
+  toHex,
+} from "./encoding.ts";
 export {
   guestOfKey,
   hashLinkPassword,

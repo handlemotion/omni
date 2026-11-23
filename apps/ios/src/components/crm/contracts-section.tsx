@@ -1,14 +1,10 @@
+import { contractLine, contractStatus } from "@omni/client";
 import { router } from "expo-router";
 import { View } from "react-native";
 import { IconFileText } from "@/components/icons.ts";
 import { ItemRow } from "@/components/ui/item-row.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
-import {
-  contractLine,
-  contractStatus,
-  useContracts,
-  type ContractOwner,
-} from "@/lib/crm-contracts.ts";
+import { useContracts, type ContractOwner } from "@/lib/crm-contracts.ts";
 
 /** A record's contracts, newest first; each opens its own screen. Nothing when it has none. */
 export function ContractsSection({ owner }: { owner: ContractOwner }) {

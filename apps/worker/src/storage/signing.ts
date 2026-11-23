@@ -25,8 +25,7 @@ import {
 } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
-import { createMiddleware } from "hono/factory";
-import { resolveSession, type AppEnv } from "../context.ts";
+import { requireUser, signedInUser, type AppEnv } from "../context.ts";
 import { systemMailSender } from "../system-mail.ts";
 import { apiError } from "../errors.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
@@ -208,27 +207,18 @@ export const storageSigningMember = new Hono<AppEnv>()
     } satisfies StorageSignatureRequestResponse);
   });
 
-const signedIn = createMiddleware<AppEnv>(async (c, next) => {
-  const session = await resolveSession(c);
-  if (!session) return apiError(c, "unauthorized", "sign in first");
-  c.set("user", session.user);
-  await next();
-});
-
 const SIGNING_COOKIE = "omni_signing";
 const signingCookiePath = (requestId: string) =>
   `/api/storage/signing/${encodeURIComponent(requestId)}`;
 
 type SignerDoor = NonNullable<Awaited<ReturnType<typeof linkSigner>>>;
-type Signer = NonNullable<Awaited<ReturnType<typeof signerOf>>>;
+type Signer = Awaited<ReturnType<typeof signerOf>>;
 
 async function signerOf(c: Context<AppEnv>, requestId: string) {
   const token = getCookie(c, SIGNING_COOKIE);
   const linked = token ? await linkSigner(c.var.db, requestId, token) : null;
   if (linked) return { door: linked satisfies SignerDoor, actor: `link:${requestId}`, email: "" };
-  const session = await resolveSession(c);
-  if (!session) return null;
-  const { user } = session;
+  const user = await signedInUser(c);
   const door: SignerDoor = forUser(c.var.db, user.id, user.scopeOrgId).storage;
   return { door, actor: user.id, email: user.email };
 }
@@ -240,7 +230,7 @@ async function showsOtherSigner(signer: Signer, requestId: string, shown: string
 }
 
 export const storageSigning = new Hono<AppEnv>()
-  .get("/", signedIn, async (c) => {
+  .get("/", requireUser, async (c) => {
     const items = await forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).storage.toSign();
     return c.json({ items: items.map(wireItem) } satisfies StorageSigningListResponse);
   })
@@ -261,7 +251,6 @@ export const storageSigning = new Hono<AppEnv>()
 
   .get("/:id", async (c) => {
     const signer = await signerOf(c, c.req.param("id"));
-    if (!signer) return apiError(c, "unauthorized", "sign in first");
     const item = await signer.door.signingRequest(c.req.param("id"));
     if (!item) return refused(c, "not_found");
     return c.json({
@@ -272,13 +261,11 @@ export const storageSigning = new Hono<AppEnv>()
 
   .get("/:id/sealed", async (c) => {
     const signer = await signerOf(c, c.req.param("id"));
-    if (!signer) return apiError(c, "unauthorized", "sign in first");
     return download(c, await signer.door.sealedFile(c.req.param("id")));
   })
 
   .get("/:id/content", async (c) => {
     const signer = await signerOf(c, c.req.param("id"));
-    if (!signer) return apiError(c, "unauthorized", "sign in first");
     const origin = originOf(c, signer.email);
     return download(c, await signer.door.signingFile(c.req.param("id"), origin));
   })
@@ -286,7 +273,6 @@ export const storageSigning = new Hono<AppEnv>()
   .post("/:id/code", zValidator("query", storageSignerQuerySchema), async (c) => {
     const { config } = c.var;
     const signer = await signerOf(c, c.req.param("id"));
-    if (!signer) return apiError(c, "unauthorized", "sign in first");
     if (await showsOtherSigner(signer, c.req.param("id"), c.req.valid("query").signer)) {
       return apiError(c, "signer_changed", "this page is open as another signer: reload it");
     }
@@ -322,7 +308,6 @@ export const storageSigning = new Hono<AppEnv>()
     zValidator("json", storageSignBodySchema),
     async (c) => {
       const signer = await signerOf(c, c.req.param("id"));
-      if (!signer) return apiError(c, "unauthorized", "sign in first");
       if (await showsOtherSigner(signer, c.req.param("id"), c.req.valid("query").signer)) {
         return apiError(c, "signer_changed", "this page is open as another signer: reload it");
       }

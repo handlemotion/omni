@@ -1,4 +1,4 @@
-import type { WorkspaceMailbox } from "@omni/client";
+import { mailboxName, type WorkspaceMailbox } from "@omni/client";
 import { CheckIcon } from "@heroicons/react/20/solid";
 import { useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
@@ -25,17 +25,6 @@ interface Face {
   key: string;
   name: string;
   mailbox: WorkspaceMailbox | null;
-}
-
-/**
- * What a mailbox is called: its label ("Work"), else you for your personal one and its local
- * part for a shared one.
- */
-export function mailboxName(mailbox: WorkspaceMailbox, you: string) {
-  if (mailbox.label) return mailbox.label;
-  if (mailbox.kind === "personal") return you;
-  const local = mailbox.address.split("@")[0] ?? mailbox.address;
-  return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
 const FACE_CLASS =

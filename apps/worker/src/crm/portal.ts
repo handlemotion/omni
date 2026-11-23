@@ -5,8 +5,7 @@ import {
 } from "@omni/contracts";
 import { forUser, type PortalFile, type PortalProjectDetail } from "@omni/db";
 import { Hono, type Context } from "hono";
-import { createMiddleware } from "hono/factory";
-import { resolveSession, type AppEnv } from "../context.ts";
+import { requireUser, type AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
 
@@ -40,13 +39,6 @@ const wireDetail = (detail: PortalProjectDetail) =>
       : null,
   }) satisfies PortalProjectResponse;
 
-const signedIn = createMiddleware<AppEnv>(async (c, next) => {
-  const session = await resolveSession(c);
-  if (!session) return apiError(c, "unauthorized", "sign in first");
-  c.set("user", session.user);
-  await next();
-});
-
 const clientCrm = (c: Context<AppEnv>) =>
   forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).crm;
 
@@ -57,7 +49,7 @@ const notFound = (c: Context<AppEnv>) => apiError(c, "not_found", "not found");
  * workspace, reaching the projects their verified addresses were added to as a client.
  */
 export const portal = new Hono<AppEnv>()
-  .use(signedIn)
+  .use(requireUser)
   .get("/projects", async (c) => {
     const found = await clientCrm(c).projects();
     return c.json({ projects: found.projects } satisfies PortalProjectsResponse);

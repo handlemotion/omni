@@ -2,7 +2,7 @@ import { askMeetingsBodySchema, meetingsListQuerySchema } from "@omni/contracts"
 import { meetingsPipeline, storageWorkspaceFile } from "@omni/db";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { resolveSession, type AppEnv } from "../context.ts";
+import { requireUser, type AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
 import { answerAsk } from "./ask.ts";
@@ -10,11 +10,8 @@ import { meetingFile } from "./audio.ts";
 import { refused, userMeetings, wire } from "./http.ts";
 import { meetingEngine } from "./jobs.ts";
 
-const signedIn = createMiddleware<AppEnv>(async (c, next) => {
+const engineOn = createMiddleware<AppEnv>(async (c, next) => {
   if (!meetingEngine(c.var.config, c.env)) return apiError(c, "not_found", "not found");
-  const session = await resolveSession(c);
-  if (!session) return apiError(c, "unauthorized", "sign in first");
-  c.set("user", session.user);
   await next();
 });
 
@@ -25,7 +22,8 @@ const signedIn = createMiddleware<AppEnv>(async (c, next) => {
  * once. Viewing only: changes stay with the workspace's members.
  */
 export const meetingsShared = new Hono<AppEnv>()
-  .use(signedIn)
+  .use(engineOn)
+  .use(requireUser)
   .get("/", zValidator("query", meetingsListQuerySchema), async (c) => {
     const { before, limit } = c.req.valid("query");
     const listed = await userMeetings(c).list({ before: before ? new Date(before) : null, limit });

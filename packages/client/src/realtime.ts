@@ -2,11 +2,11 @@ import type { StorageLiveRecord } from "@omni/contracts";
 import { readSocketMessage, type RealtimeEvent } from "./realtime-events.ts";
 
 export type { NotificationEvent, NotificationKind, RealtimeEvent } from "./realtime-events.ts";
-export { DOC_PRESENCE_MAX } from "./realtime-storage.ts";
 export { LiveParts, splitLiveRecord, type LiveWhole } from "@omni/contracts/storage-live-parts";
-
-/** `STORAGE_LIVE_SNAP_EVERY` in `@omni/contracts`, without pulling its schemas in. */
-export const LIVE_SNAP_EVERY = 200;
+export {
+  STORAGE_DOC_PRESENCE_MAX as DOC_PRESENCE_MAX,
+  STORAGE_LIVE_SNAP_EVERY as LIVE_SNAP_EVERY,
+} from "@omni/contracts/storage-types";
 
 export type RealtimeStatus = "connecting" | "open" | "closed";
 

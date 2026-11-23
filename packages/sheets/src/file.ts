@@ -1,12 +1,10 @@
+import { baseMimeType, STORAGE_SHEET_TYPE } from "@omni/contracts/storage-types";
+
 /**
  * An Omni sheet's type. Its body is JSON Lines (`format.ts`), so search, agents, history and sync
  * read it as text, but it is a sheet of its own: named without an extension, opened as a grid.
  */
-export const SHEET_TYPE = "text/vnd.omni.sheet";
+export { STORAGE_SHEET_TYPE as SHEET_TYPE } from "@omni/contracts/storage-types";
 
-const baseType = (mimeType: string | null | undefined) =>
-  mimeType?.split(";")[0]?.trim().toLowerCase() ?? "";
-
-/** Whether a file is an Omni sheet. */
 export const isOmniSheet = (mimeType: string | null | undefined) =>
-  baseType(mimeType) === SHEET_TYPE;
+  baseMimeType(mimeType) === STORAGE_SHEET_TYPE;

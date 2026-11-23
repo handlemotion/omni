@@ -27,7 +27,7 @@ import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { inGoodStanding, requireCap } from "../billing.ts";
-import { requireMember, resolveSession, type AppEnv } from "../context.ts";
+import { requireMember, signedIn, type AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import {
   advanceDomainStep,
@@ -89,8 +89,7 @@ async function domainStep<V extends { verified: boolean }>(c: Context<AppEnv>, v
 
 export const onboarding = new Hono<AppEnv>()
   .get("/", async (c) => {
-    const resolved = await resolveSession(c);
-    if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+    const resolved = await signedIn(c);
     const { db, config } = c.var;
     const { user, member } = resolved;
     const canCreateOrganization =
@@ -150,8 +149,7 @@ export const onboarding = new Hono<AppEnv>()
     });
   })
   .post("/personal", async (c) => {
-    const resolved = await resolveSession(c);
-    if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+    const resolved = await signedIn(c);
     if (resolved.user.scopeOrgId) {
       throw new HTTPException(403, {
         message: "signed in with a work address: sign in another way to use your own email",

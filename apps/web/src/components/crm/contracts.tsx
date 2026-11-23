@@ -1,4 +1,4 @@
-import type { CrmContract } from "@omni/client";
+import { contractLine, takesSignedCopy, type CrmContract } from "@omni/client";
 import { useState } from "react";
 import { Button as Pressable } from "react-aria-components/Button";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -44,9 +44,9 @@ import { ContractPeopleField } from "./contract-people.tsx";
 import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import { DayField } from "./day-field.tsx";
 import { FilePicker, type Owner } from "./contract-file-picker.tsx";
-import { SignedCopyDialog, takesSignedCopy } from "./contract-signed-copy-dialog.tsx";
+import { SignedCopyDialog } from "./contract-signed-copy-dialog.tsx";
 import { SendContractDialog } from "./contract-send-dialog.tsx";
-import { contractBadge, contractLine } from "./contract-status.ts";
+import { contractBadge } from "./contract-status.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { NAME_MAX } from "./new-records.tsx";
 

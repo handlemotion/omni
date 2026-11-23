@@ -1,18 +1,11 @@
-import type { Mailbox, ThreadSummary } from "@omni/client";
+import { mailboxName, type Mailbox, type ThreadSummary } from "@omni/client";
 import { Link } from "expo-router";
 import { useMemo } from "react";
 import { IconCircleCheck, IconClock, IconInbox } from "@/components/icons.ts";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
 import { SwipeRow } from "@/components/ui/swipe-row.tsx";
-import {
-  MAIL_PAGES,
-  bySection,
-  mailboxName,
-  usePrefetchThread,
-  useThreads,
-  type MailPage,
-} from "@/lib/mail.ts";
+import { MAIL_PAGES, bySection, usePrefetchThread, useThreads, type MailPage } from "@/lib/mail.ts";
 import {
   useArchive,
   useDone,

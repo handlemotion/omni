@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { forwardBody, forwardSubject, replyRecipients, replySubject } from "./compose";
+import {
+  forwardBody,
+  forwardSubject,
+  notAddresses,
+  parseAddresses,
+  replyRecipients,
+  replySubject,
+} from "./compose";
 
 test("reply and forward subjects never stack a prefix a client already added, in any case or language", () => {
   expect(replySubject("RE: Invoice")).toBe("RE: Invoice");
@@ -81,4 +88,10 @@ describe("replyRecipients", () => {
       ),
     ).toEqual({ to: ["ana@x.test"], cc: ["bo@x.test", "cy@x.test"] });
   });
+});
+
+test("typed recipients split into addresses, once each, and the leftovers a person must fix", () => {
+  const typed = "<ana@example.com>, luis@example.org; ana@example.com bob@ nobody";
+  expect(parseAddresses(typed)).toEqual(["ana@example.com", "luis@example.org"]);
+  expect(notAddresses(typed)).toEqual(["bob@", "nobody"]);
 });

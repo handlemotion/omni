@@ -2,6 +2,7 @@ import createDOMPurify from "dompurify";
 import { convert } from "html-to-text";
 import { JSDOM } from "jsdom";
 import type { ParsedMessage } from "./parse.ts";
+import { BLOCKED_SRC_ATTR } from "./blocked-src.ts";
 import { CSS_UNSAFE, dropUnsafeRules, removeImports, replaceUrls } from "./css.ts";
 import { messageDisplay } from "./display.ts";
 import { stripReply, type StrippedText } from "./reply.ts";
@@ -217,9 +218,6 @@ export interface SanitizedHtml {
    */
   limit: "clipped" | "too-deep" | null;
 }
-
-/** The client swaps this into `src` when the reader loads remote images. */
-export const BLOCKED_SRC_ATTR = "data-omni-src";
 
 const STYLE_ATTR = "data-omni-style";
 
