@@ -1,11 +1,18 @@
-import type { HostedDisconnectBody } from "@omni/contracts";
+import type { GoogleDisconnectBody, HostedDisconnectBody } from "@omni/contracts";
 import type { Keyring } from "@omni/crypto";
-import { type Db, deleteMailbox, findOrgMailboxById, setMailboxStatus } from "@omni/db";
-import { openCredentials } from "../credentials.ts";
-import type { Logger } from "../log.ts";
-import { revokeGoogleToken } from "../providers/gmail.ts";
-import { ProvisionError } from "../provisioning.ts";
-import type { MailHost } from "./mail-host.ts";
+import {
+  type Db,
+  deleteMailbox,
+  findOrgMailboxById,
+  forUser,
+  mailboxOwnerIds,
+  setMailboxStatus,
+} from "@omni/db";
+import { openCredentials } from "./credentials.ts";
+import type { MailHost } from "./hosting/mail-host.ts";
+import type { Logger } from "./log.ts";
+import { revokeGoogleToken } from "./providers/gmail.ts";
+import { ProvisionError } from "./provisioning.ts";
 
 type DisconnectDeps = {
   db: Db;
@@ -17,6 +24,8 @@ type DisconnectDeps = {
   logger: Logger;
 };
 
+type StoredMailbox = NonNullable<Awaited<ReturnType<typeof findOrgMailboxById>>>;
+
 /** Removes an Omni-hosted mailbox only; any other kind answers 404. */
 export const disconnectHostedMailbox: (
   deps: DisconnectDeps,
@@ -25,7 +34,7 @@ export const disconnectHostedMailbox: (
   const mailbox = await findOrgMailboxById(deps.db, input.orgId, input.mailboxId);
   if (!mailbox) return { mailboxId: input.mailboxId };
   if (mailbox.provider !== "purelymail") throw new ProvisionError(404, "No such hosted mailbox");
-  return disconnectMailbox(deps, input);
+  return remove(deps, input.orgId, mailbox);
 };
 
 /**
@@ -37,10 +46,43 @@ export const disconnectMailbox: (
   deps: DisconnectDeps,
   input: HostedDisconnectBody,
 ) => Promise<{ mailboxId: string }> = async (deps, input) => {
-  const { db, logger } = deps;
+  const mailbox = await findOrgMailboxById(deps.db, input.orgId, input.mailboxId);
+  if (!mailbox) return { mailboxId: input.mailboxId };
+  return remove(deps, input.orgId, mailbox);
+};
+
+/**
+ * Disconnects a member's Google account: Omni stops syncing it, revokes the grant at Google and
+ * deletes the mailbox with everything indexed from it (Gmail still holds the mail). Only the
+ * mailbox's owner can, and a mailbox already gone answers as disconnected, so a retry is safe.
+ */
+export const disconnectGoogle: (
+  deps: DisconnectDeps,
+  input: GoogleDisconnectBody,
+) => Promise<{ mailboxId: string }> = async (deps, input) => {
+  const { db } = deps;
+  if (input.userId) {
+    const owned = (await forUser(db, input.userId).googleAccounts()).find(
+      (account) => account.id === input.mailboxId,
+    );
+    if (!owned) return { mailboxId: input.mailboxId };
+    input = { ...input, orgId: owned.orgId, memberId: owned.memberId };
+  }
   const mailbox = await findOrgMailboxById(db, input.orgId, input.mailboxId);
   if (!mailbox) return { mailboxId: input.mailboxId };
+  const owners = await mailboxOwnerIds(db, mailbox.id);
+  if (
+    mailbox.provider !== "gmail" ||
+    mailbox.kind !== "personal" ||
+    !owners.includes(input.memberId)
+  ) {
+    throw new ProvisionError(404, "No such Google account");
+  }
+  return remove(deps, input.orgId, mailbox);
+};
 
+async function remove(deps: DisconnectDeps, orgId: string, mailbox: StoredMailbox) {
+  const { db, logger } = deps;
   await setMailboxStatus(db, mailbox.id, "disabled");
   await deps.stop(mailbox.id);
   try {
@@ -52,10 +94,6 @@ export const disconnectMailbox: (
     logger.warn("mailbox.disconnect_revoke_failed", { mailboxId: mailbox.id, error });
   }
   await deleteMailbox(db, mailbox.id);
-  logger.info("mailbox.disconnected", {
-    orgId: input.orgId,
-    mailboxId: mailbox.id,
-    provider: mailbox.provider,
-  });
+  logger.info("mailbox.disconnected", { orgId, mailboxId: mailbox.id, provider: mailbox.provider });
   return { mailboxId: mailbox.id };
-};
+}

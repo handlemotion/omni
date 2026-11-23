@@ -1,29 +1,19 @@
 import { randomUUIDv7 } from "node:crypto";
-import type {
-  GoogleConnectBody,
-  GoogleConnectResult,
-  GoogleDisconnectBody,
-  googleDisconnectResultSchema,
-} from "@omni/contracts";
+import type { GoogleConnectBody, GoogleConnectResult } from "@omni/contracts";
 import { PLAN_LIMITS, TRIAL_PLAN } from "@omni/contracts";
 import type { Keyring } from "@omni/crypto";
 import {
   capUsage,
   type Db,
-  deleteMailbox,
   findGmailMailboxes,
   findOrgMailbox,
-  findOrgMailboxById,
-  forUser,
   mailboxOwnerIds,
   placeForAddress,
   saveMailbox,
-  setMailboxStatus,
   workspacePlan,
 } from "@omni/db";
 import { z } from "zod";
-import type { GoogleCredentials } from "../credentials.ts";
-import { openCredentials, sealCredentials } from "../credentials.ts";
+import { type GoogleCredentials, sealCredentials } from "../credentials.ts";
 import type { Logger } from "../log.ts";
 import type { ServerEndpoint, TokenSource } from "../mailbox-config.ts";
 import { ProvisionError } from "../provisioning.ts";
@@ -377,52 +367,6 @@ const placeByAddress: (
 
 /** The scopes as Google's authorization URL wants them. */
 export const GOOGLE_SCOPE_PARAM = GOOGLE_MAIL_SCOPES.join(" ");
-
-/**
- * Disconnects a member's Google account: Omni stops syncing it, revokes the grant at Google and
- * deletes the mailbox with everything indexed from it (Gmail still holds the mail). Only the
- * mailbox's owner can, and a mailbox already gone answers as disconnected, so a retry is safe.
- */
-export const disconnectGoogle: (
-  deps: {
-    db: Db;
-    keyring: Keyring;
-    /** Stops the mailbox's connection and waits for outbox work already running on it. */
-    stop(mailboxId: string): Promise<void>;
-    logger: Logger;
-  },
-  input: GoogleDisconnectBody,
-) => Promise<z.infer<typeof googleDisconnectResultSchema>> = async (deps, input) => {
-  const { db, logger } = deps;
-  if (input.userId) {
-    const owned = (await forUser(db, input.userId).googleAccounts()).find(
-      (account) => account.id === input.mailboxId,
-    );
-    if (!owned) return { mailboxId: input.mailboxId };
-    input = { ...input, orgId: owned.orgId, memberId: owned.memberId };
-  }
-  const mailbox = await findOrgMailboxById(db, input.orgId, input.mailboxId);
-  if (!mailbox) return { mailboxId: input.mailboxId };
-  const owners = await mailboxOwnerIds(db, mailbox.id);
-  if (
-    mailbox.provider !== "gmail" ||
-    mailbox.kind !== "personal" ||
-    !owners.includes(input.memberId)
-  ) {
-    throw new ProvisionError(404, "No such Google account");
-  }
-  await setMailboxStatus(db, mailbox.id, "disabled");
-  await deps.stop(mailbox.id);
-  try {
-    const credentials = await openCredentials(deps.keyring, mailbox.id, mailbox.credentialsEnc);
-    if ("oauth" in credentials) await revokeGoogleToken(credentials.refreshToken);
-  } catch (error) {
-    logger.warn("google.revoke_failed", { mailboxId: mailbox.id, error });
-  }
-  await deleteMailbox(db, mailbox.id);
-  logger.info("google.disconnected", { orgId: input.orgId, mailboxId: mailbox.id });
-  return { mailboxId: mailbox.id };
-};
 
 function decodeJwtPayload(jwt: string) {
   const payload = jwt.split(".")[1];
