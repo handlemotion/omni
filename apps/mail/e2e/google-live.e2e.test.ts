@@ -26,6 +26,7 @@ import {
 } from "./support/db.ts";
 import { logger, waitFor } from "./support/greenmail.ts";
 import { createTestBucket } from "./support/objects.ts";
+import { testServiceConfig } from "./support/service-config.ts";
 
 const requested = process.env.GMAIL_E2E === "1";
 const address = process.env.GMAIL_E2E_ADDRESS ?? "";
@@ -33,7 +34,8 @@ const refreshToken = process.env.GMAIL_E2E_REFRESH_TOKEN ?? "";
 const clientId = process.env.GOOGLE_CLIENT_ID ?? "";
 const clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
 const secret = randomBytes(32).toString("hex");
-const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
+const keyringSecret = `k1:${randomBytes(32).toString("base64")}`;
+const keyring = parseKeyring(keyringSecret);
 
 describe.runIf(requested)("Gmail itself", () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -74,24 +76,19 @@ describe.runIf(requested)("Gmail itself", () => {
 
   async function start() {
     service = await startService(
-      {
-        DATABASE_URL: database.url,
-        MAIL_CREDENTIALS_KEY: keyring,
-        MAIL_SERVICE_HMAC_SECRET: secret,
-        WORKER_URL: `http://127.0.0.1:${(worker.address() as AddressInfo).port}`,
-        S3_ENDPOINT: bucket.options.endpoint,
-        S3_BUCKET: bucket.options.bucket,
-        S3_ACCESS_KEY_ID: bucket.options.accessKeyId,
-        S3_SECRET_ACCESS_KEY: bucket.options.secretAccessKey,
-        S3_REGION: bucket.options.region,
-        IMAGE_PROXY_URL: "/api/image-proxy",
-        ATTACHMENT_URL: "/api/attachments",
-        SYNC_INTERVAL_MS: 60 * 60_000,
-        OUTBOX_INTERVAL_MS: 60 * 60_000,
-        MAILBOX_CONCURRENCY: 4,
-        GOOGLE_CLIENT_ID: clientId,
-        GOOGLE_CLIENT_SECRET: clientSecret,
-      },
+      testServiceConfig(
+        {
+          databaseUrl: database.url,
+          credentialsKey: keyringSecret,
+          hmacSecret: secret,
+          workerUrl: `http://127.0.0.1:${(worker.address() as AddressInfo).port}`,
+          bucket: bucket.options,
+        },
+        {
+          GOOGLE_CLIENT_ID: clientId,
+          GOOGLE_CLIENT_SECRET: clientSecret,
+        },
+      ),
       logger,
     );
     const server = serve({ fetch: service.app.fetch, port: 0, hostname: "127.0.0.1" });

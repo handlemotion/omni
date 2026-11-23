@@ -463,8 +463,6 @@ export const googleCalendarListResultSchema = z.discriminatedUnion("status", [
 export type GoogleCalendarListBody = z.infer<typeof googleCalendarListBodySchema>;
 export type GoogleCalendarListResult = z.infer<typeof googleCalendarListResultSchema>;
 
-export const HOSTED_DISCONNECT_PATH = "/hosting/mailbox/disconnect";
-
 /** Idempotent: a mailbox already gone answers with its id. */
 export const hostedDisconnectBodySchema = mailboxRequestSchema;
 

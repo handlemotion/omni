@@ -1,5 +1,6 @@
-import type { ImapFlow, ListResponse } from "imapflow";
-import type { FolderInfo, FolderRole } from "./ports.ts";
+import { classifyFolders } from "@omni/mail-core/folder-sync";
+import type { ImapFlow } from "imapflow";
+import type { FolderInfo } from "./ports.ts";
 
 /** What an IMAP server offers: its capabilities, and its folders with the role each plays. */
 export interface Capabilities {
@@ -7,20 +8,15 @@ export interface Capabilities {
   condstore: boolean;
   uidplus: boolean;
   move: boolean;
-  /** Gmail (`X-GM-EXT-1`): system folders only, All Mail is the archive, X-GM-THRID threads. */
+  /**
+   * The server speaks Gmail's IMAP extension (`X-GM-EXT-1`): system folders only, All Mail is the
+   * archive, X-GM-THRID threads. A protocol signal, separate from the mailbox's stored provider
+   * (`providerTraits`), which says what Omni promises the person.
+   */
   gmail: boolean;
   /** Every capability the server advertised, logged on connect to show what a host supports. */
   all: string[];
 }
-
-const ROLE_BY_SPECIAL_USE: Record<string, FolderRole> = {
-  "\\Inbox": "inbox",
-  "\\Sent": "sent",
-  "\\Archive": "archive",
-  "\\Trash": "trash",
-  "\\Drafts": "drafts",
-  "\\Junk": "junk",
-};
 
 export function detectCapabilities(client: ImapFlow) {
   const has = (name: string) => client.capabilities.has(name);
@@ -34,26 +30,7 @@ export function detectCapabilities(client: ImapFlow) {
   } satisfies Capabilities;
 }
 
-/**
- * The selectable folders with their roles. A role goes to the first folder that claims it; later
- * ones are `other`. On Gmail, only folders with a role are kept (labels are not folders).
- */
+/** The server's selectable folders with their roles (`classifyFolders` holds the rules). */
 export async function listFolders(client: ImapFlow, gmail: boolean) {
-  const listed = await client.list();
-  const taken = new Set<FolderRole>();
-  return listed
-    .filter((f) => !f.flags.has("\\Noselect") && !f.flags.has("\\NonExistent"))
-    .map((f) => {
-      let role = roleOf(f, gmail);
-      if (role !== "other" && taken.has(role)) role = "other";
-      taken.add(role);
-      return { path: f.path, role };
-    })
-    .filter((f) => !gmail || f.role !== "other") satisfies FolderInfo[];
+  return classifyFolders(await client.list(), { gmail }) satisfies FolderInfo[];
 }
-
-const roleOf: (folder: ListResponse, gmail: boolean) => FolderRole = (folder, gmail) => {
-  if (folder.path.toUpperCase() === "INBOX") return "inbox";
-  if (gmail && folder.specialUse === "\\All") return "archive";
-  return (folder.specialUse && ROLE_BY_SPECIAL_USE[folder.specialUse]) || "other";
-};
