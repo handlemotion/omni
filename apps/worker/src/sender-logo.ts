@@ -1,3 +1,4 @@
+import { sha256Hex } from "@omni/crypto";
 import {
   iconLinks,
   imageWidth,
@@ -34,7 +35,7 @@ export const senderLogo: (
   const key =
     source.kind === "domain"
       ? `domain/${source.domain}`
-      : `gravatar/${await sha256(source.address)}`;
+      : `gravatar/${await sha256Hex(source.address)}`;
   const cacheKey = new Request(`https://sender-logo.invalid/v1/${key}`);
   const cache = await caches.open("sender-logo");
   const hit = await cache.match(cacheKey);
@@ -146,9 +147,4 @@ function withCacheControl(response: Response, seconds: number, scope: "public" |
   const headers = new Headers(response.headers);
   headers.set("cache-control", `${scope}, max-age=${seconds}`);
   return new Response(response.body, { status: response.status, headers });
-}
-
-async function sha256(text: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

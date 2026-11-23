@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/server";
+import { sha256, toHex } from "@omni/crypto";
 import {
   applyConversationChange,
   LANES,
@@ -94,11 +95,8 @@ interface Found {
 
 async function archiveKey(threadId: string, targets: ThreadTargets) {
   const where = targets.map((t) => `${t.folder}:${t.uidValidity}:${t.uids.join(",")}`).join("|");
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(`${threadId}|${where}`),
-  );
-  return `mcp.archive.${[...new Uint8Array(digest).slice(0, 12)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+  const digest = await sha256(`${threadId}|${where}`);
+  return `mcp.archive.${toHex(digest.slice(0, 12))}`;
 }
 
 async function conversationChanges(

@@ -1,3 +1,4 @@
+import { sha256Hex } from "@omni/crypto";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, organizations, users, verifications } from "../schema/auth.ts";
@@ -59,11 +60,6 @@ export type SignResult =
   | { status: "version_conflict" };
 
 const NOT_FOUND = { status: "not_found" } as const;
-
-export async function sha256Hex(text: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 function randomCode() {
   const limit = Math.floor(2 ** 32 / 1_000_000) * 1_000_000;

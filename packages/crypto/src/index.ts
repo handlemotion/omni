@@ -5,9 +5,11 @@ export {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   isValidRequestId,
+  signedPost,
   signRequest,
   verifyRequest,
   type RequestBody,
+  type SignedPostInput,
   type SignRequestInput,
   type VerifyRequestInput,
   type VerifyResult,
@@ -22,7 +24,7 @@ export {
   type Keyring,
 } from "./credentials.ts";
 export { signDomainConnectQuery } from "./domain-connect.ts";
-export { sha256Hex } from "./encoding.ts";
+export { randomToken, sha256, sha256Hex, toBase64, toBase64Url, toHex } from "./encoding.ts";
 export {
   guestOfKey,
   hashLinkPassword,

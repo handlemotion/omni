@@ -12,7 +12,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../context.ts";
 import { imageHeaders } from "../image-proxy.ts";
-import { MAX_PICTURE_BYTES, pictureUpload, sniffImageType } from "../routes/pictures.ts";
+import { pictureUpload, readPicture } from "../picture-file.ts";
 import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
@@ -44,14 +44,7 @@ async function iconChanged(
 }
 
 async function storeIcon(c: Context<AppEnv>, dealId: string, file: File) {
-  if (file.size > MAX_PICTURE_BYTES) {
-    throw new HTTPException(413, { message: "the picture is larger than 2 MB" });
-  }
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const contentType = sniffImageType(bytes);
-  if (!contentType) {
-    throw new HTTPException(415, { message: "the picture must be a PNG, JPEG, WebP or GIF" });
-  }
+  const { bytes, contentType } = await readPicture(file);
   const iconId = crypto.randomUUID();
   await c.env.MAIL_BUCKET.put(iconKey(c.var.member.orgId, dealId, iconId), bytes, {
     httpMetadata: { contentType },

@@ -1,35 +1,14 @@
+import { sha256Hex } from "@omni/crypto";
 import { setOrganizationLogo, setUserImage } from "@omni/db";
 import { Hono, type Context } from "hono";
-import { bodyLimit } from "hono/body-limit";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
-import { z } from "zod";
 import { resolveSession, type AppEnv } from "../context.ts";
-import { apiError } from "../errors.ts";
 import { imageHeaders } from "../image-proxy.ts";
-import { zValidator } from "../validator.ts";
 import { canManage } from "../inbox-admin.ts";
-
-/** Largest picture accepted. */
-export const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
+import { pictureUpload, readPicture } from "../picture-file.ts";
 
 type Owner = "users" | "orgs";
-
-export function sniffImageType(bytes: Uint8Array) {
-  const starts = (sig: number[], at = 0) => sig.every((b, i) => bytes[at + i] === b);
-  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
-  if (starts([0xff, 0xd8, 0xff])) return "image/jpeg";
-  if (starts([0x47, 0x49, 0x46, 0x38]) && (bytes[4] === 0x37 || bytes[4] === 0x39)) {
-    return bytes[5] === 0x61 ? "image/gif" : null;
-  }
-  if (starts([0x52, 0x49, 0x46, 0x46]) && starts([0x57, 0x45, 0x42, 0x50], 8)) return "image/webp";
-  return null;
-}
-
-async function sha256Hex(bytes: Uint8Array) {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 const pictureUrl = (owner: Owner, ownerId: string, sha256: string) =>
   `/api/pictures/${owner}/${ownerId}/${sha256}`;
@@ -48,28 +27,8 @@ export function pictureKeyOf(url: string | null | undefined, owner: Owner, owner
   return pictureKey(owner, ownerId, sha256);
 }
 
-/** The multipart body of a picture upload: one `file`, at most `MAX_PICTURE_BYTES`. */
-export const pictureUpload = [
-  bodyLimit({
-    maxSize: MAX_PICTURE_BYTES + 64 * 1024,
-    onError: (c) => apiError(c, "payload_too_large", "the picture is larger than 2 MB"),
-  }),
-  zValidator(
-    "form",
-    z.object({ file: z.instanceof(File) }),
-    "send the picture as the form field `file`",
-  ),
-] as const;
-
 async function storePicture(c: Context<AppEnv>, file: File, owner: Owner, ownerId: string) {
-  if (file.size > MAX_PICTURE_BYTES) {
-    throw new HTTPException(413, { message: "the picture is larger than 2 MB" });
-  }
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const contentType = sniffImageType(bytes);
-  if (!contentType) {
-    throw new HTTPException(415, { message: "the picture must be a PNG, JPEG, WebP or GIF" });
-  }
+  const { bytes, contentType } = await readPicture(file);
   const sha256 = await sha256Hex(bytes);
   await c.env.MAIL_BUCKET.put(pictureKey(owner, ownerId, sha256), bytes, {
     httpMetadata: { contentType },

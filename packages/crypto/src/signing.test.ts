@@ -4,6 +4,7 @@ import {
   REQUEST_ID_HEADER,
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
+  signedPost,
   signRequest,
   verifyRequest,
 } from "./index.ts";
@@ -130,5 +131,46 @@ describe("verifyRequest", () => {
       ok: false,
       reason: "malformed",
     });
+  });
+});
+
+describe("signedPost", () => {
+  async function verifyAsReceived(url: URL, init: RequestInit) {
+    const received = new Request(url, init);
+    const { pathname, search } = new URL(received.url);
+    return verifyRequest({
+      secret,
+      method: received.method,
+      path: pathname + search,
+      body: await received.text(),
+      headers: received.headers,
+    });
+  }
+
+  it("signs the path and query the receiver verifies, with a fresh nonce", async () => {
+    const { url, init } = await signedPost({
+      secret,
+      baseUrl: "https://mail.example.test/base/",
+      path: "internal/mail-actions?mailbox=mbx_1",
+      json: request.body,
+      requestId: "req-aaaaaaaa",
+    });
+    const result = await verifyAsReceived(url, init);
+    expect(result).toMatchObject({ ok: true, requestId: "req-aaaaaaaa" });
+    expect(result.ok && result.nonce).toMatch(/^[0-9a-f]{32}$/);
+    expect(init.headers["content-type"]).toBe("application/json");
+
+    const again = await signedPost({ secret, baseUrl: url, path: "/internal/mail-actions" });
+    expect(again.init.headers[NONCE_HEADER]).not.toBe(init.headers[NONCE_HEADER]);
+  });
+
+  it("verifies an empty ping, which carries no content type", async () => {
+    const { url, init } = await signedPost({
+      secret,
+      baseUrl: "https://mail.example.test",
+      path: "/internal/ping",
+    });
+    expect((await verifyAsReceived(url, init)).ok).toBe(true);
+    expect(init.headers["content-type"]).toBeUndefined();
   });
 });

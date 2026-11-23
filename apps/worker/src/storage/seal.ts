@@ -1,4 +1,5 @@
 import { STORAGE_SIGNING_CONSENT } from "@omni/contracts";
+import { sha256Hex } from "@omni/crypto";
 import {
   recordStorageSeal,
   sealedObject,
@@ -126,9 +127,6 @@ export async function buildSealedPdf(original: Uint8Array, input: StorageSealInp
   }
 }
 
-const hex = (buffer: ArrayBuffer) =>
-  [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
-
 export interface SealDeps {
   db: Db;
   bucket: R2Bucket;
@@ -154,7 +152,7 @@ export const sealSignatureRequest: (
     return null;
   }
   const sealed = await buildSealedPdf(new Uint8Array(await object.arrayBuffer()), input);
-  const sha256 = hex(await crypto.subtle.digest("SHA-256", sealed));
+  const sha256 = await sha256Hex(sealed);
   await deps.bucket.put(input.sealedR2Key, sealed, {
     httpMetadata: { contentType: "application/pdf" },
   });

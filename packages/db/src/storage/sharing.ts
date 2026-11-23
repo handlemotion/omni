@@ -1,3 +1,4 @@
+import { randomToken } from "@omni/crypto";
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -79,11 +80,7 @@ const POLICY = { status: "policy" } as const;
 
 /** 22 base64url characters: 128 bits from the CSPRNG, derived from nothing. */
 export function newShareId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
+  return randomToken(16);
 }
 
 export interface ShareEventInput {

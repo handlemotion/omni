@@ -73,6 +73,35 @@ export async function signRequest(input: SignRequestInput) {
   return headers satisfies Record<string, string>;
 }
 
+export interface SignedPostInput {
+  secret: string;
+  /** The receiving service's URL; `path` resolves against it. */
+  baseUrl: string | URL;
+  path: string;
+  /** JSON text. Without it the body is empty and carries no content type. */
+  json?: string;
+  requestId?: string;
+}
+
+/**
+ * A signed POST to hand to `fetch(url, init)`, with a fresh nonce. It signs the URL's pathname
+ * plus search, which is what the verifiers on both services check.
+ */
+export async function signedPost(input: SignedPostInput) {
+  const url = new URL(input.path, input.baseUrl);
+  const body = input.json ?? "";
+  const headers = await signRequest({
+    secret: input.secret,
+    method: "POST",
+    path: url.pathname + url.search,
+    body,
+    nonce: crypto.randomUUID().replaceAll("-", ""),
+    requestId: input.requestId,
+  });
+  if (input.json !== undefined) headers["content-type"] = "application/json";
+  return { url, init: { method: "POST", headers, body } };
+}
+
 export const verifyRequest: (input: VerifyRequestInput) => Promise<VerifyResult> = async (
   input,
 ) => {

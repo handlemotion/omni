@@ -1,3 +1,4 @@
+import { sha256, toBase64Url } from "@omni/crypto";
 import { and, asc, eq, exists, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
@@ -5,12 +6,7 @@ import { mailboxAccess, mailboxes, members, teamMembers, teams, users } from "..
 import { grantInOrg } from "./grants.ts";
 
 async function membershipKey(teamId: string, userId: string) {
-  const bytes = new TextEncoder().encode(JSON.stringify([teamId, userId]));
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  return btoa(String.fromCharCode(...digest))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
+  return toBase64Url(await sha256(JSON.stringify([teamId, userId])));
 }
 
 async function lockMailbox(db: Db, mailboxId: string) {

@@ -1,4 +1,4 @@
-import { signRequest } from "@omni/crypto";
+import { signedPost } from "@omni/crypto";
 import { MAIL_PING_PATH } from "@omni/contracts";
 import type { z } from "zod";
 import type { Config } from "./env.ts";
@@ -18,22 +18,15 @@ export interface MailServiceScope {
 export async function pingMailService(scope: MailServiceScope) {
   const { config, requestId } = scope;
   const log = scope.log.child({ component: "mail-service" });
-  const url = new URL(MAIL_PING_PATH, config.MAIL_SERVICE_URL);
   const started = Date.now();
   try {
-    const headers = await signRequest({
+    const { url, init } = await signedPost({
       secret: config.MAIL_SERVICE_HMAC_SECRET,
-      method: "POST",
-      path: url.pathname + url.search,
-      body: "",
+      baseUrl: config.MAIL_SERVICE_URL,
+      path: MAIL_PING_PATH,
       requestId,
     });
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: "",
-      signal: AbortSignal.timeout(10_000),
-    });
+    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
     const durationMs = Date.now() - started;
     if (response.ok) log.info("mail_service.ping", { status: response.status, durationMs });
     else log.warn("mail_service.ping_failed", { status: response.status, durationMs });
@@ -68,24 +61,16 @@ export async function callMailService<S extends z.ZodType>(
   const { config, requestId } = scope;
   const log = scope.log.child({ component: "mail-service", path });
   const started = Date.now();
-  const url = new URL(path, config.MAIL_SERVICE_URL);
-  const text = JSON.stringify(body);
-  const headers = await signRequest({
+  const { url, init } = await signedPost({
     secret: config.MAIL_SERVICE_HMAC_SECRET,
-    method: "POST",
-    path: url.pathname + url.search,
-    body: text,
-    nonce: crypto.randomUUID().replaceAll("-", ""),
+    baseUrl: config.MAIL_SERVICE_URL,
+    path,
+    json: JSON.stringify(body),
     requestId,
   });
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
-      body: text,
-      signal: AbortSignal.timeout(60_000),
-    });
+    response = await fetch(url, { ...init, signal: AbortSignal.timeout(60_000) });
   } catch (error) {
     log.warn("mail_service.call_failed", { error, durationMs: Date.now() - started });
     throw new MailServiceError(

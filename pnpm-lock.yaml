@@ -947,6 +947,9 @@ importers:
       '@omni/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@omni/crypto':
+        specifier: workspace:*
+        version: link:../crypto
       '@omni/mail-core':
         specifier: workspace:*
         version: link:../mail-core

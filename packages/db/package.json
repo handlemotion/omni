@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@omni/contracts": "workspace:*",
+    "@omni/crypto": "workspace:*",
     "@omni/mail-core": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "postgres": "^4.1.1",
