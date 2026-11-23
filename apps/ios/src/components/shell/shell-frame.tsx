@@ -31,7 +31,7 @@ const CARD_RADIUS = space(11);
 
 /**
  * The signed-in app's frame: every page, root or pushed, sits in a white card with round bottom
- * corners on the grey surface, and the module section (the handle and dock, and under them the
+ * corners, outlined on top of whatever the page draws, on the grey surface, and the module section (the handle and dock, and under them the
  * module's pages) sits below it on every page. Pulling the dock up slides the card away until it
  * peeks under the status bar, blurred and dimmed behind a prompt; tapping or pulling it down slides
  * it back. Swiping the pages sideways slides the card's contents with them. Pages in the card see
@@ -105,6 +105,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
             />
           </GestureDetector>
         ) : null}
+        {shell.searching ? null : <View pointerEvents="none" style={styles.outline} />}
       </Animated.View>
       <ModuleSection module={module} progress={progress} follow={follow} />
     </View>
@@ -120,6 +121,13 @@ const styles = StyleSheet.create({
     right: 0,
     overflow: "hidden",
     backgroundColor: colors.background,
+    borderBottomLeftRadius: CARD_RADIUS,
+    borderBottomRightRadius: CARD_RADIUS,
+    borderCurve: "continuous",
+  },
+  full: { bottom: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  outline: {
+    ...StyleSheet.absoluteFill,
     borderColor: colors.underLine,
     borderBottomWidth: 1,
     borderLeftWidth: 1,
@@ -127,14 +135,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: CARD_RADIUS,
     borderBottomRightRadius: CARD_RADIUS,
     borderCurve: "continuous",
-  },
-  full: {
-    bottom: 0,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
   },
   wash: { ...StyleSheet.absoluteFill, backgroundColor: colors.background, opacity: 0.35 },
   hint: {

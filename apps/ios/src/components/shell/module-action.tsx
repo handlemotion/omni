@@ -10,6 +10,7 @@ import {
 } from "@/components/icons.ts";
 import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { FloatingButton } from "@/components/ui/floating.tsx";
+import { IconButton } from "@/components/ui/icon-button.tsx";
 import type { CrmPage } from "@/lib/crm.ts";
 import type { DrivePlace } from "@/lib/drive-actions.ts";
 import { DRIVE_PAGES, useTeamspaces } from "@/lib/drive.ts";
@@ -118,17 +119,17 @@ function useModuleAction() {
   return { action, sheet };
 }
 
-/** The module's search as a round grey button beside its main action; none where it has no search. */
+/** The module's search as a plain glyph, opposite the page title; none where it has no search. */
 export function ModuleSearch() {
   const place = useMenuPlace();
   const { close, setQuery, setSearchIn } = useMenu();
   const label = SEARCH_PLACEHOLDER[place.module];
   if (!label) return null;
   return (
-    <FloatingButton
+    <IconButton
       icon={IconSearch}
       label={label}
-      glyph={iconSize.md}
+      tone="foreground"
       onPress={() => {
         close();
         setQuery("");

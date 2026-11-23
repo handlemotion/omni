@@ -8,6 +8,7 @@ import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
 import { space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import { SHELL_CONTROL } from "./menu-nav.ts";
+import { ModuleSearch } from "./module-action.tsx";
 import { usePageTitle } from "./page-title.ts";
 
 const SIDE = space(4);
@@ -15,7 +16,7 @@ const FADE_RAMP = SHELL_CONTROL + space(6);
 const FADE_MS = 200;
 
 /**
- * The shell's top bar on a module's root page: the page's title, small, and nothing else. Once the page scrolls, it is covered behind the status bar and eases out through the title
+ * The shell's top bar on a module's root page: the page's title, small, and the module's search glyph opposite it. Once the page scrolls, it is covered behind the status bar and eases out through the title
  * and eases out through the title, so rows soften as they pass under it.
  */
 export function TopBar() {
@@ -45,6 +46,7 @@ export function TopBar() {
         >
           {title}
         </Text>
+        <ModuleSearch />
       </View>
     </>
   );
