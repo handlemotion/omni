@@ -18,7 +18,7 @@ import { colors, radius, space } from "@/theme/tokens.ts";
 import { FLOATING_BAR_SPACE } from "./floating-bar.tsx";
 import { useMenu } from "./menu-context.tsx";
 import { MenuDrawer } from "./menu-layer.tsx";
-import { RootPlace, useShellTop, type Module } from "./menu-nav.ts";
+import { RootPlace, TopInset, useShellTop, type Module } from "./menu-nav.ts";
 import { ShellChrome } from "./shell.tsx";
 
 const DRAWER_MAX = 320;
@@ -36,7 +36,7 @@ const EASE = Easing.out(Easing.cubic);
  * exposed page to close.
  */
 export function ModuleRoot({ module, children }: { module: Module; children: ReactNode }) {
-  const params = useLocalSearchParams<{ page?: string; mailbox?: string }>();
+  const params = useLocalSearchParams<{ page?: string; space?: string; mailbox?: string }>();
   const shell = useMenu();
   const shellTop = useShellTop();
   const statusBar = useSafeAreaInsets().top;
@@ -133,13 +133,10 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
           ) : null}
           <Animated.View style={[styles.pageShell, pageShell]}>
             <Animated.View style={[styles.pageClip, pageClip]}>
-              <View
-                style={[
-                  styles.page,
-                  { paddingTop: shell.searching ? statusBar + space(4) : shellTop },
-                ]}
-              >
-                {children}
+              <View style={styles.page}>
+                <TopInset value={shell.searching ? statusBar + space(4) : shellTop}>
+                  {children}
+                </TopInset>
               </View>
               <ShellChrome />
               {mounted ? (

@@ -46,6 +46,19 @@ export const colors = {
   swipeLater: "#8e8e93",
   /** The label and badge drawn on a swipe's fill. */
   swipeForeground: "#ffffff",
+  /** `--tooltip`: dark surface behind code card previews. */
+  tooltip: "#2b2b2b",
+  /** `--chart-3`: `primary` mixed 60% into white, for keywords on code card previews. */
+  chart3: "#7dadf5",
+  /** `mutedForeground` at 45%, for audio card waveform bars. */
+  waveform: "rgba(133, 133, 133, 0.45)",
+  /** A folder card's pocket (`folder-art.tsx`), mirroring `--folder-*` on the web. */
+  folderBackTop: "#efefef",
+  folderBackBottom: "#e2e2e2",
+  folderFrontTop: "rgba(250, 250, 250, 0.86)",
+  folderFrontBottom: "rgba(242, 242, 242, 0.94)",
+  folderEdge: "#e2e2e2",
+  folderShine: "rgba(255, 255, 255, 0.75)",
 } as const;
 
 export type ColorToken = keyof typeof colors;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, ScrollView, StyleSheet } from "react-native";
+import { useTopInset } from "@/components/shell/menu-nav.ts";
 
 const QUICK_LOAD_MS = 150;
 
@@ -10,6 +11,7 @@ const QUICK_LOAD_MS = 150;
  * fades in only after a short wait.
  */
 export function LoadingPage({ children }: { children: ReactNode }) {
+  const inset = useTopInset();
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const appear = Animated.timing(opacity, {
@@ -23,13 +25,13 @@ export function LoadingPage({ children }: { children: ReactNode }) {
   }, [opacity]);
   return (
     <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior={inset > 0 ? "never" : "automatic"}
       scrollEnabled={false}
       contentContainerStyle={styles.fill}
       accessibilityLabel="Loading"
       accessible
     >
-      <Animated.View style={{ opacity }}>{children}</Animated.View>
+      <Animated.View style={{ opacity, paddingTop: inset }}>{children}</Animated.View>
     </ScrollView>
   );
 }

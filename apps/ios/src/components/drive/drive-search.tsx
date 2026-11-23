@@ -1,5 +1,6 @@
 import { FlashList } from "@shopify/flash-list";
 import { StyleSheet, View } from "react-native";
+import { useTopInset } from "@/components/shell/menu-nav.ts";
 import { IconFolder } from "@/components/icons.ts";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { ListSkeleton } from "@/components/ui/list-skeleton.tsx";
@@ -15,7 +16,14 @@ import { NodeItem } from "./node-item.tsx";
 export function DriveSearch({ q, footerSpace }: { q: string; footerSpace: number }) {
   const search = useDriveSearch(q);
   const onScroll = useScrollEdge();
-  if (search.isPending) return <ListSkeleton />;
+  const inset = useTopInset();
+  if (search.isPending) {
+    return (
+      <View style={{ paddingTop: inset }}>
+        <ListSkeleton />
+      </View>
+    );
+  }
   const nodes = search.data ?? [];
   if (!nodes.length) {
     return (
@@ -36,7 +44,10 @@ export function DriveSearch({ q, footerSpace }: { q: string; footerSpace: number
       scrollEventThrottle={16}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingTop: space(1), paddingBottom: space(8) + footerSpace }}
+      contentContainerStyle={{
+        paddingTop: space(1) + inset,
+        paddingBottom: space(8) + footerSpace,
+      }}
     />
   );
 }

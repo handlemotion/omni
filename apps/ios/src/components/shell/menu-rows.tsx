@@ -11,22 +11,21 @@ import {
   IconChecklist,
   IconCircleCheck,
   IconClock,
-  IconFolder,
-  IconFolderShared,
+  IconClock3,
   IconHandshake,
   IconProjects,
   IconInbox,
   IconMail,
   IconSend,
-  IconShared,
   IconTrash,
   IconUserRound,
   IconUsers,
   IconWarning,
 } from "@/components/icons.ts";
+import { spaceIconOf } from "@/components/drive/space-icon.ts";
 import { Avatar } from "@/components/ui/avatar.tsx";
 import { CRM_PAGES, useActiveProjects, type CrmPage } from "@/lib/crm.ts";
-import { DRIVE_PAGES, useFolder, type DrivePage } from "@/lib/drive.ts";
+import { DRIVE_PAGES, useFolder, useTeamspaces } from "@/lib/drive.ts";
 import { useCountedPages } from "@/lib/mail-counts.ts";
 import { MAIL_PAGES, type MailPage } from "@/lib/mail.ts";
 import { useUnreadNotifications } from "@/lib/notifications.ts";
@@ -53,13 +52,6 @@ const FOLDERS: { id: MailPage; icon: Glyph }[] = [
   { id: "spam", icon: IconWarning },
   { id: "trash", icon: IconTrash },
 ];
-
-const DRIVE_ICONS: Record<DrivePage, Glyph> = {
-  my: IconUserRound,
-  shared: IconShared,
-  sharedWithMe: IconFolderShared,
-  trash: IconTrash,
-};
 
 const CRM_ICONS: Record<CrmPage, Glyph> = {
   companies: IconBuildings,
@@ -115,56 +107,88 @@ export function MailMenu() {
   );
 }
 
-const FOLDER_SHORTCUTS = 8;
-
-/** Drive's pages (Shared only in a company workspace), then My files' folders under Folders. */
+/**
+ * Drive's menu, matching the web's `StorageNav`: Recents and Trash at the top, then Spaces
+ * (the member's joined teamspaces, plus legacy Team/Personal spaces only when they hold files).
+ */
 export function DriveMenu() {
   const { close } = useMenu();
   const place = useMenuPlace();
   const company = hasCrm(useWorkspace().active);
-  const folders = (useFolder({ space: "personal" }).data ?? [])
-    .filter((node) => node.kind === "folder")
-    .slice(0, FOLDER_SHORTCUTS);
-  const pages = (Object.keys(DRIVE_PAGES) as DrivePage[]).filter(
-    (id) => company || !("company" in DRIVE_PAGES[id]),
-  );
+  const teamspaces = (useTeamspaces().data ?? []).filter((one) => one.role !== null);
+  const personalCount = useFolder({ space: "personal" }).data?.length ?? 0;
+  const sharedCount = useFolder({ space: "shared" }).data?.length ?? 0;
+  const showTeam = company && sharedCount > 0;
+  const showPersonal = personalCount > 0;
+  const hasSpaces = teamspaces.length > 0 || showTeam || showPersonal;
   return (
     <>
-      {pages.map((id) => (
-        <MenuRow
-          key={id}
-          nav
-          tint="moduleDrive"
-          icon={DRIVE_ICONS[id]}
-          label={DRIVE_PAGES[id].label}
-          isCurrent={place.drivePage === id}
-          onPress={() => {
-            place.openPage("drive", id);
-            close();
-          }}
-        />
-      ))}
-      {folders.length > 0 ? (
+      <MenuRow
+        nav
+        tint="moduleDrive"
+        icon={IconClock3}
+        label={DRIVE_PAGES.recents.label}
+        isCurrent={place.drivePage === "recents"}
+        onPress={() => {
+          place.openPage("drive", "recents");
+          close();
+        }}
+      />
+      <MenuRow
+        nav
+        tint="moduleDrive"
+        icon={IconTrash}
+        label={DRIVE_PAGES.trash.label}
+        isCurrent={place.drivePage === "trash"}
+        onPress={() => {
+          place.openPage("drive", "trash");
+          close();
+        }}
+      />
+      {hasSpaces ? (
         <>
           <MenuDivider />
-          <MenuSection label="Folders">
-            {folders.map((folder) => (
+          <MenuSection label="Spaces">
+            {teamspaces.map((teamspace) => (
               <MenuRow
-                key={folder.id}
+                key={teamspace.id}
                 nav
-                muted
-                icon={IconFolder}
-                label={folder.name}
+                tint="moduleDrive"
+                icon={spaceIconOf(teamspace)}
+                label={teamspace.name}
+                isCurrent={place.driveSpace === teamspace.id}
                 onPress={() => {
-                  place.openPage("drive", "my");
+                  place.openDriveSpace(teamspace.id);
                   close();
-                  router.push({
-                    pathname: "/drive/folder/[id]",
-                    params: { id: folder.id, name: folder.name },
-                  });
                 }}
               />
             ))}
+            {showTeam ? (
+              <MenuRow
+                nav
+                tint="moduleDrive"
+                icon={IconUsers}
+                label={DRIVE_PAGES.shared.label}
+                isCurrent={place.drivePage === "shared"}
+                onPress={() => {
+                  place.openPage("drive", "shared");
+                  close();
+                }}
+              />
+            ) : null}
+            {showPersonal ? (
+              <MenuRow
+                nav
+                tint="moduleDrive"
+                icon={IconUserRound}
+                label={DRIVE_PAGES.my.label}
+                isCurrent={place.drivePage === "my"}
+                onPress={() => {
+                  place.openPage("drive", "my");
+                  close();
+                }}
+              />
+            ) : null}
           </MenuSection>
         </>
       ) : null}

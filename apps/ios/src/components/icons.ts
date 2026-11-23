@@ -78,3 +78,18 @@ export { IconCalendar1 as IconCalendar } from "@central-icons-react-native/round
 export { IconCoins } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCoins";
 export { IconText1 as IconName } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconText1";
 export { IconChecklist } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconChecklist";
+export { IconAnalytics } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconAnalytics";
+export { IconBook } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconBook";
+export { IconBrush } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconBrush";
+export { IconGlobe } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconGlobe";
+export { IconHeart } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconHeart";
+export { IconHome } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconHome";
+export { IconLightBulb } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconLightBulb";
+export { IconLock } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconLock";
+export { IconMegaphone } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconMegaphone";
+export { IconPackage } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconPackage";
+export { IconRocket } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconRocket";
+export { IconSparkle } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconSparkle";
+export { IconStar } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconStar";
+export { IconTarget } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconTarget";
+export { IconTrophy } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconTrophy";

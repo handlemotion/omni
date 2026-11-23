@@ -8,6 +8,7 @@ import { Button } from "./button.tsx";
 import { EmptyState } from "./empty-state.tsx";
 import { ListSkeleton } from "./list-skeleton.tsx";
 import { LoadingPage } from "./loading-page.tsx";
+import { useTopInset } from "@/components/shell/menu-nav.ts";
 import { useScrollEdge } from "./scroll-edge.tsx";
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;
@@ -37,6 +38,7 @@ interface Paged<T, R> {
 export function InfiniteList<T, R = T>(props: Paged<T, R>) {
   const { query, rows: toRows } = props;
   const onScroll = useScrollEdge();
+  const inset = useTopInset();
   const rows = useMemo(
     () => (query.data ? (toRows ? toRows(query.data) : (query.data as unknown as R[])) : []),
     [query.data, toRows],
@@ -63,14 +65,18 @@ export function InfiniteList<T, R = T>(props: Paged<T, R>) {
   }
   return (
     <FlashList
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior={inset > 0 ? "never" : "automatic"}
       onScroll={onScroll}
       scrollEventThrottle={16}
       data={rows}
       keyExtractor={props.keyOf}
       getItemType={props.typeOf}
       renderItem={({ item }) => props.renderItem(item)}
-      contentContainerStyle={{ ...styles.list, paddingBottom: space(8) + (props.footerSpace ?? 0) }}
+      contentContainerStyle={{
+        ...styles.list,
+        paddingTop: space(1) + inset,
+        paddingBottom: space(8) + (props.footerSpace ?? 0),
+      }}
       onEndReached={() => {
         if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
       }}

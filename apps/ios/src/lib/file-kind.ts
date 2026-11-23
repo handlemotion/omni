@@ -125,6 +125,7 @@ export function previewKindOf(file: { name: string; mimeType: string | null; siz
 
 /** What a file is, as the web's `fileType` names it: which glyph its tile draws. */
 export type FileKind =
+  | "doc"
   | "image"
   | "video"
   | "audio"
@@ -146,9 +147,26 @@ const DOCUMENT = new Set(["doc", "docx", "pages", "odt", "rtf"]);
 const PRESENTATION = new Set(["ppt", "pptx", "key", "odp"]);
 const PLAIN = new Set(["txt", "log", "text", "env"]);
 const CSV = new Set(["csv", "tsv"]);
+const DOC = new Set(["md", "mdx"]);
+const HASH_COMMENTS = new Set([
+  "py",
+  "rb",
+  "sh",
+  "bash",
+  "zsh",
+  "yml",
+  "yaml",
+  "toml",
+  "dockerfile",
+  "ex",
+  "exs",
+]);
+const OMNI_DOC_MIME = "text/vnd.omni.doc";
+const OMNI_NON_DOC_MIME = /^text\/vnd\.omni\.(?!doc\b)/i;
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 const KINDS: { kind: FileKind; matches: (ext: string, mime: string) => boolean }[] = [
+  { kind: "doc", matches: (e, m) => m === OMNI_DOC_MIME || DOC.has(e) },
   { kind: "image", matches: (e, m) => IMAGE.has(e) || m.startsWith("image/") },
   { kind: "pdf", matches: (e, m) => e === "pdf" || m === "application/pdf" },
   { kind: "video", matches: (e, m) => VIDEO.has(e) || m.startsWith("video/") },
@@ -168,4 +186,26 @@ export function fileKindOf(file: { name: string; mimeType: string | null }) {
   const ext = extensionOf(file.name);
   const mime = (file.mimeType ?? "").toLowerCase();
   return KINDS.find((rule) => rule.matches(ext, mime))?.kind ?? "other";
+}
+
+/** Short uppercase label for a file card's metadata, matching the web's `FileType.label`. */
+export function fileLabelOf(file: { name: string; mimeType: string | null }) {
+  const mime = (file.mimeType ?? "").toLowerCase();
+  if (mime === OMNI_DOC_MIME) return "DOC";
+  const ext = extensionOf(file.name);
+  const label = (ext && ext.length <= 5 ? ext : (mime.split("/")[1] ?? "")).toUpperCase();
+  return label || "FILE";
+}
+
+/** Whether a file card renders a mini page preview (doc, code, plain text, or CSV/TSV). */
+export function hasCardPage(file: { name: string; mimeType: string | null }) {
+  const mime = (file.mimeType ?? "").toLowerCase();
+  if (OMNI_NON_DOC_MIME.test(mime)) return false;
+  const kind = fileKindOf(file);
+  return kind === "doc" || kind === "code" || kind === "text" || kind === "csv";
+}
+
+/** Whether a code file uses `#` for line comments (for syntax tinting on its card). */
+export function usesHashComments(name: string) {
+  return HASH_COMMENTS.has(extensionOf(name));
 }

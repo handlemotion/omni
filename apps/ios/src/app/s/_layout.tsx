@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { withTopFade } from "@/components/shell/screen-fade.tsx";
 import { stackOptions } from "@/components/shell/stack-options.ts";
 
 /**
@@ -6,5 +7,5 @@ import { stackOptions } from "@/components/shell/stack-options.ts";
  * a link may be open to anyone. Folders inside it push onto this stack.
  */
 export default function LinkLayout() {
-  return <Stack screenOptions={stackOptions} />;
+  return <Stack screenOptions={stackOptions} screenLayout={withTopFade} />;
 }

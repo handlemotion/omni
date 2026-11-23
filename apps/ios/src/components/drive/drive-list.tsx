@@ -3,19 +3,15 @@ import { StyleSheet, View } from "react-native";
 import { IconFolder } from "@/components/icons.ts";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Text } from "@/components/ui/text.tsx";
 import { refreshPins } from "@/lib/drive-files.ts";
 import { sourceOf } from "@/lib/drive-preview.ts";
 import { useFolder, type DriveNode } from "@/lib/drive.ts";
-import { colors, gutter, radius, space } from "@/theme/tokens.ts";
+import { gutter, radius, space } from "@/theme/tokens.ts";
 import { NodeItem } from "./node-item.tsx";
 
-const COLUMNS = 3;
+export const DRIVE_COLUMNS = 3;
 
-type Row =
-  | { type: "heading"; key: string; label: string; rule: boolean }
-  | { type: "folders"; key: string; nodes: DriveNode[] }
-  | { type: "file"; key: string; node: DriveNode };
+type Row = { key: string; nodes: DriveNode[] };
 
 const newestFirst = (a: DriveNode, b: DriveNode) =>
   Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
@@ -24,16 +20,12 @@ function toRows(nodes: DriveNode[], recent: boolean) {
   const folders = nodes.filter((node) => node.kind === "folder");
   const files = nodes.filter((node) => node.kind !== "folder");
   if (recent) files.sort(newestFirst);
+  const all = [...folders, ...files];
   const rows: Row[] = [];
-  if (folders.length) rows.push({ type: "heading", key: "folders", label: "Folders", rule: false });
-  for (let at = 0; at < folders.length; at += COLUMNS) {
-    const three = folders.slice(at, at + COLUMNS);
-    rows.push({ type: "folders", key: `folders:${three[0]?.id}`, nodes: three });
+  for (let at = 0; at < all.length; at += DRIVE_COLUMNS) {
+    const pair = all.slice(at, at + DRIVE_COLUMNS);
+    rows.push({ key: `cards:${pair[0]?.id}`, nodes: pair });
   }
-  if (files.length) {
-    rows.push({ type: "heading", key: "files", label: recent ? "Recent" : "Files", rule: true });
-  }
-  for (const node of files) rows.push({ type: "file", key: node.id, node });
   return rows;
 }
 
@@ -41,11 +33,9 @@ const folderRows = (nodes: DriveNode[]) => toRows(nodes, false);
 const recentRows = (nodes: DriveNode[]) => toRows(nodes, true);
 
 /**
- * A space's top or a folder's contents, as Drive's board lays them out: its folders in a grid of
- * three cards under "Folders", then its files as rows under "Files", in the API's name order. A
- * space's top (`recent`) heads them "Recent" instead and puts the latest updated first, among the
- * pages loaded so far. A file made available offline that has a new version here is downloaded
- * again (`refreshPins`).
+ * A space's top or a folder's contents in one continuous 2-column card grid, matching the web's
+ * `FileSections`: folders first, then files, with no section headings. Pinned offline files with a
+ * newer version refresh in the background (`refreshPins`).
  */
 export function DriveList(props: {
   place: Parameters<typeof useFolder>[0];
@@ -63,8 +53,7 @@ export function DriveList(props: {
       query={query}
       rows={props.recent ? recentRows : folderRows}
       keyOf={(row) => row.key}
-      typeOf={(row) => row.type}
-      renderItem={(row) => <DriveRow row={row} />}
+      renderItem={(row) => <DriveCardsRow nodes={row.nodes} />}
       icon={IconFolder}
       empty={props.empty}
       skeleton={<DriveSkeleton />}
@@ -73,13 +62,11 @@ export function DriveList(props: {
   );
 }
 
-function DriveRow({ row }: { row: Row }) {
-  if (row.type === "file") return <NodeItem node={row.node} />;
-  if (row.type === "heading") return <DriveHeading label={row.label} rule={row.rule} />;
+export function DriveCardsRow({ nodes }: { nodes: DriveNode[] }) {
   return (
     <View style={styles.grid}>
-      {Array.from({ length: COLUMNS }, (_, i) => {
-        const node = row.nodes[i];
+      {Array.from({ length: DRIVE_COLUMNS }, (_, i) => {
+        const node = nodes[i];
         return (
           <View key={node?.id ?? `gap:${i}`} style={styles.cell}>
             {node ? <NodeItem node={node} card /> : null}
@@ -90,29 +77,18 @@ function DriveRow({ row }: { row: Row }) {
   );
 }
 
-function DriveHeading({ label, rule }: { label: string; rule: boolean }) {
+export function DriveSkeleton() {
   return (
-    <View accessibilityRole="header" accessible style={[styles.heading, rule && styles.rule]}>
-      <Text size="subhead" weight="medium" numberOfLines={1}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function DriveSkeleton() {
-  return (
-    <View>
-      <View style={[styles.heading, styles.rule]}>
-        <Skeleton width="20%" height={15} />
-      </View>
-      {[0, 1, 2, 3, 4, 5].map((row) => (
-        <View key={row} style={styles.skeletonRow}>
-          <Skeleton width={space(10)} height={space(10)} corner={radius.xl} />
-          <View style={styles.skeletonText}>
-            <Skeleton width="55%" height={16} />
-            <Skeleton width="30%" height={13} />
-          </View>
+    <View style={styles.skeleton}>
+      {[0, 1, 2].map((row) => (
+        <View key={row} style={styles.grid}>
+          {[0, 1, 2].map((col) => (
+            <View key={col} style={styles.skeletonCard}>
+              <Skeleton width="100%" aspectRatio={1} corner={radius.xl} />
+              <Skeleton width="76%" height={14} />
+              <Skeleton width="48%" height={11} />
+            </View>
+          ))}
         </View>
       ))}
     </View>
@@ -120,26 +96,13 @@ function DriveSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  heading: { height: space(11), justifyContent: "center", paddingHorizontal: gutter },
-  rule: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   grid: {
     flexDirection: "row",
-    gap: space(3),
+    gap: space(3.5),
     paddingHorizontal: gutter,
-    paddingBottom: space(3),
+    paddingBottom: space(4.5),
   },
   cell: { flex: 1, minWidth: 0 },
-  skeletonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space(3),
-    paddingHorizontal: gutter,
-  },
-  skeletonText: {
-    flex: 1,
-    gap: space(2),
-    paddingVertical: space(4),
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
+  skeleton: { paddingTop: space(3) },
+  skeletonCard: { flex: 1, minWidth: 0, gap: space(1.5) },
 });

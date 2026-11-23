@@ -1,6 +1,7 @@
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { ScrollView, StyleSheet } from "react-native";
+import { useTopInset } from "@/components/shell/menu-nav.ts";
 import { IconInbox } from "@/components/icons.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
@@ -16,6 +17,7 @@ import { ThreadRow } from "./thread-row.tsx";
 export function SearchResults({ q, footerSpace = 0 }: { q: string; footerSpace?: number }) {
   const search = useSearch(q);
   const onScroll = useScrollEdge();
+  const inset = useTopInset();
   if (search.isPending) {
     return (
       <LoadingPage>
@@ -26,7 +28,7 @@ export function SearchResults({ q, footerSpace = 0 }: { q: string; footerSpace?:
   if (!search.data?.length) {
     return (
       <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior={inset > 0 ? "never" : "automatic"}
         keyboardDismissMode="on-drag"
         contentContainerStyle={styles.fill}
       >
@@ -42,14 +44,18 @@ export function SearchResults({ q, footerSpace = 0 }: { q: string; footerSpace?:
   }
   return (
     <FlashList
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior={inset > 0 ? "never" : "automatic"}
       onScroll={onScroll}
       scrollEventThrottle={16}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       data={search.data}
       keyExtractor={(hit) => hit.threadId}
-      contentContainerStyle={{ ...styles.list, paddingBottom: space(8) + footerSpace }}
+      contentContainerStyle={{
+        ...styles.list,
+        paddingTop: space(1) + inset,
+        paddingBottom: space(8) + footerSpace,
+      }}
       renderItem={({ item }) => (
         <ThreadRow
           thread={{

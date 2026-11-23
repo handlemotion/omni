@@ -1,5 +1,5 @@
 import { Redirect, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { CrmSearch } from "@/components/crm/crm-search.tsx";
 import { DealBoard } from "@/components/crm/deal-board.tsx";
@@ -8,6 +8,7 @@ import { CompanyList, DealList, PersonList } from "@/components/crm/record-lists
 import { TaskList } from "@/components/crm/task-list.tsx";
 import { FLOATING_BAR_SPACE } from "@/components/shell/floating-bar.tsx";
 import { useMenu } from "@/components/shell/menu-context.tsx";
+import { TopInset, useTopInset } from "@/components/shell/menu-nav.ts";
 import { ModuleRoot } from "@/components/shell/module-root.tsx";
 import { DEFAULT_VIEW, isCrmPage, type CrmPage, type ListView } from "@/lib/crm-lists.ts";
 import { useDebounced } from "@/lib/use-debounced.ts";
@@ -33,9 +34,11 @@ export default function CrmHome() {
       {typed ? (
         <CrmSearch q={q} footerSpace={FLOATING_BAR_SPACE} />
       ) : page === "tasks" ? (
-        <TaskList footerSpace={FLOATING_BAR_SPACE} />
+        <BelowTopBar>
+          <TaskList footerSpace={FLOATING_BAR_SPACE} />
+        </BelowTopBar>
       ) : (
-        <View style={styles.page}>
+        <BelowTopBar>
           <ListControls
             page={page}
             view={view}
@@ -43,7 +46,7 @@ export default function CrmHome() {
             board={page === "deals" ? { on: board, toggle: () => setBoard(!board) } : undefined}
           />
           <PageList page={page} view={view} board={board} />
-        </View>
+        </BelowTopBar>
       )}
     </ModuleRoot>
   );
@@ -54,6 +57,15 @@ function PageList({ page, view, board }: { page: CrmPage; view: ListView; board:
   if (page === "projects") return <DealList view={view} projects />;
   if (page === "deals") return board ? <DealBoard view={view} /> : <DealList view={view} />;
   return <CompanyList view={view} />;
+}
+
+function BelowTopBar({ children }: { children: ReactNode }) {
+  const inset = useTopInset();
+  return (
+    <View style={[styles.page, { paddingTop: inset }]}>
+      <TopInset value={0}>{children}</TopInset>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({ page: { flex: 1 } });

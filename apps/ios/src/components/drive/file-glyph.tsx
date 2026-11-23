@@ -23,6 +23,7 @@ type Glyph = ComponentType<SvgProps & { size?: number }>;
 
 const GLYPH: Record<Exclude<FileKind, BrandedKind> | "folder", Glyph> = {
   folder: IconFolder,
+  doc: IconFileText,
   image: IconImage,
   video: IconVideo,
   audio: IconAudio,

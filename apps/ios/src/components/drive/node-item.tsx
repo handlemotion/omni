@@ -1,4 +1,5 @@
 import { Link } from "expo-router";
+import { FileCard } from "@/components/drive/file-card.tsx";
 import { FolderCard } from "@/components/drive/folder-card.tsx";
 import { NodeRow } from "@/components/drive/node-row.tsx";
 import { useOpenNodeSheet } from "@/components/drive/node-sheet.tsx";
@@ -28,13 +29,14 @@ export function NodeItem({ node, card = false }: { node: DriveNode; card?: boole
   const onLongPress = openSheet ? () => openSheet(node) : undefined;
   const file = node.kind === "file";
   const trashable = canTrash(node, me);
-  const item =
-    card && !file ? (
-      <FolderCard node={node} onLongPress={onLongPress} />
+  if (card) {
+    return file ? (
+      <FileCard node={node} onLongPress={onLongPress} />
     ) : (
-      <NodeRow node={node} onLongPress={onLongPress} />
+      <FolderCard node={node} onLongPress={onLongPress} />
     );
-  if (card && !file) return item;
+  }
+  const item = <NodeRow node={node} onLongPress={onLongPress} />;
   return (
     <SwipeRow
       itemKey={node.id}

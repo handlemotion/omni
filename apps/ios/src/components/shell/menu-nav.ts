@@ -1,4 +1,5 @@
 import { router, useGlobalSearchParams, usePathname } from "expo-router";
+import { HeaderHeightContext } from "expo-router/react-navigation";
 import { createContext, use } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isCrmPage, type CrmPage } from "@/lib/crm.ts";
@@ -14,6 +15,14 @@ const SHELL_BAR = space(2) + SHELL_CONTROL + space(2.5);
 /** Where a module's root page starts: under the shell's top bar and its hairline. */
 export function useShellTop() {
   return useSafeAreaInsets().top + SHELL_BAR;
+}
+
+/** How far a root page's content starts below the top of the screen: under the transparent top bar. */
+export const TopInset = createContext<number | undefined>(undefined);
+export function useTopInset() {
+  const provided = use(TopInset);
+  const header = use(HeaderHeightContext);
+  return provided ?? header ?? 0;
 }
 
 export type Module = "mail" | "drive" | "crm" | "calendar";
@@ -33,7 +42,7 @@ function moduleOf(pathname: string) {
   return module;
 }
 
-type PlaceParams = { page?: string; mailbox?: string };
+type PlaceParams = { page?: string; space?: string; mailbox?: string };
 
 /**
  * The module root page the shell's chrome is drawn on, with that page's own params. The chrome
@@ -57,8 +66,9 @@ export function useMenuPlace() {
   const params = root?.params ?? global;
   const mailPage: MailPage | undefined =
     onRoot && module === "mail" ? (isMailPage(params.page) ? params.page : "inbox") : undefined;
+  const driveSpace = onRoot && module === "drive" && params.space ? params.space : undefined;
   const drivePage: DrivePage | undefined =
-    onRoot && module === "drive" ? drivePageIn(params.page, company) : undefined;
+    onRoot && module === "drive" && !driveSpace ? drivePageIn(params.page, company) : undefined;
   const crmPage: CrmPage | undefined =
     onRoot && module === "crm" ? (isCrmPage(params.page) ? params.page : "companies") : undefined;
   const mailbox = mailPage ? params.mailbox : undefined;
@@ -68,8 +78,14 @@ export function useMenuPlace() {
   };
 
   const openPage = (next: Module, page: string) => {
-    if (next === module && onRoot) router.setParams({ page });
+    const nextParams = next === "drive" ? { page, space: undefined } : { page };
+    if (next === module && onRoot) router.setParams(nextParams);
     else router.replace({ pathname: MODULE_HOME[next], params: { page } });
+  };
+
+  const openDriveSpace = (teamspaceId: string) => {
+    if (module === "drive" && onRoot) router.setParams({ space: teamspaceId, page: undefined });
+    else router.replace({ pathname: "/drive", params: { space: teamspaceId } });
   };
 
   const openMail = (next: { page?: MailPage; mailbox?: string | null }) => {
@@ -84,5 +100,17 @@ export function useMenuPlace() {
     router.replace({ pathname: "/mail", params: target.mailbox ? target : { page: target.page } });
   };
 
-  return { module, onRoot, mailPage, drivePage, crmPage, mailbox, openModule, openPage, openMail };
+  return {
+    module,
+    onRoot,
+    mailPage,
+    drivePage,
+    driveSpace,
+    crmPage,
+    mailbox,
+    openModule,
+    openPage,
+    openDriveSpace,
+    openMail,
+  };
 }

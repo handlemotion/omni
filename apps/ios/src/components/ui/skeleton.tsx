@@ -39,11 +39,13 @@ function usePulse() {
 export function Skeleton({
   width,
   height = 12,
+  aspectRatio,
   round = false,
   corner,
 }: {
   width: DimensionValue;
   height?: number;
+  aspectRatio?: number;
   round?: boolean;
   corner?: number;
 }) {
@@ -54,7 +56,11 @@ export function Skeleton({
         styles.bar,
         round && styles.round,
         corner !== undefined && { borderRadius: corner },
-        { width: round ? height : width, height, opacity: sharedPulse },
+        {
+          width: round ? height : width,
+          ...(aspectRatio === undefined ? { height } : { aspectRatio }),
+          opacity: sharedPulse,
+        },
       ]}
     />
   );

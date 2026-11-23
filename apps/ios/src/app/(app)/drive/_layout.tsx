@@ -1,5 +1,6 @@
 import { Stack, type NativeStackNavigationOptions } from "expo-router";
 import { NodeSheetHost } from "@/components/drive/node-sheet.tsx";
+import { withTopFade } from "@/components/shell/screen-fade.tsx";
 import { stackOptions } from "@/components/shell/stack-options.ts";
 import { colors } from "@/theme/tokens.ts";
 
@@ -18,7 +19,7 @@ const sheet: NativeStackNavigationOptions = {
 export default function DriveLayout() {
   return (
     <NodeSheetHost>
-      <Stack screenOptions={stackOptions}>
+      <Stack screenOptions={stackOptions} screenLayout={withTopFade}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="share/[id]" options={sheet} />
         <Stack.Screen name="move/[id]" options={sheet} />

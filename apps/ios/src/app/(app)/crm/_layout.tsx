@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { withTopFade } from "@/components/shell/screen-fade.tsx";
 import { stackOptions } from "@/components/shell/stack-options.ts";
 
 const sheet = {
@@ -11,7 +12,7 @@ const sheet = {
 /** The CRM's stack: a list, then a record, then the records it links to; forms as sheets. */
 export default function CrmLayout() {
   return (
-    <Stack screenOptions={stackOptions}>
+    <Stack screenOptions={stackOptions} screenLayout={withTopFade}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="form" options={sheet} />
       <Stack.Screen name="note" options={sheet} />

@@ -1,5 +1,5 @@
 import { CRM_PAGES } from "@/lib/crm.ts";
-import { DRIVE_PAGES } from "@/lib/drive.ts";
+import { DRIVE_PAGES, useTeamspaces } from "@/lib/drive.ts";
 import { useMailPageCounts } from "@/lib/mail-counts.ts";
 import { MAIL_PAGES } from "@/lib/mail.ts";
 import { useMenuPlace } from "./menu-nav.ts";
@@ -8,8 +8,13 @@ import { useMenuPlace } from "./menu-nav.ts";
 export function usePageTitle() {
   const place = useMenuPlace();
   const counts: Partial<Record<string, string>> = useMailPageCounts(place.mailbox);
+  const teamspaces = useTeamspaces().data;
   if (place.mailPage)
     return { title: MAIL_PAGES[place.mailPage].label, count: counts[place.mailPage] };
+  if (place.driveSpace) {
+    const found = teamspaces?.find((one) => one.id === place.driveSpace);
+    return { title: found?.name ?? "Drive" };
+  }
   if (place.drivePage) return { title: DRIVE_PAGES[place.drivePage].label };
   if (place.crmPage) return { title: CRM_PAGES[place.crmPage].label };
   if (place.module === "calendar") return { title: "Calendar" };

@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, View } from "react-native";
+import { useTopInset } from "@/components/shell/menu-nav.ts";
 import { IconClock } from "@/components/icons.ts";
 import { AvatarTile } from "@/components/ui/avatar-tile.tsx";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
@@ -45,11 +46,12 @@ function useLatestInboxSenders() {
 export function SearchStart({ onSearch }: { onSearch: (q: string) => void }) {
   const people = useLatestInboxSenders();
   const recent = useRecentSearches();
+  const inset = useTopInset();
   return (
     <ScrollView
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
-      contentContainerStyle={styles.page}
+      contentContainerStyle={[styles.page, { paddingTop: inset }]}
     >
       {people.length ? (
         <>

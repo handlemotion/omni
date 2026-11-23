@@ -10,6 +10,8 @@ export { contentUrl } from "./drive-files.ts";
 
 /** The most of a text file its preview reads: the start of a larger one. */
 export const TEXT_PREVIEW_MAX_BYTES = 1024 * 1024;
+/** The most of a text file its card preview reads: just the first lines (8 KB, as on web). */
+export const CARD_TEXT_MAX_BYTES = 8 * 1024;
 
 /** Which bytes a preview shows: a new version of the file is a new copy and a new cache entry. */
 export const versionOf = (node: DriveNode) => String(node.contentVersion ?? node.updatedAt);
@@ -55,10 +57,10 @@ export const useLocalCopy = (node: DriveNode) =>
     retry: false,
   });
 
-async function startOf(node: DriveNode, signal: AbortSignal) {
+async function startOf(node: DriveNode, maxBytes: number, signal: AbortSignal) {
   const response = await api.storage.files[":id"].content.$get(
     { param: { id: node.id } },
-    { headers: { range: `bytes=0-${TEXT_PREVIEW_MAX_BYTES - 1}` }, init: { signal } },
+    { headers: { range: `bytes=0-${maxBytes - 1}` }, init: { signal } },
   );
   if (!response.ok) throw new ApiError(response.status, "the file didn't load");
   return response.text();
@@ -74,11 +76,24 @@ export const useFileText = (node: DriveNode) =>
     queryFn: async ({ signal }) => {
       const text =
         node.size > TEXT_PREVIEW_MAX_BYTES
-          ? await startOf(node, signal)
+          ? await startOf(node, TEXT_PREVIEW_MAX_BYTES, signal)
           : await (await localFile(sourceOf(node))).text();
       return { text, binary: text.slice(0, 8000).includes("\u0000") };
     },
     staleTime: Infinity,
+  });
+
+/** A card's page: the file's first 8 KB as text, cached per version (mirrors web's `useCardText`). */
+export const useCardText = (node: DriveNode, enabled: boolean) =>
+  useQuery({
+    queryKey: keys.fileCardText(node.id, versionOf(node)),
+    queryFn: async ({ signal }) => {
+      const text = await startOf(node, CARD_TEXT_MAX_BYTES, signal);
+      return { text, binary: text.slice(0, 8000).includes("\u0000") };
+    },
+    enabled: enabled && node.size > 0,
+    staleTime: Infinity,
+    retry: false,
   });
 
 /**
