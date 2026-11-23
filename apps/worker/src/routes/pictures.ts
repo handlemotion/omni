@@ -1,9 +1,8 @@
 import { sha256Hex } from "@omni/crypto";
 import { setOrganizationLogo, setUserImage } from "@omni/db";
 import { Hono, type Context } from "hono";
-import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
-import { resolveSession, type AppEnv } from "../context.ts";
+import { requireUser, type AppEnv } from "../context.ts";
 import { imageHeaders } from "../image-proxy.ts";
 import { managersOnly } from "../inbox-admin.ts";
 import { pictureUpload, readPicture } from "../picture-file.ts";
@@ -46,13 +45,6 @@ async function dropReplaced(
   const key = previous !== current && pictureKeyOf(previous, owner, ownerId);
   if (key) await c.env.MAIL_BUCKET.delete(key);
 }
-
-const requireUser = createMiddleware<AppEnv>(async (c, next) => {
-  const resolved = await resolveSession(c);
-  if (!resolved) throw new HTTPException(401, { message: "sign in first" });
-  c.set("user", resolved.user);
-  await next();
-});
 
 /** `/api/account`: the signed-in user's own picture. Works before they join an organization. */
 export const account = new Hono<AppEnv>()
