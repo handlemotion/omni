@@ -9,7 +9,7 @@ import {
   type StorageLiveEntry,
   type StorageLiveRecord,
 } from "@omni/contracts";
-import { toBase64 } from "@omni/crypto";
+import { decodeBase64, toBase64 } from "@omni/crypto";
 import { liveMarkdown, rewriteLive } from "@omni/docs";
 import * as Y from "yjs";
 import { docStream } from "../realtime-docs.ts";
@@ -17,7 +17,6 @@ import type { S2Basin } from "../s2.ts";
 import { latestLiveStart, readLive } from "./live-read.ts";
 
 const SNAP_MAX_CHARS = 850_000;
-const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 /**
  * A file's open live document, when its latest epoch holds the file's content now (the same rule
@@ -71,7 +70,7 @@ export class LiveFile {
     });
     live.start = first.seqNum;
     if (record.t === "snap") {
-      Y.applyUpdate(live.doc, fromBase64(record.u));
+      Y.applyUpdate(live.doc, decodeBase64(record.u));
       live.next = record.s + 1;
       live.changedAt = record.s;
     }
@@ -84,7 +83,6 @@ export class LiveFile {
     return this.fold.cv;
   }
 
-  /** The Markdown it holds now. */
   get markdown() {
     return liveMarkdown(this.doc);
   }
@@ -189,7 +187,7 @@ export class LiveFile {
       if (record.cv > this.fold.cv) this.fold = { cv: record.cv, s: record.s };
       return;
     }
-    Y.applyUpdate(this.doc, fromBase64(record.u));
+    Y.applyUpdate(this.doc, decodeBase64(record.u));
     if (record.t === "update") this.changedAt = Math.max(this.changedAt, completedAt);
   }
 }
