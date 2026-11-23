@@ -1,25 +1,35 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import {
-  Animated,
+  GestureDetector,
+  GestureHandlerRootView,
+  useNativeGesture,
+  usePanGesture,
+} from "react-native-gesture-handler";
+import Animated, {
   Easing,
-  Modal,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from "react-native";
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleOnRN } from "react-native-worklets";
 import { colors, radius, space } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
 import { useReduceMotion } from "./use-reduce-motion.ts";
 
+const INSET = space(3.5);
+const SCREEN_CORNER = space(15);
+const CORNER = SCREEN_CORNER - INSET;
+const TOP_CORNER = space(7);
+const MAX_SHARE = 0.8;
 const OPEN_MS = 360;
 const CLOSE_MS = 240;
-const SHEET_EASE = Easing.bezier(0.32, 0.72, 0, 1);
+const EASE = Easing.bezier(0.32, 0.72, 0, 1);
 const DISMISS_SHARE = 0.3;
-const DISMISS_SPEED = 0.8;
+const FLING = 800;
 
 /**
  * A sheet's (or a popover's) open state, and `pick(then)` for its rows: close it and run `then`
@@ -48,8 +58,9 @@ export function useSheet() {
 }
 
 /**
- * A sheet that slides up from the bottom edge while the page behind it dims: a grabber, its
- * title, then its rows. A tap above it, or a drag down on its grabber and title, closes it.
+ * A white card floating inset from the screen's edges with round corners, over a dimmed page: a
+ * grabber, its title, then its rows. Pulling it down anywhere closes it (from the rows too, once
+ * they are scrolled to the top), as does a tap above it.
  */
 export function BottomSheet({
   isOpen,
@@ -69,134 +80,138 @@ export function BottomSheet({
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
-  const motion = useSheetMotion(isOpen, onClose);
+  const { height: screen } = useWindowDimensions();
+  const still = useReduceMotion();
+  const [mounted, setMounted] = useState(isOpen);
+  const [height, setHeight] = useState(0);
+  const shown = useSharedValue(0);
+  const drag = useSharedValue(0);
+  const scrollY = useSharedValue(0);
+  const anchor = useSharedValue(0);
+  if (isOpen && !mounted) setMounted(true);
+  const measured = height > 0;
+  const bottom = INSET;
+
+  useEffect(() => {
+    if (isOpen && !measured) return;
+    if (!isOpen && !mounted) return;
+    if (isOpen) drag.value = 0;
+    shown.value = withTiming(
+      isOpen ? 1 : 0,
+      { duration: still ? 0 : isOpen ? OPEN_MS : CLOSE_MS, easing: EASE },
+      (finished) => {
+        if (finished && !isOpen) scheduleOnRN(setMounted, false);
+      },
+    );
+  }, [isOpen, measured, mounted, still, shown, drag]);
+
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+  const native = useNativeGesture({});
+  const pull = usePanGesture({
+    activeOffsetY: [-8, 8],
+    failOffsetX: [-16, 16],
+    simultaneousWith: native,
+    onBegin: () => {
+      "worklet";
+      anchor.value = 0;
+    },
+    onUpdate: (e) => {
+      "worklet";
+      if (scrollY.value > 0) {
+        anchor.value = e.translationY;
+        return;
+      }
+      drag.value = Math.max(0, e.translationY - anchor.value);
+    },
+    onDeactivate: (e) => {
+      "worklet";
+      if (drag.value > height * DISMISS_SHARE || (drag.value > 0 && e.velocityY > FLING)) {
+        scheduleOnRN(onClose);
+        return;
+      }
+      drag.value = withTiming(0, { duration: CLOSE_MS, easing: EASE });
+    },
+  });
+
+  const off = (measured ? height : screen) + bottom;
+  const card = useAnimatedStyle(() => ({
+    transform: [{ translateY: interpolate(shown.value, [0, 1], [off, 0]) + drag.value }],
+  }));
+  const scrim = useAnimatedStyle(() => ({
+    opacity: shown.value * Math.max(0, 1 - drag.value / off),
+  }));
+
   return (
     <Modal
       transparent
-      visible={motion.mounted}
+      visible={mounted}
       animationType="none"
       onRequestClose={onClose}
       onDismiss={onClosed}
     >
-      <Animated.View pointerEvents="box-none" style={[styles.fill, { opacity: motion.shown }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Close ${title}`}
-          onPress={onClose}
-          style={styles.scrim}
-        />
-      </Animated.View>
-      <Animated.View
-        accessibilityViewIsModal
-        onLayout={(event) => motion.measure(event.nativeEvent.layout.height)}
-        style={[
-          styles.sheet,
-          {
-            paddingBottom: Math.max(insets.bottom, space(10)),
-            transform: [{ translateY: motion.y }],
-          },
-        ]}
-      >
-        <View {...motion.handle}>
-          <View style={styles.grabber} />
-          {header ?? (
-            <View style={styles.title}>
-              <Text weight="semibold" accessibilityRole="header" numberOfLines={1}>
-                {title}
-              </Text>
-            </View>
-          )}
-        </View>
-        <ScrollView>{children}</ScrollView>
-      </Animated.View>
+      <GestureHandlerRootView style={styles.fill}>
+        <Animated.View style={[styles.scrim, scrim]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Close ${title}`}
+            onPress={onClose}
+            style={styles.fill}
+          />
+        </Animated.View>
+        <GestureDetector gesture={pull}>
+          <Animated.View
+            accessibilityViewIsModal
+            onLayout={(event) => {
+              const next = event.nativeEvent.layout.height;
+              if (next !== height) setHeight(next);
+            }}
+            style={[styles.card, { bottom, maxHeight: screen * MAX_SHARE }, card]}
+          >
+            <View style={styles.grabber} />
+            {header ?? (
+              <View style={styles.title}>
+                <Text weight="semibold" accessibilityRole="header" numberOfLines={1}>
+                  {title}
+                </Text>
+              </View>
+            )}
+            <GestureDetector gesture={native}>
+              <Animated.ScrollView
+                bounces={false}
+                onScroll={onScroll}
+                scrollEventThrottle={16}
+                contentContainerStyle={{
+                  paddingBottom: Math.max(insets.bottom - INSET, 0) + space(2),
+                }}
+              >
+                {children}
+              </Animated.ScrollView>
+            </GestureDetector>
+          </Animated.View>
+        </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
-function useSheetMotion(isOpen: boolean, onClose: () => void) {
-  const still = useReduceMotion();
-  const { height: screen } = useWindowDimensions();
-  const progress = useRef(new Animated.Value(0)).current;
-  const drag = useRef(new Animated.Value(0)).current;
-  const [mounted, setMounted] = useState(isOpen);
-  const [height, setHeight] = useState(0);
-  const latest = useRef({ height, onClose });
-  latest.current = { height, onClose };
-
-  if (isOpen && !mounted) setMounted(true);
-  const measured = height > 0;
-  useEffect(() => {
-    if (isOpen && !measured) return;
-    if (!isOpen && !mounted) return;
-    const run = Animated.timing(progress, {
-      toValue: isOpen ? 1 : 0,
-      duration: still ? 0 : isOpen ? OPEN_MS : CLOSE_MS,
-      easing: SHEET_EASE,
-      useNativeDriver: true,
-    });
-    if (isOpen) drag.setValue(0);
-    run.start(({ finished }) => {
-      if (!finished || isOpen) return;
-      drag.setValue(0);
-      setMounted(false);
-    });
-    return () => run.stop();
-  }, [isOpen, measured, mounted, still, progress, drag]);
-
-  const handle = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
-        onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
-        onPanResponderRelease: (_, g) => {
-          const far = g.dy > latest.current.height * DISMISS_SHARE;
-          if (far || g.vy > DISMISS_SPEED) {
-            latest.current.onClose();
-            return;
-          }
-          Animated.spring(drag, { toValue: 0, bounciness: 0, useNativeDriver: true }).start();
-        },
-        onPanResponderTerminate: () =>
-          Animated.spring(drag, { toValue: 0, bounciness: 0, useNativeDriver: true }).start(),
-      }).panHandlers,
-    [drag],
-  );
-
-  const off = measured ? height : screen;
-  const { y, shown } = useMemo(
-    () => ({
-      y: Animated.add(progress.interpolate({ inputRange: [0, 1], outputRange: [off, 0] }), drag),
-      shown: Animated.multiply(
-        progress,
-        drag.interpolate({ inputRange: [0, off], outputRange: [1, 0], extrapolate: "clamp" }),
-      ),
-    }),
-    [off, progress, drag],
-  );
-  return {
-    mounted,
-    shown,
-    y,
-    measure: (next: number) => next !== height && setHeight(next),
-    handle,
-  };
-}
-
 const styles = StyleSheet.create({
-  fill: { ...StyleSheet.absoluteFill },
-  sheet: {
+  fill: { flex: 1 },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: colors.scrim },
+  card: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    maxHeight: "80%",
+    left: INSET,
+    right: INSET,
     paddingTop: space(2),
     paddingHorizontal: space(1.5),
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
+    borderTopLeftRadius: TOP_CORNER,
+    borderTopRightRadius: TOP_CORNER,
+    borderBottomLeftRadius: CORNER,
+    borderBottomRightRadius: CORNER,
+    borderCurve: "continuous",
     backgroundColor: colors.background,
   },
-  scrim: { ...StyleSheet.absoluteFill, backgroundColor: colors.scrim },
   grabber: {
     alignSelf: "center",
     width: space(9),
