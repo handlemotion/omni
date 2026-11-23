@@ -1,10 +1,8 @@
-import { fileType } from "@omni/client";
+import { fileType, STORAGE_THUMBNAIL_MAX_SOURCE_BYTES } from "@omni/client";
 import { useState } from "react";
 import type { StorageNode } from "@/lib/storage.ts";
 
 type ThumbnailSize = 256 | 640;
-
-const WORKER_THUMBNAIL_MAX_SOURCE_BYTES = 20_000_000;
 
 /**
  * Whether the Worker draws this file a thumbnail (W2, `GET /files/:id/thumbnail`): an image up to
@@ -12,7 +10,7 @@ const WORKER_THUMBNAIL_MAX_SOURCE_BYTES = 20_000_000;
  */
 export function hasThumbnail(node: StorageNode) {
   if (node.kind !== "file" || node.size <= 0) return false;
-  if (node.size > WORKER_THUMBNAIL_MAX_SOURCE_BYTES) return false;
+  if (node.size > STORAGE_THUMBNAIL_MAX_SOURCE_BYTES) return false;
   return fileType(node.name, node.mimeType).kind === "image";
 }
 

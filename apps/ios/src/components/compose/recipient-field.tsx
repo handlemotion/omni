@@ -3,7 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { Avatar } from "@/components/ui/avatar.tsx";
 import { ChipButton, chipHeight } from "@/components/ui/chip-button.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
-import { notAddresses, parseAddresses } from "@/lib/compose.ts";
+import { notAddresses, parseAddresses } from "@omni/mail-core/compose";
 import { iconSize, space, text as type } from "@/theme/tokens.ts";
 import { HeaderRow } from "./header-field.tsx";
 

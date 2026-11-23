@@ -1,3 +1,4 @@
+import { mailboxName } from "@omni/client";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { IconCheck, IconChevronsUpDown } from "@/components/icons.ts";
@@ -6,7 +7,7 @@ import { MailboxCluster, type ClusterFace } from "@/components/inbox/mailbox-clu
 import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { mailboxName, useMailboxes } from "@/lib/mail.ts";
+import { useMailboxes } from "@/lib/mail.ts";
 import { useSession } from "@/lib/session.ts";
 import { colors, iconSize, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";

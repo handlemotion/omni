@@ -71,55 +71,12 @@ export function useSignedCopy() {
   });
 }
 
-/** Signed outside Omni and still without its signed copy, or about to be. */
-export const takesSignedCopy = (contract: CrmContract) =>
-  !contract.signedNodeId && !(contract.status === "sent" && contract.signing);
-
 export function useVoidContract() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => call(api.crm.contracts[":id"].void.$post({ param: { id } })),
     onSettled: () => crmChanged(client),
   });
-}
-
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
-const day = (date: string) => DAY.format(new Date(`${date}T00:00:00`));
-
-const ENDING_SOON_DAYS = 30;
-
-function daysUntil(date: string, now = new Date()) {
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((Date.parse(`${date}T00:00:00Z`) - today) / 86_400_000);
-}
-
-/** The word a contract's row ends with: its status, how far signing got, or that it ends soon. */
-export function contractStatus(contract: CrmContract) {
-  const signing = contract.signing;
-  if (contract.status === "sent" && signing?.status === "completed") return "Signed";
-  if (contract.status === "sent" && signing) return "Out for signature";
-  if (contract.status === "signed" && contract.expiresOn) {
-    const left = daysUntil(contract.expiresOn);
-    if (left <= 0) return "Ends today";
-    if (left === 1) return "Ends tomorrow";
-    if (left <= ENDING_SOON_DAYS) return `Ends in ${left} days`;
-  }
-  const LABELS = { draft: "Draft", sent: "Sent", signed: "Signed", ended: "Ended" } as const;
-  return LABELS[contract.status];
-}
-
-/** "1 of 2 signed" while out for signature, else its dates. */
-export function contractLine(contract: CrmContract) {
-  const signing = contract.signing;
-  if (contract.status === "sent" && signing?.status === "sent") {
-    const signed = signing.signers.filter((signer) => signer.signedAt).length;
-    return `${signed} of ${signing.signers.length} signed`;
-  }
-  const dates = [
-    contract.effectiveOn && `From ${day(contract.effectiveOn)}`,
-    contract.expiresOn && `${contract.effectiveOn ? "until" : "Until"} ${day(contract.expiresOn)}`,
-  ].filter(Boolean);
-  return dates.length ? dates.join(" ") : null;
 }
 
 export function signerStatus(signer: ContractSigner) {

@@ -1,4 +1,5 @@
 import { type Mailbox, type Thread, ApiError } from "@omni/client";
+import { notAddresses, parseAddresses } from "@omni/mail-core/compose";
 import { router } from "expo-router";
 import { useRef, useState, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, StyleSheet, View } from "react-native";
@@ -15,8 +16,6 @@ import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import {
   forwardStart,
-  notAddresses,
-  parseAddresses,
   participantNames,
   replyStart,
   useSendForward,

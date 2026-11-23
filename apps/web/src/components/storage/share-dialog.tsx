@@ -1,3 +1,4 @@
+import { DRIVE_LINK_ACCESS, DRIVE_ROLES, driveRoleLabel } from "@omni/client";
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
 import {
@@ -28,21 +29,10 @@ import {
   shareUrl,
   type StorageGrantRole,
   type StorageLinkChange,
-  type StorageLinkAccess,
   type StorageSharing,
 } from "@/lib/storage-sharing.ts";
 import { storageErrorToast } from "./storage-errors.ts";
 
-const ROLES: { id: StorageGrantRole; label: string }[] = [
-  { id: "viewer", label: "Viewer" },
-  { id: "commenter", label: "Commenter" },
-  { id: "editor", label: "Editor" },
-];
-const ACCESS: { id: StorageLinkAccess; label: string }[] = [
-  { id: "restricted", label: "Restricted" },
-  { id: "workspace", label: "People in this workspace" },
-  { id: "anyone", label: "Anyone with the link" },
-];
 const DAY_MS = 86_400_000;
 const EXPIRY: { id: string; label: string; days: number | null }[] = [
   { id: "never", label: "Never", days: null },
@@ -51,7 +41,6 @@ const EXPIRY: { id: string; label: string; days: number | null }[] = [
   { id: "30", label: "In 30 days", days: 30 },
 ];
 const DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
-const roleLabel = (role: StorageGrantRole) => ROLES.find((r) => r.id === role)?.label ?? role;
 
 export function ShareDialog(props: { node: StorageNode; onClose: () => void }) {
   const sharing = useStorageSharing(props.node.id);
@@ -167,12 +156,12 @@ function RoleSelect(props: {
         value={props.value}
         isDisabled={props.isDisabled}
         onChange={(next) => {
-          const option = ROLES.find((r) => r.id === next);
+          const option = DRIVE_ROLES.find((r) => r.id === next);
           if (option) props.onChange(option.id);
         }}
       >
         <SelectTrigger />
-        <SelectContent items={ROLES}>
+        <SelectContent items={DRIVE_ROLES}>
           {(role) => (
             <SelectItem id={role.id} textValue={role.label}>
               {role.label}
@@ -225,7 +214,7 @@ function People({ sharing }: { sharing: StorageSharing }) {
           from={person.nodeName}
         >
           <span className="w-28 shrink-0 ps-2.5 text-sm text-muted-foreground">
-            {roleLabel(person.role)}
+            {driveRoleLabel(person.role)}
           </span>
           <span aria-hidden className="size-6.5 shrink-0" />
         </PersonRow>
@@ -256,7 +245,7 @@ function GeneralAccess({ sharing, uploading }: { sharing: StorageSharing; upload
   const setLink = useSetStorageLink(uploading);
   const open = sharing.linkAccess !== "restricted";
   const Icon = sharing.linkAccess === "anyone" ? IconGlobe : IconLock;
-  const choices = ACCESS.filter(
+  const choices = DRIVE_LINK_ACCESS.filter(
     (a) =>
       a.id !== "anyone" || sharing.policy?.publicLinks !== false || sharing.linkAccess === a.id,
   );
@@ -271,7 +260,7 @@ function GeneralAccess({ sharing, uploading }: { sharing: StorageSharing; upload
             aria-label="General access"
             value={sharing.linkAccess}
             onChange={(next) => {
-              const option = ACCESS.find((a) => a.id === next);
+              const option = DRIVE_LINK_ACCESS.find((a) => a.id === next);
               if (option && option.id !== sharing.linkAccess) {
                 setLink.mutate(
                   { id: sharing.nodeId, linkAccess: option.id },
