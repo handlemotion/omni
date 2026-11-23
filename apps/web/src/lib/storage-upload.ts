@@ -8,7 +8,7 @@ const PARALLEL_PARTS = 6;
 const TRIES = 8;
 const STALL_MS = 60_000;
 
-export interface UploadRequest {
+interface UploadRequest {
   file: File;
   place: StoragePlace;
   /** The file this becomes a new version of; absent, it becomes a file in `place`. */

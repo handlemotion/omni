@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api.ts";
 import { useBook, useBookingPage } from "@/hooks/use-booking.ts";
+import { TIME } from "@/lib/dates.ts";
 
 const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 const dayFormat = new Intl.DateTimeFormat(undefined, {
@@ -21,7 +22,6 @@ const longDay = new Intl.DateTimeFormat(undefined, {
   month: "long",
   day: "numeric",
 });
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
 const localDay = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -43,7 +43,7 @@ function Booked(props: { start: Date; title: string }) {
     <div className="flex flex-col gap-1 p-6 text-center">
       <span className="text-base text-foreground">Booked</span>
       <span className="text-muted-foreground">
-        {props.title} · {longDay.format(props.start)}, {timeFormat.format(props.start)}
+        {props.title} · {longDay.format(props.start)}, {TIME.format(props.start)}
       </span>
     </div>
   );
@@ -82,7 +82,7 @@ function BookForm(props: { slug: string; start: Date; onBack: () => void; onBook
       }}
     >
       <span className="text-foreground">
-        {longDay.format(props.start)}, {timeFormat.format(props.start)}
+        {longDay.format(props.start)}, {TIME.format(props.start)}
       </span>
       <TextField isRequired autoFocus maxLength={200} value={name} onChange={setName}>
         <Label>Name</Label>
@@ -175,7 +175,7 @@ export function BookingPage(props: { slug: string }) {
                   className="tabular-nums"
                   onPress={() => setPicked(time)}
                 >
-                  {timeFormat.format(time)}
+                  {TIME.format(time)}
                 </Button>
               ))}
             </div>

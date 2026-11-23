@@ -11,7 +11,7 @@ export interface ItemRect {
 /** Set on the lit row (boolean attribute), for styling it and for tests. */
 export const ACTIVE_ATTR = "data-fluid-hover-active";
 
-export interface UseFluidHoverListOptions {
+interface UseFluidHoverListOptions {
   /** Matches the rows inside the container. */
   itemSelector: string;
   /** Matches the row the primitive itself highlights (React Aria's `[data-focus-visible]` for

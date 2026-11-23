@@ -9,8 +9,7 @@ import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { dealMeetingsQuery, placeMeetingMutation, type CrmMeeting } from "@/lib/crm-meetings.ts";
 import { meetingPath } from "@/lib/meetings.ts";
 import { crmErrorToast } from "./crm-errors.ts";
-
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 /** `42 min`, or `1 h 5 min`: how long a meeting lasted. */
 export function lasted(ms: number | null) {
@@ -23,7 +22,7 @@ export function lasted(ms: number | null) {
 /** What a meeting row says under its title: when, how long, and its open actions. */
 export function meetingMeta(meeting: Pick<CrmMeeting, "startedAt" | "durationMs" | "openActions">) {
   return [
-    DAY.format(new Date(meeting.startedAt)),
+    DAY_YEAR.format(new Date(meeting.startedAt)),
     lasted(meeting.durationMs),
     meeting.openActions
       ? `${meeting.openActions} open ${meeting.openActions === 1 ? "action" : "actions"}`

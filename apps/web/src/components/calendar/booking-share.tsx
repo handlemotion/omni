@@ -53,7 +53,7 @@ function LinkRow(props: { link: BookingLink; onCopy: () => void; onDelete: () =>
 export function BookingShare(props: { calendars: readonly CalendarItem[] }) {
   const links = useBookingLinks();
   const { create, remove } = useBookingLinkWrites();
-  const { copy } = useClipboard();
+  const { copy } = useClipboard("Link");
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const copyLink = async (link: BookingLink) => {

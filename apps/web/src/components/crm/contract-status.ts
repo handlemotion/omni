@@ -1,5 +1,5 @@
 import type { CrmContract } from "@/lib/crm.ts";
-import { DAY } from "./record-list.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 type Intent = "secondary" | "info" | "success" | "warning" | "outline";
 
@@ -8,7 +8,7 @@ export const ENDING_SOON_DAYS = 30;
 
 const MS_PER_DAY = 86_400_000;
 
-const day = (date: string) => DAY.format(new Date(`${date}T00:00:00`));
+const day = (date: string) => DAY_YEAR.format(new Date(`${date}T00:00:00`));
 
 /** Whole days from today (local) until `date`, `YYYY-MM-DD`. */
 export function daysUntil(date: string, now = new Date()) {

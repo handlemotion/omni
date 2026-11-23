@@ -1,4 +1,5 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
+import { holdQueries, lastWrite, restoreQueries, type Snapshot } from "./cache.ts";
 import { keys } from "./query-keys.ts";
 
 /**
@@ -20,28 +21,17 @@ export function settleCrm(client: QueryClient, also?: () => unknown) {
   return {
     mutationKey: CRM_WRITE,
     onSettled: () => {
-      if (client.isMutating({ mutationKey: CRM_WRITE }) > 1) return;
+      if (!lastWrite(client, CRM_WRITE)) return;
       void client.invalidateQueries({ queryKey: keys.crm() });
       also?.();
     },
   };
 }
 
-export type CrmSnapshot = [QueryKey, unknown][];
+/** `holdQueries` for every CRM query. */
+export const holdCrm = (client: QueryClient) => holdQueries(client, keys.crm());
 
-/**
- * Stops CRM fetches in flight (an answer from before the write would undo it) and keeps every
- * CRM query's data, for `restoreCrm` when the write fails.
- */
-export async function holdCrm(client: QueryClient) {
-  await client.cancelQueries({ queryKey: keys.crm() });
-  return client.getQueriesData({ queryKey: keys.crm() }) satisfies CrmSnapshot;
-}
-
-/** Puts back what `holdCrm` kept. */
-export function restoreCrm(client: QueryClient, snapshot: CrmSnapshot | undefined) {
-  for (const [key, data] of snapshot ?? []) client.setQueryData(key, data);
-}
+export const restoreCrm = restoreQueries;
 
 type Entity = { id: string } & Record<string, unknown>;
 
@@ -172,7 +162,7 @@ export function optimisticCrm<V>(client: QueryClient, change: (variables: V) => 
       change(variables);
       return { snapshot };
     },
-    onError: (_error: unknown, _variables: V, context: { snapshot: CrmSnapshot } | undefined) =>
+    onError: (_error: unknown, _variables: V, context: { snapshot: Snapshot } | undefined) =>
       restoreCrm(client, context?.snapshot),
   };
 }

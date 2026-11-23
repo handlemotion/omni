@@ -20,7 +20,7 @@ import {
   lastChunk,
 } from "@/lib/recorder-spool.ts";
 
-export type RecorderPhase = "idle" | "starting" | "recording" | "stopping";
+type RecorderPhase = "idle" | "starting" | "recording" | "stopping";
 
 export interface RecorderState {
   phase: RecorderPhase;
@@ -32,7 +32,7 @@ export interface RecorderState {
   offline: boolean;
 }
 
-export interface Recorder extends RecorderState {
+interface Recorder extends RecorderState {
   start(): Promise<void>;
   stop(): Promise<void>;
   level(): number;

@@ -1,7 +1,8 @@
 import { useSearch } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
+import { useClipboard } from "@/hooks/use-clipboard.ts";
 import { Link } from "@/components/ui/link";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
@@ -23,11 +24,12 @@ import { AddDomainDialog } from "./record-dialogs.tsx";
 import { PlainValue, TextValue } from "./record-fields.tsx";
 import { RecordFiles } from "./record-files.tsx";
 import { DetailSection, RecordFrame, RecordState } from "./record-layout.tsx";
-import { DAY, RecordMark } from "./record-list.tsx";
+import { RecordMark } from "./record-list.tsx";
 import { AddButton, DomainsSection, PeopleSection } from "./record-sections.tsx";
 import { TrailProvider, useRecordHref } from "./record-trail.tsx";
 import { RecordTasks } from "./tasks.tsx";
 import { Timeline } from "./timeline.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 /**
  * A client (a company) as one stacked page, so it reads apart from a person's or a deal's split
@@ -52,7 +54,7 @@ export function CompanyPage({ id }: { id: string }) {
       { onError: (error) => crmErrorToast(error, "The company was not changed") },
     );
   const archived = !!company.archivedAt;
-  const added = DAY.format(new Date(company.createdAt));
+  const added = DAY_YEAR.format(new Date(company.createdAt));
   const contacted = lastContactedAt(company);
   return (
     <TrailProvider here={{ kind: "companies", id }}>
@@ -132,7 +134,7 @@ export function CompanyPage({ id }: { id: string }) {
                 onSave={(ownerMemberId) => save({ ownerMemberId })}
               />
               <PlainValue label="Last contacted">
-                {contacted ? DAY.format(new Date(contacted)) : null}
+                {contacted ? DAY_YEAR.format(new Date(contacted)) : null}
               </PlainValue>
               <PlainValue label="Added">{added}</PlainValue>
             </DetailSection>
@@ -177,15 +179,7 @@ function ClientHead(props: {
 }
 
 function CopyDomain({ domain }: { domain: string }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const copy = async () => {
-    await navigator.clipboard.writeText(domain);
-    setCopied(true);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setCopied(false), 1800);
-  };
+  const { copy, copied } = useClipboard("Domain");
   return (
     <div className="flex min-w-0 items-center gap-1">
       <span className="truncate text-sm text-muted-foreground">{domain}</span>
@@ -195,7 +189,7 @@ function CopyDomain({ domain }: { domain: string }) {
           size="sq-2xs"
           aria-label={`Copy ${domain}`}
           className="text-muted-foreground hover:text-foreground"
-          onPress={() => void copy()}
+          onPress={() => void copy(domain)}
         >
           {copied ? <IconCheck aria-hidden /> : <IconCopy aria-hidden />}
         </Button>

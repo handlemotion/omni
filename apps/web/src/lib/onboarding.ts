@@ -25,7 +25,7 @@ export function needsSetup(org: { role: string; setup: SetupStep } | null | unde
  * workspace is ready (you came to make another), else another workspace that is ready (switch to
  * it), else signing out (no workspace to go to yet).
  */
-export type OnboardingExit =
+type OnboardingExit =
   | { kind: "inbox" }
   | { kind: "workspace"; workspace: Workspace }
   | { kind: "sign-out" };

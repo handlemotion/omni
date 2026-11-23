@@ -16,7 +16,7 @@ const PAGE = 30;
 /** A project's Meetings tab: its recorded meetings the member can open, newest first. */
 export const dealMeetingsQuery = (dealId: string) =>
   infiniteQueryOptions({
-    queryKey: [...keys.crm(), "meetings", dealId] as const,
+    queryKey: keys.crmMeetings(dealId),
     queryFn: ({ pageParam, signal }) =>
       call(
         api.crm.deals[":id"].meetings.$get(
@@ -34,8 +34,8 @@ export const dealMeetingsQuery = (dealId: string) =>
 
 const settled = (client: QueryClient) =>
   Promise.all([
-    client.invalidateQueries({ queryKey: [...keys.crm(), "meetings"] }),
-    client.invalidateQueries({ queryKey: [...keys.crm(), "timeline"] }),
+    client.invalidateQueries({ queryKey: keys.crmMeetings() }),
+    client.invalidateQueries({ queryKey: keys.crmTimelines() }),
     meetingsChanged(client),
   ]);
 

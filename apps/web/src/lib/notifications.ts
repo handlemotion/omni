@@ -3,9 +3,9 @@ import {
   mutationOptions,
   type InfiniteData,
   type QueryClient,
-  type QueryKey,
 } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
+import { holdQueries, restoreQueries } from "./cache.ts";
 import { keys, notificationFilterOf } from "./query-keys.ts";
 import type { NotificationPage } from "./types.ts";
 
@@ -45,10 +45,7 @@ export const markNotificationsReadMutation = (client: QueryClient) =>
     mutationFn: ({ ids }: { ids?: string[] | undefined }) =>
       call(api.notifications.read.$post({ json: ids ? { ids } : {} })),
     onMutate: async ({ ids }) => {
-      await client.cancelQueries({ queryKey: keys.notifications() });
-      const snapshot: [QueryKey, unknown][] = client.getQueriesData({
-        queryKey: keys.notifications(),
-      });
+      const snapshot = await holdQueries(client, keys.notifications());
       const now = new Date().toISOString();
       const marks = (id: string) => !ids || ids.includes(id);
       const marking = new Set<string>();
@@ -77,8 +74,6 @@ export const markNotificationsReadMutation = (client: QueryClient) =>
       }
       return { snapshot };
     },
-    onError: (_error, _vars, context) => {
-      for (const [key, data] of context?.snapshot ?? []) client.setQueryData(key, data);
-    },
+    onError: (_error, _vars, context) => restoreQueries(client, context?.snapshot),
     onSettled: () => void client.invalidateQueries({ queryKey: keys.notifications() }),
   });

@@ -1,7 +1,7 @@
 const STORE = "omni-pdf-tiles-v1";
 const KEEP = 500;
 
-export interface StoredFirst {
+interface StoredFirst {
   page: Blob;
   ratio: number;
   count: number;

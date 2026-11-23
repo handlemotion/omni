@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
+import { holdQueries, restoreQueries } from "./cache.ts";
 import { keys } from "./query-keys.ts";
 import type { Conversation, Note } from "./types.ts";
 
@@ -8,24 +9,13 @@ export const PENDING_NOTE_PREFIX = "pending:";
 
 const scope = { id: "mail-actions" };
 
-async function snapshotConversation(client: QueryClient, threadId: string) {
-  const key = keys.conversation(threadId);
-  await client.cancelQueries({ queryKey: key });
-  return client.getQueryData<Conversation>(key);
-}
+const holdConversation = (client: QueryClient, threadId: string) =>
+  holdQueries(client, keys.conversation(threadId));
 
 function setNotes(client: QueryClient, threadId: string, fn: (notes: Note[]) => Note[]) {
   client.setQueryData<Conversation>(keys.conversation(threadId), (current) =>
     current ? { ...current, notes: fn(current.notes) } : current,
   );
-}
-
-function restoreConversation(
-  client: QueryClient,
-  threadId: string,
-  before: Conversation | undefined,
-) {
-  if (before) client.setQueryData(keys.conversation(threadId), before);
 }
 
 export interface AddNoteVariables {
@@ -52,7 +42,7 @@ export const addNoteMutation = (client: QueryClient) =>
     mutationFn: ({ threadId, body, mentions = [] }: AddNoteVariables) =>
       call(api.threads[":id"].notes.$post({ param: { id: threadId }, json: { body, mentions } })),
     onMutate: async ({ threadId, body, mentions = [], authorMemberId, localId }) => {
-      const before = await snapshotConversation(client, threadId);
+      const before = await holdConversation(client, threadId);
       const now = new Date().toISOString();
       setNotes(client, threadId, (notes) => [
         ...notes,
@@ -93,15 +83,14 @@ export const editNoteMutation = (client: QueryClient) =>
         }),
       ),
     onMutate: async ({ threadId, noteId, body }) => {
-      const before = await snapshotConversation(client, threadId);
+      const before = await holdConversation(client, threadId);
       const now = new Date().toISOString();
       setNotes(client, threadId, (notes) =>
         notes.map((n) => (n.id === noteId ? { ...n, body, updatedAt: now } : n)),
       );
       return { before };
     },
-    onError: (_error, { threadId }, context) =>
-      restoreConversation(client, threadId, context?.before),
+    onError: (_error, _variables, context) => restoreQueries(client, context?.before),
     onSuccess: ({ note }, { threadId }) =>
       setNotes(client, threadId, (notes) =>
         notes.map((n) => (n.id === note.id ? { ...n, ...note } : n)),
@@ -117,12 +106,11 @@ export const deleteNoteMutation = (client: QueryClient) =>
     mutationFn: ({ threadId, noteId }: { threadId: string; noteId: string }) =>
       call(api.threads[":id"].notes[":noteId"].$delete({ param: { id: threadId, noteId } })),
     onMutate: async ({ threadId, noteId }) => {
-      const before = await snapshotConversation(client, threadId);
+      const before = await holdConversation(client, threadId);
       setNotes(client, threadId, (notes) => notes.filter((n) => n.id !== noteId));
       return { before };
     },
-    onError: (_error, { threadId }, context) =>
-      restoreConversation(client, threadId, context?.before),
+    onError: (_error, _variables, context) => restoreQueries(client, context?.before),
     onSettled: (_data, _error, { threadId }) => {
       void client.invalidateQueries({ queryKey: keys.thread(threadId) });
       void client.invalidateQueries({ queryKey: keys.notifications() });
