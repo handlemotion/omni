@@ -10,7 +10,8 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { resolveSession, systemMailSender, type AppEnv, type SessionUser } from "../context.ts";
+import { resolveSession, type AppEnv, type SessionUser } from "../context.ts";
+import { systemMailSender } from "../system-mail.ts";
 import {
   checkRateLimit,
   clientIp,

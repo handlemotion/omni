@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/server";
+import { toBase64 } from "@omni/crypto";
 import type { StorageContext, StorageListCursor } from "@omni/db";
 import { z } from "zod";
 import { child, driveFor, item, itemSchema } from "../drive.ts";
@@ -49,8 +50,7 @@ const outputSchema = z.object({
 
 const encodeCursor = (cursor: StorageListCursor | null) => {
   if (!cursor) return undefined;
-  const bytes = new TextEncoder().encode(JSON.stringify([cursor.kind, cursor.name, cursor.id]));
-  return btoa(String.fromCharCode(...bytes));
+  return toBase64(new TextEncoder().encode(JSON.stringify([cursor.kind, cursor.name, cursor.id])));
 };
 
 const decodeCursor: (cursor: string | undefined) => StorageListCursor | null | undefined = (

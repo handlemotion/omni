@@ -26,7 +26,8 @@ import {
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
-import { resolveSession, systemMailSender, type AppEnv } from "../context.ts";
+import { resolveSession, type AppEnv } from "../context.ts";
+import { systemMailSender } from "../system-mail.ts";
 import { apiError } from "../errors.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";

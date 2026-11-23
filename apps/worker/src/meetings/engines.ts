@@ -1,4 +1,5 @@
 import type { TranscribeProvider } from "@omni/ai";
+import { toBase64 } from "@omni/crypto";
 
 /** What the engine is told about the meeting, so it can label and name speakers. */
 export interface EngineHints {
@@ -197,12 +198,8 @@ function workersAI(config: EngineConfig) {
         throw new EngineError("the recording is too long for Workers AI", false);
       }
       const bytes = new Uint8Array(await new Response(audio.body).arrayBuffer());
-      let binary = "";
-      for (let i = 0; i < bytes.length; i += 0x8000) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-      }
       const result = await config.ai.run(WORKERS_AI_MODEL, {
-        audio: btoa(binary),
+        audio: toBase64(bytes),
         vad_filter: true,
       });
       return { result };

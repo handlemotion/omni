@@ -28,7 +28,7 @@ import {
 import { challengeRecordName } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import { systemMailSender } from "./context.ts";
+import { systemMailSender } from "./system-mail.ts";
 import { inspectDomain } from "./dns-check.ts";
 import { callMailService, type MailServiceScope } from "./mail-service.ts";
 

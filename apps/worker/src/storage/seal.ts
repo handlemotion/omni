@@ -12,7 +12,8 @@ import {
 import { Effect } from "effect";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { Context } from "hono";
-import { systemMailSender, type AppEnv } from "../context.ts";
+import type { AppEnv } from "../context.ts";
+import { systemMailSender } from "../system-mail.ts";
 import { openDb } from "../db.ts";
 import type { Config } from "../env.ts";
 import { loadConfig } from "../env.ts";

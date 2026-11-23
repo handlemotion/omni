@@ -4,6 +4,7 @@ import {
   type StorageLiveReadResponse,
   type StorageLiveRecord,
 } from "@omni/contracts";
+import { toBase64 } from "@omni/crypto";
 import { linkOf, type SharedAccess, type StorageNodeView } from "@omni/db";
 import { rewriteLive } from "@omni/docs";
 import { isDocFile } from "@omni/docs/file";
@@ -40,14 +41,6 @@ export function liveOnPage(c: Context<AppEnv>, shared: SharedAccess, item: Stora
     isDocFile(node.name, node.mimeType)
   );
 }
-
-const toBase64 = (bytes: Uint8Array) => {
-  let text = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(text);
-};
 
 async function seedFor(
   c: Context<AppEnv>,

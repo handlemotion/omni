@@ -1,6 +1,7 @@
 import { usagePeriod } from "@omni/ai";
 import type { BillingConfig } from "@omni/auth";
 import { PLAN_LIMITS, planKeyOf } from "@omni/contracts";
+import { sha256Hex } from "@omni/crypto";
 import {
   noteSubscriptionPaymentMethod,
   raiseStoragePeak,
@@ -59,8 +60,7 @@ export async function meterEventIdentifier(input: {
   extraGb: number;
 }) {
   const text = [input.orgId, input.periodStart.toISOString(), input.day, input.extraGb].join("|");
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return `omni-storage-${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+  return `omni-storage-${await sha256Hex(text)}`;
 }
 
 async function billWorkspace(

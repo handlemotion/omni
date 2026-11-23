@@ -7,6 +7,7 @@ import {
   type StorageUploadPartResponse,
   type StorageUploadResponse,
 } from "@omni/contracts";
+import { toHex } from "@omni/crypto";
 import type { MemberStorage, SharedStorage, StorageUpload, UploadCaps } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
@@ -93,9 +94,7 @@ async function objectSha256(bucket: R2Bucket, key: string) {
   if (!object) return null;
   const digest = new crypto.DigestStream("SHA-256");
   await object.body.pipeTo(digest);
-  return [...new Uint8Array(await digest.digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+  return toHex(new Uint8Array(await digest.digest));
 }
 
 async function findUpload(c: Context<AppEnv>, id: string) {
