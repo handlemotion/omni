@@ -115,8 +115,7 @@
         "apps/worker/src/realtime.ts",
         "apps/worker/src/routes/internal.ts",
         "apps/worker/src/routes/library.ts",
-        "apps/worker/src/routes/stripe-webhook.ts",
-        "packages/client/src/realtime.ts"
+        "apps/worker/src/routes/stripe-webhook.ts"
       ],
       "rules": {
         "complexity": "off"
