@@ -4,7 +4,7 @@ Nov 22, 2026 · Draft · Extends `docs/spec/v1.md` (Drive) and `docs/spec/crm.md
 
 ## Summary
 
-Drive stops forcing two drives on everyone (My files and Shared). A workspace holds
+Drive no longer has My files or Shared. A workspace holds
 **teamspaces**: named places anyone in the workspace can make, each with its own members. A
 teamspace holds folders, docs and files, and the sidebar is the navigator: teamspaces, and the
 folders inside them. A CRM deal gets its own private teamspace whose members are the project's
@@ -17,7 +17,7 @@ workspace, which has teamspaces like any other. The new thing is a teamspace in 
 
 Search, Recents and Trash, then **Spaces**: the spaces the member is in, each opening to its
 folders (folders only; files are in the page), then New space, and Browse spaces when there are
-open ones they are not in. My files and Shared show there only while they hold something. Recents
+open ones they are not in. Nothing else: My files and Shared are retired and never show. Recents
 lists the files changed most recently in the member's spaces and drives, with what was shared
 with them by address beside them, so Shared with me and the sidebar's Upload row go.
 
@@ -44,8 +44,9 @@ with them by address beside them, so Shared with me and the sidebar's Upload row
 - **CRM.** Creating a deal creates an open teamspace named after it: the team reaches every
   project, as before. Its creator owns it and the deal's owner is in it; the deal's folder sits at
   its top. Freelancers and clients on the project are not in it: they keep reaching the project's
-  folder through its grant, so the team-only Admin folder stays out of their reach. A deal made
-  before teamspaces keeps its folder under `Shared / Clients`.
+  folder through its grant, so the team-only Admin folder stays out of their reach. A company's
+  folder, and the folder of a deal made before teamspaces, is made the first time it is needed at
+  the top of a new open teamspace named after the record, owned by whoever needed it.
 
 ## Model
 
@@ -56,19 +57,21 @@ with them by address beside them, so Shared with me and the sidebar's Upload row
   `(org_id, space, owner_member_id, teamspace_id)`. Uploads in progress and tombstones carry
   `teamspace_id` too.
 
-## Expand, then contract
+## My files and Shared are retired
 
-My files and Shared keep working as they are, for every client, while teamspaces arrive:
+The `personal` and `shared` drives are gone from the product (Nov 23, 2026; no data in them was
+kept):
 
-1. **This stack.** Teamspaces, their members and their access, through the member door; the web
-   sidebar lists them, and My files and Shared only while they hold something; a new CRM deal
-   makes its teamspace. Search, Trash, the agent's Drive tools and moves between drives include
-   teamspaces.
-2. **Next.** Desktop sync and iOS list teamspaces (desktop: a folder per teamspace the person is
-   in, beside My files and Shared, `docs/spec/desktop.md`). My files and Shared move into teamspaces once
-   (a private teamspace per member who has files, an open "Shared" teamspace), in an idempotent
-   job.
-3. **Last.** Once no client reads them, the `personal` and `shared` drives go.
+- Nothing in Omni puts a file in Shared, and nothing but Talk and Meetings puts one in My files.
+- No sidebar, listing, search, Recents, Trash, Shared with me, sync drive list or agent tool shows
+  either. `/files/my` and `/files/shared` open Drive; a link to a folder inside them still opens.
+- A member's My files stays, unseen, as their **hidden store**: Talk drops
+  (`docs/spec/talk.md`) and meeting recordings and notes docs (`docs/spec/meetings.md`) are kept
+  there, counted against storage like any file, and opened only from Talk or the meeting. A grant
+  on a file there opens it for the grantee and lists it nowhere.
+- The HTTP API still takes `space=personal|shared` for clients built before this (iOS, desktop
+  sync). The last step, once none sends it: the old rows go, and `personal` is renamed for what it
+  now is.
 
 ## Verify
 

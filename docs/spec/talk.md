@@ -81,25 +81,21 @@ Reads and writes go through `forMember(db, memberId).talk`, which loads the memb
 freelancer, and reaches only threads the member is one of the two in. The
 door takes the other person as a member id and checks they are a teammate in the same workspace.
 
-## Files go into Drive
+## Files go into Drive, out of sight
 
-A dropped file is uploaded by the Worker into the **sender's My files, in a folder named
-`Talk`** (made on first use), and the Worker adds a **viewer grant for the recipient's address**
-on that file. The message keeps the node's id and, as what the sender sent, its name, size and
-type.
+A dropped file is uploaded by the Worker into the **sender's hidden store** (the top of their
+retired My files, `docs/spec/teamspaces.md`), with no folder, and the Worker adds a **viewer grant
+for the recipient's address** on that file. The message keeps the node's id and, as what the
+sender sent, its name, size and type.
 
 Why Drive and not attachments of its own:
 
 - **One store.** Bytes, quotas, billing, the per-file limit, previews and thumbnails, versions,
   Trash and the sweep already exist for Storage. A second store would need all of them again.
 - **The grant is the access.** The recipient opens the file through Storage's grant door, the
-  same way as any file shared with them; Drive's sharing panel shows it is shared and with whom,
-  and the sender can revoke it there. Talk never decides who reads bytes.
-- **It is a real file.** The sender finds what they sent in My files / Talk; the recipient can
-  save it to their own drive or share it on. Nothing is copied to "keep" it.
-- **Why My files, not a teamspace.** A file sent to one person is that person's to see. A
-  teamspace per pair would put every pair in the sidebar; My files is private already and the
-  grant reaches the one person it is for.
+  same way as any file shared with them. Talk never decides who reads bytes.
+- **Nobody manages it.** No space, folder, listing, search, Recents, Trash or Shared with me
+  shows a drop, for the sender or the recipient: it opens from the note.
 
 The name, size and type are kept on the message because Talk reads no Storage table: the
 message says what was sent. When the file is gone (trashed, deleted, grant removed), the card
@@ -114,10 +110,6 @@ An image shows inline as Storage's 640 px thumbnail (`?size=640`), named by the 
 the browser keeps it for good; that redirect may be reused for an hour, so a reopened thread
 shows its images with no request. A GIF, a file too large to draw, or a thumbnail that fails
 shows the file itself.
-
-The folder drops go into is shared with nobody else: if the sender shares their `Talk` folder in
-Drive, the next drop makes a new one, so a later file is never visible to that folder's
-grantees. Each drop also tells the sender's open Drive listings that the folder changed.
 
 Upload is one request: `POST /api/talk/threads/:id/files?name=…` with the bytes as the body and
 its `content-length`, up to `STORAGE_MAX_FILE_BYTES` and the workspace's storage limit, like
@@ -204,7 +196,7 @@ own id, so a retried request at most adds a note again; reactions and reads are 
   then online ones, then by name.
 - An hour between notes starts a new time line in the window.
 - Notes are plain text, 4,000 characters at most; links are not previewed.
-- Files land in `My files / Talk`; the recipient's grant is `viewer`.
+- Files land in the sender's hidden store, in no folder; the recipient's grant is `viewer`.
 
 ## Plan
 

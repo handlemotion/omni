@@ -4,7 +4,8 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { storageLimit, wireNode } from "../storage/core.ts";
-import { memberStorage, placeOf, refused } from "../storage/http.ts";
+import type { MemberStorage } from "@omni/db";
+import { memberStorage, refused } from "../storage/http.ts";
 import { optionalJsonBody } from "../validator.ts";
 
 async function copyObject(c: Context<AppEnv>, object: R2ObjectBody, key: string) {
@@ -15,6 +16,11 @@ async function copyObject(c: Context<AppEnv>, object: R2ObjectBody, key: string)
   ]);
   if (!stored) throw new Error("save to drive: the copy was not stored");
   return stored;
+}
+
+async function firstSpace(files: MemberStorage) {
+  const first = (await files.teamspaces()).find((teamspace) => teamspace.role !== null);
+  return first ? { teamspaceId: first.id } : null;
 }
 
 export const saveToDrive = new Hono<AppEnv>().post(
@@ -37,8 +43,13 @@ export const saveToDrive = new Hono<AppEnv>().post(
       return apiError(c, "file_too_large", "the file is larger than one file may be");
     }
     const files = memberStorage(c);
+    const place = parentId ? { parentId } : await firstSpace(files);
+    if (!place) {
+      await object.body.cancel();
+      return apiError(c, "not_found", "make a space to save into first");
+    }
     const { limitBytes } = await storageLimit(db, config, member.orgId);
-    const opened = await files.openUpload(placeOf({ parentId }), {
+    const opened = await files.openUpload(place, {
       name: attachment.filename,
       size: object.size,
       mimeType: attachment.mimeType,

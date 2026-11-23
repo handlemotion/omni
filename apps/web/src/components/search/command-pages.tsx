@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import {
   IconBuildings,
   IconFolder,
-  IconFolderShared,
   IconProjects,
   IconUserRound,
   IconUsers,
@@ -51,19 +50,16 @@ export const MAIL_PAGES: Page[] = [
   { id: "spam", title: "Spam", icon: <IconWarning />, href: "/mail/spam" },
 ];
 
-/** Drive's places; Shared (the team's drive) only in a company workspace, as its nav has it. */
-export const drivePages: (company: boolean) => Page[] = (company) => {
+/** Drive's places, as its nav has them. */
+export const drivePages: () => Page[] = () => {
   return [
     {
-      id: "my-files",
-      title: "My files",
+      id: "drive",
+      title: "Drive",
       icon: <IconFolder />,
-      href: "/files/my",
+      href: "/files",
       shortcut: "goDrive",
     },
-    ...(company
-      ? [{ id: "shared", title: "Shared", icon: <IconFolderShared />, href: "/files/shared" }]
-      : []),
     {
       id: "shared-with-me",
       title: "Shared with me",

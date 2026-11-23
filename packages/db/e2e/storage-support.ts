@@ -31,6 +31,17 @@ export async function addFolder(storage: Uploader, place: StoragePlace, name: st
   return made.node;
 }
 
+/** A teamspace the member makes and owns: the place to put a test's files in Drive. */
+export async function addTeamspace(
+  storage: Pick<MemberStorage, "createTeamspace">,
+  name: string,
+  options: { private?: boolean; memberIds?: string[] } = {},
+) {
+  const made = await storage.createTeamspace({ name, ...options });
+  if (made.status !== "ok") throw new Error(`teamspace: ${made.status}`);
+  return { teamspaceId: made.teamspace.id };
+}
+
 /** A person with a verified primary address, as a magic-link sign-in leaves them. */
 export async function createPerson(db: TestDb, email: string) {
   const [user] = await db

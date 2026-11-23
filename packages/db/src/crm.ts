@@ -209,7 +209,7 @@ export type {
   WriteDealResult,
 } from "./crm/deals.ts";
 export { FILE_LINKS_MAX, type CrmFileLink, type FileLinkRecord } from "./crm/files.ts";
-export { CRM_ROOT_FOLDER_NAME, type DealFolderResult, type FolderResult } from "./crm/folders.ts";
+export type { DealFolderResult, FolderResult } from "./crm/folders.ts";
 export {
   type CrmEvent,
   type CrmNote,

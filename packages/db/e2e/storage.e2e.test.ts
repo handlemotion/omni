@@ -19,7 +19,7 @@ import {
   STORAGE_MAX_DEPTH,
   STORAGE_NAME_MAX_LENGTH,
 } from "../src/storage.ts";
-import { addFile, addFolder, createPerson, setRole } from "./storage-support.ts";
+import { addFile, addFolder, addTeamspace, createPerson, setRole } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
@@ -43,7 +43,7 @@ test("a Personal space has a Shared drive its members all reach", async () => {
   expect(JSON.stringify(listed)).not.toContain("Mine");
 });
 
-test("in Shared every member reads and writes, and only the uploader or an admin trashes or takes out", async () => {
+test("in an open teamspace every member reads and writes, and only the uploader or an admin trashes or takes out", async () => {
   const org = await createOrg(db, "shared-rules");
   const ana = await createMember(db, org.id, "ana");
   const ben = await createMember(db, org.id, "ben");
@@ -52,8 +52,10 @@ test("in Shared every member reads and writes, and only the uploader or an admin
   const anaStorage = forMember(db, ana.id).storage;
   const benStorage = forMember(db, ben.id).storage;
   const adminStorage = forMember(db, admin.id).storage;
+  const cy = await createMember(db, org.id, "cy");
+  const studio = await addTeamspace(forMember(db, cy.id).storage, "Studio");
 
-  const plans = await addFolder(anaStorage, { space: "shared" }, "Plans");
+  const plans = await addFolder(anaStorage, studio, "Plans");
   const budget = await addFile(anaStorage, { parentId: plans.id }, "budget.xlsx");
 
   expect(names(await benStorage.list({ parentId: plans.id }))).toEqual(["budget.xlsx"]);
@@ -81,10 +83,11 @@ test("a grant on a folder opens a file two levels down for that address only, an
   const org = await createOrg(db, "grants");
   const ana = await createMember(db, org.id, "ana");
   const storage = forMember(db, ana.id).storage;
-  const top = await addFolder(storage, { space: "personal" }, "Client");
+  const desk = await addTeamspace(storage, "Desk", { private: true });
+  const top = await addFolder(storage, desk, "Client");
   const mid = await addFolder(storage, { parentId: top.id }, "2026");
   const file = await addFile(storage, { parentId: mid.id }, "contract.pdf");
-  const beside = await addFile(storage, { space: "personal" }, "private.txt");
+  const beside = await addFile(storage, desk, "private.txt");
 
   const guest = await createPerson(db, "guest@outside.test");
   const stranger = await createPerson(db, "stranger@outside.test");
@@ -195,8 +198,9 @@ test("a session scoped to a company sees only grants addressed to that company's
   const elsewhere = await createOrg(db, "elsewhere");
   const owner = await createMember(db, elsewhere.id, "owner");
   const storage = forMember(db, owner.id).storage;
-  const toPersonal = await addFile(storage, { space: "personal" }, "for-pat-personally.txt");
-  const toWork = await addFile(storage, { space: "personal" }, "for-pat-at-acme.txt");
+  const desk = await addTeamspace(storage, "Desk", { private: true });
+  const toPersonal = await addFile(storage, desk, "for-pat-personally.txt");
+  const toWork = await addFile(storage, desk, "for-pat-at-acme.txt");
   const personal = await storage.putGrant(toPersonal.id, "pat@gmail.test", "viewer");
   if (personal.status !== "ok") throw new Error(personal.status);
   await storage.putGrant(toWork.id, "pat@acme.test", "viewer");
@@ -268,7 +272,8 @@ test("a trashed node, or one inside a trashed folder, is invisible through a gra
   const org = await createOrg(db, "trash-doors");
   const ana = await createMember(db, org.id, "ana");
   const storage = forMember(db, ana.id).storage;
-  const folder = await addFolder(storage, { space: "personal" }, "Shared out");
+  const desk = await addTeamspace(storage, "Desk", { private: true });
+  const folder = await addFolder(storage, desk, "Shared out");
   const sub = await addFolder(storage, { parentId: folder.id }, "Sub");
   const file = await addFile(storage, { parentId: sub.id }, "doc.txt");
   const guest = await createPerson(db, "reader@outside.test");
@@ -285,7 +290,7 @@ test("a trashed node, or one inside a trashed folder, is invisible through a gra
   expect((await reading.sharedWithMe()).items).toEqual([]);
   expect(await publicStorageNode(db, granted.shareId)).toBeNull();
   expect((await publicStorage(db, granted.shareId).file(file.id)).status).toBe("not_found");
-  expect(names(await storage.list({ space: "personal" }))).toEqual([]);
+  expect(names(await storage.list(desk))).toEqual([]);
   expect((await storage.listTrash()).nodes.map((node) => node.id)).toEqual([folder.id]);
 
   expect((await storage.restore(folder.id)).status).toBe("ok");
@@ -392,19 +397,20 @@ test("paged lists return every row once: a folder (folders first, by name), Tras
   const org = await createOrg(db, "paging");
   const ana = await createMember(db, org.id, "ana");
   const storage = forMember(db, ana.id).storage;
+  const desk = await addTeamspace(storage, "Desk", { private: true });
   const guest = await createPerson(db, "pager@outside.test");
   const reading = forUser(db, guest.id).storage;
   for (const name of ["b.txt", "A.txt", "c.txt"]) {
-    const file = await addFile(storage, { space: "personal" }, name);
+    const file = await addFile(storage, desk, name);
     await storage.putGrant(file.id, "pager@outside.test", "viewer");
   }
-  await addFolder(storage, { space: "personal" }, "zeta");
-  await addFolder(storage, { space: "personal" }, "Alpha");
+  await addFolder(storage, desk, "zeta");
+  await addFolder(storage, desk, "Alpha");
 
   const listed: string[] = [];
   let cursor: Parameters<typeof storage.list>[1] = { limit: 2 };
   for (;;) {
-    const page = await storage.list({ space: "personal" }, cursor);
+    const page = await storage.list(desk, cursor);
     if (page.status !== "ok") throw new Error(page.status);
     listed.push(...page.nodes.map((node) => node.name));
     if (!page.nextCursor) break;
@@ -422,7 +428,7 @@ test("paged lists return every row once: a folder (folders first, by name), Tras
   }
   expect(shared.toSorted()).toEqual(["A.txt", "b.txt", "c.txt"]);
 
-  const all = await storage.list({ space: "personal" });
+  const all = await storage.list(desk);
   if (all.status !== "ok") throw new Error(all.status);
   for (const node of all.nodes) await storage.trash(node.id);
   const trashed: string[] = [];
@@ -434,6 +440,24 @@ test("paged lists return every row once: a folder (folders first, by name), Tras
     trashCursor = { limit: 2, cursor: page.nextCursor };
   }
   expect(trashed.toSorted()).toEqual(["A.txt", "Alpha", "b.txt", "c.txt", "zeta"]);
+});
+
+test("a file in someone's hidden My files, as Talk keeps a drop, is shared by its grant and listed nowhere", async () => {
+  const org = await createOrg(db, "hidden-store");
+  const ana = await createMember(db, org.id, "ana");
+  const storage = forMember(db, ana.id).storage;
+  const guest = await createPerson(db, "talk@outside.test");
+  const reading = forUser(db, guest.id).storage;
+  const drop = await addFile(storage, { space: "personal" }, "drop.png");
+  const granted = await storage.putGrant(drop.id, "talk@outside.test", "viewer");
+  if (granted.status !== "ok") throw new Error(granted.status);
+
+  expect((await reading.file(drop.id)).status).toBe("ok");
+  expect((await reading.sharedWithMe()).items).toEqual([]);
+  expect(await storage.search("drop")).toEqual([]);
+  expect(await storage.recent()).toEqual([]);
+  expect((await storage.trash(drop.id)).status).toBe("ok");
+  expect((await storage.listTrash()).nodes).toEqual([]);
 });
 
 test("in Shared a folder holding a colleague's file is not its maker's to trash, take out or delete", async () => {

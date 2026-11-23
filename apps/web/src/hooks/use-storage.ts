@@ -53,7 +53,6 @@ import {
 import type { Picked } from "../lib/storage-upload-tree.ts";
 import { restoreVersionMutation, storageVersionsQuery } from "../lib/storage-versions.ts";
 import { useSession } from "./use-session.ts";
-import { useCurrentWorkspace } from "./use-workspaces.ts";
 
 /**
  * A folder's contents (a space's root, or a folder by id), folders first. `nodes` is every loaded
@@ -86,11 +85,6 @@ export function useStorageTrash() {
   const query = useInfiniteQuery(storageTrashQuery());
   const nodes = useMemo(() => query.data?.pages.flatMap((page) => page.nodes) ?? [], [query.data]);
   return { ...query, nodes };
-}
-
-/** True once the workspace is known: every workspace has Shared. */
-export function useHasSharedFiles() {
-  return !!useCurrentWorkspace();
 }
 
 /** `mutate({ name, place })`. */
@@ -289,21 +283,14 @@ export interface DriveEntry {
   teamspace?: StorageTeamspace | undefined;
 }
 
-const LEGACY_LABEL = { personal: "Personal", shared: "Team" } as const;
-
-/** The drives the member can browse: their teamspaces, then Shared in a company, then My files. */
+/** The drives the member can browse: their teamspaces. */
 export function useDrives() {
-  const hasShared = useHasSharedFiles();
   const { teamspaces, isPending } = useTeamspaces();
-  const legacy = hasShared ? (["shared", "personal"] as const) : (["personal"] as const);
-  const drives: DriveEntry[] = [
-    ...teamspaces.map((teamspace) => ({
-      drive: { teamspaceId: teamspace.id },
-      label: teamspace.name,
-      teamspace,
-    })),
-    ...legacy.map((space) => ({ drive: { space }, label: LEGACY_LABEL[space] })),
-  ];
+  const drives: DriveEntry[] = teamspaces.map((teamspace) => ({
+    drive: { teamspaceId: teamspace.id },
+    label: teamspace.name,
+    teamspace,
+  }));
   return { drives, isPending };
 }
 

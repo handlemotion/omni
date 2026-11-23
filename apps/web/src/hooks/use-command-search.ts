@@ -10,7 +10,7 @@ import { crmCompaniesQuery, crmDealsQuery, crmFindQuery, crmPeopleQuery } from "
 import { crmTasksQuery } from "../lib/crm-tasks.ts";
 import { threadsQuery } from "../lib/mail-queries.ts";
 import { keys } from "../lib/query-keys.ts";
-import { storageListQuery, type StorageNode } from "../lib/storage.ts";
+import type { StorageNode } from "../lib/storage.ts";
 import { storageSearchQuery } from "../lib/storage-find.ts";
 import { senderLabel } from "../lib/threads.ts";
 import { useDebouncedValue } from "./use-debounced-value.ts";
@@ -91,17 +91,15 @@ const personText = (p: CrmPerson) => [p.name, ...p.addresses.map((a) => a.addres
 const threadText = (t: ThreadSummary) => `${t.subject} ${senderLabel(t)}`;
 
 /**
- * Fills the cache the local search reads, once per menu opening: Drive's roots, the CRM's first
+ * Fills the cache the local search reads, once per menu opening: the CRM's first
  * pages and the inbox, so a module never opened this session still answers at once. Each is a
  * no-op while its data is fresh.
  */
 export function useWarmCommandSearch(company: boolean) {
   const client = useQueryClient();
   useEffect(() => {
-    void client.prefetchInfiniteQuery(storageListQuery({ space: "personal" }));
     void client.prefetchInfiniteQuery(threadsQuery({ view: "inbox" }));
     if (!company) return;
-    void client.prefetchInfiniteQuery(storageListQuery({ space: "shared" }));
     void client.prefetchInfiniteQuery(crmCompaniesQuery(""));
     void client.prefetchInfiniteQuery(crmPeopleQuery(""));
     void client.prefetchInfiniteQuery(crmDealsQuery(""));

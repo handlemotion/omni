@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { FileTile } from "@/components/storage/file-glyph";
-import { SPACE_LABEL } from "@/components/storage/storage-nav.tsx";
+import { SpaceIcon } from "@/components/storage/space-icons.tsx";
 import { Breadcrumbs, BreadcrumbsItem } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,16 +17,24 @@ import {
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
-import { useTeamFiles } from "@/hooks/use-team-files.ts";
+import { useTeamspaces } from "@/hooks/use-storage.ts";
+import { useTeamFiles, type TeamFilesAt } from "@/hooks/use-team-files.ts";
 import { IconCheck } from "@/components/icons/central";
 import type { StorageNode } from "@/lib/storage.ts";
 
-type Crumb = { id: string; name: string };
+type Crumb = { id: string; name: string; teamspace?: true };
+
+const atOf = (crumb: Crumb | undefined) =>
+  (!crumb
+    ? null
+    : crumb.teamspace
+      ? { teamspaceId: crumb.id }
+      : { parentId: crumb.id }) satisfies TeamFilesAt;
 
 /**
  * Picks one file the team already keeps in Drive as a contract's document or signed copy,
  * referenced where it lives (`docs/spec/contracts.md`, "In the CRM"): a search over Drive, or
- * browsing the team's drive a folder at a time. Files in someone's My files are not offered.
+ * browsing the member's spaces a folder at a time.
  */
 export function ContractDriveDialog(props: {
   title: string;
@@ -39,7 +47,9 @@ export function ContractDriveDialog(props: {
   const q = useDebouncedValue(query.trim(), 200);
   const [path, setPath] = useState<Crumb[]>([]);
   const [picked, setPicked] = useState<StorageNode | null>(null);
-  const files = useTeamFiles(q, path.at(-1)?.id ?? null, !!props.pdfOnly);
+  const files = useTeamFiles(q, atOf(path.at(-1)), !!props.pdfOnly);
+  const { teamspaces } = useTeamspaces();
+  const spaces = !q && path.length === 0 ? teamspaces.filter((t) => t.role !== null) : [];
   const enter = (node: StorageNode) => {
     setQuery("");
     setPath((now) => [...(q ? [] : now), { id: node.id, name: node.name }]);
@@ -60,7 +70,7 @@ export function ContractDriveDialog(props: {
         </SearchField>
         {!q && (
           <Breadcrumbs aria-label="Folder" className="min-h-5 flex-wrap gap-y-1 px-2">
-            <BreadcrumbsItem onPress={() => setPath([])}>{SPACE_LABEL.shared}</BreadcrumbsItem>
+            <BreadcrumbsItem onPress={() => setPath([])}>Spaces</BreadcrumbsItem>
             {path.map((crumb, i) => (
               <BreadcrumbsItem key={crumb.id} onPress={() => setPath(path.slice(0, i + 1))}>
                 {crumb.name}
@@ -73,12 +83,17 @@ export function ContractDriveDialog(props: {
           className="h-72 overflow-y-auto"
           selectionMode="single"
           selectionBehavior="toggle"
-          disabledKeys={files.nodes.filter((n) => n.kind === "folder").map((n) => n.id)}
+          disabledKeys={[
+            ...spaces.map((t) => t.id),
+            ...files.nodes.filter((n) => n.kind === "folder").map((n) => n.id),
+          ]}
           disabledBehavior="selection"
           selectedKeys={picked ? [picked.id] : []}
           onAction={(key) => {
+            const space = spaces.find((t) => t.id === key);
             const node = files.nodes.find((n) => n.id === key);
-            if (node?.kind === "folder") enter(node);
+            if (space) setPath([{ id: space.id, name: space.name, teamspace: true }]);
+            else if (node?.kind === "folder") enter(node);
             else if (node) setPicked(node);
           }}
           onSelectionChange={(keys) =>
@@ -86,6 +101,18 @@ export function ContractDriveDialog(props: {
           }
           renderEmptyState={() => null}
         >
+          <Collection items={spaces}>
+            {(space) => (
+              <GridListItem
+                id={space.id}
+                textValue={space.name}
+                className="h-10 shrink-0 cursor-pointer gap-2.5 rounded-lg px-2 hover:bg-accent"
+              >
+                <SpaceIcon teamspace={space} className="size-icon" />
+                <span className="min-w-0 flex-1 truncate">{space.name}</span>
+              </GridListItem>
+            )}
+          </Collection>
           <Collection items={files.nodes}>
             {(node) => (
               <GridListItem

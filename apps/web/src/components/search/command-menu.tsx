@@ -216,7 +216,7 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
           )}
         </CommandEmpty>
         {show.mail && <PageGroup heading="Mail" pages={MAIL_PAGES} onOpen={openPage} />}
-        {show.files && <PageGroup heading="Drive" pages={drivePages(company)} onOpen={openPage} />}
+        {show.files && <PageGroup heading="Drive" pages={drivePages()} onOpen={openPage} />}
         {show.crm && company && <PageGroup heading="Clients" pages={CRM_PAGES} onOpen={openPage} />}
         <RecordGroups
           show={show}

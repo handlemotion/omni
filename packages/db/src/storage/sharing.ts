@@ -1,6 +1,6 @@
 import { randomToken } from "@omni/crypto";
 import { normalizeAddress } from "@omni/mail-core/addresses";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, organizations } from "../schema/auth.ts";
 import {
@@ -410,7 +410,8 @@ export interface SharedWithMeItem {
 
 /**
  * Every live node granted to one of `addresses`, newest grant first, across workspaces. A node
- * granted to two of the person's addresses is listed once, with the stronger role.
+ * granted to two of the person's addresses is listed once, with the stronger role. A file in
+ * someone's hidden store (a Talk drop, `docs/spec/talk.md`) is not listed: it opens from Talk.
  */
 export async function listSharedWith(
   db: Db,
@@ -453,7 +454,7 @@ export async function listSharedWith(
     .innerJoin(storageNodes, eq(storageNodes.id, mine.nodeId))
     .leftJoin(storageLocks, eq(storageLocks.nodeId, storageNodes.id))
     .innerJoin(organizations, eq(organizations.id, storageNodes.orgId))
-    .where(after)
+    .where(and(ne(storageNodes.space, "personal"), after))
     .orderBy(desc(mine.sharedAt), desc(mine.nodeId))
     .limit(limit + 1);
   const items: SharedWithMeItem[] = rows.slice(0, limit).map((row) => ({

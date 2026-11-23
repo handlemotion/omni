@@ -62,7 +62,7 @@ export function registerDriveSearch(server: McpServer, context: ToolContext) {
     {
       title: "Search Drive",
       description:
-        "Find files and folders in Drive by name, by the text inside them, and by what they are about: the person's My files, their companies' Shared drives, and what others shared with them. Ask in plain words, in any language; a file can match by meaning without sharing a word with the query. Best matches first. Returns ids to pass to `drive_fetch`, which reads up to 10 files' text at once.",
+        "Find files and folders in Drive by name, by the text inside them, and by what they are about: the person's teamspaces and what others shared with them. Ask in plain words, in any language; a file can match by meaning without sharing a word with the query. Best matches first. Returns ids to pass to `drive_fetch`, which reads up to 10 files' text at once.",
       inputSchema,
       outputSchema,
       annotations: {

@@ -51,15 +51,8 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
       const member = await loadMember(db, memberId);
       if (!member) return { nodes: [] as StorageNode[], nextCursor: null };
       const limit = pageSize(page.limit);
-      const mine = and(
-        eq(storageNodes.space, "personal"),
-        eq(storageNodes.ownerMemberId, member.id),
-      );
-      const shared = and(
-        eq(storageNodes.space, "shared"),
-        member.admin ? undefined : eq(storageNodes.createdByMemberId, member.id),
-      );
       const teamspaces = await reachableTeamspaces(db, member);
+      if (teamspaces.length === 0) return { nodes: [] as StorageNode[], nextCursor: null };
       const owned = teamspaces.filter((t) => t.manage).map((t) => t.id);
       const others = teamspaces.filter((t) => !t.manage).map((t) => t.id);
       const inTeamspaces = or(
@@ -87,7 +80,7 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
           and(
             eq(storageNodes.orgId, member.orgId),
             isNotNull(storageNodes.trashedAt),
-            or(mine, shared, inTeamspaces),
+            inTeamspaces,
             after,
           ),
         )

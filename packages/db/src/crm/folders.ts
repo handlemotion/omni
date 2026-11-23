@@ -1,13 +1,9 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { crmCompanies, crmDeals, crmSettings } from "../schema/crm.ts";
+import { crmCompanies, crmDeals } from "../schema/crm.ts";
 import { memberStorage, type CreateFolderResult, type MemberStorage } from "../storage.ts";
 import { NOT_FOUND, type CrmMember, type Ex } from "./core.ts";
 import { loadCompany, loadDeal } from "./records.ts";
-import { ensureCrm } from "./stages.ts";
-
-/** What a new workspace's record folders sit in; a workspace may rename it in Storage. */
-export const CRM_ROOT_FOLDER_NAME = "Clients";
 
 export type FolderResult =
   | { status: "ok"; nodeId: string; created: boolean }
@@ -30,33 +26,16 @@ export function folderName(name: string) {
 async function isLiveFolder(storage: MemberStorage, nodeId: string | null) {
   if (!nodeId) return false;
   const listed = await storage.list({ parentId: nodeId }, { limit: 1 });
-  const space = listed.status === "ok" ? listed.folder?.node.space : undefined;
-  return space === "shared" || space === "teamspace";
+  return listed.status === "ok" && listed.folder?.node.space === "teamspace";
 }
 
-const rootFolder: (
-  tx: Ex,
-  member: CrmMember,
-  storage: MemberStorage,
-) => Promise<FolderResult> = async (tx, member, storage) => {
-  await ensureCrm(tx, member.orgId);
-  const [settings] = await tx
-    .select({ nodeId: crmSettings.rootFolderNodeId })
-    .from(crmSettings)
-    .where(eq(crmSettings.orgId, member.orgId))
-    .for("update");
-  const stored = settings?.nodeId ?? null;
-  if (stored && (await isLiveFolder(storage, stored))) {
-    return { status: "ok", nodeId: stored, created: false };
-  }
-  const made = await storage.createFolder({ space: "shared" }, CRM_ROOT_FOLDER_NAME);
+async function folderInOwnTeamspace(storage: MemberStorage, name: string) {
+  const space = await storage.createTeamspace({ name: folderName(name) });
+  if (space.status !== "ok") return space;
+  const made = await storage.createFolder({ teamspaceId: space.teamspace.id }, folderName(name));
   if (made.status !== "ok") return made;
-  await tx
-    .update(crmSettings)
-    .set({ rootFolderNodeId: made.node.id })
-    .where(eq(crmSettings.orgId, member.orgId));
-  return { status: "ok", nodeId: made.node.id, created: true };
-};
+  return { status: "ok", node: made.node, teamspaceId: space.teamspace.id } as const;
+}
 
 const companyFolderIn: (
   tx: Ex,
@@ -69,35 +48,20 @@ const companyFolderIn: (
   if (company.folderNodeId && (await isLiveFolder(storage, company.folderNodeId))) {
     return { status: "ok", nodeId: company.folderNodeId, created: false };
   }
-  const root = await rootFolder(tx, member, storage);
-  if (root.status !== "ok") return root;
-  const made = await storage.createFolder({ parentId: root.nodeId }, folderName(company.name));
+  const made = await folderInOwnTeamspace(storage, company.name);
   if (made.status !== "ok") return made;
   await tx.update(crmCompanies).set({ folderNodeId: made.node.id }).where(eq(crmCompanies.id, id));
   return { status: "ok", nodeId: made.node.id, created: true };
 };
 
-async function legacyParent(
-  tx: Ex,
-  member: CrmMember,
-  storage: MemberStorage,
-  companyId: string | null,
-) {
-  const parent = companyId
-    ? await companyFolderIn(tx, member, storage, companyId)
-    : await rootFolder(tx, member, storage);
-  return parent.status === "ok" ? { parentId: parent.nodeId } : parent;
-}
-
-/** The company's folder, `Shared / Clients / <company>`, found or made. */
+/** The company's folder, at the top of its own teamspace, found or made. */
 export function companyFolder(tx: Ex, member: CrmMember, id: string) {
   return companyFolderIn(tx, member, memberStorage(tx as Db, member.id), id);
 }
 
 /**
- * The deal's folder, found or made: at the top of its own teamspace, or, for a deal made before
- * teamspaces, inside its company's folder (found or made too), or under `Clients` when it has no
- * company.
+ * The deal's folder, found or made at the top of the deal's own teamspace. A deal made before
+ * teamspaces gets its teamspace now.
  */
 export const dealFolder: (
   tx: Ex,
@@ -114,11 +78,16 @@ export const dealFolder: (
   if (deal.folderNodeId && (await isLiveFolder(storage, deal.folderNodeId))) {
     return { status: "ok", nodeId: deal.folderNodeId, created: false, companyId };
   }
-  const place = deal.teamspaceId
-    ? { teamspaceId: deal.teamspaceId }
-    : await legacyParent(tx, member, storage, companyId);
-  if ("status" in place) return place;
-  const made = await storage.createFolder(place, folderName(deal.name));
+  if (!deal.teamspaceId) {
+    const made = await folderInOwnTeamspace(storage, deal.name);
+    if (made.status !== "ok") return made;
+    await tx
+      .update(crmDeals)
+      .set({ teamspaceId: made.teamspaceId, folderNodeId: made.node.id })
+      .where(eq(crmDeals.id, id));
+    return { status: "ok", nodeId: made.node.id, created: true, companyId };
+  }
+  const made = await storage.createFolder({ teamspaceId: deal.teamspaceId }, folderName(deal.name));
   if (made.status !== "ok") return made;
   await tx.update(crmDeals).set({ folderNodeId: made.node.id }).where(eq(crmDeals.id, id));
   return { status: "ok", nodeId: made.node.id, created: true, companyId };

@@ -51,7 +51,8 @@ test("a leaving member's My files move into one folder of whoever removed them, 
   expect(names(await adminStorage.list({ parentId: folderId }))).toEqual(["Docs", "notes.txt"]);
   expect(names(await adminStorage.list({ parentId: docs.id }))).toEqual(["plan.txt"]);
   expect((await adminStorage.file(plan.id)).status).toBe("ok");
-  expect((await adminStorage.listTrash()).nodes.map((node) => node.name)).toEqual(["old.txt"]);
+  expect((await adminStorage.node(old.id))?.inTrash).toBe(true);
+  expect((await adminStorage.listTrash()).nodes).toEqual([]);
   expect(await adminStorage.restore(old.id)).toMatchObject({
     status: "ok",
     node: { parentId: folderId },

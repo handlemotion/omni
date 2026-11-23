@@ -44,7 +44,9 @@ test("two first folder calls to one deal at once make one folder, and a trashed 
     ok(await storage.list({ teamspaceId: deal.teamspaceId! })).nodes.map((n) => n.name),
   ).toEqual(["Website"]);
   const companyView = await storage.node(ok(await crm.companyFolder(client.id)).nodeId);
-  expect(companyView?.path.map((entry) => entry.name)).toEqual(["Clients", "Northwind - EU"]);
+  expect(companyView?.path.map((entry) => entry.name)).toEqual(["Northwind - EU"]);
+  expect(companyView?.node.space).toBe("teamspace");
+  expect(companyView?.node.teamspaceId).not.toBe(deal.teamspaceId);
 
   ok(await storage.trash(ok(first).nodeId));
   const again = ok(await crm.dealFolder(deal.id));

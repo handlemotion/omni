@@ -11,7 +11,7 @@ import {
   storageUsageOf,
 } from "../src/storage.ts";
 import { lockTree, lockUsage } from "../src/storage/core.ts";
-import { addFile, addFolder, setRole } from "./storage-support.ts";
+import { addFile, addFolder, setRole, addTeamspace } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase, untilLockWaiters } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
@@ -308,7 +308,7 @@ test("an upload completing while its folder moves to another drive lands in the 
 
 test("a node restored and trashed again while a purge runs keeps its fresh 30 days", async () => {
   const { org, storage } = await workspace("purge-retrashed");
-  const file = await addFile(storage, { space: "personal" }, "old.bin", 25);
+  const file = await addFile(storage, await addTeamspace(storage, "Studio"), "old.bin", 25);
   await storage.trash(file.id);
   await db
     .update(storageNodes)

@@ -10,7 +10,7 @@ import {
   type StorageChange,
   type StorageSyncCursor,
 } from "../src/storage.ts";
-import { addFile, addFolder, setRole } from "./storage-support.ts";
+import { addFile, addFolder, addTeamspace, setRole } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
@@ -116,58 +116,63 @@ test("a node that leaves a drive leaves a tombstone there, and only there", asyn
   const ana = await createMember(db, org.id, "ana");
   const bo = await createMember(db, org.id, "bo");
   const storage = forMember(db, ana.id).storage;
-  const mine = await addFile(storage, { space: "personal" }, "mine.txt");
-  const moving = await addFolder(storage, { space: "personal" }, "Project");
+  const bos = forMember(db, bo.id).storage;
+  const studio = await addTeamspace(storage, "Studio", { private: true });
+  const desk = await addTeamspace(storage, "Desk", { private: true });
+  const bosOwn = await addTeamspace(bos, "Bo's", { private: true });
+  const mine = await addFile(storage, studio, "mine.txt");
+  const moving = await addFolder(storage, studio, "Project");
   const inside = await addFile(storage, { parentId: moving.id }, "plan.txt");
-  const gone = await addFile(storage, { space: "personal" }, "gone.txt");
-  await addFile(forMember(db, bo.id).storage, { space: "personal" }, "bo-private.txt");
-  const start = await drain(storage, "personal");
+  const gone = await addFile(storage, studio, "gone.txt");
+  await addFile(bos, bosOwn, "bo-private.txt");
+  const start = await drain(storage, studio, null, 2, true);
   expect(start.changes.map((change) => change.id).toSorted()).toEqual(
     [mine.id, moving.id, inside.id, gone.id].toSorted(),
   );
-  const sharedStart = await drain(storage, "shared");
+  const deskStart = await drain(storage, desk, null, 2, true);
 
-  expect((await storage.move(moving.id, { space: "shared" })).status).toBe("ok");
+  expect((await storage.move(moving.id, desk)).status).toBe("ok");
   expect((await storage.trash(gone.id)).status).toBe("ok");
   expect((await storage.deleteForever(gone.id)).status).toBe("ok");
 
-  const personal = await drain(storage, "personal", start.cursor);
-  expect(summary(personal.changes).toSorted((x, y) => (x.id < y.id ? -1 : 1))).toEqual(
+  const left = await drain(storage, studio, start.cursor, 2, true);
+  expect(summary(left.changes).toSorted((x, y) => (x.id < y.id ? -1 : 1))).toEqual(
     [
       { id: moving.id, deleted: true, gone: false },
       { id: inside.id, deleted: true, gone: false },
       { id: gone.id, deleted: true, gone: true },
     ].toSorted((x, y) => (x.id < y.id ? -1 : 1)),
   );
-  const shared = await drain(storage, "shared", sharedStart.cursor);
+  const arrived = await drain(storage, desk, deskStart.cursor, 2, true);
   expect(
-    summary(shared.changes)
+    summary(arrived.changes)
       .map((entry) => entry.id)
       .toSorted(),
   ).toEqual([moving.id, inside.id].toSorted());
-  const bos = await drain(forMember(db, bo.id).storage, "personal");
-  expect(summary(bos.changes).map((entry) => "name" in entry && entry.name)).toEqual([
+  const bosFeed = await drain(bos, bosOwn, null, 2, true);
+  expect(summary(bosFeed.changes).map((entry) => "name" in entry && entry.name)).toEqual([
     "bo-private.txt",
   ]);
 });
 
-test("a node moved into one member's My files is moved for them and gone for the rest", async () => {
+test("a node moved into a private teamspace is moved for its members and gone for the rest", async () => {
   const org = await createOrg(db, "sync-moved-to");
   const ana = await createMember(db, org.id, "ana");
   const bo = await createMember(db, org.id, "bo");
-  await setRole(db, ana.id, "owner");
   const anas = forMember(db, ana.id).storage;
   const bos = forMember(db, bo.id).storage;
-  const file = await addFile(anas, { space: "shared" }, "brief.txt");
-  const anaStart = await drain(anas, "shared");
-  const boStart = await drain(bos, "shared");
+  const studio = await addTeamspace(anas, "Studio", { memberIds: [bo.id] });
+  const desk = await addTeamspace(anas, "Desk", { private: true });
+  const file = await addFile(anas, studio, "brief.txt");
+  const anaStart = await drain(anas, studio, null, 2, true);
+  const boStart = await drain(bos, studio, null, 2, true);
 
-  expect((await anas.move(file.id, { space: "personal" })).status).toBe("ok");
+  expect((await anas.move(file.id, desk)).status).toBe("ok");
 
-  expect(summary((await drain(anas, "shared", anaStart.cursor)).changes)).toEqual([
+  expect(summary((await drain(anas, studio, anaStart.cursor, 2, true)).changes)).toEqual([
     { id: file.id, deleted: true, gone: false },
   ]);
-  expect(summary((await drain(bos, "shared", boStart.cursor)).changes)).toEqual([
+  expect(summary((await drain(bos, studio, boStart.cursor, 2, true)).changes)).toEqual([
     { id: file.id, deleted: true, gone: true },
   ]);
 });
@@ -188,6 +193,7 @@ test("a teamspace a member is in syncs as its own drive, and a node moved into i
   const brief = await addFile(anas, studio, "brief.txt");
   const draft = await addFile(anas, { space: "personal" }, "draft.txt");
   const [first] = await forUser(db, ana.userId).storage.syncWorkspaces();
+  expect(first?.drives).toEqual([]);
   expect(first?.teamspaces.map((t) => t.name)).toEqual(["Archive", "Studio"]);
   expect(first?.teamspaces.find((t) => t.name === "Studio")?.revision).toBe(brief.revision);
   expect(summary((await drain(anas, studio)).changes)).toEqual([
@@ -209,7 +215,7 @@ test("a teamspace a member is in syncs as its own drive, and a node moved into i
   );
 });
 
-test("a node that moved away and was later handed over is not gone for whoever has it now", async () => {
+test("a node handed over with someone's My files is in the receiver's, and gone from every synced drive", async () => {
   const org = await createOrg(db, "sync-handed-back");
   const ana = await createMember(db, org.id, "ana");
   const bo = await createMember(db, org.id, "bo");
@@ -224,8 +230,8 @@ test("a node that moved away and was later handed over is not gone for whoever h
 
   const mine = await drain(anas, "personal");
   expect(mine.changes.some((change) => change.id === file.id && !change.deleted)).toBe(true);
-  expect(summary((await drain(anas, "shared")).changes)).toEqual([
-    { id: file.id, deleted: true, gone: false },
+  expect(summary((await drain(anas, "shared", null, 2, true)).changes)).toEqual([
+    { id: file.id, deleted: true, gone: true },
   ]);
 });
 

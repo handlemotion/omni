@@ -1,13 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { FileList } from "../../../../components/storage/file-list.tsx";
-import { filesSearch } from "../../../../lib/search-params.ts";
-import { storageListQuery } from "../../../../lib/storage.ts";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+/** My files and Shared are retired (`docs/spec/teamspaces.md`): an old link opens Drive. */
 export const Route = createFileRoute("/_authed/$workspace/files/shared/")({
-  validateSearch: filesSearch,
-  loader: ({ context }) =>
-    void context.queryClient.prefetchInfiniteQuery(storageListQuery({ space: "shared" })),
-  component: () => <FileList drive={SHARED} />,
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: "/$workspace/files", params: { workspace: params.workspace } });
+  },
 });
-
-const SHARED = { space: "shared" } as const;

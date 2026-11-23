@@ -129,7 +129,7 @@ const noFiles = (missing: string[]) =>
 async function create(context: ToolContext, input: z.infer<typeof createInput>) {
   const scoped = driveFor(context, input.workspace);
   if ("error" in scoped) return toolError(scoped.error);
-  const at = await placeFor(scoped.drive, input, scoped.workspace);
+  const at = await placeFor(scoped.drive, input);
   if (!at.place) return toolError(at.error ?? "Name a folder or a workspace.");
   const writer = await writerIn(context, scoped.drive, at.orgId);
   if (!writer) return refusal("forbidden");
@@ -228,7 +228,7 @@ export function registerDriveCanvas(server: McpServer, context: ToolContext) {
     {
       title: "Make a canvas",
       description:
-        "Make a new canvas in Drive: a board of sticky notes, shapes, text, frames, connectors and tiles of other Drive files, which people edit together in Omni. In the person's My files by default, a company's Shared, or a folder. Build its content with `ops`. Returns the canvas's `url`, the id of each `ref`, the outline of what was made and any boxes that overlap.",
+        "Make a new canvas in Drive: a board of sticky notes, shapes, text, frames, connectors and tiles of other Drive files, which people edit together in Omni. In a folder, or at the top of a teamspace. Build its content with `ops`. Returns the canvas's `url`, the id of each `ref`, the outline of what was made and any boxes that overlap.",
       inputSchema: createInput,
       outputSchema,
       annotations: ANNOTATIONS,
