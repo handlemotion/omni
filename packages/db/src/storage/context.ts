@@ -11,7 +11,6 @@ import {
   type StorageRole,
 } from "./access.ts";
 import {
-  inTrash,
   MAX_WALK,
   orgOfNode,
   toNode,
@@ -24,7 +23,7 @@ import { inDrives, likeEscaped } from "./find.ts";
 import { listSharedWith } from "./sharing.ts";
 import { reachableTeamspaces } from "./teamspaces.ts";
 import type { StorageTextStatus } from "./texts.ts";
-import { reach, treeOperations, type ListResult } from "./tree.ts";
+import { reachLive, treeOperations, type ListResult } from "./tree.ts";
 
 /** Search answers this many at most. */
 export const STORAGE_CONTEXT_SEARCH_MAX = 50;
@@ -135,8 +134,8 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
       { door: grantDoor(userId, scopeOrgId), via: "grant" },
     ];
     for (const { door, via } of doors) {
-      const found = await reach(db, door, nodeId);
-      if (!found || inTrash(found.chain)) continue;
+      const found = await reachLive(db, door, nodeId);
+      if (!found) continue;
       const path = found.chain
         .slice(0, found.access.top + 1)
         .toReversed()

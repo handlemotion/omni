@@ -27,7 +27,9 @@ export interface MeetingsActor {
   scopeOrgId: string | null;
 }
 
-const teammateRole = (role: string) => role.split(",").some((r) => r.trim() !== "freelancer");
+/** Roles a teammate holds: any but a freelancer's alone. */
+export const teammateRole = (role: string) =>
+  role.split(",").some((r) => r.trim() !== "freelancer");
 
 /** The person's verified addresses, lowercase. */
 export async function addressesOf(ex: Ex, userId: string) {

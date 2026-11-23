@@ -2,6 +2,10 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import {
   calendarTask,
+  cleanTaskBody,
+  cleanTaskSteps,
+  cleanTaskTitle,
+  completionAfter,
   countLinkedTasks,
   linkedTasks,
   lockTask,
@@ -9,20 +13,17 @@ import {
   removeTask,
   type CalendarTask,
   type LinkedTaskFilter,
+  type TaskCursor,
   type TaskRecord,
-  type TaskRow,
+  type TaskStep,
 } from "../calendar.ts";
 import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople } from "../schema/crm.ts";
 import { loadCrmMember, NOT_FOUND, type CrmMember, type CrmRecordRef, type Ex } from "./core.ts";
 import { recordExists } from "./notes.ts";
 import { dropCrmTask, writeCrmTask } from "./task-mirror.ts";
 
-/** A step of a task's checklist. */
-export interface CrmSubtask {
-  id: string;
-  title: string;
-  done: boolean;
-}
+/** A step of a task's checklist: the calendar keeps it. */
+export type CrmSubtask = TaskStep;
 
 /**
  * A task as the CRM shows it: one on a company, person or deal (`docs/spec/calendar.md`,
@@ -52,10 +53,7 @@ export interface CrmTask {
 }
 
 /** A list's position: the last task's due time (open) or completion time (done), and its id. */
-export interface CrmTaskCursor {
-  at: Date | null;
-  id: string;
-}
+export type CrmTaskCursor = TaskCursor;
 
 export interface ListTasksInput {
   /** `open` (the default) or `done`. */
@@ -105,10 +103,6 @@ export type TaskResult =
   | InvalidAssignee
   | PrivateTask;
 
-export const CRM_TASK_TITLE_MAX = 500;
-export const CRM_TASK_BODY_MAX = 20_000;
-export const CRM_SUBTASKS_MAX = 100;
-
 const KINDS = { companyId: "company", personId: "person", dealId: "deal" } as const;
 
 /** A CRM record as the calendar keeps it on a task. */
@@ -117,22 +111,6 @@ export const taskRecordOf = (record: CrmRecordRef) => {
   const task: TaskRecord = { kind: KINDS[key], id };
   return task;
 };
-
-const cleanTitle = (title: string) => {
-  const text = title.trim().replaceAll(/\s+/g, " ");
-  return text.length > 0 && text.length <= CRM_TASK_TITLE_MAX ? text : null;
-};
-
-const cleanBody = (body: string | null | undefined) => {
-  const text = body?.trim() ?? "";
-  return text.length > 0 ? text.slice(0, CRM_TASK_BODY_MAX) : null;
-};
-
-const cleanSubtasks = (subtasks: CrmSubtask[]) =>
-  subtasks.slice(0, CRM_SUBTASKS_MAX).flatMap((step) => {
-    const title = step.title.trim().replaceAll(/\s+/g, " ").slice(0, CRM_TASK_TITLE_MAX);
-    return title ? [{ id: step.id, title, done: step.done }] : [];
-  });
 
 async function namesOf(ex: Ex, orgId: string, tasks: CalendarTask[]) {
   const ids = (kind: TaskRecord["kind"]) =>
@@ -273,7 +251,7 @@ async function refusedAssignee(
     : ({ status: "invalid_assignee" } as const);
 }
 
-async function save(tx: Ex, member: CrmMember, row: TaskRow) {
+async function save(tx: Ex, member: CrmMember, row: CalendarTask) {
   await putTask(tx, row);
   const task = (await calendarTask(tx, member.orgId, row.id))!;
   if (task.record) await writeCrmTask(tx, task);
@@ -290,7 +268,7 @@ export const createTask: (
   member: CrmMember,
   input: TaskInput,
 ) => Promise<TaskResult> = async (tx, member, input) => {
-  const title = cleanTitle(input.title);
+  const title = cleanTaskTitle(input.title);
   if (!title) return { status: "invalid_title" };
   if (input.record && !(await recordExists(tx, member.orgId, input.record))) return NOT_FOUND;
   const record = input.record ? taskRecordOf(input.record) : null;
@@ -303,7 +281,7 @@ export const createTask: (
     orgId: member.orgId,
     ownerMemberId: member.id,
     title,
-    body: cleanBody(input.body),
+    body: cleanTaskBody(input.body),
     subtasks: [],
     dueAt: input.dueAt ?? null,
     completedAt: null,
@@ -324,17 +302,14 @@ function nextRow(member: CrmMember, current: CalendarTask, patch: TaskPatch, tit
   const owner = unlinked
     ? (current.assigneeMemberId ?? current.ownerMemberId ?? member.id)
     : current.ownerMemberId;
-  const done = patch.done === undefined ? Boolean(current.completedAt) : patch.done;
-  const completedAt = done ? (current.completedAt ?? new Date()) : null;
-  const row: TaskRow = {
+  const row: CalendarTask = {
     ...current,
     ownerMemberId: owner,
     title: title ?? current.title,
-    body: patch.body === undefined ? current.body : cleanBody(patch.body),
-    subtasks: patch.subtasks === undefined ? current.subtasks : cleanSubtasks(patch.subtasks),
+    body: patch.body === undefined ? current.body : cleanTaskBody(patch.body),
+    subtasks: patch.subtasks === undefined ? current.subtasks : cleanTaskSteps(patch.subtasks),
     dueAt: patch.dueAt === undefined ? current.dueAt : patch.dueAt,
-    completedAt,
-    completedByMemberId: done ? (current.completedByMemberId ?? member.id) : null,
+    ...completionAfter(current, patch.done, member.id),
     assigneeMemberId:
       patch.assigneeMemberId === undefined
         ? record
@@ -358,7 +333,7 @@ export const updateTask: (
   id: string,
   patch: TaskPatch,
 ) => Promise<TaskResult> = async (tx, member, id, patch) => {
-  const title = patch.title === undefined ? undefined : cleanTitle(patch.title);
+  const title = patch.title === undefined ? undefined : cleanTaskTitle(patch.title);
   if (title === null) return { status: "invalid_title" };
   const current = await lockTask(tx, member.orgId, id);
   const owns = current?.ownerMemberId === member.id;

@@ -314,6 +314,30 @@ test("a change waiting on another to the same task builds on it, not on what it 
   });
 });
 
+test("a done task whose completer left credits nobody else when a teammate edits it", async () => {
+  const { org, ana, ben } = await workspace("tasks-completer-left");
+  const deal = ok(await forMember(db, ana.id).crm.createDeal({ name: "Audit" })).deal;
+  const task = ok(
+    await forMember(db, ana.id).crm.createTask({ title: "Sign off", record: { dealId: deal.id } }),
+  ).task;
+  const done = ok(await forMember(db, ana.id).crm.updateTask(task.id, { done: true })).task;
+  expect(done.completedByMemberId).toBe(ana.id);
+
+  await releaseCalendarTasks(db, { orgId: org.id, memberId: ana.id });
+  await db.delete(members).where(eq(members.id, ana.id));
+  const crm = forMember(db, ben.id).crm;
+  for (const patch of [{ title: "Signed off" }, { done: true }]) {
+    const edited = ok(await crm.updateTask(task.id, patch)).task;
+    expect(edited.completedAt).toEqual(done.completedAt);
+    expect(edited.completedByMemberId).toBeNull();
+  }
+  expect(await calendarRow(task.id)).toMatchObject({
+    title: "Signed off",
+    completedAt: done.completedAt,
+    completedByMemberId: null,
+  });
+});
+
 test("a freelancer puts their own private task on their project, and on no other", async () => {
   const { org, owner } = await workspace("tasks-freelancer-link");
   const fran = await createPerson(db, `fran-${crypto.randomUUID()}@freelance.test`);

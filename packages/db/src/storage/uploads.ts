@@ -19,17 +19,7 @@ import {
   toNode,
   type StorageNode,
 } from "./core.ts";
-import {
-  placeOf,
-  reach,
-  resolvePlace,
-  resolveUploadPlace,
-  type Forbidden,
-  type InvalidName,
-  type Locked,
-  type NotFound,
-  type StoragePlace,
-} from "./tree.ts";
+import { placeOf, reach, resolvePlace, resolveUploadPlace, type StoragePlace } from "./tree.ts";
 import {
   capped,
   otherPartBytes,
@@ -42,6 +32,14 @@ import {
 } from "./upload-rows.ts";
 import { moveUploadLink } from "./upload-links.ts";
 import { mayReplace, replaceContent, staleFor, type StaleContent } from "./versions.ts";
+import {
+  NOT_FOUND,
+  FORBIDDEN,
+  type NotFound,
+  type Forbidden,
+  type InvalidName,
+  type Locked,
+} from "./results.ts";
 
 export {
   expiredStorageUploads,
@@ -105,9 +103,6 @@ export type CompleteUploadResult =
 export type AbortUploadResult =
   | { status: "ok"; r2Key: string; r2UploadId: string | null }
   | NotFound;
-
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
 
 async function targetOf(ex: Db, uploadId: string) {
   const [row] = await ex

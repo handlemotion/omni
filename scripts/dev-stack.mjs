@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { ensureEnvFile, waitForHealth } from "./local-env.mjs";
 
 const root = join(import.meta.dirname, "..");
 const WEB_ORIGIN = "http://localhost:5173";
@@ -61,12 +62,9 @@ if (!useDoppler) {
     LOCAL_SECRETS[name] = existingValue(name) ?? LOCAL_SECRETS[name];
   }
   for (const [file, example] of ENV_FILES) {
-    if (existsSync(join(root, file))) continue;
-    const text = readFileSync(join(root, example), "utf8").replace(/^([A-Z_]+)=$/gm, (line, name) =>
-      name in LOCAL_SECRETS ? `${name}=${LOCAL_SECRETS[name]}` : line,
-    );
-    writeFileSync(join(root, file), text);
-    console.log(`dev:stack: wrote ${file} from ${example}`);
+    if (ensureEnvFile(join(root, file), join(root, example), LOCAL_SECRETS)) {
+      console.log(`dev:stack: wrote ${file} from ${example}`);
+    }
   }
 }
 const pnpmStep = (label, config, args) =>
@@ -98,15 +96,7 @@ start(
     ? ["--filter", "@omni/worker", "dev", ...authUrl]
     : ["--filter", "@omni/worker", "exec", "wrangler", "dev", ...authUrl],
 );
-const workerUp = () =>
-  fetch(`${WORKER_ORIGIN}/health`).then(
-    (r) => r.ok,
-    () => false,
-  );
-for (const deadline = Date.now() + 120_000; Date.now() < deadline;) {
-  if (exiting || (await workerUp())) break;
-  await new Promise((resolve) => setTimeout(resolve, 500));
-}
+await waitForHealth(WORKER_ORIGIN, Date.now() + 120_000, () => exiting);
 if (!exiting && useDoppler) {
   start(["exec", "turbo", "run", "dev", "--filter=@omni/web", "--filter=@omni/mail"]);
 } else if (!exiting) {

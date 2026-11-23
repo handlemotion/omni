@@ -14,6 +14,7 @@ import {
   memberDoor,
   storagePolicyOf,
   type Door,
+  type DoorKind,
   type LinkVisitor,
 } from "./access.ts";
 import { chainOf, inTrash, type NodeRow } from "./core.ts";
@@ -30,6 +31,7 @@ import {
   type StorageLinkSettings,
 } from "./sharing.ts";
 import { placeOf, resolvePlace } from "./tree.ts";
+import { NOT_FOUND, FORBIDDEN } from "./results.ts";
 
 type UploadRow = typeof storageUploads.$inferSelect;
 type LinkRow = typeof storageUploadLinks.$inferSelect;
@@ -50,8 +52,6 @@ export interface UploadingFile {
 /** The most uploads a folder's link lists at once. */
 export const UPLOADING_LISTED = 200;
 
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
 const POLICY = { status: "policy" } as const;
 
 const stillUploading = (uploadId?: string) =>
@@ -144,7 +144,7 @@ export type OpenUploadLinkResult =
       orgId: string;
       upload: UploadingFile;
       /** The door it opened through, as the sharing audit records it. */
-      via: "member" | "grant" | "link";
+      via: DoorKind;
       /** False when only the link opened it and the link is view only. */
       downloads: boolean;
     }
@@ -165,7 +165,7 @@ export async function openUploadLink(ex: Db, shareId: string, visitor: LinkVisit
     .select(uploadingColumns)
     .from(storageUploads)
     .where(eq(storageUploads.id, upload.id));
-  const open = (via: "member" | "grant" | "link", downloads: boolean) =>
+  const open = (via: DoorKind, downloads: boolean) =>
     ({
       status: "open",
       orgId: upload.orgId,
