@@ -1,8 +1,11 @@
 import type { ComponentType } from "react";
+import { useEffect } from "react";
 import Animated, {
   Extrapolation,
   interpolate,
   useAnimatedStyle,
+  useSharedValue,
+  withSpring,
   type SharedValue,
 } from "react-native-reanimated";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
@@ -46,6 +49,7 @@ const SIDE = space(11);
 const GAP = space(3);
 const EDGE = space(5);
 const SWIPE = 30;
+const SPRING = { damping: 18, stiffness: 260, mass: 0.6 };
 /** The rail's whole height: its handle and its row. */
 export const RAIL_BLOCK = NAV_HANDLE + NAV_BAR;
 
@@ -97,7 +101,7 @@ function useShortcuts() {
 
 /**
  * The rail, on every page: a handle on top; the current module in a round button on the left
- * (swipe it sideways for the next or previous module); the module's main pages as glyphs in the
+ * (swipe it sideways for the next or previous module; once grown, drag across it to pick one); the module's main pages as glyphs in the
  * middle; the module's main action (compose, new file, new record) on the right. While the rail
  * is up (`progress` → 1) the module button grows into a pill of every module across the width,
  * and the pages and the main action fold away. Pulling the rail (it sits in the frame's pull) or
@@ -121,15 +125,40 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
     const next = modules[current + by];
     if (next) place.openModule(next.id);
   };
+  const open = useSharedValue(shell.isOpen);
+  const lens = useSharedValue(current * slot);
+  useEffect(() => {
+    open.value = shell.isOpen;
+    lens.value = withSpring(current * slot, SPRING);
+  }, [shell.isOpen, current, slot, open, lens]);
+  const pick = (index: number) => {
+    const next = modules[index];
+    if (next && index !== current) place.openModule(next.id);
+  };
+  const under = (x: number) => {
+    "worklet";
+    return Math.min(Math.max(x - slot / 2, 0), (modules.length - 1) * slot);
+  };
   const swipe = usePanGesture({
     activeOffsetX: [-12, 12],
     failOffsetY: [-12, 12],
+    onUpdate: (e) => {
+      "worklet";
+      if (open.value) lens.value = under(e.x);
+    },
     onDeactivate: (e) => {
       "worklet";
+      if (open.value) {
+        const index = Math.round(lens.value / slot);
+        lens.value = withSpring(index * slot, SPRING);
+        scheduleOnRN(pick, index);
+        return;
+      }
       if (Math.abs(e.translationX) < SWIPE) return;
       scheduleOnRN(step, e.translationX < 0 ? 1 : -1);
     },
   });
+  const lensStyle = useAnimatedStyle(() => ({ transform: [{ translateX: lens.value }] }));
 
   const moduleWrap = useAnimatedStyle(() => ({
     width: interpolate(progress.value, [0, 1], [SIDE, full], Extrapolation.CLAMP),
@@ -177,6 +206,12 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
         <GestureDetector gesture={swipe}>
           <Animated.View accessibilityRole="tablist" style={[styles.modules, moduleWrap]}>
             <Animated.View style={[styles.moduleRow, { width: full }, moduleRow]}>
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.lens, { width: slot }, lensStyle, highlight]}
+              >
+                <View style={[styles.here, styles.moduleHere]} />
+              </Animated.View>
               {modules.map((m, index) => {
                 const Mark = m.mark;
                 const here = index === current;
@@ -189,9 +224,6 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
                     onPress={() => (shell.isOpen ? place.openModule(m.id) : shell.toggle())}
                     style={[styles.module, { width: slot }]}
                   >
-                    {here ? (
-                      <Animated.View style={[styles.here, styles.moduleHere, highlight]} />
-                    ) : null}
                     <Mark size={22} />
                   </Pressable>
                 );
@@ -261,6 +293,7 @@ const styles = StyleSheet.create({
   },
   moduleRow: { height: "100%", flexDirection: "row" },
   module: { height: "100%", alignItems: "center", justifyContent: "center" },
+  lens: { position: "absolute", top: 0, bottom: 0, left: 0 },
   moduleHere: {
     position: "absolute",
     top: space(1),

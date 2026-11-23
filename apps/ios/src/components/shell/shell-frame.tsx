@@ -1,4 +1,5 @@
 import { BlurView } from "expo-blur";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { useEffect, type ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
@@ -24,6 +25,8 @@ import {
 } from "./module-panel.tsx";
 import { useModules } from "./modules.ts";
 import { NAV_BAR, NavBar, RAIL_BLOCK } from "./nav-bar.tsx";
+
+const TAIL = space(24);
 
 /**
  * The signed-in app's frame: every page, root or pushed, on one white surface with the rail
@@ -85,6 +88,16 @@ export function ShellFrame({ children }: { children: ReactNode }) {
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, wash]}>
           <BlurView intensity={10} tint="light" style={StyleSheet.absoluteFill} />
           <View style={styles.wash} />
+          <Svg pointerEvents="none" width="100%" height={TAIL} style={styles.tail}>
+            <Defs>
+              <LinearGradient id="pageTail" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={colors.background} stopOpacity={0} />
+                <Stop offset="0.6" stopColor={colors.background} stopOpacity={0.85} />
+                <Stop offset="1" stopColor={colors.background} stopOpacity={1} />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#pageTail)" />
+          </Svg>
         </Animated.View>
         {shell.isOpen ? (
           <GestureDetector gesture={pullCard}>
@@ -121,5 +134,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   rail: { position: "absolute", left: 0, right: 0 },
+  tail: { position: "absolute", left: 0, right: 0, bottom: 0 },
   wash: { ...StyleSheet.absoluteFill, backgroundColor: colors.background, opacity: 0.35 },
 });
