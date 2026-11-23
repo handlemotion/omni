@@ -63,6 +63,7 @@ export class StoppedError extends Error {
 
 type ChangedPlan = Exclude<FolderSyncPlan, { mode: "unchanged" }>;
 type StoreMessage = (fetched: FetchedMessage) => Promise<void>;
+type Fetch = { kind: "batch"; uids: number[] } | { kind: "large"; uid: number };
 
 /**
  * Brings one folder's index in line with the server: a UIDVALIDITY change resets it, then
@@ -212,10 +213,10 @@ async function importMessages(
   result: FolderSyncResult,
 ) {
   const store = messageStorer(ctx, path, result);
-  for await (const { uids: batch, large } of sizedBatches(ctx, uids)) {
+  for await (const fetch of sizedBatches(ctx, uids)) {
     throwIfStopped(ctx);
-    if (large) await importLarge(ctx, path, batch[0] ?? 0, store);
-    else await importBatch(ctx, path, batch, store);
+    if (fetch.kind === "large") await importLarge(ctx, path, fetch.uid, store);
+    else await importBatch(ctx, path, fetch.uids, store);
     throwIfStopped(ctx);
   }
 }
@@ -280,11 +281,11 @@ async function* sizedBatches(ctx: FolderSyncContext, uids: number[]) {
       if (!sizes.has(uid)) continue;
       const size = sizes.get(uid) ?? 0;
       if (size > streamAboveBytes) {
-        yield { uids: [uid], large: true };
+        yield { kind: "large", uid } satisfies Fetch;
         continue;
       }
       if (batch.length > 0 && (batch.length >= batchSize || bytes + size > batchBytes)) {
-        yield { uids: batch, large: false };
+        yield { kind: "batch", uids: batch } satisfies Fetch;
         batch = [];
         bytes = 0;
       }
@@ -292,7 +293,7 @@ async function* sizedBatches(ctx: FolderSyncContext, uids: number[]) {
       bytes += size;
     }
   }
-  if (batch.length > 0) yield { uids: batch, large: false };
+  if (batch.length > 0) yield { kind: "batch", uids: batch } satisfies Fetch;
 }
 
 async function fetchLarge(ctx: FolderSyncContext, path: string, uid: number) {
