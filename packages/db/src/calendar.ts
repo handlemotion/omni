@@ -62,7 +62,6 @@ export {
 } from "./calendar/booking.ts";
 export { OCCURRENCE_LEAD_MS, type OccurrenceRef } from "./calendar/occurrence.ts";
 export {
-  CALENDAR_WINDOW_MAX_DAYS,
   type CalendarEventAttendee,
   type CalendarEventView,
   type CalendarResponse,
@@ -196,7 +195,6 @@ export function userCalendar(db: Db, userId: string, scopeOrgId?: string | null)
 export type MemberCalendar = ReturnType<typeof memberCalendar>;
 export type { MemberCalendarView } from "./calendar/listing.ts";
 export {
-  CALENDAR_GUESTS_MAX,
   type InvalidEvent,
   type NotInvited,
   type NotOrganizer,

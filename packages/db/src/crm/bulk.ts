@@ -1,9 +1,8 @@
+import { BULK_MAX } from "@omni/contracts";
 import { archiveCompany, deleteCompany, restoreCompany, updateCompany } from "./companies.ts";
 import { writeAsMember, type CrmDoor, type CrmMember, type Ex } from "./core.ts";
 import { archiveDeal, deleteDeal, restoreDeal, updateDeal } from "./deals.ts";
 import { archivePerson, deletePerson, restorePerson, updatePerson } from "./people.ts";
-
-export const BULK_MAX = 200;
 
 export type CrmBulkRecords = "companies" | "people" | "deals";
 

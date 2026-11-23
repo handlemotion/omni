@@ -1,4 +1,5 @@
-import { BULK_MAX, type CrmBulkAction } from "@omni/db";
+import { BULK_MAX } from "@omni/contracts";
+import type { CrmBulkAction } from "@omni/db";
 import { z } from "zod";
 import { crmOf, refusalText, type CrmWorkspace } from "../crm.ts";
 import type { ToolContext } from "../server.ts";

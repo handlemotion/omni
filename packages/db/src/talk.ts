@@ -8,8 +8,6 @@ export { NO_TALK, type NoTalk, type TalkMember } from "./talk/core.ts";
 export {
   isEmoji,
   previewOf,
-  TALK_BODY_MAX,
-  TALK_PAGE_MAX,
   TALK_PREVIEW_MAX,
   TALK_REACTIONS_PER_PERSON,
   type ReactResult,

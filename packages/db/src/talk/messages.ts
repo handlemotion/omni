@@ -1,9 +1,8 @@
+import { TALK_BODY_MAX, TALK_PAGE_MAX } from "@omni/contracts";
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { talkMessages, talkReactions, talkThreads } from "../schema/talk.ts";
 import { NOT_FOUND, threadOf, type Ex, type TalkMember } from "./core.ts";
 
-export const TALK_BODY_MAX = 4_000;
-export const TALK_PAGE_MAX = 100;
 export const TALK_PREVIEW_MAX = 120;
 /** How many different emoji one person may leave on one note. */
 export const TALK_REACTIONS_PER_PERSON = 8;

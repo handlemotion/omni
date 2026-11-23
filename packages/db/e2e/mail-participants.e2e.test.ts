@@ -288,7 +288,7 @@ describe("the backfill", () => {
           .where(eq(threadParticipantsBackfill.mailboxId, box.id))
       )[0]?.lastMessageId;
     const caughtUp = await cursor();
-    expect(caughtUp).toBeDefined();
+    expect(caughtUp).toEqual(expect.any(String));
 
     const late = await mail(org.id, box.id, { from: "late@follow.test" });
     await db.delete(threadParticipants).where(eq(threadParticipants.threadId, late.threadId));

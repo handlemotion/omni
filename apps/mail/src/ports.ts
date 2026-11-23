@@ -82,12 +82,7 @@ export interface MailStore {
   reportDiscarded(mailboxId: string): Promise<number>;
 }
 
-export type {
-  ForwardCopyPayload,
-  MessageTarget,
-  SendAttachment,
-  SendPayload,
-} from "@omni/contracts";
+export type { MessageTarget, SendAttachment, SendPayload } from "@omni/contracts";
 import type { ActionPayload, MailActionKind, SendAttachment } from "@omni/contracts";
 
 export type MailAction = { [K in MailActionKind]: ActionBase<K, ActionPayload<K>> }[MailActionKind];
