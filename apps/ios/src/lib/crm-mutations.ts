@@ -1,4 +1,4 @@
-import type { Api } from "@omni/client";
+import type { Api, CrmRecordKind, CrmStage } from "@omni/client";
 import {
   useMutation,
   useQueryClient,
@@ -7,7 +7,6 @@ import {
 } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
-import type { CrmStage } from "./crm-timeline.ts";
 import { keys } from "./query-keys.ts";
 import { cacheEpoch } from "./workspace-id.ts";
 
@@ -22,8 +21,7 @@ export type DealChange = Json<InferRequestType<Crm["deals"][":id"]["$patch"]>>;
 type DealPage = InferResponseType<Crm["deals"]["$get"], 200>;
 type DealDetail = InferResponseType<Crm["deals"][":id"]["$get"], 200>;
 
-/** The three records, as the API's paths name them. */
-export type CrmRecordKind = "companies" | "people" | "deals";
+export { parseMoney, type CrmRecordKind } from "@omni/client";
 
 /** Every change can touch lists, records and timelines alike: all of the CRM refetches. */
 export const crmChanged = (client: QueryClient) => client.invalidateQueries({ queryKey: ["crm"] });
@@ -127,11 +125,3 @@ export const useEditNote = () =>
 /** `mutate(id)`: its author deletes a note. */
 export const useDeleteNote = () =>
   useCrmMutation((id: string) => call(api.crm.notes[":id"].$delete({ param: { id } })));
-
-/** "12500.50" or "12,500" typed by a person, as minor units; null when it is not a number. */
-export function parseMoney(text: string) {
-  const cleaned = text.replace(/[^\d.,-]/g, "").replace(/,(?=\d{3}(\D|$))/g, "");
-  if (!cleaned) return null;
-  const value = Number(cleaned.replace(",", "."));
-  return Number.isFinite(value) ? Math.round(value * 100) : null;
-}

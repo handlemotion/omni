@@ -1,4 +1,10 @@
-import type { Thread, ThreadPage, ThreadSummary } from "@omni/client";
+import {
+  idempotencyHeader,
+  retryUnreached,
+  type Thread,
+  type ThreadPage,
+  type ThreadSummary,
+} from "@omni/client";
 import {
   useMutation,
   useQueryClient,
@@ -103,10 +109,9 @@ export function alertFailure(error: unknown, title?: string) {
   else Alert.alert(failureText(error));
 }
 
-const retry = (count: number, error: Error) =>
-  error instanceof ApiError && error.status === 0 && count < 10;
+const retry = retryUnreached(10);
 
-const header = (key: string) => ({ "idempotency-key": key });
+const header = idempotencyHeader;
 
 type Options = ReturnType<typeof inWorkspace>;
 

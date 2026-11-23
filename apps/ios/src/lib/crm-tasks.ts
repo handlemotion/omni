@@ -1,4 +1,10 @@
-import type { Api } from "@omni/client";
+import {
+  recordFilter as filterForRecord,
+  type Api,
+  type CrmRecordKind,
+  type CrmTask,
+  type CrmTaskPage,
+} from "@omni/client";
 import {
   infiniteQueryOptions,
   useInfiniteQuery,
@@ -9,16 +15,15 @@ import {
   type MutateOptions,
   type UseMutationResult,
 } from "@tanstack/react-query";
-import type { InferRequestType, InferResponseType } from "hono/client";
+import type { InferRequestType } from "hono/client";
 import { api, call, inWorkspace } from "./api.ts";
-import { crmChanged, type CrmRecordKind } from "./crm-mutations.ts";
+import { crmChanged } from "./crm-mutations.ts";
 import { keys } from "./query-keys.ts";
 import { cacheEpoch, currentWorkspaceId } from "./workspace-id.ts";
 
 type Tasks = Api["crm"]["tasks"];
 type Json<T> = T extends { json: infer J } ? J : never;
-type TaskPage = InferResponseType<Tasks["$get"], 200>;
-export type CrmTask = TaskPage["tasks"][number];
+export type { CrmTask } from "@omni/client";
 export type NewTask = Json<InferRequestType<Tasks["$post"]>>;
 export type TaskChange = Json<InferRequestType<Tasks[":id"]["$patch"]>>;
 
@@ -72,16 +77,9 @@ export const useTaskCounts = () =>
   });
 
 /** The filter for a record's own tasks. */
-export const recordFilter = (kind: CrmRecordKind, id: string) =>
-  (kind === "companies"
-    ? { company: id }
-    : kind === "people"
-      ? { person: id }
-      : { deal: id }) satisfies TaskFilter as TaskFilter;
+export const recordFilter: (kind: CrmRecordKind, id: string) => TaskFilter = filterForRecord;
 
-/** The record fields of a new task on `kind`/`id`. */
-export const onRecord = (kind: CrmRecordKind, id: string) =>
-  kind === "companies" ? { companyId: id } : kind === "people" ? { personId: id } : { dealId: id };
+export { onRecord } from "@omni/client";
 
 /** The record a task is on, as a screen's route names it. */
 export function taskRecord(task: CrmTask) {
@@ -134,7 +132,7 @@ export function useUpdateTask() {
         const before = client.getQueriesData({ queryKey: lists });
         const completedAt = done ? new Date().toISOString() : null;
         const flip = (task: CrmTask) => (task.id === id ? { ...task, completedAt } : task);
-        client.setQueriesData<InfiniteData<TaskPage> | { task: CrmTask }>(
+        client.setQueriesData<InfiniteData<CrmTaskPage> | { task: CrmTask }>(
           { queryKey: lists },
           (data) => {
             if (!data) return data;
@@ -167,13 +165,7 @@ export const useDeleteTask = () => {
   );
 };
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** `YYYY-MM-DD` in this device's time zone. */
-export function dayOf(iso: string) {
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+export { DUE_GROUPS, dayOf, dueGroup, dueLabel, type DueGroup } from "@omni/client";
 
 /** The moment the API stores for a day `days` from today: the end of that day here. */
 export function dueIn(days: number, now = new Date()) {
@@ -187,44 +179,6 @@ export const DUE_CHOICES = [
   { label: "Tomorrow", days: 1, icon: "sunrise" },
   { label: "Next week", days: 7, icon: "calendar.badge.clock" },
 ] as const;
-
-export type DueGroup = "overdue" | "today" | "upcoming" | "none";
-
-export const DUE_GROUPS: { id: DueGroup; label: string }[] = [
-  { id: "overdue", label: "Overdue" },
-  { id: "today", label: "Today" },
-  { id: "upcoming", label: "Upcoming" },
-  { id: "none", label: "No due date" },
-];
-
-/** Where an open task falls by its due time, in this device's day. */
-export function dueGroup(task: CrmTask, now = new Date()) {
-  let group: DueGroup = "upcoming";
-  if (!task.dueAt) group = "none";
-  else if (new Date(task.dueAt) < now) group = "overdue";
-  else if (dayOf(task.dueAt) === dayOf(now.toISOString())) group = "today";
-  return group;
-}
-
-const SHORT = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-const LONG = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-/** "Today", "Tomorrow", "Yesterday", "Mar 4", or with the year when it isn't this year. */
-export function dueLabel(iso: string | null, now = new Date()) {
-  if (!iso) return null;
-  const day = dayOf(iso);
-  const shifted = (days: number) =>
-    dayOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 12).toISOString());
-  if (day === shifted(0)) return "Today";
-  if (day === shifted(1)) return "Tomorrow";
-  if (day === shifted(-1)) return "Yesterday";
-  const date = new Date(iso);
-  return (date.getFullYear() === now.getFullYear() ? SHORT : LONG).format(date);
-}
 
 /** An open task whose due time has passed. */
 export const isOverdue = (task: CrmTask, now = new Date()) =>

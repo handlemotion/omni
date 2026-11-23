@@ -1,8 +1,7 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
+import { PROJECT_KINDS, type Api, type CrmStageKind } from "@omni/client";
 import type { InferRequestType } from "hono/client";
 import { api, call } from "./api.ts";
-import type { CrmStageKind } from "./crm.ts";
 import { keys } from "./query-keys.ts";
 
 type Crm = Api["crm"];
@@ -95,7 +94,7 @@ export const dealsFilter = (search: DealParams) =>
   }) satisfies CrmDealFilter;
 
 /** What counts as a project: a lead (`open`) or a won deal, by stage kind, never by stage name. */
-export const PROJECT_KINDS: readonly CrmStageKind[] = ["open", "won"];
+export { PROJECT_KINDS };
 export const isProject = (kind: CrmStageKind | undefined) => !!kind && PROJECT_KINDS.includes(kind);
 
 /** The Projects table's filter: the board's deals, with a stage filter and any sort. */

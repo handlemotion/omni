@@ -6,7 +6,8 @@ import {
   type QueryClient,
   type QueryKey,
 } from "@tanstack/react-query";
-import { api, ApiError, call } from "./api.ts";
+import { idempotencyHeader, retryUnreached } from "@omni/client";
+import { api, call } from "./api.ts";
 import { removeFromLists } from "./cache.ts";
 import { FIRST_PAGE_SIZE, OLDER_PAGE_SIZE } from "./mail-queries.ts";
 import { conversationFilterOf, keys } from "./query-keys.ts";
@@ -93,14 +94,13 @@ export interface ChangeVariables {
   me?: string | undefined;
 }
 
-const retry = (failureCount: number, error: Error) =>
-  error instanceof ApiError && error.status === 0 && failureCount < 10;
+const retry = retryUnreached(10);
 
 const scope = { id: "mail-actions" };
 
 function request({ threadId, change, key }: ChangeVariables) {
   const param = { id: threadId };
-  const header = { "idempotency-key": key };
+  const header = idempotencyHeader(key);
   const thread = api.threads[":id"];
   switch (change.type) {
     case "resolve":
@@ -352,7 +352,7 @@ export const bulkChangeMutation = (client: QueryClient) =>
     mutationFn: ({ key, threadIds, change }: BulkVariables) =>
       call(
         api.conversations.bulk.$post({
-          header: { "idempotency-key": key },
+          header: idempotencyHeader(key),
           json: { threadIds, change: change.type === "claim" ? { type: "claim" } : change },
         }),
       ),

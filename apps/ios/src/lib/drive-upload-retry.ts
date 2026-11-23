@@ -1,15 +1,10 @@
 import * as Network from "expo-network";
-import { ApiError } from "./api.ts";
+import { ApiError, isTransient } from "@omni/client";
 
 const TRIES = 8;
 const BASE_MS = 1_000;
 const CAP_MS = 30_000;
 const RATE_LIMITED_MS = 5_000;
-
-/** A failure another try may get past: no answer, a timeout, a rate limit, or the server's fault. */
-export const isTransient = (error: unknown) =>
-  error instanceof ApiError &&
-  (error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500);
 
 /**
  * How long to wait before try `attempt + 1`: what a 429 asked for, else exponential backoff with

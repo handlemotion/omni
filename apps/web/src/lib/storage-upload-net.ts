@@ -1,4 +1,4 @@
-import { ApiError } from "./api.ts";
+import { isTransient, isUnreached } from "@omni/client";
 
 /**
  * A budget of requests in flight, shared by every upload in the tab: files that upload at once
@@ -63,15 +63,6 @@ export function backoffMs(attempt: number, retryAfterSeconds?: number) {
   const jitter = Math.random() * ceiling;
   return Math.max(jitter, (retryAfterSeconds ?? 0) * 1000);
 }
-
-/** Whether a request that failed this way may work if sent again, unchanged. */
-export function isTransient(error: unknown) {
-  if (!(error instanceof ApiError)) return false;
-  return error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500;
-}
-
-/** A failure that never reached the server: the browser is offline or the connection dropped. */
-export const isUnreached = (error: unknown) => error instanceof ApiError && error.status === 0;
 
 const retryAfterOf = (error: unknown) => {
   const seconds = Number((error as { details?: { retryAfter?: unknown } }).details?.retryAfter);

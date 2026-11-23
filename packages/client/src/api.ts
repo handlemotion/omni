@@ -75,3 +75,44 @@ export type WorkspaceMember = InferResponseType<
 >["members"][number];
 /** `created → domain_added → dns_verified → mailboxes_created → invites_sent → complete`. */
 export type SetupStep = Workspace["setup"];
+
+/** A helpdesk conversation: status, assignee, priority, due times, tags and timeline events. */
+export type Conversation = InferResponseType<Api["threads"][":id"]["conversation"]["$get"], 200>;
+export type ConversationStatus = Conversation["status"];
+export type Priority = Conversation["priority"];
+export type Tag = InferResponseType<Api["mailboxes"][":id"]["tags"]["$get"], 200>["tags"][number];
+export type Assignee = InferResponseType<
+  Api["mailboxes"][":id"]["assignees"]["$get"],
+  200
+>["assignees"][number];
+
+/** A page of `/api/notifications`: newest first, with your total `unread` count. */
+export type NotificationPage = InferResponseType<Api["notifications"]["$get"], 200>;
+/** One notification: `kind` (assigned, mention, customer_reply, …), the thread, its subject. */
+export type Notification = NotificationPage["notifications"][number];
+
+/** A Drive listing (`GET /api/storage/nodes`) and one file or folder in it. */
+export type StorageListPage = InferResponseType<Api["storage"]["nodes"]["$get"], 200>;
+export type DriveNode = StorageListPage["nodes"][number];
+
+type Crm = Api["crm"];
+export type CrmCompanyPage = InferResponseType<Crm["companies"]["$get"], 200>;
+export type CrmCompany = CrmCompanyPage["companies"][number];
+export type CrmPersonPage = InferResponseType<Crm["people"]["$get"], 200>;
+export type CrmPerson = CrmPersonPage["people"][number];
+export type CrmDealPage = InferResponseType<Crm["deals"]["$get"], 200>;
+export type CrmDeal = CrmDealPage["deals"][number];
+export type CrmStage = InferResponseType<Crm["stages"]["$get"], 200>["stages"][number];
+export type CrmStageKind = CrmStage["kind"];
+export type CrmContract = InferResponseType<Crm["contracts"]["$get"], 200>["contracts"][number];
+export type CrmTaskPage = InferResponseType<Crm["tasks"]["$get"], 200>;
+export type CrmTask = CrmTaskPage["tasks"][number];
+/** A project's plan: its milestones and deliverables. */
+export type CrmPlan = InferResponseType<Crm["deals"][":id"]["plan"]["$get"], 200>;
+export type CrmMilestone = CrmPlan["milestones"][number];
+export type CrmDeliverable = CrmPlan["deliverables"][number];
+/** One grant on a project: who may see it, and how much. */
+export type CrmProjectAccess = InferResponseType<
+  Crm["deals"][":id"]["access"]["$get"],
+  200
+>["access"][number];
