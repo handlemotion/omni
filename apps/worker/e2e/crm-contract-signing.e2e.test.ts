@@ -153,7 +153,11 @@ test("a contract sent from its deal is signed by each client, and the signed cop
     signing: { status: "completed", sealedNodeId: request.sealedNodeId },
   });
   const inFolder = await stack.api(ana.jar, "GET", `/nodes?parent=${folderId}`);
-  expect(inFolder.body.nodes).toEqual(
+  const admin = inFolder.body.nodes.find(
+    (node: { kind: string; name: string }) => node.kind === "folder" && node.name === "Admin",
+  );
+  const inAdmin = await stack.api(ana.jar, "GET", `/nodes?parent=${admin.id}`);
+  expect(inAdmin.body.nodes).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
         id: request.sealedNodeId,
