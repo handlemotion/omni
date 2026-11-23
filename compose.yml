@@ -1,4 +1,7 @@
 # Local stack: `pnpm stack:up`. Nothing here talks to a real mailbox or a real database.
+# One project name for every checkout and worktree: the containers have fixed names, so a
+# project named after the folder can't create one another checkout already holds.
+name: omni
 services:
   postgres:
     image: postgres:18-alpine
