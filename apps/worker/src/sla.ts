@@ -4,13 +4,7 @@ import { loadConfig, type Config } from "./env.ts";
 import { createLogger, type Logger } from "./log.ts";
 import { announceSla, fanOut, notifyMembers } from "./realtime-announce.ts";
 
-export async function wakeSnoozed(scope: {
-  env: Env;
-  db: Db;
-  config: Config;
-  log: Logger;
-  now?: Date;
-}) {
+async function wakeSnoozed(scope: { env: Env; db: Db; config: Config; log: Logger; now?: Date }) {
   const now = scope.now ?? new Date();
   const due = await dueSnoozes(scope.db, now);
   const changed = new Map<string, Set<string>>();

@@ -205,7 +205,7 @@ export async function inGoodStanding(db: Db, config: Config, orgId: string) {
 /** What a write in a workspace without a plan in good standing is told (`billing_inactive`). */
 export const READ_ONLY_MESSAGE = "this workspace is read-only until it has an active plan";
 
-export const READ_ONLY_ALLOWED = [
+const READ_ONLY_ALLOWED = [
   { path: "/api/billing", reason: "checkout and the portal are how a workspace becomes paid" },
   { path: "/api/workspace/members", reason: "giving a member an inbox is setup, not mail" },
   { path: "/api/workspace/shared-inboxes", reason: "who can see a mailbox is access, not mail" },

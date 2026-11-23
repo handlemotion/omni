@@ -13,16 +13,14 @@ import { pruneAbandonedSignUps } from "./abandoned-sign-ups.ts";
 import { app } from "./app.ts";
 import { isBuildAsset, serveBuildAsset } from "./build-assets.ts";
 import { reconcileSubscriptions } from "./billing-reconcile.ts";
+import { stripePacer, type BillingRun } from "./billing-run.ts";
 import { openDb } from "./db.ts";
 import { recheckLocks } from "./domains.ts";
 import { loadConfig } from "./env.ts";
 import { attempt, runJob, scopedDb } from "./job-effects.ts";
 import { createLogger } from "./log.ts";
-import { modules } from "./modules.ts";
+import { moduleConsumers, modules } from "./modules.ts";
 import { consumeQueue, type AiJob } from "./queue.ts";
-import { consumeMeetingDocMessage } from "./meetings/doc.ts";
-import { consumeMeetingMessage } from "./meetings/queue.ts";
-import { billStorage } from "./storage/billing.ts";
 
 export type { AppType } from "./app.ts";
 export { DomainWatch } from "./domain-watch.ts";
@@ -47,11 +45,7 @@ export default Sentry.withSentry(
   {
     fetch: (request, env, ctx) =>
       isBuildAsset(request) ? serveBuildAsset(request, env.ASSETS) : app.fetch(request, env, ctx),
-    queue: (batch, env) =>
-      consumeQueue(batch, env, {
-        meeting: consumeMeetingMessage,
-        "meeting-doc": consumeMeetingDocMessage,
-      }),
+    queue: (batch, env) => consumeQueue(batch, env, moduleConsumers),
     scheduled: (controller, env, ctx) =>
       ctx.waitUntil(
         controller.cron === MINUTE_CRON
@@ -101,14 +95,16 @@ function scheduledReconcile(env: Env) {
   const log = createLogger({ component: "billing", requestId: crypto.randomUUID() });
   return runJob(
     Effect.gen(function* () {
-      const db = yield* scopedDb(env);
-      const stripe = createStripeClient(billing.secretKey);
-      const result = yield* attempt("reconcile", () =>
-        reconcileSubscriptions({ db, stripe, billing, log }),
-      );
+      const run: BillingRun = {
+        db: yield* scopedDb(env),
+        stripe: createStripeClient(billing.secretKey),
+        billing,
+        log,
+        pace: stripePacer(),
+      };
+      const result = yield* attempt("reconcile", () => reconcileSubscriptions(run));
       log.info("billing.reconciled", { ...result });
-      const storage = yield* billStorage({ db, stripe, billing, log });
-      if (storage) log.info("storage.billed", { ...storage });
+      for (const module of modules) if (module.billingRun) yield* module.billingRun(run);
     }),
   );
 }

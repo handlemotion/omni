@@ -5,13 +5,10 @@ import {
   createStripeSubscription,
   isSettled,
   subscriptionRows,
-  type Db,
   type StripeSubscriptionFields,
 } from "@omni/db";
 import type Stripe from "stripe";
-import type { Logger } from "./log.ts";
-
-const STRIPE_REQUEST_INTERVAL_MS = 100;
+import type { BillingRun } from "./billing-run.ts";
 
 export interface ReconcileResult {
   /** Stripe subscriptions compared with their row. */
@@ -24,15 +21,9 @@ export interface ReconcileResult {
   errors: number;
 }
 
-export async function reconcileSubscriptions(input: {
-  db: Db;
-  stripe: Stripe;
-  billing: BillingConfig;
-  log: Logger;
-}) {
-  const { db, stripe, billing, log } = input;
+export async function reconcileSubscriptions(input: BillingRun) {
+  const { db, stripe, billing, log, pace } = input;
   const result: ReconcileResult = { checked: 0, changed: 0, created: 0, errors: 0 };
-  const pace = pacer(STRIPE_REQUEST_INTERVAL_MS);
   const rows = await subscriptionRows(db);
   const byStripeId = new Map(
     rows.flatMap((r) => (r.stripeSubscriptionId ? [[r.stripeSubscriptionId, r]] : [])),
@@ -141,12 +132,3 @@ export const subscriptionFields: (
 const fromSeconds = (seconds: number) => new Date(seconds * 1000);
 const maybeDate = (seconds: number | null) => (seconds ? fromSeconds(seconds) : null);
 const idOf = (ref: string | { id: string }) => (typeof ref === "string" ? ref : ref.id);
-
-function pacer(intervalMs: number) {
-  let next = 0;
-  return async () => {
-    const wait = next - Date.now();
-    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-    next = Date.now() + intervalMs;
-  };
-}

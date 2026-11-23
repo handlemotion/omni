@@ -33,7 +33,7 @@ export class ApiFailure extends Error {
   }
 }
 
-export function wantsNestedErrors(c: Context) {
+function wantsNestedErrors(c: Context) {
   return c.req.header(ERROR_FORMAT_HEADER) === ERROR_FORMAT_VERSION;
 }
 

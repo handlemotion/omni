@@ -48,14 +48,14 @@ export type AiJob = {
   requestId?: string;
 };
 
-/** Must match `max_retries` of the `omni-ai` consumer in wrangler.jsonc. */
-export const AI_QUEUE_MAX_RETRIES = 5;
+// WARNING: must match `max_retries` of the `omni-ai` consumer in wrangler.jsonc.
+const AI_QUEUE_MAX_RETRIES = 5;
 
 const MODEL_TIMEOUT_MS = 20_000;
 const BATCH_START_BUDGET_MS = 10 * 60 * 1000;
 
 /** A job of another kind, from a module: settles its own message, and says what it spent on AI. */
-export type ModuleJob = { kind: string; orgId: string };
+type ModuleJob = { kind: string; orgId: string };
 export type ModuleConsumer = (
   run: { env: Env; db: Db; config: Config; queue: string },
   message: Message<ModuleJob>,
@@ -400,7 +400,7 @@ async function triageLatest(
   return { triaged: true };
 }
 
-export async function runAiJob(
+async function runAiJob(
   db: Db,
   models: { triage: TriageClient },
   config: Config,
