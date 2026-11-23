@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBarBlur } from "@/components/ui/edge-blur.tsx";
 import { persistOptions, queryClient } from "@/lib/query-client.ts";
 import { holdSplash } from "@/lib/splash.ts";
 import { useDriveUploads } from "@/lib/drive-uploads.ts";
@@ -49,6 +50,7 @@ function RootLayout() {
           >
             <Stack.Screen name="settings" options={{ presentation: "modal" }} />
           </Stack>
+          <StatusBarBlur />
         </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

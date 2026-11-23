@@ -21,7 +21,7 @@ export { IconPaperPlane as IconSend } from "@central-icons-react-native/round-ou
 export { IconArrowShareLeft as IconReply } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconArrowShareLeft";
 export { IconArrowUndoUp as IconReplyAll } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconArrowUndoUp";
 export { IconChevronDownMedium as IconChevronDown } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconChevronDownMedium";
-export { IconBarsThree as IconMenu } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconBarsThree";
+export { IconBarsTwo as IconMenu } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconBarsTwo";
 export { IconMagnifyingGlass as IconSearch } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconMagnifyingGlass";
 export { IconBubble2 as IconBubble } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconBubble2";
 export { IconBubbleDots } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconBubbleDots";
@@ -93,3 +93,4 @@ export { IconSparkle } from "@central-icons-react-native/round-outlined-radius-3
 export { IconStar } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconStar";
 export { IconTarget } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconTarget";
 export { IconTrophy } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconTrophy";
+export { IconMicrophone } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconMicrophone";

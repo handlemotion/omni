@@ -15,7 +15,6 @@ import { scheduleOnRN } from "react-native-worklets";
 import { ScrollEdge } from "@/components/ui/scroll-edge.tsx";
 import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
 import { colors, radius, space } from "@/theme/tokens.ts";
-import { FLOATING_BAR_SPACE } from "./floating-bar.tsx";
 import { useMenu } from "./menu-context.tsx";
 import { MenuDrawer } from "./menu-layer.tsx";
 import { RootPlace, TopInset, useShellTop, type Module } from "./menu-nav.ts";
@@ -23,7 +22,7 @@ import { ShellChrome } from "./shell.tsx";
 
 const DRAWER_MAX = 320;
 const DRAWER_RATIO = 0.82;
-const EDGE_WIDTH = 24;
+const OPEN_SLOP = 20;
 const OPEN_MS = 280;
 const CLOSE_MS = 240;
 const FLING = 500;
@@ -32,7 +31,8 @@ const EASE = Easing.out(Easing.cubic);
 /**
  * A module's root page inside the reveal drawer shell: the module's nav menu sits underneath on
  * the left and fades/scales up as the current page slides right out of the way. Supports tapping
- * the top-left menu button, swiping right from the left edge, or tapping/swiping left on the
+ * the top-left menu button, swiping right anywhere on the page (a row's own swipe, which starts
+ * sooner, keeps its gesture), or tapping/swiping left on the
  * exposed page to close.
  */
 export function ModuleRoot({ module, children }: { module: Module; children: ReactNode }) {
@@ -63,7 +63,7 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
 
   const openSwipe = usePanGesture({
     enabled: !shell.isOpen && !shell.searching,
-    activeOffsetX: 10,
+    activeOffsetX: OPEN_SLOP,
     failOffsetY: [-10, 10],
     onActivate: () => {
       "worklet";
@@ -133,11 +133,13 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
           ) : null}
           <Animated.View style={[styles.pageShell, pageShell]}>
             <Animated.View style={[styles.pageClip, pageClip]}>
-              <View style={styles.page}>
-                <TopInset value={shell.searching ? statusBar + space(4) : shellTop}>
-                  {children}
-                </TopInset>
-              </View>
+              <GestureDetector gesture={openSwipe}>
+                <View style={styles.page}>
+                  <TopInset value={shell.searching ? statusBar + space(4) : shellTop}>
+                    {children}
+                  </TopInset>
+                </View>
+              </GestureDetector>
               <ShellChrome />
               {mounted ? (
                 <GestureDetector gesture={closeSwipe}>
@@ -149,11 +151,6 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
                       style={styles.scrimHit}
                     />
                   </View>
-                </GestureDetector>
-              ) : null}
-              {!shell.isOpen && !shell.searching ? (
-                <GestureDetector gesture={openSwipe}>
-                  <View style={[styles.edge, { top: shellTop, bottom: FLOATING_BAR_SPACE }]} />
                 </GestureDetector>
               ) : null}
             </Animated.View>
@@ -176,9 +173,4 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   scrim: { ...StyleSheet.absoluteFill },
   scrimHit: { flex: 1 },
-  edge: {
-    position: "absolute",
-    left: 0,
-    width: EDGE_WIDTH,
-  },
 });
