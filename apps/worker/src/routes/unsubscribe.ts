@@ -7,7 +7,7 @@ import { apiError } from "../errors.ts";
 import { checkDestination, type ProxyOptions } from "../image-proxy.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
-import { enqueueSend, sendResponse, threadMessage } from "./compose.ts";
+import { enqueueSend, sendResponse, threadMessage } from "./send.ts";
 import { idempotencyHeader } from "./mail.ts";
 
 const POST_TIMEOUT_MS = 10_000;

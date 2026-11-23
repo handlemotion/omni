@@ -16,7 +16,7 @@ import {
   recipients,
   sendUnlessStale,
   threadMessage,
-} from "./compose.ts";
+} from "./send.ts";
 import { idempotencyHeader, notFound, outboxKey, pingLater } from "./mail.ts";
 import { basedOnMessageId } from "./reply-precondition.ts";
 

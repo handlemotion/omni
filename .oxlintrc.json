@@ -138,8 +138,7 @@
         "apps/web/src/components/settings/workspace-pages.tsx",
         "apps/web/src/components/ui/chart.tsx",
         "apps/web/src/components/ui/sidebar.tsx",
-        "apps/web/src/components/ui/table.tsx",
-        "apps/worker/src/routes/compose.ts"
+        "apps/web/src/components/ui/table.tsx"
       ],
       "rules": {
         "max-lines": "off"
