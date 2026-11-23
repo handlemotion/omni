@@ -1,6 +1,6 @@
 import type { forMember } from "@omni/db";
 import { z } from "zod";
-import { notFound } from "./mail.ts";
+import { notFound } from "../errors.ts";
 
 /**
  * The latest message the composer showed (`messages.id`). When the thread has a newer one, the

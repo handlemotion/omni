@@ -8,6 +8,7 @@ import { resolveSession, type AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { imageHeaders } from "../image-proxy.ts";
 import { zValidator } from "../validator.ts";
+import { canManage } from "../inbox-admin.ts";
 
 /** Largest picture accepted. */
 export const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
@@ -93,10 +94,6 @@ const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   c.set("user", resolved.user);
   await next();
 });
-
-function canManage(role: string) {
-  return role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin");
-}
 
 /** `/api/account`: the signed-in user's own picture. Works before they join an organization. */
 export const account = new Hono<AppEnv>()

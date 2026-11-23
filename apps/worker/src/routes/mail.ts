@@ -14,7 +14,6 @@ import { threadLaneBodySchema, type ThreadLaneResponse } from "@omni/contracts";
 import { addedParticipants, messageDisplay } from "@omni/mail-core/display";
 import { unsubscribeMethod } from "@omni/mail-core/unsubscribe";
 import { Hono, type Context } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
@@ -31,7 +30,8 @@ import {
   type TriagePatch,
 } from "../thread-writes.ts";
 import { cursorParam, encodeCursor } from "../cursor.ts";
-import { zValidator } from "../validator.ts";
+import { zValidator, idempotencyHeader } from "../validator.ts";
+import { notFound } from "../errors.ts";
 
 const cursorSchema = z.object({ t: z.iso.datetime(), id: z.string().min(1) });
 
@@ -75,17 +75,9 @@ const deferBody = z.object({ until: z.iso.datetime() });
 
 const moveBody = z.object({ destination: z.string().min(1).max(1000) });
 
-export const idempotencyHeader = z.object({
-  "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
-});
-
 /** Outbox keys are namespaced by member so one member's key can never reach another's action. */
 export function outboxKey(c: Context<AppEnv>, key: string, ...parts: string[]) {
   return [c.var.member.id, key, ...parts].join(":");
-}
-
-export function notFound(): never {
-  throw new HTTPException(404, { message: "not found" });
 }
 
 export function pingLater(c: Context<AppEnv>) {

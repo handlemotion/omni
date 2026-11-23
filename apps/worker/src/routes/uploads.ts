@@ -9,11 +9,10 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { apiError } from "../errors.ts";
+import { apiError, notFound } from "../errors.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 import { attachmentResponse } from "./assets.ts";
-import { notFound } from "./mail.ts";
 
 const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 

@@ -4,11 +4,10 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { errorBody } from "../errors.ts";
+import { errorBody, notFound } from "../errors.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { optionalJsonBody, zValidator } from "../validator.ts";
+import { optionalJsonBody, zValidator, idempotencyHeader } from "../validator.ts";
 import { basedOnMessageId } from "./reply-precondition.ts";
-import { idempotencyHeader, notFound } from "./mail.ts";
 import {
   address,
   earlierSend,

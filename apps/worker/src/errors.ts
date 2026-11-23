@@ -82,3 +82,8 @@ export function answerThrown(error: Error, c: Context<AppEnv>) {
   (c.var.log ?? createLogger()).error("http.error", { error, orgId: c.var.member?.orgId });
   return apiError(c, "internal_server_error", "internal error");
 }
+
+/** Refuses with 404: the resource is missing or the member may not see it, alike. */
+export function notFound(): never {
+  throw new HTTPException(404, { message: "not found" });
+}

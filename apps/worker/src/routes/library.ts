@@ -23,7 +23,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
-import { notFound } from "./mail.ts";
+import { notFound } from "../errors.ts";
 
 const scopeQuery = z.object({
   scope: z.enum(["inbox", "mine"]),

@@ -1,6 +1,6 @@
 import { zValidator as honoZValidator } from "@hono/zod-validator";
 import type { Context, ValidationTargets } from "hono";
-import type { core, output, ZodType } from "zod";
+import { z, type core, type output, type ZodType } from "zod";
 import { ApiFailure } from "./errors.ts";
 
 function invalid(what: string, issues: readonly core.$ZodIssue[], message?: string) {
@@ -51,3 +51,8 @@ export async function optionalJsonBody<T extends ZodType>(c: Context, schema: T)
   if (parsed.success) return parsed.data satisfies output<T>;
   throw invalid("json", parsed.error.issues);
 }
+
+/** The header a retried write repeats, so the outbox runs it once. */
+export const idempotencyHeader = z.object({
+  "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
+});

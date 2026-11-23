@@ -2,8 +2,9 @@ import { setThreadArchived, threadActionTargets } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { zValidator } from "../validator.ts";
-import { announceThread, enqueuePerFolder, idempotencyHeader, notFound } from "./mail.ts";
+import { zValidator, idempotencyHeader } from "../validator.ts";
+import { announceThread, enqueuePerFolder } from "./mail.ts";
+import { notFound } from "../errors.ts";
 
 type Kind = "trash" | "spam" | "not_spam";
 

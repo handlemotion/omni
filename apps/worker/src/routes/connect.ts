@@ -10,10 +10,9 @@ import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { apiError } from "../errors.ts";
+import { apiError, notFound } from "../errors.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { notFound } from "./mail.ts";
 
 const GOOGLE_AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth";
 const SCOPES = ["https://mail.google.com/", "openid", "email", "profile"];

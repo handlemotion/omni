@@ -21,10 +21,10 @@ import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { errorBody } from "../errors.ts";
+import { errorBody, notFound } from "../errors.ts";
 import { fanOut } from "../realtime-announce.ts";
 import { assertLatest, basedOnMessageId, StaleThread } from "./reply-precondition.ts";
-import { notFound, outboxKey, pingLater, type ActionMailbox } from "./mail.ts";
+import { outboxKey, pingLater, type ActionMailbox } from "./mail.ts";
 
 export const address = z.email();
 export const recipients = z.array(address).max(100);

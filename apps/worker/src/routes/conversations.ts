@@ -33,17 +33,15 @@ import {
   withdrawNotifications,
 } from "../realtime-announce.ts";
 import { cursorParam, encodeCursor } from "../cursor.ts";
-import { zValidator } from "../validator.ts";
+import { zValidator, idempotencyHeader } from "../validator.ts";
 import {
   applyChange,
   claimPrecondition,
   expectedAssignee,
   failures,
 } from "./conversation-change.ts";
-
-const idempotencyHeader = z.object({
-  "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
-});
+import { notFound } from "../errors.ts";
+import { canManage } from "../inbox-admin.ts";
 
 const cursorQuery = cursorParam(z.object({ t: z.iso.datetime(), id: z.string().min(1) }))
   .transform((parsed) => ({ at: parsed.t, id: parsed.id }))
@@ -174,14 +172,9 @@ const domainChange: (change: z.infer<typeof bulkChange>, memberId: string) => Co
 };
 
 function requireManager(c: Context<AppEnv>) {
-  const { role } = c.var.member;
-  if (!role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin")) {
+  if (!canManage(c.var.member.role)) {
     throw new HTTPException(403, { message: "only owners and admins change inbox settings" });
   }
-}
-
-function notFound(): never {
-  throw new HTTPException(404, { message: "not found" });
 }
 
 const writeGuards = [limitPerMember("actions"), zValidator("header", idempotencyHeader)] as const;
