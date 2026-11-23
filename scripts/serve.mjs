@@ -1,16 +1,9 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import {
-  constants,
-  copyFileSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ensureEnvFile, isHealthy, waitForHealth } from "./local-env.mjs";
 
 const root = join(import.meta.dirname, "..");
 const worker = join(root, "apps/worker");
@@ -50,14 +43,6 @@ function runningPid() {
   }
 }
 
-async function healthy() {
-  try {
-    return (await fetch(`${url}/health`, { signal: AbortSignal.timeout(2_000) })).ok;
-  } catch {
-    return false;
-  }
-}
-
 function tail(lines = 30) {
   return readOr(logFile, "").trimEnd().split("\n").slice(-lines).join("\n");
 }
@@ -70,19 +55,15 @@ async function start() {
   }
   if (pid) {
     stop();
-    while (await healthy()) await new Promise((resolve) => setTimeout(resolve, 250));
+    while (await isHealthy(url)) await new Promise((resolve) => setTimeout(resolve, 250));
   }
   const devVars = join(worker, ".dev.vars");
-  try {
-    copyFileSync(join(worker, ".dev.vars.example"), devVars, constants.COPYFILE_EXCL);
-    const filled = readFileSync(devVars, "utf8").replace(
-      /^(BETTER_AUTH_SECRET|MAIL_SERVICE_HMAC_SECRET)=$/gm,
-      (_, key) => `${key}=${randomBytes(32).toString("hex")}`,
-    );
-    writeFileSync(devVars, filled);
+  const secrets = {
+    BETTER_AUTH_SECRET: randomBytes(32).toString("hex"),
+    MAIL_SERVICE_HMAC_SECRET: randomBytes(32).toString("hex"),
+  };
+  if (ensureEnvFile(devVars, join(worker, ".dev.vars.example"), secrets)) {
     console.log("apps/worker/.dev.vars was missing; copied .dev.vars.example with local secrets");
-  } catch (error) {
-    if (error.code !== "EEXIST") throw error;
   }
   mkdirSync(stateDir, { recursive: true });
   const vars = [];
@@ -117,16 +98,12 @@ async function start() {
 
   let exited = false;
   child.on("exit", () => (exited = true));
-  const deadline = Date.now() + readyTimeoutMs;
-  while (!(await healthy())) {
-    if (exited || Date.now() > deadline) {
-      console.error(
-        `Worker did not become ready${exited ? " (it exited)" : ""}. Log tail:\n${tail()}`,
-      );
-      stop({ quiet: true });
-      process.exit(1);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  if (!(await waitForHealth(url, Date.now() + readyTimeoutMs, () => exited))) {
+    console.error(
+      `Worker did not become ready${exited ? " (it exited)" : ""}. Log tail:\n${tail()}`,
+    );
+    stop({ quiet: true });
+    process.exit(1);
   }
   console.log(`Worker ready (pid ${child.pid}): ${url}  log: ${logFile}`);
   process.exit(0);
@@ -147,7 +124,7 @@ function stop({ quiet = false } = {}) {
 
 async function status() {
   const pid = runningPid();
-  const ok = pid ? await healthy() : false;
+  const ok = pid ? await isHealthy(url) : false;
   console.log(
     pid ? `Worker pid ${pid}, ${ok ? "healthy" : "not answering"}: ${url}` : "Worker not running",
   );
