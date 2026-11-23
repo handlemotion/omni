@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/handlemotion/omni/compare/ios-v0.8.0...ios-v0.9.0) (2026-11-23)
+
+
+### Features
+
+* **ios:** module section under the page card, swipeable module pages and a Meetings placeholder ([#66](https://github.com/handlemotion/omni/issues/66)) ([c3d67b3](https://github.com/handlemotion/omni/commit/c3d67b347a840f2765182af129b37e41ecd19391))
+
 ## [0.8.0](https://github.com/handlemotion/omni/compare/ios-v0.7.0...ios-v0.8.0) (2026-11-23)
 
 
