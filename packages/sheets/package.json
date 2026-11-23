@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "fractional-indexing": "3.2.0",
+    "fractional-indexing": "4.0.0",
     "yjs": "^13.6.33"
   }
 }
