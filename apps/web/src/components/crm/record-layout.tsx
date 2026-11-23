@@ -1,3 +1,4 @@
+import { ApiError } from "@omni/client";
 import { useSearch } from "@tanstack/react-router";
 import { useRef, useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -9,7 +10,6 @@ import { Link } from "@/components/ui/link";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
-import { ApiError } from "@/lib/api.ts";
 import { CRM_LISTS } from "./crm-nav.tsx";
 import type { SenderLogoFor } from "@/lib/sender-logo";
 import { RecordMark } from "./record-list.tsx";

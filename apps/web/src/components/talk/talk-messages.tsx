@@ -1,3 +1,4 @@
+import { fileType } from "@omni/client";
 import { cn } from "cn";
 import {
   Fragment,
@@ -14,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
 import { Link } from "@/components/ui/link";
 import { useReact } from "@/hooks/use-talk.ts";
-import { fileType } from "@/lib/file-kind.ts";
 import { fileUrl, imageUrl, isImage, reacting, type TalkMessage } from "@/lib/talk.ts";
 import { isPending } from "@/lib/talk-cache.ts";
 import { DAY, TIME } from "@/lib/dates.ts";

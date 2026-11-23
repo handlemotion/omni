@@ -1,13 +1,9 @@
+import { parseMoney } from "@omni/client";
 import { router } from "expo-router";
 import { useState } from "react";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
-import {
-  parseMoney,
-  useCreateCompany,
-  useCreateDeal,
-  useCreatePerson,
-} from "@/lib/crm-mutations.ts";
+import { useCreateCompany, useCreateDeal, useCreatePerson } from "@/lib/crm-mutations.ts";
 import { isCurrencyCode, useDealCurrency } from "@/lib/crm-currency.ts";
 import { CompanyField, type CompanyChoice } from "./company-field.tsx";
 import { CloseDateField, ValueField } from "./form-fields.tsx";

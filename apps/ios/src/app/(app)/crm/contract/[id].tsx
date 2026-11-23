@@ -1,3 +1,4 @@
+import type { CrmContract } from "@omni/client";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { IconFileText } from "@/components/icons.ts";
@@ -17,7 +18,6 @@ import {
   takesSignedCopy,
   useContracts,
   useVoidContract,
-  type CrmContract,
 } from "@/lib/crm-contracts.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
 import { gutter, space } from "@/theme/tokens.ts";

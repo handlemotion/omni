@@ -204,6 +204,10 @@ export const keys = {
     dealId ? ([...crm(), "meetings", dealId] as const) : ([...crm(), "meetings"] as const),
   /** Every CRM task list, task and count. */
   crmTasks: () => [...crm(), "tasks"] as const,
+  crmTaskLists: () => [...crm(), "tasks", "list"] as const,
+  crmTaskList: (filter: object) => [...crm(), "tasks", "list", filter] as const,
+  crmTask: (id: string) => [...crm(), "tasks", "one", id] as const,
+  crmTaskCounts: () => [...crm(), "tasks", "counts"] as const,
   /** A project's milestones and deliverables. */
   crmPlan: (dealId: string) => [...crm(), "plan", dealId] as const,
   /** The people outside the team on a project. */

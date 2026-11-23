@@ -1,3 +1,4 @@
+import type { CrmDeal, CrmPerson } from "@omni/client";
 import type { ReactNode } from "react";
 import { byAddress } from "@/components/avatar/sender-avatar";
 import { AddPersonPicker } from "./person-picker.tsx";
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { useCrmStages, useRemoveDomain, useUpdatePerson } from "@/hooks/use-crm.ts";
 import { openComposeTo } from "@/hooks/use-compose-pane.ts";
-import type { CrmDeal, CrmPerson } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { DetailSection, NoneRow, RelatedRow } from "./record-layout.tsx";
 

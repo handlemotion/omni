@@ -6,9 +6,9 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { calendarTaskKeys } from "./calendar-tasks.ts";
-import type { Api } from "@omni/client";
+import { type Api, ApiError } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
-import { api, ApiError, call } from "./api.ts";
+import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
 type Meetings = Api["meetings"];

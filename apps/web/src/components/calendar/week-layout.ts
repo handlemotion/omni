@@ -1,9 +1,9 @@
+import { dayOf } from "@omni/client";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { calendarTone, type CalendarEvent, type CalendarItem } from "@/lib/calendar.ts";
 import { timedTodo, TODO_MINUTES } from "@/lib/calendar-drag.ts";
 import { allDayOn, dayKey, placeDay, sameDay, type Timed } from "@/lib/calendar-grid.ts";
 import type { Todo } from "@/lib/calendar-tasks.ts";
-import { dayOf } from "@/lib/crm-tasks.ts";
 import type { TodoItem } from "./todo-block.tsx";
 import type { Selection, WeekGridProps } from "./week-grid.tsx";
 

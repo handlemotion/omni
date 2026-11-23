@@ -1,3 +1,4 @@
+import type { CrmStage, CrmStageKind } from "@omni/client";
 import { useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { IconArrowUp, IconChevronDown, IconPencil, IconTrash } from "@/components/icons/central";
@@ -8,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import { useCrmStages, usePutStages } from "@/hooks/use-crm.ts";
-import type { CrmStage, CrmStageKind } from "@/lib/crm.ts";
 import type { StageInput } from "@/lib/crm-mutations.ts";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import { SettingsGroup, SettingsSection, SettingsSections } from "./kit/settings-layout";

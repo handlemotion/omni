@@ -1,15 +1,15 @@
-import { Platform, StyleSheet, View } from "react-native";
-import { Text } from "@/components/ui/text.tsx";
 import {
   audioBars,
   codeTones,
-  csvGrid,
   docPage,
   textLines,
   type CodeTone,
-} from "@/lib/card-page.ts";
+  type DriveNode,
+} from "@omni/client";
+import { Platform, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/text.tsx";
+import { csvGrid } from "@/lib/card-page.ts";
 import { useCardText } from "@/lib/drive-preview.ts";
-import type { DriveNode } from "@/lib/drive.ts";
 import { fileKindOf, usesHashComments } from "@/lib/file-kind.ts";
 import { colors, radius, space, type ColorToken } from "@/theme/tokens.ts";
 import { FileGlyph } from "./file-glyph.tsx";

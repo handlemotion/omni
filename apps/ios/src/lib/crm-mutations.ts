@@ -21,8 +21,6 @@ export type DealChange = Json<InferRequestType<Crm["deals"][":id"]["$patch"]>>;
 type DealPage = InferResponseType<Crm["deals"]["$get"], 200>;
 type DealDetail = InferResponseType<Crm["deals"][":id"]["$get"], 200>;
 
-export { parseMoney, type CrmRecordKind } from "@omni/client";
-
 /** Every change can touch lists, records and timelines alike: all of the CRM refetches. */
 export const crmChanged = (client: QueryClient) => client.invalidateQueries({ queryKey: ["crm"] });
 

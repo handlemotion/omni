@@ -1,10 +1,10 @@
+import type { Message } from "@omni/client";
 import { IconArrowUpRight, IconDownload } from "@/components/icons/central";
 import { AttachmentGlyph } from "@/components/storage/file-glyph.tsx";
 import { buttonStyles } from "@/components/ui/button";
 import { contextMenuProps } from "@/components/ui/context-menu";
 import { Link } from "@/components/ui/link";
 import { downloadFile } from "@/lib/download.ts";
-import type { Message } from "@/lib/types.ts";
 import { attachmentUrl } from "@/lib/urls.ts";
 
 type Attachment = Message["attachments"][number];

@@ -1,3 +1,4 @@
+import { ApiError } from "@omni/client";
 import * as Sentry from "@sentry/react-native";
 import {
   areaOf,
@@ -7,7 +8,6 @@ import {
   scrubEvent,
   scrubFields,
 } from "@omni/mail-core/telemetry";
-import { ApiError } from "./api.ts";
 
 const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 

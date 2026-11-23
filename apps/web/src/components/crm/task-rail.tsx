@@ -1,3 +1,4 @@
+import { dueLabel, type CrmTask } from "@omni/client";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { ListFailed } from "@/components/inbox/thread-list";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { useCrmTasks, useUpdateTask } from "@/hooks/use-crm-tasks.ts";
 import { currentId, stableId } from "@/lib/crm-pending.ts";
-import { dueLabel, type CrmTask, type TaskFilter } from "@/lib/crm-tasks.ts";
+import { type TaskFilter } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { RailRow, railPlace, type RailPlace } from "./rail-row.tsx";

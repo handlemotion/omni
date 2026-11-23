@@ -1,13 +1,7 @@
+import type { Thread, ThreadPage, ThreadSummary } from "@omni/client";
 import type { InfiniteData, Query, QueryClient, QueryKey } from "@tanstack/react-query";
 import { filterOf, keys } from "./query-keys.ts";
-import type {
-  ConversationPage,
-  Thread,
-  ThreadFilter,
-  ThreadPage,
-  ThreadSummary,
-  ThreadView,
-} from "./types.ts";
+import type { ConversationPage, ThreadFilter, ThreadView } from "./types.ts";
 
 type ThreadPages = InfiniteData<ThreadPage, string | null>;
 type ConversationPages = InfiniteData<ConversationPage, string | null>;

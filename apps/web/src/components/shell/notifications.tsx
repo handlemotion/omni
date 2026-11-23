@@ -1,3 +1,11 @@
+import {
+  actorName,
+  commentTarget,
+  notificationParts,
+  notificationSubject,
+  notificationTitle,
+  type Notification,
+} from "@omni/client";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type Key, type ReactNode } from "react";
 import { Collection } from "react-aria-components/Collection";
@@ -33,14 +41,6 @@ import {
 } from "@/hooks/use-notifications-panel.ts";
 import { useOpenSettings } from "@/hooks/use-settings.ts";
 import { useFilePlace } from "@/hooks/use-storage.ts";
-import {
-  actorName,
-  commentTarget,
-  notificationParts,
-  notificationSubject,
-  notificationTitle,
-} from "@/lib/notification-text.ts";
-import type { Notification } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { CountBadge } from "./count-badge";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";

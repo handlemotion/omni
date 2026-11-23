@@ -1,3 +1,4 @@
+import type { CrmContract } from "@omni/client";
 import { useState } from "react";
 import { Button as Pressable } from "react-aria-components/Button";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -36,7 +37,7 @@ import {
   useVoidContract,
 } from "@/hooks/use-crm.ts";
 import { nextStatuses, type ContractChange } from "@/lib/crm-mutations.ts";
-import type { CrmContract, CrmContractStatus } from "@/lib/crm.ts";
+import type { CrmContractStatus } from "@/lib/crm.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import { ContractDetailsDialog } from "./contract-details.tsx";
 import { ContractPeopleField } from "./contract-people.tsx";

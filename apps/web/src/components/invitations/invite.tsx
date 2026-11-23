@@ -1,9 +1,9 @@
+import type { InvitationStatus } from "@omni/client";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { appToast } from "@/components/ui/toast";
 import { useInvitationStatus, useRefreshInvitations } from "@/hooks/use-invitations";
 import { useAcceptInvitation, useRejectInvitation, useSignOut } from "@/hooks/use-session";
-import type { InvitationStatus } from "@/lib/types";
 import { EntryCard, inviterName } from "./entry-card";
 
 type Shown = InvitationStatus | { status: "not_found" } | { status: "unavailable" };

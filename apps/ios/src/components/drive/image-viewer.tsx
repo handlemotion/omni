@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { Image } from "expo-image";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -13,7 +14,6 @@ import {
 import { IconFile } from "@/components/icons.ts";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { contentUrl, thumbnailUrl, useStorageHeaders, versionOf } from "@/lib/drive-preview.ts";
-import type { DriveNode } from "@/lib/drive.ts";
 import { colors } from "@/theme/tokens.ts";
 import { hasThumbnail } from "./file-glyph.tsx";
 

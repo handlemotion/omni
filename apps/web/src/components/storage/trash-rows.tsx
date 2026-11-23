@@ -1,3 +1,4 @@
+import { fileType, formatBytes } from "@omni/client";
 import { memo } from "react";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
@@ -8,8 +9,7 @@ import {
   type SettingsRowMenuItem,
 } from "@/components/settings/kit/settings-row-menu";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
-import { fileType } from "@/lib/file-kind.ts";
-import { formatBytes, type StorageNode } from "@/lib/storage.ts";
+import { type StorageNode } from "@/lib/storage.ts";
 import { KEEP_IN_MENU } from "./file-card.tsx";
 import { FileTile, TypeBadge } from "./file-glyph.tsx";
 import { ROWS_LAYOUT, RowHover } from "./file-sections.tsx";

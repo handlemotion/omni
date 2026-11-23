@@ -1,7 +1,7 @@
+import { ApiError } from "@omni/client";
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { LinkFrame } from "../components/storage/link-frame.tsx";
 import { SignPage } from "../components/storage/sign-page.tsx";
-import { ApiError } from "../lib/api.ts";
 import { openSigningLink, signingQuery } from "../lib/storage-signing.ts";
 
 const tokenIn = (hash: string) => new URLSearchParams(hash.replace(/^#/, "")).get("t");

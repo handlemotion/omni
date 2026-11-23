@@ -1,5 +1,5 @@
+import type { DriveNode } from "@omni/client";
 import { router } from "expo-router";
-import type { DriveNode } from "./drive.ts";
 import { keys } from "./query-keys.ts";
 import { queryClient } from "./query-client.ts";
 

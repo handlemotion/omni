@@ -1,3 +1,4 @@
+import { formatMoney, type CrmDeal, type CrmStage } from "@omni/client";
 import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import {
   closestCenter,
@@ -23,7 +24,6 @@ import { ListFailed } from "@/components/inbox/thread-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCrmStages, useMoveDeal } from "@/hooks/use-crm.ts";
-import { formatMoney, type CrmDeal, type CrmStage } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { DealCard, LiftedDealCard } from "./deal-card.tsx";
 import { NewDealDialog } from "./new-records.tsx";

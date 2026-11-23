@@ -1,4 +1,4 @@
-import { WORKSPACE_HEADER, type Api } from "@omni/client";
+import { WORKSPACE_HEADER, type Api, ApiError } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import {
   infiniteQueryOptions,
@@ -6,7 +6,7 @@ import {
   queryOptions,
   type QueryClient,
 } from "@tanstack/react-query";
-import { api, ApiError, call } from "./api.ts";
+import { api, call } from "./api.ts";
 import { currentWorkspaceId, withWorkspace, workspaceHeaders } from "./current-workspace.ts";
 import { keys } from "./query-keys.ts";
 import {

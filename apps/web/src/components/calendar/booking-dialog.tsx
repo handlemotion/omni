@@ -1,3 +1,4 @@
+import { ApiError } from "@omni/client";
 import { useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
 import { Label } from "@/components/ui/field";
@@ -6,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { TextField } from "@/components/ui/text-field";
 import { appToast } from "@/components/ui/toast";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ApiError } from "@/lib/api.ts";
 import type { BookingLink, NewBookingLink } from "@/lib/booking.ts";
 import type { CalendarItem } from "@/lib/calendar.ts";
 

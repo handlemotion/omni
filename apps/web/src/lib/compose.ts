@@ -1,7 +1,7 @@
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
-import { idempotencyHeader, retryUnreached, type Api } from "@omni/client";
+import { idempotencyHeader, retryUnreached, type Api, ApiError } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
-import { api, ApiError, call } from "./api.ts";
+import { api, call } from "./api.ts";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
 import { addPending, removePending, updatePending } from "./pending.ts";
 import { keys } from "./query-keys.ts";

@@ -1,6 +1,6 @@
+import { fileType, IMAGE_PREVIEW_MAX_BYTES, SHEET_PREVIEW_MAX_BYTES } from "@omni/client";
 import { lazy, Suspense } from "react";
 import { Contain } from "@/components/errors/error-boundary.tsx";
-import { fileType, IMAGE_PREVIEW_MAX_BYTES, SHEET_PREVIEW_MAX_BYTES } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { previewThumbnail } from "../thumbnail-image.tsx";
 import { ImagePreview } from "./image-preview.tsx";

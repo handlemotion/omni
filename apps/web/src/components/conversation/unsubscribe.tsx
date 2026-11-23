@@ -1,7 +1,7 @@
+import type { Message } from "@omni/client";
 import { Button } from "@/components/ui/button";
 import { appToast } from "@/components/ui/toast";
 import { useUnsubscribe } from "@/hooks/use-mail-actions.ts";
-import type { Message } from "@/lib/types.ts";
 
 /**
  * Unsubscribe, as text on the sender's line of list mail. One-click and mailto lists are done by

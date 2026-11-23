@@ -1,9 +1,9 @@
+import { formatBytes, type DriveNode } from "@omni/client";
 import { router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { fileSize, type DriveNode } from "@/lib/drive.ts";
 import { fileKindOf, fileLabelOf, hasCardPage } from "@/lib/file-kind.ts";
 import { colors, radius, space } from "@/theme/tokens.ts";
 import { AudioArt, FilePage } from "./card-art.tsx";
@@ -41,7 +41,7 @@ export function FileCard({ node, onLongPress }: { node: DriveNode; onLongPress?:
           {node.name}
         </Text>
         <Text size="caption" tone="mutedForeground" tabular numberOfLines={1}>
-          {`${fileSize(node.size)} · ${fileLabelOf(node)}`}
+          {`${formatBytes(node.size)} · ${fileLabelOf(node)}`}
         </Text>
       </View>
     </PressableRow>

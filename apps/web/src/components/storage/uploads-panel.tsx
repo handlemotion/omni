@@ -1,3 +1,4 @@
+import { canRetryUpload } from "@omni/client";
 import { memo, useState } from "react";
 import { IconArrowRotateClockwise, IconUserAdd, IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { ProgressBar, ProgressBarTrack } from "@/components/ui/progress-bar";
 import { useUploadItems, useUploads } from "@/hooks/use-storage.ts";
 import type { UploadItem } from "@/lib/storage-uploads.ts";
 import { ShareUploadDialog } from "./share-dialog.tsx";
-import { canRetryUpload, storageErrorText } from "./storage-errors.ts";
+import { storageErrorText } from "./storage-errors.ts";
 
 const ROW_PX = 48;
 const PANEL_PX = 288;

@@ -1,7 +1,8 @@
+import type { Priority } from "@omni/client";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
-import type { BusinessHoursInput, Priority, SlaSettings, SlaTargets } from "./types.ts";
+import type { BusinessHoursInput, SlaSettings, SlaTargets } from "./types.ts";
 
 export const slaSettingsQuery = (mailboxId: string) =>
   queryOptions({

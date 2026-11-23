@@ -1,3 +1,4 @@
+import { fileType } from "@omni/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Selection } from "react-aria-components";
@@ -19,7 +20,6 @@ import { SearchField, SearchInput } from "@/components/ui/search-field";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
 import { useDrives, useStorageList } from "@/hooks/use-storage.ts";
 import { linkFilesMutation, type FileRecordKind } from "@/lib/crm-files.ts";
-import { fileType } from "@/lib/file-kind.ts";
 import { driveKey, driveOf, type DriveRoot, type StorageNode } from "@/lib/storage.ts";
 import { storageSearchQuery } from "@/lib/storage-find.ts";
 import { crmErrorToast } from "./crm-errors.ts";

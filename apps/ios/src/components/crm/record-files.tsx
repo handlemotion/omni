@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { ActionSheetIOS, StyleSheet, View } from "react-native";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
 import { driveErrorAlert } from "@/lib/drive-actions.ts";
 import { addUploads, pickDocuments, pickMedia } from "@/lib/drive-uploads.ts";
-import { folderQuery, type DriveNode } from "@/lib/drive.ts";
+import { folderQuery } from "@/lib/drive.ts";
 import {
   useFileLinks,
   useRecordFolder,

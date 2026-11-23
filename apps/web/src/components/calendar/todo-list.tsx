@@ -1,3 +1,4 @@
+import { dayOf, dueAtOf, dueGroup, dueLabel, type DueGroup } from "@omni/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { crmErrorToast } from "@/components/crm/crm-errors.ts";
@@ -17,7 +18,6 @@ import { useOpenTask } from "@/components/tasks/task-panel.tsx";
 import { endDrag, startDrag, timedTodo } from "@/lib/calendar-drag.ts";
 import { stableId } from "@/lib/crm-pending.ts";
 import type { Todo } from "@/lib/calendar-tasks.ts";
-import { dayOf, dueAtOf, dueGroup, dueLabel, type DueGroup } from "@/lib/crm-tasks.ts";
 import { TIME } from "@/lib/dates.ts";
 
 const SECTIONS: { id: DueGroup; label: string; fixed: boolean }[] = [

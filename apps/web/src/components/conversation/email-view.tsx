@@ -1,9 +1,9 @@
+import type { Thread } from "@omni/client";
 import { useState, type ReactNode } from "react";
 import { IconChevronDown, IconChevronUp, IconMail } from "@/components/icons/central";
 import { IconBubble } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Thread } from "@/lib/types.ts";
 import { useComposerState } from "../compose/composer-state.tsx";
 
 export type ReaderView = "conversation" | "email";

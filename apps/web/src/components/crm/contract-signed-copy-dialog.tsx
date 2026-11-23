@@ -1,3 +1,4 @@
+import type { CrmContract } from "@omni/client";
 import { useState } from "react";
 import { IconPlus, IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
 import { useSignedCopy } from "@/hooks/use-crm.ts";
-import type { CrmContract } from "@/lib/crm.ts";
 import { FilePicker, type Owner } from "./contract-file-picker.tsx";
 import { useStartingSigners } from "./contract-send-dialog.tsx";
 import { DayField } from "./day-field.tsx";

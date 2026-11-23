@@ -1,3 +1,4 @@
+import type { Assignee, Thread } from "@omni/client";
 import { useEffect, useRef, useState } from "react";
 import { IconAt } from "@/components/icons/central";
 import { ChatBox, ReplyBanner } from "@/components/chat/chat-box";
@@ -10,7 +11,6 @@ import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAssignees } from "@/hooks/use-conversation.ts";
 import { useAddNote } from "@/hooks/use-notes.ts";
 import { withReply } from "@/lib/reply.ts";
-import type { Assignee, Thread } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { useComposerState } from "./composer-state.tsx";
 import { copyText } from "@/hooks/use-clipboard.ts";

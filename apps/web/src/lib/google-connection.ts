@@ -1,5 +1,6 @@
+import { ApiError } from "@omni/client";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
-import { api, ApiError, call } from "./api.ts";
+import { api, call } from "./api.ts";
 import { desktop } from "./desktop.ts";
 import { keys } from "./query-keys.ts";
 

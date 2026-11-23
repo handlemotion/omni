@@ -1,6 +1,6 @@
+import { ApiError } from "@omni/client";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { NoTeamspaces } from "../../../../components/storage/storage-nav.tsx";
-import { ApiError } from "../../../../lib/api.ts";
 import { listSearch } from "../../../../lib/search-params.ts";
 import { storageListQuery } from "../../../../lib/storage.ts";
 import { storageTeamspacesQuery } from "../../../../lib/storage-teamspaces.ts";

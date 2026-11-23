@@ -1,3 +1,4 @@
+import type { CrmRecordKind, CrmStage } from "@omni/client";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import {
@@ -30,7 +31,7 @@ import {
 } from "@/hooks/use-crm.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
-import type { CrmRecordKind, CrmStage, CrmTimelineItem } from "@/lib/crm.ts";
+import type { CrmTimelineItem } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MeetingLine } from "./record-meetings.tsx";
 import { copyText } from "@/hooks/use-clipboard.ts";

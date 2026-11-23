@@ -1,8 +1,9 @@
+import type { DriveNode } from "@omni/client";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { useFolder, type DriveNode } from "@/lib/drive.ts";
+import { useFolder } from "@/lib/drive.ts";
 import { space } from "@/theme/tokens.ts";
 import { FolderArt } from "./folder-art.tsx";
 

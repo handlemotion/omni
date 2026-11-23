@@ -1,3 +1,4 @@
+import { fileType } from "@omni/client";
 import { Extension, type Editor } from "@tiptap/core";
 import { FileHandler } from "@tiptap/extension-file-handler";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
@@ -5,7 +6,6 @@ import type { Node as PmNode } from "@tiptap/pm/model";
 import { Suggestion } from "@tiptap/suggestion";
 import type { DocFiles } from "@/hooks/use-doc-files.ts";
 import { docLinkFile } from "@/lib/doc-files.ts";
-import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { FileGlyph } from "../file-glyph.tsx";
 import { menuRenderer, type MenuItem } from "./slash-menu.tsx";

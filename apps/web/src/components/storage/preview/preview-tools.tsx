@@ -1,6 +1,6 @@
+import { fileType, IMAGE_PREVIEW_MAX_BYTES } from "@omni/client";
 import { useState } from "react";
 import { useRestoreVersion, useStorageComments, useStorageVersions } from "@/hooks/use-storage.ts";
-import { fileType, IMAGE_PREVIEW_MAX_BYTES } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import type { StorageComment, StorageCommentAnchor } from "@/lib/storage-comments.ts";
 import { storageVersionUrl, type StorageVersions } from "@/lib/storage-versions.ts";

@@ -1,3 +1,4 @@
+import type { Workspace } from "@omni/client";
 import { useLocation, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import { useMemo, useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
@@ -35,7 +36,6 @@ import { useMember, useSignOut } from "@/hooks/use-session.ts";
 import { useOpenSettings } from "@/hooks/use-settings.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { useOpenWorkspace, useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
-import type { Workspace } from "@/lib/types.ts";
 
 export type ModuleId = "mail" | "files" | "crm" | "calendar" | "meetings";
 

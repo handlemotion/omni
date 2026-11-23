@@ -1,5 +1,5 @@
+import type { FileKind } from "@omni/client";
 import { useState } from "react";
-import type { FileKind } from "@/lib/file-kind.ts";
 import { FileTile } from "../file-glyph.tsx";
 import { NoPreview } from "./shared.tsx";
 

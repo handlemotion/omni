@@ -1,3 +1,4 @@
+import type { CrmDeliverable } from "@omni/client";
 import { View } from "react-native";
 import { IconChecklist, IconFlag, IconUsers } from "@/components/icons.ts";
 import { ItemRow } from "@/components/ui/item-row.tsx";
@@ -8,7 +9,6 @@ import {
   milestoneStatus,
   usePlan,
   useProjectAccess,
-  type CrmDeliverable,
 } from "@/lib/crm-project.ts";
 
 const deliverableDetail = (deliverable: CrmDeliverable) =>

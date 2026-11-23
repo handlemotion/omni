@@ -1,16 +1,16 @@
-import { StyleSheet, View } from "react-native";
-import { IconCircleAlert, IconClock3, IconMail } from "@/components/icons.ts";
-import { Avatar } from "@/components/ui/avatar.tsx";
-import { PressableRow } from "@/components/ui/pressable-row.tsx";
-import { Text } from "@/components/ui/text.tsx";
-import { listTime } from "@/lib/mail.ts";
 import {
   actorName,
   notificationParts,
   notificationSubject,
   notificationTitle,
   type Notification,
-} from "@/lib/notification-text.ts";
+} from "@omni/client";
+import { StyleSheet, View } from "react-native";
+import { IconCircleAlert, IconClock3, IconMail } from "@/components/icons.ts";
+import { Avatar } from "@/components/ui/avatar.tsx";
+import { PressableRow } from "@/components/ui/pressable-row.tsx";
+import { Text } from "@/components/ui/text.tsx";
+import { listTime } from "@/lib/mail.ts";
 import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 
 const LEAD = 28;

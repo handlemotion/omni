@@ -1,8 +1,8 @@
+import type { FileKind } from "@omni/client";
 import type { ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { IconDownload } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
-import type { FileKind } from "@/lib/file-kind.ts";
 import { FileTile } from "../file-glyph.tsx";
 
 /**

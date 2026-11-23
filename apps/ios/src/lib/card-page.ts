@@ -1,15 +1,5 @@
 import { CARD_ROWS, grid } from "@omni/client";
 
-export {
-  audioBars,
-  codeTones,
-  docPage,
-  grid,
-  textLines,
-  type CodeTone,
-  type DocLine,
-} from "@omni/client";
-
 function parseDelimited(text: string, delimiter: string, maxRows: number) {
   const rows: string[][] = [];
   let row: string[] = [];

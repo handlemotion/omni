@@ -1,3 +1,4 @@
+import type { ThreadSummary } from "@omni/client";
 import { SearchButton } from "@/components/search/search-trigger";
 import { useLocation, useParams } from "@tanstack/react-router";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -37,7 +38,6 @@ import type {
   ConversationFilter,
   ConversationSummary,
   ThreadFilter,
-  ThreadSummary,
   ThreadView,
 } from "@/lib/types.ts";
 

@@ -1,13 +1,8 @@
+import type { StorageListPage } from "@omni/client";
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import { currentWorkspaceId } from "./current-workspace.ts";
 import { keys } from "./query-keys.ts";
-import {
-  driveKey,
-  driveOf,
-  type StorageListPage,
-  type StorageNode,
-  type StoragePlace,
-} from "./storage.ts";
+import { driveKey, driveOf, type StorageNode, type StoragePlace } from "./storage.ts";
 
 type ListData = InfiniteData<StorageListPage, string | null>;
 

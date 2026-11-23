@@ -1,3 +1,4 @@
+import type { CrmMilestone } from "@omni/client";
 import { useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
@@ -6,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import { useCreateDeliverable, useCreateMilestone } from "@/hooks/use-crm-project.ts";
-import type { CrmMilestone } from "@/lib/crm-project.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 
 const NO_MILESTONE = "none";

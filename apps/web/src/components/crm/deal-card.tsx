@@ -1,8 +1,8 @@
+import { formatMoney, type CrmDeal } from "@omni/client";
 import { Link } from "@/components/ui/link";
 import { useCrmCompanyIndex, useOwners } from "@/hooks/use-crm.ts";
 import { useFreelancer } from "@/hooks/use-freelancer.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
-import { formatMoney, type CrmDeal } from "@/lib/crm.ts";
 import { calendarDay } from "./list-columns.tsx";
 import { MemberAvatar } from "./member-avatar.tsx";
 import { RecordMark } from "./record-list.tsx";

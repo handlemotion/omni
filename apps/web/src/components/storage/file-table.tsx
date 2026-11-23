@@ -1,5 +1,5 @@
+import { fileType } from "@omni/client";
 import { SkeletonBox } from "skullet/react";
-import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { FileTile } from "./file-glyph.tsx";
 

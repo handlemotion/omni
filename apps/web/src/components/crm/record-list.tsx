@@ -1,6 +1,6 @@
+import type { CrmRecordKind } from "@omni/client";
 import { CreateMenu, useCreating, type Creating } from "./create-menu.tsx";
 import { ContextMenuArea } from "@/components/ui/context-menu";
-import type { CrmRecordKind } from "@/lib/crm.ts";
 import { useRecordMenu, type MenuRecord } from "./record-menu.tsx";
 import type { ReactNode } from "react";
 import type { Selection } from "react-aria-components";

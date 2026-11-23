@@ -1,3 +1,4 @@
+import { ApiError } from "@omni/client";
 import { MeetingRecord } from "./meeting-record.tsx";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
@@ -28,7 +29,6 @@ import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { appToast } from "@/components/ui/toast";
 import { useClipboard } from "@/hooks/use-clipboard.ts";
 import { useMeeting, useMeetingWrites } from "@/hooks/use-meetings.ts";
-import { ApiError } from "@/lib/api.ts";
 import { groupKind, meetingClock, meetingGroupPath, type Meeting } from "@/lib/meetings.ts";
 import { Link } from "@/components/ui/link";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";

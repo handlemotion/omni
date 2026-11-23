@@ -1,3 +1,4 @@
+import { formatBytes, type DriveNode } from "@omni/client";
 import { router, useLocalSearchParams } from "expo-router";
 import { ActionSheetIOS, ScrollView, StyleSheet, View } from "react-native";
 import { SheetHeader } from "@/components/drive/sheet-header.tsx";
@@ -10,7 +11,6 @@ import { Text } from "@/components/ui/text.tsx";
 import { driveErrorAlert, placeOf, shareVersion, useNode } from "@/lib/drive-actions.ts";
 import { useRestoreVersion, useVersions, type DriveVersions } from "@/lib/drive-sharing.ts";
 import { addUploads, pickDocuments } from "@/lib/drive-uploads.ts";
-import { fileSize, type DriveNode } from "@/lib/drive.ts";
 import { colors, space } from "@/theme/tokens.ts";
 
 const WHEN = new Intl.DateTimeFormat(undefined, {
@@ -100,7 +100,7 @@ function Row(props: { content: DriveVersions["current"]; end?: string; onPress?:
         ) : null}
       </View>
       <Text size="sm" tone="mutedForeground" tabular>
-        {fileSize(content.size)}
+        {formatBytes(content.size)}
       </Text>
       {props.end ? (
         <Text size="sm" tone="primary">

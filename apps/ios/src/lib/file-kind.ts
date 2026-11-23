@@ -1,7 +1,5 @@
 import { TEXT_PREVIEW_BYTES, extensionOf, fileType, isTextExtension } from "@omni/client";
 
-export { TEXT_PREVIEW_BYTES, extensionOf, type FileKind } from "@omni/client";
-
 /**
  * How a Drive file previews on the phone:
  * - `image`: the photo viewer (pinch, double tap, swipe to the folder's next image), HEIC too.

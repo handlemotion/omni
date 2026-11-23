@@ -1,3 +1,4 @@
+import { type CrmRecordKind, dueAtOf, onRecord } from "@omni/client";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { IconX } from "@/components/icons/central";
@@ -16,8 +17,6 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useSession } from "@/hooks/use-session.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
-import type { CrmRecordKind } from "@/lib/crm.ts";
-import { dueAtOf, onRecord } from "@/lib/crm-tasks.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
 import { NAME_MAX } from "./new-records.tsx";

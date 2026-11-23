@@ -1,3 +1,4 @@
+import { type CrmCompany, type CrmDeal, PROJECT_KINDS } from "@omni/client";
 import { useMemo, type ReactNode } from "react";
 import {
   IconBuildings,
@@ -15,8 +16,6 @@ import { useRecordMenu } from "./record-menu.tsx";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarItem, SidebarLabel, SidebarSection } from "@/components/ui/sidebar";
 import { useCrmCompanyIndex, useCrmDeals } from "@/hooks/use-crm.ts";
-import type { CrmCompany, CrmDeal } from "@/lib/crm.ts";
-import { PROJECT_KINDS } from "@/lib/crm-lists.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export const CRM_LISTS = {

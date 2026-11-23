@@ -1,3 +1,4 @@
+import type { DriveNode, FileKind } from "@omni/client";
 import { Image } from "expo-image";
 import { useState, type ComponentType } from "react";
 import { StyleSheet, View } from "react-native";
@@ -15,8 +16,7 @@ import {
   IconVideo,
 } from "@/components/icons.ts";
 import { thumbnailUrl, useStorageHeaders, versionOf } from "@/lib/drive-preview.ts";
-import type { DriveNode } from "@/lib/drive.ts";
-import { fileKindOf, previewKindOf, type FileKind } from "@/lib/file-kind.ts";
+import { fileKindOf, previewKindOf } from "@/lib/file-kind.ts";
 import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;

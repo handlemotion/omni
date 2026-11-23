@@ -1,6 +1,6 @@
+import { ApiError } from "@omni/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { ApiError } from "../lib/api.ts";
 import {
   chooseJustMe,
   invitationStatusQuery,

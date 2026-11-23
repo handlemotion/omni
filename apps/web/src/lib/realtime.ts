@@ -4,10 +4,10 @@ import {
   type RealtimeClientMessage,
   type RealtimeEvent,
   type RealtimeStatus,
+  ApiError,
 } from "@omni/client";
 import type { QueryClient } from "@tanstack/react-query";
 import { onWake, reportAnswer } from "./connectivity.ts";
-import { ApiError } from "./api.ts";
 import {
   addFailure,
   addOutstanding,

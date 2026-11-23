@@ -1,3 +1,4 @@
+import { ApiError, dueLabel, fileType } from "@omni/client";
 import { useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { DetailSection, NoneRow } from "@/components/crm/record-layout.tsx";
@@ -11,10 +12,7 @@ import { Button, buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
-import { ApiError } from "@/lib/api.ts";
 import { DELIVERABLE_STATUSES, MILESTONE_STATUSES } from "@/lib/crm-project.ts";
-import { dueLabel } from "@/lib/crm-tasks.ts";
-import { fileType } from "@/lib/file-kind.ts";
 import { usePortalProject, usePortalProjects, useReviewDeliverable } from "@/hooks/use-portal.ts";
 import { type PortalDeliverable, type PortalDetail, type PortalFile } from "@/lib/portal.ts";
 

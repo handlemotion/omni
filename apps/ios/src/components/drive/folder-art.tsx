@@ -1,8 +1,8 @@
+import type { DriveNode } from "@omni/client";
 import { useId } from "react";
 import { StyleSheet, View } from "react-native";
 import Svg, { ClipPath, Defs, G, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 import { IconFolderFilled } from "@/components/icons.ts";
-import type { DriveNode } from "@/lib/drive.ts";
 import { colors, iconSize, radius } from "@/theme/tokens.ts";
 import { FileGlyph, hasThumbnail, kindOf, Thumbnail } from "./file-glyph.tsx";
 

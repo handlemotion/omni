@@ -1,3 +1,4 @@
+import type { Conversation } from "@omni/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { memberInInbox } from "../lib/conversations.ts";
 import {
@@ -7,7 +8,7 @@ import {
   PENDING_NOTE_PREFIX,
 } from "../lib/notes.ts";
 import { keys } from "../lib/query-keys.ts";
-import type { Conversation, Note } from "../lib/types.ts";
+import type { Note } from "../lib/types.ts";
 import { useSession } from "./use-session.ts";
 
 /** True while a note is shown but not yet saved: it cannot be edited or deleted yet. */

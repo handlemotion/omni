@@ -1,3 +1,4 @@
+import { ApiError, type CrmTask } from "@omni/client";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -7,9 +8,8 @@ import { Button, PageBarActions } from "@/components/ui/button";
 import { useCalendarTask } from "@/hooks/use-calendar-tasks.ts";
 import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useCrmTask } from "@/hooks/use-crm-tasks.ts";
-import { ApiError } from "@/lib/api.ts";
 import type { CalendarTask } from "@/lib/calendar-tasks.ts";
-import type { CrmTask, TaskChange } from "@/lib/crm-tasks.ts";
+import type { TaskChange } from "@/lib/crm-tasks.ts";
 import {
   asPanelTask,
   TaskContent,

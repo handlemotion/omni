@@ -1,8 +1,9 @@
+import { formatBytes, type DriveNode } from "@omni/client";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { fileDay, fileSize, type DriveNode } from "@/lib/drive.ts";
+import { fileDay } from "@/lib/drive.ts";
 import { colors, space } from "@/theme/tokens.ts";
 import { FileTile } from "./file-glyph.tsx";
 
@@ -24,7 +25,7 @@ export function NodeRow({
   onLongPress?: () => void;
 }) {
   const folder = node.kind === "folder";
-  const meta = [detail, fileDay(node.updatedAt), folder ? null : fileSize(node.size)]
+  const meta = [detail, fileDay(node.updatedAt), folder ? null : formatBytes(node.size)]
     .filter(Boolean)
     .join(" · ");
   return (

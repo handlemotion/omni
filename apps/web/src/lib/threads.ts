@@ -1,4 +1,5 @@
-import type { ThreadSummary, ThreadView } from "./types.ts";
+import type { ThreadSummary } from "@omni/client";
+import type { ThreadView } from "./types.ts";
 
 const LEAVES = {
   done: ["inbox", "later"],

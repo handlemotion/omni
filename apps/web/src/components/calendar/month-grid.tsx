@@ -1,3 +1,4 @@
+import { dayOf } from "@omni/client";
 import { cn } from "cn";
 import { CanvasButton } from "@/components/ui/canvas-button";
 import { calendarTone, type CalendarEvent } from "@/lib/calendar.ts";
@@ -13,7 +14,6 @@ import {
   type RefObject,
 } from "react";
 import { addDays, dayKey, eventKey, parseDayKey, startOfWeek } from "@/lib/calendar-grid.ts";
-import { dayOf } from "@/lib/crm-tasks.ts";
 import { useDropZone } from "./drop-zone.ts";
 import { weekLanes, type LanePiece } from "./month-lanes.ts";
 import { firstOf, monthOf } from "./month-span.ts";

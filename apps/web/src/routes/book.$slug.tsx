@@ -1,7 +1,7 @@
+import { ApiError } from "@omni/client";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { BookingPage } from "../components/calendar/booking-page.tsx";
 import { EmptyState } from "../components/empty/empty-state.tsx";
-import { ApiError } from "../lib/api.ts";
 import { bookingPageQuery } from "../lib/booking.ts";
 
 /** A booking link's public page (`docs/spec/calendar.md`, "Booking links"): no sign-in. */

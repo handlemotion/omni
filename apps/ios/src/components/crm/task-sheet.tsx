@@ -1,10 +1,10 @@
+import { type CrmRecordKind, onRecord } from "@omni/client";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Segmented } from "@/components/ui/segmented.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
-import type { CrmRecordKind } from "@/lib/crm-mutations.ts";
-import { DUE_CHOICES, dueIn, onRecord, useCreateTask } from "@/lib/crm-tasks.ts";
+import { DUE_CHOICES, dueIn, useCreateTask } from "@/lib/crm-tasks.ts";
 import { SheetForm } from "./sheet-form.tsx";
 
 const TITLE_MAX = 500;

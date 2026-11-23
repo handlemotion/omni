@@ -28,11 +28,6 @@ export function settleCrm(client: QueryClient, also?: () => unknown) {
   };
 }
 
-/** `holdQueries` for every CRM query. */
-export const holdCrm = (client: QueryClient) => holdQueries(client, keys.crm());
-
-export const restoreCrm = restoreQueries;
-
 type Entity = { id: string } & Record<string, unknown>;
 
 /**
@@ -158,12 +153,12 @@ export function dropCrmEntity(client: QueryClient, id: string) {
 export function optimisticCrm<V>(client: QueryClient, change: (variables: V) => void) {
   return {
     onMutate: async (variables: V) => {
-      const snapshot = await holdCrm(client);
+      const snapshot = await holdQueries(client, keys.crm());
       change(variables);
       return { snapshot };
     },
     onError: (_error: unknown, _variables: V, context: { snapshot: Snapshot } | undefined) =>
-      restoreCrm(client, context?.snapshot),
+      restoreQueries(client, context?.snapshot),
   };
 }
 

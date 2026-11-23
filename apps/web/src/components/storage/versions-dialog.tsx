@@ -1,3 +1,4 @@
+import { formatBytes } from "@omni/client";
 import { Skeleton } from "skullet/react";
 import { IconDownload, IconRestore } from "@/components/icons/central";
 import { SettingsRowMenu } from "@/components/settings/kit/settings-row-menu";
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { FileTrigger } from "@/components/ui/file-trigger";
 import { useRestoreVersion, useStorageVersions, useUploads } from "@/hooks/use-storage.ts";
-import { formatBytes, type StorageNode } from "@/lib/storage.ts";
+import { type StorageNode } from "@/lib/storage.ts";
 import { placeOf } from "@/lib/storage-cache.ts";
 import { storageVersionUrl, type StorageVersions } from "@/lib/storage-versions.ts";
 import { storageErrorToast } from "./storage-errors.ts";

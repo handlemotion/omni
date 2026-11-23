@@ -1,3 +1,4 @@
+import { formatMoney } from "@omni/client";
 import { useState, type ReactNode } from "react";
 import {
   IconArchive,
@@ -24,7 +25,6 @@ import {
   MenuTrigger,
 } from "@/components/ui/menu";
 import { useCrmStages, useOwners } from "@/hooks/use-crm.ts";
-import { formatMoney } from "@/lib/crm.ts";
 import { CloseDateDialog, ValueRangeDialog } from "./list-range-dialogs.tsx";
 import { EveryoneAvatar, MemberAvatar, NoMemberAvatar } from "./member-avatar.tsx";
 import { useSelfMemberId } from "./task-dialog.tsx";

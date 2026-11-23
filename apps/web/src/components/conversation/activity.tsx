@@ -1,3 +1,4 @@
+import type { Priority } from "@omni/client";
 import { useState } from "react";
 import { IconLock, IconPencil, IconTrash } from "@/components/icons/central";
 import { MenuItem, MenuLabel } from "@/components/ui/menu";
@@ -6,7 +7,7 @@ import { useAssignees, useTags } from "@/hooks/use-conversation.ts";
 import { isPendingNote, useDeleteNote, useEditNote } from "@/hooks/use-notes.ts";
 import { useSession } from "@/hooks/use-session.ts";
 import { parseReply, withReply } from "@/lib/reply.ts";
-import type { ConversationEvent, Note, Priority } from "@/lib/types.ts";
+import type { ConversationEvent, Note } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { ChatEdit, ChatFace, ChatMessage, ChatText } from "../chat/chat-message.tsx";
 import { REPLY_SOURCE } from "../compose/selection-reply.tsx";

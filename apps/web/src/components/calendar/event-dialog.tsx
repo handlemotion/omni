@@ -1,3 +1,4 @@
+import { ApiError } from "@omni/client";
 import { useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
@@ -8,7 +9,6 @@ import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
 import { useCalendarWrites } from "@/hooks/use-calendar.ts";
-import { ApiError } from "@/lib/api.ts";
 import type { CalendarEvent, CalendarItem } from "@/lib/calendar.ts";
 import { addDays, dayKey, parseDayKey, type Slot } from "@/lib/calendar-grid.ts";
 

@@ -1,3 +1,4 @@
+import { fileType } from "@omni/client";
 import {
   DndContext,
   DragOverlay,
@@ -20,7 +21,6 @@ import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useChangeNode } from "@/hooks/use-storage.ts";
-import { fileType } from "@/lib/file-kind.ts";
 import {
   DriveDragContext,
   GAP_MS,

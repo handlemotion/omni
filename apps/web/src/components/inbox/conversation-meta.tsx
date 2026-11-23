@@ -1,8 +1,8 @@
+import type { ConversationStatus, Priority } from "@omni/client";
 import { useSyncExternalStore } from "react";
 import { IconPaperclip } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import type { ConversationStatus, Priority } from "@/lib/types.ts";
 import { rowTime } from "@/lib/dates.ts";
 
 export interface ConversationRowInfo {

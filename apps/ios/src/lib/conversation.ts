@@ -1,4 +1,10 @@
-import { idempotencyHeader, type Conversation, type Priority, type Tag } from "@omni/client";
+import {
+  idempotencyHeader,
+  type Conversation,
+  type Priority,
+  type Tag,
+  isAuthError,
+} from "@omni/client";
 import {
   queryOptions,
   useMutation,
@@ -6,13 +12,11 @@ import {
   useQueryClient,
   type QueryKey,
 } from "@tanstack/react-query";
-import { api, call, inWorkspace, isAuthError } from "./api.ts";
+import { api, call, inWorkspace } from "./api.ts";
 import { idempotencyKey } from "./ids.ts";
 import { keys } from "./query-keys.ts";
 import { alertFailure } from "./thread-actions.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
-
-export type { Assignee, Conversation, ConversationStatus, Priority, Tag } from "@omni/client";
 
 /** What a property menu changes, as the web's `ConversationChange`. */
 export type ConversationChange =

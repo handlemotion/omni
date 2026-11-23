@@ -1,5 +1,5 @@
+import { fileType, TEXT_PREVIEW_BYTES } from "@omni/client";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { fileType, TEXT_PREVIEW_BYTES } from "./file-kind.ts";
 import type { StorageNode } from "./storage.ts";
 import { keys } from "./query-keys.ts";
 import { workspaceHeaders } from "./current-workspace.ts";

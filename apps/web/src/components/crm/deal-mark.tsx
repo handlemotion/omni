@@ -1,10 +1,10 @@
+import type { CrmDeal } from "@omni/client";
 import { useRef } from "react";
 import { IconImage, IconTrash } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { FileTrigger } from "@/components/ui/file-trigger";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { useCrmCompanyIndex, useRemoveDealIcon, useSetDealIcon } from "@/hooks/use-crm.ts";
-import type { CrmDeal } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { RecordMark } from "./record-list.tsx";
 

@@ -1,8 +1,8 @@
-import { toApiError, type Message } from "@omni/client";
+import { toApiError, type Message, ApiError } from "@omni/client";
 import { File, UploadType } from "expo-file-system";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
-import { ApiError, api, call } from "./api.ts";
+import { api, call } from "./api.ts";
 import type { SendAttachment } from "./compose.ts";
 import { storageHeaders } from "./drive.ts";
 import { pickDocuments, pickMedia } from "./drive-uploads.ts";

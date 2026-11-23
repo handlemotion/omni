@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
@@ -27,7 +28,6 @@ import {
   useRecentFiles,
   useSharedWithMe,
   useTrash,
-  type DriveNode,
 } from "@/lib/drive.ts";
 import { useDebounced } from "@/lib/use-debounced.ts";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";

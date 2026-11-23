@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { IconFolder } from "@/components/icons.ts";
@@ -5,7 +6,7 @@ import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { refreshPins } from "@/lib/drive-files.ts";
 import { sourceOf } from "@/lib/drive-preview.ts";
-import { useFolder, type DriveNode } from "@/lib/drive.ts";
+import { useFolder } from "@/lib/drive.ts";
 import { gutter, radius, space } from "@/theme/tokens.ts";
 import { NodeItem } from "./node-item.tsx";
 

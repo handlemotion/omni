@@ -5,7 +5,6 @@ import { api, call } from "./api.ts";
 import { crmChanged } from "./crm-mutations.ts";
 
 type Crm = Api["crm"];
-export type { CrmContract } from "@omni/client";
 export type ContractSigner = NonNullable<CrmContract["signing"]>["signers"][number];
 export type ContractSigners = InferRequestType<
   Crm["contracts"][":id"]["send"]["$post"]

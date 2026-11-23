@@ -1,3 +1,4 @@
+import type { Priority, Tag } from "@omni/client";
 import { IconPencil, IconTrash } from "@/components/icons/central";
 import { parseTime, Time } from "@internationalized/date";
 import { useMemo, useState } from "react";
@@ -25,7 +26,7 @@ import {
   useSetAutoAssign,
   useSlaSettings,
 } from "@/hooks/use-sla.ts";
-import type { Priority, SlaPolicy, SlaSettings, Tag } from "@/lib/types.ts";
+import type { SlaPolicy, SlaSettings } from "@/lib/types.ts";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,

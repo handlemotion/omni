@@ -1,3 +1,4 @@
+import { ApiError, type CrmRecordKind } from "@omni/client";
 import { useState } from "react";
 import {
   IconBoard,
@@ -19,8 +20,6 @@ import {
 } from "@/components/ui/menu";
 import { appToast } from "@/components/ui/toast";
 import { useBulkCrm, useCanDeleteForever, useCrmStages, useOwners } from "@/hooks/use-crm.ts";
-import { ApiError } from "@/lib/api.ts";
-import type { CrmRecordKind } from "@/lib/crm.ts";
 import type { BulkAction } from "@/lib/crm-mutations.ts";
 import { crmErrorText } from "./crm-errors.ts";
 import { countOf, DeleteForeverDialog } from "./record-actions.tsx";

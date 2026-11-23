@@ -1,4 +1,4 @@
-import type { Message } from "@omni/client";
+import { type Message, formatBytes } from "@omni/client";
 import { useState } from "react";
 import { ActionSheetIOS, Pressable, StyleSheet, View } from "react-native";
 import { HtmlView } from "@/components/conversation/html-view";
@@ -9,7 +9,6 @@ import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { config } from "@/lib/config.ts";
-import { fileSize } from "@/lib/drive.ts";
 import { listTime, useMessageHtml } from "@/lib/mail.ts";
 import { opensFull } from "@/lib/message-html.ts";
 import { colors, gutter, radius, space } from "@/theme/tokens.ts";
@@ -113,7 +112,7 @@ function AttachmentChip({ file, onPress }: { file: Attachment; onPress?: () => v
       shape="inset"
       style={styles.chip}
       onPress={onPress}
-      accessibilityLabel={`${file.filename}, ${fileSize(file.size)}`}
+      accessibilityLabel={`${file.filename}, ${formatBytes(file.size)}`}
     >
       <FileTile name={file.filename} mimeType={file.mimeType} />
       <View style={styles.file}>
@@ -121,7 +120,7 @@ function AttachmentChip({ file, onPress }: { file: Attachment; onPress?: () => v
           {file.filename}
         </Text>
         <Text size="caption" tone="mutedForeground" tabular numberOfLines={1}>
-          {fileSize(file.size)}
+          {formatBytes(file.size)}
         </Text>
       </View>
     </PressableRow>

@@ -1,3 +1,4 @@
+import type { CrmRecordKind } from "@omni/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -20,7 +21,6 @@ import {
   useOwners,
 } from "@/hooks/use-crm.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
-import type { CrmRecordKind } from "@/lib/crm.ts";
 import type { BulkAction } from "@/lib/crm-mutations.ts";
 import { PAST, reportRefusals } from "./bulk-bar.tsx";
 import { crmErrorText, crmErrorToast } from "./crm-errors.ts";

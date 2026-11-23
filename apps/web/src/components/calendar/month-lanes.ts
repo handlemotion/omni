@@ -1,7 +1,7 @@
+import { dayOf } from "@omni/client";
 import type { CalendarEvent } from "@/lib/calendar.ts";
 import type { Todo } from "@/lib/calendar-tasks.ts";
 import { addDays, dayKey, eventKey, parseDayKey } from "@/lib/calendar-grid.ts";
-import { dayOf } from "@/lib/crm-tasks.ts";
 
 const DAY_MS = 86_400_000;
 

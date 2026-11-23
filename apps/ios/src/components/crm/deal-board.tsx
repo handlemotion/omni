@@ -1,3 +1,4 @@
+import type { CrmDeal } from "@omni/client";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { IconHandshake } from "@/components/icons.ts";
@@ -5,7 +6,7 @@ import { FLOATING_BAR_SPACE } from "@/components/shell/floating-bar.tsx";
 import { ChipButton } from "@/components/ui/chip-button.tsx";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { useDeals, type CrmDeal } from "@/lib/crm.ts";
+import { useDeals } from "@/lib/crm.ts";
 import type { ListView } from "@/lib/crm-lists.ts";
 import { useStages } from "@/lib/crm-timeline.ts";
 import { gutter, space } from "@/theme/tokens.ts";

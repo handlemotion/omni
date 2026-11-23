@@ -1,3 +1,4 @@
+import type { DriveNode } from "@omni/client";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
@@ -17,7 +18,6 @@ import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { useNode } from "@/lib/drive-actions.ts";
 import { useFolderImages, versionOf } from "@/lib/drive-preview.ts";
-import type { DriveNode } from "@/lib/drive.ts";
 import { fileKindOf, previewKindOf } from "@/lib/file-kind.ts";
 
 /**

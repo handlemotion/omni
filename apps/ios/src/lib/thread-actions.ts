@@ -4,6 +4,7 @@ import {
   type Thread,
   type ThreadPage,
   type ThreadSummary,
+  ApiError,
 } from "@omni/client";
 import {
   useMutation,
@@ -13,7 +14,7 @@ import {
   type QueryKey,
 } from "@tanstack/react-query";
 import { Alert } from "react-native";
-import { ApiError, api, call, inWorkspace } from "./api.ts";
+import { api, call, inWorkspace } from "./api.ts";
 import { idempotencyKey } from "./ids.ts";
 import {
   MAIL_ACTIONS_KEY,

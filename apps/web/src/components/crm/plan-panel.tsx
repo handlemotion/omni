@@ -1,3 +1,4 @@
+import type { CrmDeliverable, CrmMilestone } from "@omni/client";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconTrash, IconX } from "@/components/icons/central";
@@ -10,12 +11,7 @@ import {
   useUpdateDeliverable,
   useUpdateMilestone,
 } from "@/hooks/use-crm-project.ts";
-import {
-  DELIVERABLE_STATUSES,
-  MILESTONE_STATUSES,
-  type CrmDeliverable,
-  type CrmMilestone,
-} from "@/lib/crm-project.ts";
+import { DELIVERABLE_STATUSES, MILESTONE_STATUSES } from "@/lib/crm-project.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { ChoiceValue, DayValue, FieldRow, PlainValue, TextValue } from "./record-fields.tsx";
 import { stableId } from "@/lib/crm-pending.ts";

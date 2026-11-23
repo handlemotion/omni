@@ -4,9 +4,9 @@ import {
   queryOptions,
   type QueryClient,
 } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
+import { type Api, ApiError } from "@omni/client";
 import type { InferResponseType } from "hono/client";
-import { api, ApiError, call } from "./api.ts";
+import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
 export type StorageSharing = InferResponseType<

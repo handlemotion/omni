@@ -1,3 +1,4 @@
+import { fileType, type FileKind } from "@omni/client";
 import {
   MicrosoftExcel,
   MicrosoftPowerPoint,
@@ -18,7 +19,6 @@ import {
   IconVideo,
 } from "@/components/icons/central";
 import { Badge } from "@/components/ui/badge";
-import { fileType, type FileKind } from "@/lib/file-kind.ts";
 
 type Glyph = ComponentType<{ className?: string }>;
 

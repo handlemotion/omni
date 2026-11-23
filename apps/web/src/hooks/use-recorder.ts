@@ -3,11 +3,12 @@ import {
   OFFLINE_AFTER_MS,
   type RecordingTransport,
   type SendingState,
+  ApiError,
 } from "@omni/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { appToast } from "@/components/ui/toast";
-import { ApiError, api, call } from "@/lib/api.ts";
+import { api, call } from "@/lib/api.ts";
 import { workspaceHeaders } from "@/lib/current-workspace.ts";
 import { meetingKeys } from "@/lib/meetings.ts";
 import { CaptureRefused, startCapture, type Capture } from "@/lib/recorder-capture.ts";

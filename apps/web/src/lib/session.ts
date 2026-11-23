@@ -1,13 +1,13 @@
+import { ApiError, type Member } from "@omni/client";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { forgetPdfTiles } from "./pdf-tile-cache.ts";
 import { dropStartupResponses } from "./startup-fetch.ts";
-import { api, ApiError, auth, call } from "./api.ts";
+import { api, auth, call } from "./api.ts";
 import { setCurrentWorkspaceId } from "./current-workspace.ts";
 import { desktop } from "./desktop.ts";
 import { keys } from "./query-keys.ts";
 import { forgetOutstanding } from "./pending.ts";
 import { cancelUploads } from "./storage-uploads.ts";
-import type { Member } from "./types.ts";
 
 /** What Better Auth's client methods return. */
 interface AuthResult<T> {
