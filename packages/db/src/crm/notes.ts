@@ -1,3 +1,4 @@
+import { CRM_NOTE_MAX_LENGTH } from "@omni/contracts";
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { crmEvents, crmNotes } from "../schema/crm.ts";
 import {
@@ -43,8 +44,6 @@ export interface CrmTimelineCursor {
 
 export type InvalidBody = { status: "invalid_body" };
 export type NoteResult = { status: "ok"; note: CrmNote } | NotFound | Forbidden | InvalidBody;
-
-export const CRM_NOTE_MAX_LENGTH = 20_000;
 
 const noteColumns = {
   id: crmNotes.id,

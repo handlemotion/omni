@@ -22,7 +22,7 @@ import {
 } from "../../thread-writes.ts";
 import { result, toolError } from "../format.ts";
 import { readsFor, type Reads } from "../scope.ts";
-import { guarded, type ToolContext } from "../server.ts";
+import { guarded, recordMcpWrite, type ToolContext } from "../server.ts";
 
 const MAX_CHANGES = 50;
 
@@ -256,13 +256,8 @@ async function applyOne(
   if (applied.length) {
     const threads = effects.changed.get(found.mailboxId) ?? new Set();
     effects.changed.set(found.mailboxId, threads.add(change.thread_id));
-    await context.db.insert(schema.auditEvents).values({
-      orgId: member.orgId,
-      actorMemberId: member.id,
-      action: "mcp.triage",
-      subject: change.thread_id,
-      data: { via: "mcp", clientId: context.caller.clientId, applied },
-    });
+    const actor = { orgId: member.orgId, memberId: member.id };
+    await recordMcpWrite(context, actor, "mcp.triage", change.thread_id, { applied });
   }
   const outcome: Outcome = error ? { applied, error } : { applied };
   return outcome;

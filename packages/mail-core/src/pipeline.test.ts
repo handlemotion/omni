@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { BLOCKED_SRC_ATTR, cleanMessage, isLongForm, sanitizeHtml } from "./html.ts";
+import { BLOCKED_SRC_ATTR } from "./blocked-src.ts";
+import { cleanMessage, isLongForm, sanitizeHtml } from "./html.ts";
 import { parseMessage } from "./parse.ts";
 import { normalizeSubject } from "./subject.ts";
 

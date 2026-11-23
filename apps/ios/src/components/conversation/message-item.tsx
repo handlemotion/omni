@@ -1,4 +1,4 @@
-import { type Message, formatBytes } from "@omni/client";
+import { type Message, formatBytes, opensFull } from "@omni/client";
 import { useState } from "react";
 import { ActionSheetIOS, Pressable, StyleSheet, View } from "react-native";
 import { HtmlView } from "@/components/conversation/html-view";
@@ -10,7 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { config } from "@/lib/config.ts";
 import { listTime, useMessageHtml } from "@/lib/mail.ts";
-import { opensFull } from "@/lib/message-html.ts";
 import { colors, gutter, radius, space } from "@/theme/tokens.ts";
 
 type Attachment = Message["attachments"][number];

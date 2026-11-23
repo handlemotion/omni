@@ -16,26 +16,12 @@ export type DriveVersions = InferResponseType<
   200
 >;
 
-/** The web's role and access names, in its order. */
-export const ROLES: { id: DriveGrantRole; label: string }[] = [
-  { id: "viewer", label: "Viewer" },
-  { id: "commenter", label: "Commenter" },
-  { id: "editor", label: "Editor" },
-];
-export const ACCESS: { id: DriveLinkAccess; label: string }[] = [
-  { id: "restricted", label: "Restricted" },
-  { id: "workspace", label: "People in this workspace" },
-  { id: "anyone", label: "Anyone with the link" },
-];
 /** A change to a link's settings: expiry (null: never), password (null removes it), downloads. */
 export type DriveLinkChange = {
   expiresAt?: string | null;
   password?: string | null;
   downloads?: boolean;
 };
-export const roleLabel = (role: DriveGrantRole) => ROLES.find((r) => r.id === role)?.label ?? role;
-export const accessLabel = (access: DriveLinkAccess) =>
-  ACCESS.find((a) => a.id === access)?.label ?? access;
 
 /** The link to a shared item, as people open it: the web app's `/s/<shareId>` on the Worker. */
 export const shareUrl = (shareId: string) => `${config.apiUrl}/s/${encodeURIComponent(shareId)}`;

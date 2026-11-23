@@ -142,12 +142,7 @@ export {
   releaseCrmTasks,
   TASK_COPY_BATCH,
 } from "./crm/task-mirror.ts";
-export {
-  BULK_MAX,
-  type CrmBulkAction,
-  type CrmBulkRecords,
-  type CrmBulkResult,
-} from "./crm/bulk.ts";
+export { type CrmBulkAction, type CrmBulkRecords, type CrmBulkResult } from "./crm/bulk.ts";
 export type { CrmListCursor, CrmSort, CrmSortDir, CrmSortKey } from "./crm/list-order.ts";
 export type { CompanyChange } from "./crm/company-change.ts";
 export type {
@@ -170,11 +165,7 @@ export {
   endExpiredContracts,
   type EndedContract,
 } from "./crm/contract-expiry.ts";
-export {
-  ADMIN_FOLDER_NAME,
-  CONTRACT_PEOPLE_MAX,
-  type InvalidPeople,
-} from "./crm/contract-people.ts";
+export { ADMIN_FOLDER_NAME, type InvalidPeople } from "./crm/contract-people.ts";
 export type { CrmContractSigner, CrmContractSigning } from "./crm/contract-progress.ts";
 export type { SignedCopyInput } from "./crm/contract-signed-copy.ts";
 export {
@@ -206,7 +197,7 @@ export type {
   ListContractsInput,
   SignatureOpen,
 } from "./crm/contracts.ts";
-export type { CrmNameCursor, CrmRecordRef, Forbidden, NoCrm, NotFound } from "./crm/core.ts";
+export type { CrmRecordRef, Forbidden, NoCrm, NotFound } from "./crm/core.ts";
 export type {
   DealDetailResult,
   DealInput,
@@ -220,7 +211,6 @@ export type {
 export { FILE_LINKS_MAX, type CrmFileLink, type FileLinkRecord } from "./crm/files.ts";
 export { CRM_ROOT_FOLDER_NAME, type DealFolderResult, type FolderResult } from "./crm/folders.ts";
 export {
-  CRM_NOTE_MAX_LENGTH,
   type CrmEvent,
   type CrmNote,
   type CrmTimelineCursor,
@@ -250,9 +240,7 @@ export {
   type TooMany,
 } from "./crm/access.ts";
 export {
-  CRM_PLAN_DESCRIPTION_MAX,
   CRM_PLAN_MAX,
-  CRM_PLAN_TITLE_MAX,
   type CrmDeliverable,
   type CrmMilestone,
   type CrmPlan,
@@ -507,5 +495,4 @@ export function userCrm(db: Db, userId: string, scopeOrgId?: string | null) {
 }
 
 export type MemberCrm = ReturnType<typeof memberCrm>;
-export type UserCrm = ReturnType<typeof userCrm>;
-export * from "./crm/for-platform.ts";
+export { orgHoldsCrmRecords } from "./crm/for-platform.ts";

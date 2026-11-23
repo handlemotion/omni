@@ -123,7 +123,17 @@ export {
   carryThreadState,
 } from "./mail/placement.ts";
 export { mailboxCount } from "./mail/mailbox-count.ts";
-export * from "./mail/mailbox-teams.ts";
+export {
+  addMailboxMember,
+  backfillMailboxTeams,
+  ensureMailboxTeam,
+  listMailboxMembers,
+  removeMailboxMember,
+  syncTeamMailboxAccess,
+  teamMailbox,
+  type MailboxMembersActor,
+  type MailboxMembershipResult,
+} from "./mail/mailbox-teams.ts";
 export { listWorkspaceMailboxes, mailboxAtAddress, orgMember } from "./mail/workspace-mailboxes.ts";
 export {
   listWorkspaceMembers,

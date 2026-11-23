@@ -1,10 +1,4 @@
-import {
-  forMember,
-  oauthClientName,
-  schema,
-  type StorageContext,
-  type StoragePlace,
-} from "@omni/db";
+import { forMember, oauthClientName, type StorageContext, type StoragePlace } from "@omni/db";
 import { z } from "zod";
 import { inGoodStanding } from "../billing.ts";
 import type { WriteDeps } from "../storage/doc-write.ts";
@@ -87,21 +81,4 @@ export async function ready(context: ToolContext, orgId: string) {
     return "This workspace is read-only until its plan is paid.";
   }
   return null;
-}
-
-/** Records an agent's write in the workspace's audit log. */
-export async function audit(
-  context: ToolContext,
-  writer: Writer,
-  action: string,
-  subject: string,
-  kind: string,
-) {
-  await context.db.insert(schema.auditEvents).values({
-    orgId: writer.orgId,
-    actorMemberId: writer.memberId,
-    action,
-    subject,
-    data: { via: "mcp", clientId: context.caller.clientId, kind },
-  });
 }

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 import { liveRecordWhole, STORAGE_LIVE_MAX_PARTS } from "./storage-live-parts.ts";
+import { STORAGE_DOC_PRESENCE_MAX } from "./storage-types.ts";
+
+export { STORAGE_DOC_PRESENCE_MAX, STORAGE_LIVE_SNAP_EVERY } from "./storage-types.ts";
 
 const id = z.string().min(1);
 
@@ -83,9 +86,6 @@ export const storageLiveRecordSchema = z.discriminatedUnion("t", [
   }),
 ]);
 
-/** How many records an editor lets pass after the latest `seed` or `snap` before it writes one. */
-export const STORAGE_LIVE_SNAP_EVERY = 200;
-
 /** The epoch's first record a reader needs, for a `seed` or `snap` at `seqNum`. */
 export const liveStartOf = (entry: { seqNum: number; record: StorageLiveRecord }) =>
   entry.record.t === "snap" ? entry.record.s + 1 : entry.seqNum;
@@ -142,11 +142,6 @@ export const storageLiveReadResponseSchema = z.union([
     more: z.boolean(),
   }),
 ]);
-
-/**
- * The longest `doc.presence` update, base64: one person's cursor and name, with room to spare.
- */
-export const STORAGE_DOC_PRESENCE_MAX = 4096;
 
 /**
  * On the realtime socket, while the socket edits the file (after its `file.presence` `editing`):

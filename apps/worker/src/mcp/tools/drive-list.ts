@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import { toBase64 } from "@omni/crypto";
 import type { StorageContext, StorageListCursor } from "@omni/db";
 import { z } from "zod";
 import { child, driveFor, item, itemSchema } from "../drive.ts";
 import { result, toolError } from "../format.ts";
+import { encodeCursor, readCursor } from "../../cursor.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
 const SHARED_WITH_YOU = 20;
@@ -48,30 +48,12 @@ const outputSchema = z.object({
     .describe("Without a folder or space: what others shared with the person, newest first."),
 });
 
-const encodeCursor = (cursor: StorageListCursor | null) => {
-  if (!cursor) return undefined;
-  return toBase64(new TextEncoder().encode(JSON.stringify([cursor.kind, cursor.name, cursor.id])));
-};
+const cursorSchema = z
+  .tuple([z.enum(["file", "folder"]), z.string(), z.string()])
+  .transform(([kind, name, id]) => ({ kind, name, id }) satisfies StorageListCursor);
 
-const decodeCursor: (cursor: string | undefined) => StorageListCursor | null | undefined = (
-  cursor,
-) => {
-  if (cursor === undefined) return undefined;
-  try {
-    const binary = atob(cursor);
-    const json = new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
-    const [kind, name, id] = JSON.parse(json) as [string, string, string];
-    if (
-      (kind !== "file" && kind !== "folder") ||
-      typeof name !== "string" ||
-      typeof id !== "string"
-    )
-      return null;
-    return { kind, name, id };
-  } catch {
-    return null;
-  }
-};
+const nextCursor = (cursor: StorageListCursor | null) =>
+  cursor ? { next_cursor: encodeCursor([cursor.kind, cursor.name, cursor.id]) ?? "" } : {};
 
 async function overview(context: ToolContext, drive: StorageContext) {
   const [workspaces, shared, teamspaces] = await Promise.all([
@@ -103,10 +85,10 @@ async function list(context: ToolContext, input: Input) {
   const scoped = driveFor(context, input.workspace);
   if ("error" in scoped) return toolError(scoped.error);
   const { drive } = scoped;
-  const cursor = decodeCursor(input.cursor);
-  if (cursor === null)
+  const read = input.cursor === undefined ? undefined : readCursor(input.cursor, cursorSchema);
+  if (read === null)
     return toolError("That cursor is not one `drive_list` returned. Start over without it.");
-  const page = { cursor, limit: input.limit };
+  const page = { cursor: read?.cursor, limit: input.limit };
 
   if (input.folder_id) {
     const listed = await drive.listFolder(input.folder_id, page);
@@ -118,7 +100,7 @@ async function list(context: ToolContext, input: Input) {
     return result({
       folder: item(context.webAppURL, listed.folder),
       items: listed.nodes.map((node) => child(context.webAppURL, listed.folder, node)),
-      ...(listed.nextCursor ? { next_cursor: encodeCursor(listed.nextCursor) } : {}),
+      ...nextCursor(listed.nextCursor),
     });
   }
 
@@ -165,7 +147,7 @@ function topOf(
   };
   return result({
     items: listed.nodes.map((node) => child(context.webAppURL, parent, node)),
-    ...(listed.nextCursor ? { next_cursor: encodeCursor(listed.nextCursor) } : {}),
+    ...nextCursor(listed.nextCursor),
   });
 }
 

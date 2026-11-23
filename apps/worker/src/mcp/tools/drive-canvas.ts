@@ -16,17 +16,9 @@ import type { StorageContext } from "@omni/db";
 import { z } from "zod";
 import { createCanvas, editCanvas } from "../../storage/canvases.ts";
 import { driveFor, item, itemSchema } from "../drive.ts";
-import {
-  audit,
-  placeFor,
-  placeInput,
-  ready,
-  writeDeps,
-  writerIn,
-  type Writer,
-} from "../drive-write.ts";
+import { placeFor, placeInput, ready, writeDeps, writerIn, type Writer } from "../drive-write.ts";
 import { result, toolError } from "../format.ts";
-import { guarded, type ToolContext } from "../server.ts";
+import { guarded, recordMcpWrite, type ToolContext } from "../server.ts";
 
 const MAX_OPS = 200;
 const SHOWN_ON_MISS = 20_000;
@@ -153,7 +145,7 @@ async function create(context: ToolContext, input: z.infer<typeof createInput>) 
     scene: changed.scene,
   });
   if (made.status !== "ok") return refusal("reason" in made ? made.reason : made.status);
-  await audit(context, writer, "mcp.drive_canvas", made.node.id, "create");
+  await recordMcpWrite(context, writer, "mcp.drive_canvas", made.node.id, { kind: "create" });
   return answer(context, scoped.drive, made.node.id, { scene: changed.scene, changed });
 }
 
@@ -219,7 +211,7 @@ async function edit(context: ToolContext, input: z.infer<typeof editInput>) {
   if (edited.status === "unreadable")
     return toolError(`The canvas cannot be read: ${edited.error}`);
   if (edited.status !== "ok") return refusal("reason" in edited ? edited.reason : edited.status);
-  await audit(context, writer, "mcp.drive_canvas", input.id, "edit");
+  await recordMcpWrite(context, writer, "mcp.drive_canvas", input.id, { kind: "edit" });
   return answer(context, scoped.drive, input.id, edited);
 }
 

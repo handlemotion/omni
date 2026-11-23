@@ -1,4 +1,4 @@
-import type { Thread, Conversation } from "@omni/client";
+import { mailboxName, type Thread, type Conversation } from "@omni/client";
 import { router } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -6,7 +6,7 @@ import { IconTag, IconUserRound } from "@/components/icons.ts";
 import { MailboxAvatar } from "@/components/inbox/mailbox-avatar.tsx";
 import { GhostButton } from "@/components/ui/ghost-button.tsx";
 import { useAssignees, useConversation } from "@/lib/conversation.ts";
-import { mailboxName, useMailboxes } from "@/lib/mail.ts";
+import { useMailboxes } from "@/lib/mail.ts";
 import { useSession } from "@/lib/session.ts";
 import { colors, iconSize, space } from "@/theme/tokens.ts";
 import { Face, PRIORITY, PropertySheet, STATUS, type Sheet } from "./property-sheets.tsx";

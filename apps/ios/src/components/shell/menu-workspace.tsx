@@ -1,4 +1,4 @@
-import type { Workspace } from "@omni/client";
+import { workspaceLabel, type Workspace } from "@omni/client";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import {
@@ -15,7 +15,7 @@ import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { usePictureSource } from "@/lib/picture.ts";
 import { signOut, useSession } from "@/lib/session.ts";
 import { openOnWeb, useWorkspaceMenu } from "@/lib/workspace-menu.ts";
-import { openWorkspace, useWorkspace, workspaceLabel } from "@/lib/workspace.ts";
+import { openWorkspace, useWorkspace } from "@/lib/workspace.ts";
 import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 import { ChoiceRow } from "./mailbox-chooser.tsx";
 import { useMenuPlace } from "./menu-nav.ts";

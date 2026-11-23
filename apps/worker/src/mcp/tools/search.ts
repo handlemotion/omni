@@ -4,6 +4,7 @@ import { z } from "zod";
 import { smartSearch } from "../../search.ts";
 import { laneOf, personSchema, result, threadSummary, threadUrl, toolError } from "../format.ts";
 import { findMailbox, readsFor, unknownMailbox, type Reads } from "../scope.ts";
+import { encodeCursor, readCursor } from "../../cursor.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
 const who = z
@@ -76,20 +77,12 @@ const outputSchema = z.object({
 
 const LIST_ONLY = ["view", "lane", "unread", "status", "tag", "cursor"] as const;
 
-function encodeCursor(row: { lastMessageAt: Date; id: string }) {
-  return btoa(JSON.stringify([row.lastMessageAt.toISOString(), row.id]));
-}
+const cursorSchema = z
+  .tuple([z.string().refine((at) => !Number.isNaN(new Date(at).getTime())), z.string()])
+  .transform(([at, id]) => ({ lastMessageAt: new Date(at), id }));
 
-function decodeCursor(cursor: string) {
-  try {
-    const [at, id] = JSON.parse(atob(cursor)) as [string, string];
-    const lastMessageAt = new Date(at);
-    if (typeof id !== "string" || Number.isNaN(lastMessageAt.getTime())) return null;
-    return { lastMessageAt, id };
-  } catch {
-    return null;
-  }
-}
+const cursorOf = (row: { lastMessageAt: Date; id: string }) =>
+  encodeCursor([row.lastMessageAt.toISOString(), row.id]) ?? "";
 
 const filtersOf: (input: Input) => ThreadFilters = (input) => {
   return {
@@ -159,8 +152,8 @@ async function listByFilters(
   input: Input,
   mailboxId: string | undefined,
 ) {
-  const before = input.cursor ? decodeCursor(input.cursor) : undefined;
-  if (before === null)
+  const read = input.cursor ? readCursor(input.cursor, cursorSchema) : undefined;
+  if (read === null)
     return toolError("That cursor is not one `search` returned. Start over without it.");
   const [rows, mailboxes] = await Promise.all([
     reads.listThreads({
@@ -169,7 +162,7 @@ async function listByFilters(
       lane: input.lane,
       unread: input.unread,
       filters: filtersOf(input),
-      before,
+      before: read?.cursor,
       limit: input.limit + 1,
     }),
     reads.listMailboxes(),
@@ -199,7 +192,7 @@ async function listByFilters(
       };
     }),
     ranking: "newest" as const,
-    ...(rows.length > input.limit && last ? { next_cursor: encodeCursor(last) } : {}),
+    ...(rows.length > input.limit && last ? { next_cursor: cursorOf(last) } : {}),
   });
 }
 

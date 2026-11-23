@@ -3,6 +3,7 @@ import { z } from "zod";
 import { crmOf, crmWorkspaces, refusalText, teammate, type CrmWorkspace } from "../crm.ts";
 import { recordRef, recordRefSchema, taskRows, taskRowSchema } from "../crm-tasks.ts";
 import { result, toolError } from "../format.ts";
+import { encodeCursor, readCursor } from "../../cursor.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
 const inputSchema = z.object({
@@ -43,14 +44,10 @@ const pageSchema = z.record(
 );
 type Pages = z.infer<typeof pageSchema>;
 
-function readCursor(cursor: string | undefined) {
-  if (cursor === undefined) return {};
-  try {
-    const parsed = pageSchema.safeParse(JSON.parse(Buffer.from(cursor, "base64url").toString()));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
+function readPages(cursor: string | undefined) {
+  const first: Pages = {};
+  if (cursor === undefined) return first;
+  return readCursor(cursor, pageSchema)?.cursor ?? null;
 }
 
 async function assigneeOf(context: ToolContext, workspace: CrmWorkspace, assignee?: string) {
@@ -89,7 +86,7 @@ async function list(context: ToolContext, input: Input) {
   if (input.due && input.status === "done") return toolError("`due` finds open tasks only.");
   const reach = await crmWorkspaces(context, input.workspace);
   if ("error" in reach) return toolError(reach.error);
-  const pages = readCursor(input.cursor);
+  const pages = readPages(input.cursor);
   if (pages === null) return toolError("That `cursor` is not one `crm_tasks` gave.");
   const tasks: z.infer<typeof taskRowSchema>[] = [];
   const next: Pages = {};
@@ -103,7 +100,7 @@ async function list(context: ToolContext, input: Input) {
   const more = Object.keys(next).length > 0;
   return result({
     tasks,
-    next_cursor: more ? Buffer.from(JSON.stringify(next)).toString("base64url") : null,
+    next_cursor: more ? encodeCursor(next) : null,
   });
 }
 

@@ -68,16 +68,5 @@ export function useWorkspace() {
   return { workspaces, active, ready: !!active && settled, all: data?.workspaces ?? [] };
 }
 
-/** The name a Personal space is made with (`personal-space.ts`), until its owner renames it. */
-export const PERSONAL_DEFAULT_NAME = "Personal";
-
-/** A company by its name; the Personal space as the person's own, as the web app says it. */
-export function workspaceLabel(workspace: Pick<Workspace, "kind" | "name">, userName?: string) {
-  if (workspace.kind !== "personal" || workspace.name !== PERSONAL_DEFAULT_NAME)
-    return workspace.name;
-  const first = userName?.trim().split(/\s+/)[0];
-  return first ? `${first}'s Workspace` : "Personal Workspace";
-}
-
 /** Every workspace has a CRM and a Shared drive, once it is known. */
 export const hasCrm = (workspace: Pick<Workspace, "kind"> | undefined) => !!workspace;
