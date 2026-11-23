@@ -1,4 +1,7 @@
 export * from "./ports.ts";
+export * from "./mailbox-config.ts";
+export type { Capabilities } from "./imap-server.ts";
+export type { FolderSyncResult, NewMessageEvent } from "./folder-sync.ts";
 export * from "./mailbox-connection.ts";
 export * from "./outbox.ts";
 export * from "./supervisor.ts";
@@ -6,6 +9,8 @@ export * from "./http.ts";
 export * from "./config.ts";
 export * from "./log.ts";
 export * from "./pg-store.ts";
+export * from "./pg-outbox.ts";
+export type { ContentLinks } from "./message-content.ts";
 export * from "./objects.ts";
 export * from "./notify.ts";
 export * from "./service.ts";

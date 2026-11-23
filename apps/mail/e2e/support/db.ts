@@ -1,7 +1,7 @@
 import { enqueueAction, schema, type MailActionRequest } from "@omni/db";
 import { createMember, createOrg, createTestDatabase } from "@omni/db/testing";
 import { and, asc, eq } from "drizzle-orm";
-import type { MailboxConfig } from "../../src/mailbox-connection.ts";
+import type { MailboxConfig } from "../../src/mailbox-config.ts";
 import type { MailAction } from "../../src/ports.ts";
 import { mailbox } from "./greenmail.ts";
 

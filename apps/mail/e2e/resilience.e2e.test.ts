@@ -8,9 +8,11 @@ import { schema, setMailboxStatus } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { sealCredentials } from "../src/credentials.ts";
-import { type MailboxConfig, MailboxConnection } from "../src/mailbox-connection.ts";
+import type { MailboxConfig } from "../src/mailbox-config.ts";
+import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
-import { PgActionSource, PgMailStore } from "../src/pg-store.ts";
+import { PgActionSource } from "../src/pg-outbox.ts";
+import { PgMailStore } from "../src/pg-store.ts";
 import {
   actionRow,
   createTestDatabase,

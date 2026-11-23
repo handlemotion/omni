@@ -11,7 +11,7 @@ import { type Db, findOrgMailboxById } from "@omni/db";
 import { z } from "zod";
 import { openCredentials } from "../credentials.ts";
 import type { Logger } from "../log.ts";
-import type { TokenSource } from "../mailbox-connection.ts";
+import type { TokenSource } from "../mailbox-config.ts";
 import { ProvisionError } from "../provisioning.ts";
 import { type GoogleOAuth, googleTokenSource } from "./gmail.ts";
 

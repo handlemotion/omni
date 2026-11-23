@@ -1,7 +1,8 @@
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
-import { MailboxConnection, type MailboxConfig } from "../src/mailbox-connection.ts";
+import type { MailboxConfig } from "../src/mailbox-config.ts";
+import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { PgMailStore } from "../src/pg-store.ts";
 import { createTestDatabase, messageRows, seedMailbox, stored, type TestDb } from "./support/db.ts";
 import { deliver, logger, otherClient, waitFor } from "./support/greenmail.ts";

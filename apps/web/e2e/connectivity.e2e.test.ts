@@ -5,7 +5,8 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import { MailboxConnection } from "../../mail/src/mailbox-connection.ts";
 import { OutboxExecutor } from "../../mail/src/outbox.ts";
-import { PgActionSource, PgMailStore } from "../../mail/src/pg-store.ts";
+import { PgActionSource } from "../../mail/src/pg-outbox.ts";
+import { PgMailStore } from "../../mail/src/pg-store.ts";
 import { deliver, logger, mailbox, otherClient } from "../../mail/e2e/support/greenmail.ts";
 import { createTestBucket, links } from "../../mail/e2e/support/objects.ts";
 import {

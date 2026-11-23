@@ -1,5 +1,6 @@
 import { createDb } from "@omni/db";
-import { MailboxConnection, type MailboxConfig } from "../../src/mailbox-connection.ts";
+import type { MailboxConfig } from "../../src/mailbox-config.ts";
+import { MailboxConnection } from "../../src/mailbox-connection.ts";
 import { createS3Store, type S3Options } from "../../src/objects.ts";
 import { PgMailStore } from "../../src/pg-store.ts";
 import { logger } from "./greenmail.ts";

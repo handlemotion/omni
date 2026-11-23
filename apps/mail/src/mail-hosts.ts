@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
-import type { ServerEndpoint } from "./mailbox-connection.ts";
+import type { ServerEndpoint } from "./mailbox-config.ts";
 
 /** Which mail hosts may skip encryption or sit on a private network. Hostnames, lowercase. */
 export interface MailHostPolicy {

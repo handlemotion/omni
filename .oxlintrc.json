@@ -132,8 +132,6 @@
     },
     {
       "files": [
-        "apps/mail/src/mailbox-connection.ts",
-        "apps/mail/src/pg-store.ts",
         "apps/web/src/components/compose/composer.tsx",
         "apps/web/src/components/onboarding/onboarding.tsx",
         "apps/web/src/components/settings/account-pages.tsx",

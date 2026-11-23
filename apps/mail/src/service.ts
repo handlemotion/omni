@@ -18,12 +18,13 @@ import { createApp, hmacVerifier } from "./http.ts";
 import type { Logger } from "./log.ts";
 import { WorkerNotifier } from "./notify.ts";
 import { createS3Store } from "./objects.ts";
-import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
+import { PgActionSource, PgSendFiles } from "./pg-outbox.ts";
+import { PgMailStore } from "./pg-store.ts";
 import { PgForwarding } from "./forward-copy.ts";
-import { connectGoogle, createGoogleOAuth, disconnectGoogle } from "./providers/gmail.ts";
+import { connectGoogle, createGoogleOAuth } from "./providers/gmail.ts";
 import { createGoogleCalendar } from "./providers/google-calendar.ts";
 import { createCreditWatch } from "./hosting/credit-watch.ts";
-import { disconnectHostedMailbox, disconnectMailbox } from "./hosting/disconnect.ts";
+import { disconnectGoogle, disconnectHostedMailbox, disconnectMailbox } from "./disconnect.ts";
 import { createPurelymailHost } from "./hosting/purelymail-host.ts";
 import { createLoginRotation } from "./hosting/rotate-login.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
@@ -338,16 +339,7 @@ export async function startService(config: ServiceConfig, log: Logger) {
           ),
         }
       : {}),
-    disconnectGoogle: (input) =>
-      disconnectGoogle(
-        {
-          db,
-          keyring: config.MAIL_CREDENTIALS_KEY,
-          stop: (mailboxId) => supervisor.retire(mailboxId),
-          logger: log,
-        },
-        input,
-      ),
+    disconnectGoogle: (input) => disconnectGoogle(disconnectDeps, input),
     disconnectHosted: (input) => disconnectHostedMailbox(disconnectDeps, input),
     disconnectMailbox: (input) => disconnectMailbox(disconnectDeps, input),
     log: httpLog,

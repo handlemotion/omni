@@ -1,11 +1,9 @@
 import type { Forwarding } from "./forward-copy.ts";
 import { Effect, Fiber, Semaphore } from "effect";
 import type { Logger } from "./log.ts";
-import {
-  MailboxConnection,
-  type MailboxConfig,
-  type NewMessageEvent,
-} from "./mailbox-connection.ts";
+import type { NewMessageEvent } from "./folder-sync.ts";
+import type { MailboxConfig } from "./mailbox-config.ts";
+import { MailboxConnection } from "./mailbox-connection.ts";
 import { OutboxExecutor } from "./outbox.ts";
 import type { ActionSource, MailStore, SendFiles } from "./ports.ts";
 import { every } from "./timing.ts";
