@@ -16,22 +16,13 @@ export interface MessageFilters {
 }
 
 /** Conditions on the thread itself (shared inboxes' helpdesk state). */
-export interface ConversationFilters {
+interface ConversationFilters {
   status?: "open" | "pending" | "snoozed" | "resolved";
   /** A tag on the thread, by name (case-insensitive). */
   tag?: string;
 }
 
 export type ThreadFilters = MessageFilters & ConversationFilters;
-
-/** Whether `filters` sets any message condition. */
-export function hasMessageFilters(filters: MessageFilters) {
-  return Object.values(messageOnly(filters)).some((value) => value !== undefined);
-}
-
-function messageOnly({ from, participant, after, before, hasAttachments, fromMe }: MessageFilters) {
-  return { from, participant, after, before, hasAttachments, fromMe };
-}
 
 const addressMatches: (address: SQL, who: string) => SQL = (address, who) => {
   const target = who.toLowerCase();

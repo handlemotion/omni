@@ -1,5 +1,7 @@
+import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, asc, eq, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { sqlHasRole } from "../roles.ts";
 import { members, users } from "../schema/auth.ts";
 import { crmContracts } from "../schema/crm.ts";
 import { crmPortals, crmProjectMembers } from "../schema/crm/projects.ts";
@@ -81,7 +83,7 @@ async function isTeammate(ex: Ex, orgId: string, email: string) {
     .where(
       and(
         eq(members.organizationId, orgId),
-        sql`not (${FREELANCER_ROLE} = any(string_to_array(replace(${members.role}, ' ', ''), ',')))`,
+        sql`not (${sqlHasRole(members.role, FREELANCER_ROLE)})`,
         or(
           and(eq(sql`lower(${users.email})`, email), eq(users.emailVerified, true)),
           eq(sql`lower(${userEmails.email})`, email),
@@ -188,7 +190,7 @@ export async function grantAccess(
   dealId: string,
   input: { email: string; scope: ProjectScope },
 ) {
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeAddress(input.email);
   if (!EMAIL.test(email) || email.length > 320) return { status: "invalid_email" } as const;
   if (!(await loadDeal(tx, member.orgId, dealId, true))) return NOT_FOUND;
   if (await isTeammate(tx, member.orgId, email)) return { status: "already_teammate" } as const;
@@ -215,7 +217,7 @@ export async function grantAccess(
 
 /** Takes someone off a project, and out of the folder their scope reached. */
 export async function revokeAccess(tx: Ex, member: CrmMember, dealId: string, email: string) {
-  const address = email.trim().toLowerCase();
+  const address = normalizeAddress(email);
   const [removed] = await tx
     .delete(crmProjectMembers)
     .where(

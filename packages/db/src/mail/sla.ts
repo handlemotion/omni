@@ -4,6 +4,7 @@ import { and, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
+import type { Ex as Executor, Tx } from "../pg.ts";
 import { SLA_AT_RISK_MINUTES } from "./conversation-views.ts";
 import {
   businessHours,
@@ -20,18 +21,16 @@ import {
 } from "../schema/index.ts";
 import { grantInOrg } from "./grants.ts";
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-type Executor = Db | Tx;
 type Priority = (typeof conversationPriority.enumValues)[number];
 
-export interface SlaClocks {
+interface SlaClocks {
   priority: Priority;
   firstRespondedAt: Date | null;
   responseClockAt: Date | null;
   resolutionClockAt: Date | null;
 }
 
-export interface DueTimes {
+interface DueTimes {
   firstResponseDueAt: Date | null;
   nextResponseDueAt: Date | null;
   resolutionDueAt: Date | null;
@@ -276,7 +275,7 @@ export async function deleteBusinessHours(db: Db, orgId: string, mailboxId: stri
   );
 }
 
-export interface SlaAlert {
+interface SlaAlert {
   orgId: string;
   mailboxId: string;
   threadId: string;

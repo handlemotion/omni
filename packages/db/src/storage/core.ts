@@ -5,6 +5,8 @@ import type { Db } from "../client.ts";
 import { storageLocks, storageNodes, storageUsage, storageVersions } from "../schema/storage.ts";
 import { leaveTombstones, nextRevision } from "./revision.ts";
 
+export { isUniqueViolation } from "../pg.ts";
+
 /** Folders nest this deep at most where people create or move them. */
 export const STORAGE_MAX_DEPTH = 32;
 /**
@@ -129,13 +131,6 @@ export function cleanName(name: string) {
   // oxlint-disable-next-line no-control-regex
   if (/[/\\\u0000-\u001f\u007f]/.test(clean)) return null;
   return clean;
-}
-
-export function isUniqueViolation(error: unknown) {
-  return (
-    (error as { cause?: { code?: string } }).cause?.code === "23505" ||
-    (error as { code?: string }).code === "23505"
-  );
 }
 
 /**

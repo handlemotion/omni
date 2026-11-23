@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { dropTasksOn } from "../calendar.ts";
 import type { Db } from "../client.ts";
+import { hasRole } from "../roles.ts";
 import { members } from "../schema/auth.ts";
 import { memberStorage } from "../storage.ts";
 import {
@@ -24,7 +25,6 @@ import {
   appendEvent,
   FORBIDDEN,
   FREELANCER_ROLE,
-  hasRole,
   isCurrency,
   NOT_FOUND,
   pageSize,

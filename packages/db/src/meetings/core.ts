@@ -1,7 +1,8 @@
 import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { isTeammate, loadMemberRow } from "../roles.ts";
 import type { Db } from "../client.ts";
 import { storageAddresses } from "../storage.ts";
-import { members, users } from "../schema/auth.ts";
+import { users } from "../schema/auth.ts";
 import { userEmails } from "../schema/identity.ts";
 import { meetingsGrants, meetingsMeetings } from "../schema/meetings.ts";
 
@@ -27,8 +28,6 @@ export interface MeetingsActor {
   scopeOrgId: string | null;
 }
 
-const teammateRole = (role: string) => role.split(",").some((r) => r.trim() !== "freelancer");
-
 /** The person's verified addresses, lowercase. */
 export async function addressesOf(ex: Ex, userId: string) {
   const [user] = await ex
@@ -44,20 +43,12 @@ export async function addressesOf(ex: Ex, userId: string) {
 }
 
 export async function memberActor(ex: Ex, memberId: string) {
-  const [row] = await ex
-    .select({
-      id: members.id,
-      orgId: members.organizationId,
-      userId: members.userId,
-      role: members.role,
-    })
-    .from(members)
-    .where(eq(members.id, memberId));
+  const row = await loadMemberRow(ex, memberId);
   if (!row) return null;
   return {
     userId: row.userId,
     addresses: await addressesOf(ex, row.userId),
-    member: { id: row.id, orgId: row.orgId, teammate: teammateRole(row.role) },
+    member: { id: row.id, orgId: row.orgId, teammate: isTeammate(row.role) },
     scopeOrgId: row.orgId,
   } satisfies MeetingsActor;
 }

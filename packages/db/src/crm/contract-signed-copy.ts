@@ -1,3 +1,4 @@
+import { normalizeAddress } from "@omni/mail-core/addresses";
 import { eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { crmContracts } from "../schema/crm.ts";
@@ -34,7 +35,7 @@ function signersOf(input: ContractSignedBy[]) {
   for (const signer of input) {
     const name = cleanName(signer.name);
     if (!name) return null;
-    const email = signer.email?.trim().toLowerCase() || null;
+    const email = normalizeAddress(signer.email ?? "") || null;
     signers.push({ name, email });
   }
   return signers;

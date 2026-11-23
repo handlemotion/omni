@@ -1,17 +1,12 @@
-import { recordInboxEvent, type InboxAuditAction } from "@omni/db";
+import { isAdmin, recordInboxEvent, type InboxAuditAction } from "@omni/db";
 import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./context.ts";
 
-/** Better Auth stores several roles as a comma list. */
-export function canManage(role: string) {
-  return role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin");
-}
-
 /** Owners and admins of the workspace; a member gets 403. */
 export const requireManager = createMiddleware<AppEnv>(async (c, next) => {
-  if (!canManage(c.var.member.role)) {
+  if (!isAdmin(c.var.member.role)) {
     throw new HTTPException(403, { message: "only owners and admins manage inboxes" });
   }
   await next();
@@ -32,3 +27,6 @@ export function logInboxAction(
     data,
   });
 }
+
+/** Owner or admin of the workspace. */
+export const canManage = isAdmin;

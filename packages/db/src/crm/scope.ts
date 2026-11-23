@@ -1,4 +1,5 @@
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { sqlHasRole } from "../roles.ts";
 import { members } from "../schema/auth.ts";
 import { crmEvents, crmNotes } from "../schema/crm.ts";
 import { crmDeliverables, crmMilestones } from "../schema/crm/projects.ts";
@@ -122,7 +123,7 @@ export const freelancerNotes: TimelineNarrowing = (orgId) =>
   inArray(
     crmNotes.authorMemberId,
     sql`(select ${members.id} from ${members} where ${members.organizationId} = ${orgId}
-      and ${FREELANCER_ROLE} = any(string_to_array(replace(${members.role}, ' ', ''), ',')))`,
+      and ${sqlHasRole(members.role, FREELANCER_ROLE)})`,
   );
 
 const onlyProjects = <R extends { deals: CrmDeal[] }>(found: R) => ({

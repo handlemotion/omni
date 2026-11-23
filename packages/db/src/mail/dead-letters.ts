@@ -2,7 +2,7 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { deadLetters, mailActions, threads } from "../schema/index.ts";
 
-export interface DeadLetterInput {
+interface DeadLetterInput {
   /** Null resolves it from `threadId` (jobs queued before they carried an org). */
   orgId: string | null;
   threadId?: string;

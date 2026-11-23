@@ -1,7 +1,7 @@
 import { type ConversationState } from "@omni/mail-core/conversation-status";
 import { and, eq, exists, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
-import type { Db } from "../client.ts";
+import type { Ex as Executor, Tx } from "../pg.ts";
 import {
   conversationEvents,
   conversationPriority,
@@ -18,8 +18,7 @@ export type Status = (typeof conversationStatus.enumValues)[number];
 export const PRIORITIES = conversationPriority.enumValues;
 
 /** A database or an open transaction: every function here nests as a savepoint inside one. */
-export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-export type Executor = Db | Tx;
+export type { Ex as Executor, Tx } from "../pg.ts";
 
 export type ConversationChange =
   | { type: "resolve"; reason?: string }

@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import { hasRole, loadMemberRow } from "../roles.ts";
 import { members } from "../schema/auth.ts";
 import { calendarTasks } from "../schema/calendar.ts";
 import { NOT_FOUND, type Ex } from "./core.ts";
@@ -124,11 +125,8 @@ export async function lockTask(tx: Ex, orgId: string, id: string) {
 
 /** The workspace's member, or null when they are gone. */
 export async function taskMember(ex: Ex, memberId: string) {
-  const [row] = await ex
-    .select({ id: members.id, orgId: members.organizationId })
-    .from(members)
-    .where(eq(members.id, memberId));
-  return row ?? null;
+  const row = await loadMemberRow(ex, memberId);
+  return row ? { id: row.id, orgId: row.orgId } : null;
 }
 
 export type TaskMember = NonNullable<Awaited<ReturnType<typeof taskMember>>>;
@@ -444,7 +442,7 @@ export async function isSoleOwner(ex: Ex, orgId: string, memberId: string) {
     .select({ id: members.id, role: members.role })
     .from(members)
     .where(eq(members.organizationId, orgId));
-  const owners = rows.filter((row) => row.role.split(",").some((role) => role.trim() === "owner"));
+  const owners = rows.filter((row) => hasRole(row.role, "owner"));
   return owners.length === 1 && owners[0]!.id === memberId;
 }
 

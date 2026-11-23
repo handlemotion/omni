@@ -1,3 +1,4 @@
+import { normalizeAddress } from "@omni/mail-core/addresses";
 import { memberCalendar, type CalendarEventView, type OccurrenceRef } from "../calendar.ts";
 import type { Db } from "../client.ts";
 import { groupKeyFor, NOT_FOUND } from "./core.ts";
@@ -42,12 +43,10 @@ async function eventOf(db: Db, memberId: string, choice: MeetingEventChoice, now
   return found.status === "ok" ? found : NOT_FOUND;
 }
 
-const lower = (address: string) => address.trim().toLowerCase();
-
 function attendeesOf(event: CalendarEventView | null, extra: StartRecording["attendees"]) {
   const all = new Map<string, string | null>();
   const add = (address: string, name: string | null) => {
-    const key = lower(address);
+    const key = normalizeAddress(address);
     if (key && !all.get(key)) all.set(key, name?.trim() || null);
   };
   if (event?.organizer) add(event.organizer.address, event.organizer.name);

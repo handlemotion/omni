@@ -9,9 +9,10 @@ import {
   type TaskRecord,
   type TaskRow,
 } from "../calendar.ts";
+import { hasRole } from "../roles.ts";
 import { members } from "../schema/auth.ts";
 import { crmTasks } from "../schema/crm/tasks.ts";
-import { hasRole, type Ex } from "./core.ts";
+import type { Ex } from "./core.ts";
 
 type CrmTaskRow = typeof crmTasks.$inferSelect;
 

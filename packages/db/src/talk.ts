@@ -1,5 +1,6 @@
 import type { Db } from "./client.ts";
-import { asTalkMember, isTeammateRole } from "./talk/core.ts";
+import { isTeammate } from "./roles.ts";
+import { asTalkMember } from "./talk/core.ts";
 import { fileOfMessage, listMessages, react, recordFile, sendNote } from "./talk/messages.ts";
 import { getThread, listPeople, openThread, readThread } from "./talk/threads.ts";
 
@@ -20,7 +21,7 @@ export {
 export type { OpenThreadResult, TalkPerson } from "./talk/threads.ts";
 
 /** Whether a member with these roles is a teammate Talk is open to (not a freelancer alone). */
-export const talkRole = isTeammateRole;
+export const talkRole = isTeammate;
 
 /**
  * The member door to Talk (`docs/spec/talk.md`): the teammate's direct threads with the others

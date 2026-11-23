@@ -1,17 +1,10 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { isTeammate } from "../roles.ts";
 import { members, users } from "../schema/auth.ts";
 import { storageAddresses } from "../storage.ts";
 import { talkReads, talkThreads } from "../schema/talk.ts";
-import {
-  isTeammateRole,
-  NOT_FOUND,
-  pairOf,
-  teammateOf,
-  threadOf,
-  type Ex,
-  type TalkMember,
-} from "./core.ts";
+import { NOT_FOUND, pairOf, teammateOf, threadOf, type Ex, type TalkMember } from "./core.ts";
 
 /** A teammate as Talk lists them, with the thread between you, if there is one yet. */
 export interface TalkPerson {
@@ -64,7 +57,7 @@ export async function listPeople(ex: Ex, me: TalkMember) {
     );
   const byOther = new Map(threads.map((t) => [t.a === me.id ? t.b : t.a, t]));
   const people: TalkPerson[] = rows
-    .filter((row) => isTeammateRole(row.role))
+    .filter((row) => isTeammate(row.role))
     .map((row) => {
       const thread = byOther.get(row.memberId);
       return {

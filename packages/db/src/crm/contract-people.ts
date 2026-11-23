@@ -1,5 +1,6 @@
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { sqlHasRole } from "../roles.ts";
 import { members, users } from "../schema/auth.ts";
 import { crmContractPeople, crmContracts } from "../schema/crm.ts";
 import { crmProjectMembers } from "../schema/crm/projects.ts";
@@ -19,7 +20,7 @@ export type InvalidPeople = { status: "invalid_contract"; param: "memberIds" };
 
 const invalidPeople = { status: "invalid_contract", param: "memberIds" } as const;
 
-const isFreelancerRole = sql<boolean>`${FREELANCER_ROLE} = any(string_to_array(replace(${members.role}, ' ', ''), ','))`;
+const isFreelancerRole = sqlHasRole(members.role, FREELANCER_ROLE);
 
 /** Each contract's people, by contract id, in the order they were added. */
 export async function peopleOf(ex: Ex, contractIds: string[]) {

@@ -1,9 +1,8 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import type { Db } from "../client.ts";
+import type { Ex } from "../pg.ts";
 import { calendarCalendars } from "../schema/index.ts";
 
-/** A Drizzle database or a transaction on one. */
-export type Ex = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+export type { Ex } from "../pg.ts";
 
 export type NotFound = { status: "not_found" };
 export const NOT_FOUND = { status: "not_found" } as const;

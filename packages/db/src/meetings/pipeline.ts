@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { isTeammate } from "../roles.ts";
 import { members, users } from "../schema/auth.ts";
 import { userEmails } from "../schema/identity.ts";
 import {
@@ -351,7 +352,7 @@ export async function memberAudience(ex: Ex, meetingId: string) {
   const granted = new Set(grants.map((g) => g.address));
   const reach = new Set<string>();
   for (const p of people) {
-    const teammate = p.role.split(",").some((r) => r.trim() !== "freelancer");
+    const teammate = isTeammate(p.role);
     const addresses = [p.verified ? p.email : null, p.extra]
       .filter((a): a is string => !!a)
       .map((a) => a.toLowerCase());

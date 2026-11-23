@@ -222,7 +222,7 @@ export async function takeExpiredUploads(db: Db, limit = 500) {
 }
 
 /** `inbox`: the mailbox's signature; `mine`: this member's own on that mailbox. */
-export type SignatureScope = "inbox" | "mine";
+type SignatureScope = "inbox" | "mine";
 
 /**
  * The mailbox's signature and the member's own on it, null when unset. A composer uses the

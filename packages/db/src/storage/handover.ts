@@ -1,5 +1,6 @@
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { sqlHasRole } from "../roles.ts";
 import { members, users } from "../schema/auth.ts";
 import { storageNodes } from "../schema/storage.ts";
 import {
@@ -16,7 +17,7 @@ export type StorageHandOverResult =
   | { status: "ok"; moved: number; folderId: string | null; toMemberId: string | null }
   | { status: "no_recipient" };
 
-const isOwner = sql`'owner' = any(string_to_array(replace(${members.role}, ' ', ''), ','))`;
+const isOwner = sqlHasRole(members.role, "owner");
 
 function folderName(person: string) {
   // oxlint-disable-next-line no-control-regex

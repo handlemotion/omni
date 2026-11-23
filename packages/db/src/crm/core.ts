@@ -1,11 +1,13 @@
 import { and, asc, eq, inArray, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import type { Ex } from "../pg.ts";
+import { hasRole, isAdmin, loadMemberRow } from "../roles.ts";
 import { members } from "../schema/auth.ts";
 import { crmEvents, crmProjectMembers } from "../schema/crm.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
 
-/** A Drizzle database or a transaction on one. */
-export type Ex = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+export type { Ex } from "../pg.ts";
+export { isForeignKeyViolation } from "../pg.ts";
 
 export type NotFound = { status: "not_found" };
 /** A Personal space, or a member who is gone: there is no CRM to reach. */
@@ -29,7 +31,6 @@ export interface CrmMember {
   projects: string[] | null;
 }
 
-const ADMIN_ROLES = new Set(["owner", "admin"]);
 export const FREELANCER_ROLE = "freelancer";
 
 /** Narrows a deal query to the member's projects; a teammate's is not narrowed. */
@@ -37,9 +38,6 @@ export const projectsOnly = (dealId: AnyColumn, member: CrmMember) => {
   if (member.projects === null) return undefined;
   return member.projects.length > 0 ? inArray(dealId, member.projects) : sql`false`;
 };
-
-export const hasRole = (roles: string, role: string) =>
-  roles.split(",").some((one) => one.trim() === role);
 
 async function projectsOf(ex: Ex, orgId: string, userId: string) {
   const addresses = (await listSignInEmails(ex as Db, userId))
@@ -64,17 +62,9 @@ export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | nu
   ex,
   memberId,
 ) => {
-  const [row] = await ex
-    .select({
-      id: members.id,
-      orgId: members.organizationId,
-      role: members.role,
-      userId: members.userId,
-    })
-    .from(members)
-    .where(eq(members.id, memberId));
+  const row = await loadMemberRow(ex, memberId);
   if (!row) return null;
-  const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
+  const admin = isAdmin(row.role);
   const projects =
     !admin && hasRole(row.role, FREELANCER_ROLE)
       ? await projectsOf(ex, row.orgId, row.userId)
@@ -94,7 +84,7 @@ export async function teammateFor(ex: Ex, orgId: string, preferred: string | nul
     .from(members)
     .where(eq(members.organizationId, orgId))
     .orderBy(asc(members.createdAt), asc(members.id));
-  const admin = rows.find((row) => row.role.split(",").some((r) => ADMIN_ROLES.has(r.trim())));
+  const admin = rows.find((row) => isAdmin(row.role));
   return admin ? loadCrmMember(ex, admin.id) : null;
 }
 
@@ -270,20 +260,6 @@ export const wordsOf = (q: string) =>
 
 /** ISO 4217 as stored: three uppercase letters. */
 export const isCurrency = (value: string) => /^[A-Z]{3}$/.test(value);
-
-/** Postgres refused a row for a unique key. */
-export function isUniqueViolation(error: unknown) {
-  return pgCode(error) === "23505";
-}
-
-/** Postgres refused a delete or insert for a foreign key. */
-export function isForeignKeyViolation(error: unknown) {
-  return pgCode(error) === "23503";
-}
-
-function pgCode(error: unknown) {
-  return (error as { cause?: { code?: string } }).cause?.code ?? (error as { code?: string }).code;
-}
 
 /** Keys of `patch` whose value differs from `current`, in a stable order. */
 export function changedFields<T extends object>(current: T, patch: Partial<T>) {

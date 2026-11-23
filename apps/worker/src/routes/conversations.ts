@@ -12,6 +12,7 @@ import {
   NOTE_MAX_LENGTH,
   updateNote,
   forMember,
+  isAdmin,
   PRIORITIES,
   putBusinessHours,
   putSlaPolicy,
@@ -41,7 +42,6 @@ import {
   failures,
 } from "./conversation-change.ts";
 import { notFound } from "../errors.ts";
-import { canManage } from "../inbox-admin.ts";
 
 const cursorQuery = cursorParam(z.object({ t: z.iso.datetime(), id: z.string().min(1) }))
   .transform((parsed) => ({ at: parsed.t, id: parsed.id }))
@@ -172,7 +172,7 @@ const domainChange: (change: z.infer<typeof bulkChange>, memberId: string) => Co
 };
 
 function requireManager(c: Context<AppEnv>) {
-  if (!canManage(c.var.member.role)) {
+  if (!isAdmin(c.var.member.role)) {
     throw new HTTPException(403, { message: "only owners and admins change inbox settings" });
   }
 }
