@@ -22,7 +22,8 @@ import {
 } from "./core.ts";
 import { docSessions } from "./history.ts";
 import { nextRevision } from "./revision.ts";
-import { LOCKED, reach, type FileResult, type Locked, type NodeResult } from "./tree.ts";
+import { reachLive, type FileResult, type NodeResult } from "./tree.ts";
+import { NOT_FOUND, FORBIDDEN, LOCKED, type Locked } from "./results.ts";
 
 /** A replaced version is kept this long, then deleted for good. */
 export const STORAGE_VERSION_DAYS = 30;
@@ -78,9 +79,6 @@ export const staleFor = (node: NodeRow, base: number | null | undefined) =>
   (base !== null && base !== undefined && node.contentVersion !== base
     ? { status: "version_conflict", contentVersion: node.contentVersion }
     : null) satisfies StaleContent | null;
-
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
 
 async function currentWriter(ex: Db, node: NodeRow) {
   const [row] = await ex
@@ -212,10 +210,8 @@ async function nameOf(ex: Db, memberId: string | null) {
 }
 
 async function editable(ex: Db, door: Door, nodeId: string) {
-  const found = await reach(ex, door, nodeId);
-  if (!found || found.node.kind !== "file" || !found.node.r2Key || inTrash(found.chain)) {
-    return NOT_FOUND;
-  }
+  const found = await reachLive(ex, door, nodeId);
+  if (found?.node.kind !== "file" || !found.node.r2Key) return NOT_FOUND;
   if (!editsContent(found.access)) return FORBIDDEN;
   return { status: "ok", node: found.node, r2Key: found.node.r2Key } as const;
 }

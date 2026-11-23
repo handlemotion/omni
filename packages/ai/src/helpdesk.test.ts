@@ -1,14 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  createJevClient,
-  decidePriority,
-  jevTriageRequest,
-  pickAssignee,
-  pickTags,
-  triage,
-  type PriorityJudgments,
-  type TriageInput,
-} from "./index.ts";
+import { decidePriority, pickAssignee, pickTags, type PriorityJudgments } from "./helpdesk.ts";
+import { createJevClient, jevTriageRequest } from "./jev.ts";
+import { triage } from "./triage.ts";
+import type { TriageInput } from "./types.ts";
 import { PRIORITY_JUDGMENTS } from "./questions.ts";
 
 const calm: PriorityJudgments = {

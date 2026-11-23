@@ -1,18 +1,16 @@
-import type { Api } from "@omni/client";
+import { PROJECT_KINDS, formatMoney, type CrmDeal } from "@omni/client";
 import {
   infiniteQueryOptions,
   queryOptions,
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
-import type { InferResponseType } from "hono/client";
 import { useEffect } from "react";
 import { api, call } from "./api.ts";
 import {
   DEFAULT_VIEW,
   companiesQuery,
   dealsQuery,
-  PROJECT_KINDS,
   peopleQuery,
   type ListView,
 } from "./crm-lists.ts";
@@ -23,10 +21,7 @@ export { CRM_PAGES, isCrmPage, type CrmPage } from "./crm-lists.ts";
 const PAGE_SIZE = "100";
 const BOARD_PAGE_SIZE = "200";
 
-type Crm = Api["crm"];
-export type CrmCompany = InferResponseType<Crm["companies"]["$get"], 200>["companies"][number];
-export type CrmPerson = InferResponseType<Crm["people"]["$get"], 200>["people"][number];
-export type CrmDeal = InferResponseType<Crm["deals"]["$get"], 200>["deals"][number];
+export type { CrmCompany, CrmDeal, CrmPerson } from "@omni/client";
 
 const paged = (pageParam: string | null, size = PAGE_SIZE) => ({
   limit: size,
@@ -78,7 +73,7 @@ export function useDeals(
   view: ListView = DEFAULT_VIEW,
   options: { projects?: boolean; whole?: boolean } = {},
 ) {
-  const query = dealsQuery(view, options.projects ? PROJECT_KINDS : undefined);
+  const query = dealsQuery(view, options.projects ? PROJECT_KINDS.join(",") : undefined);
   const size = options.whole ? BOARD_PAGE_SIZE : PAGE_SIZE;
   return useInfiniteQuery(
     infiniteQueryOptions({
@@ -161,25 +156,9 @@ export const stagesQuery = () =>
 
 export const useStageNames = () => useQuery(stagesQuery());
 
-/**
- * A deal's value as the web shows it (`formatMoney`): `valueMinor` is hundredths of the currency
- * for every currency, whole units when there are no cents; null when it has none.
- */
-export function dealValue(deal: Pick<CrmDeal, "valueMinor" | "valueCurrency">) {
-  if (deal.valueMinor === null) return null;
-  const amount = deal.valueMinor / 100;
-  const currency = deal.valueCurrency;
-  if (!currency) return new Intl.NumberFormat(undefined).format(amount);
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-    }).format(amount);
-  } catch {
-    return `${amount} ${currency}`;
-  }
-}
+/** A deal's value in its currency ("€12,500"); null when it has none. */
+export const dealValue = (deal: Pick<CrmDeal, "valueMinor" | "valueCurrency">) =>
+  formatMoney(deal.valueMinor, deal.valueCurrency);
 
 /** A `YYYY-MM-DD` day as the device writes a date ("Dec 3, 2026"). */
 export function dayText(day: string | null | undefined) {

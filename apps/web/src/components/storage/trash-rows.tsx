@@ -13,7 +13,7 @@ import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { KEEP_IN_MENU } from "./file-card.tsx";
 import { FileTile, TypeBadge } from "./file-glyph.tsx";
 import { ROWS_LAYOUT, RowHover } from "./file-sections.tsx";
-import { DAY } from "./file-table.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 export interface TrashRowsProps {
   label: string;
@@ -58,7 +58,7 @@ function TrashRow(props: { node: StorageNode; menu: SettingsRowMenuItem[] }) {
         {type ? formatBytes(node.size) : ""}
       </span>
       <span className="w-28 shrink-0 text-end text-muted-foreground tabular-nums @max-2xl:hidden">
-        {node.trashedAt ? DAY.format(new Date(node.trashedAt)) : ""}
+        {node.trashedAt ? DAY_YEAR.format(new Date(node.trashedAt)) : ""}
       </span>
       <span
         {...KEEP_IN_MENU}

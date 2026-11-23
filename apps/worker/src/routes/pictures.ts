@@ -5,7 +5,7 @@ import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { resolveSession, type AppEnv } from "../context.ts";
 import { imageHeaders } from "../image-proxy.ts";
-import { canManage } from "../inbox-admin.ts";
+import { managersOnly } from "../inbox-admin.ts";
 import { pictureUpload, readPicture } from "../picture-file.ts";
 
 type Owner = "users" | "orgs";
@@ -76,12 +76,7 @@ export const account = new Hono<AppEnv>()
  * member routes, so the org is always the session's active one.
  */
 export const workspaceLogo = new Hono<AppEnv>()
-  .use(async (c, next) => {
-    if (!canManage(c.var.member.role)) {
-      throw new HTTPException(403, { message: "only owners and admins change the logo" });
-    }
-    await next();
-  })
+  .use(managersOnly("only owners and admins change the logo"))
   .put("/logo", ...pictureUpload, async (c) => {
     const { orgId } = c.var.member;
     const logo = await storePicture(c, c.req.valid("form").file, "orgs", orgId);

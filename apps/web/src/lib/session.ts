@@ -188,11 +188,6 @@ export function signInWithGoogle(redirect?: string, app?: string) {
   return signInWithProvider("google", redirect, app);
 }
 
-/** Leaves for Apple's consent screen; returns to `redirect` (or the inbox) signed in. */
-export function signInWithApple(redirect?: string, app?: string) {
-  return signInWithProvider("apple", redirect, app);
-}
-
 /** Signs in with a passkey, then drops the signed-out cache so the route guards see the session. */
 export async function signInWithPasskey(client: QueryClient, router: Reloadable) {
   await authCall(auth.signIn.passkey());

@@ -1,4 +1,4 @@
-import type { Api } from "@omni/client";
+import { idempotencyHeader, type Conversation, type Priority, type Tag } from "@omni/client";
 import {
   queryOptions,
   useMutation,
@@ -6,22 +6,13 @@ import {
   useQueryClient,
   type QueryKey,
 } from "@tanstack/react-query";
-import type { InferResponseType } from "hono/client";
 import { api, call, inWorkspace, isAuthError } from "./api.ts";
 import { idempotencyKey } from "./ids.ts";
 import { keys } from "./query-keys.ts";
 import { alertFailure } from "./thread-actions.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
 
-/** A shared inbox's state for one thread: status, assignee, priority, tags (the web's). */
-export type Conversation = InferResponseType<Api["threads"][":id"]["conversation"]["$get"], 200>;
-export type ConversationStatus = Conversation["status"];
-export type Priority = Conversation["priority"];
-export type Tag = InferResponseType<Api["mailboxes"][":id"]["tags"]["$get"], 200>["tags"][number];
-export type Assignee = InferResponseType<
-  Api["mailboxes"][":id"]["assignees"]["$get"],
-  200
->["assignees"][number];
+export type { Assignee, Conversation, ConversationStatus, Priority, Tag } from "@omni/client";
 
 /** What a property menu changes, as the web's `ConversationChange`. */
 export type ConversationChange =
@@ -73,7 +64,7 @@ function request(
   workspace: string | null,
 ) {
   const param = { id: threadId };
-  const header = { "idempotency-key": key };
+  const header = idempotencyHeader(key);
   const options = inWorkspace(workspace);
   const thread = api.threads[":id"];
   switch (change.type) {

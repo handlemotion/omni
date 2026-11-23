@@ -105,10 +105,11 @@ function openWhileInForeground(client: QueryClient, orgId: string) {
   let socket: Realtime | undefined;
   let generation = 0;
 
-  const open = async (resumed: boolean) => {
+  const open = async (afterBackground: boolean) => {
     const mine = ++generation;
     const cookie = Platform.OS === "web" ? null : await auth.getCookie();
     if (mine !== generation) return;
+    let missed = afterBackground;
     socket = connectRealtime({
       baseUrl: config.apiUrl,
       orgId,
@@ -119,8 +120,12 @@ function openWhileInForeground(client: QueryClient, orgId: string) {
             })
         : undefined,
       onEvent: events.onEvent,
-      onStatus: (status, { reconnected }) => {
-        if (status === "open" && (reconnected || resumed)) refetchAfterMissedEvents(client);
+      onStatus: (status, { reconnected, resumed }) => {
+        if (status !== "open") return;
+        if (missed || (reconnected && !resumed)) refetchAfterMissedEvents(client);
+        // WARNING: teamspace changes send no realtime event, so a resumed socket can't replay them.
+        else if (reconnected) void client.invalidateQueries({ queryKey: keys.driveTeamspaces() });
+        missed = false;
       },
     });
   };

@@ -17,9 +17,14 @@ import {
   type TestDb,
 } from "../../../apps/worker/e2e/support.ts";
 import {
+  ApiError,
   connectRealtime,
   createApi,
   createAuth,
+  createCall,
+  isAuthError,
+  isNotFound,
+  isTransient,
   type RealtimeEvent,
   type RealtimeStatus,
 } from "../src/index.ts";
@@ -143,6 +148,47 @@ test("a member signs in with the auth client and reads only their own mail over 
 
   await auth.signOut();
   expect((await api.me.$get()).status).toBe(401);
+});
+
+test("call reads the Worker's refusals as ApiError, and a cancelled request stays a cancel", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "callco");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  await createMember(db, org.id, "cal@callco.test");
+  const answers: string[] = [];
+  const call = createCall({
+    onAnswer: () => answers.push("answer"),
+    onNoAnswer: () => answers.push("no answer"),
+  });
+
+  const refused = await call(createApi({ baseUrl: String(worker.url) }).me.$get()).catch(
+    (error: unknown) => error,
+  );
+  expect(refused).toBeInstanceOf(ApiError);
+  expect(refused).toMatchObject({ status: 401, code: "unauthorized" });
+  expect(isAuthError(refused)).toBe(true);
+
+  const { api } = await signIn(db, "cal@callco.test");
+  const missing = await call(
+    api.threads[":id"].$get({ param: { id: "00000000-0000-4000-8000-000000000000" } }),
+  ).catch((error: unknown) => error);
+  expect(isNotFound(missing)).toBe(true);
+  expect(isTransient(missing)).toBe(false);
+  expect(await call(api.me.$get())).toMatchObject({ orgId: org.id });
+  expect(answers).toEqual(["answer", "answer", "answer"]);
+
+  const cancelled = await call(
+    api.me.$get(undefined, { init: { signal: AbortSignal.abort() } }),
+  ).catch((error: unknown) => error);
+  expect(cancelled).not.toBeInstanceOf(ApiError);
+  expect(cancelled).toMatchObject({ name: "AbortError" });
+
+  const unreached = await call(createApi({ baseUrl: "http://127.0.0.1:9" }).me.$get()).catch(
+    (error: unknown) => error,
+  );
+  expect(unreached).toMatchObject({ status: 0 });
+  expect(isTransient(unreached)).toBe(true);
+  expect(answers).toEqual(["answer", "answer", "answer", "no answer"]);
 });
 
 test("realtime hands typed events to the app and reconnects after the server drops it", async () => {

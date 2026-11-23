@@ -5,7 +5,7 @@ const SPEECH_RMS = 0.02;
 const SPAN_GAP_MS = 400;
 const MAX_SPANS = 20_000;
 
-export interface CaptureResult {
+interface CaptureResult {
   chunks: number;
   durationMs: number;
   micSpans: Array<{ startMs: number; endMs: number }>;

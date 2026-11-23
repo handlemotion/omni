@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- a CLI report */
 import { writeFileSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
-import { ocrRequest, transcribe } from "../src/index.ts";
+import { ocrRequest, transcribe } from "../src/ocr.ts";
 import { ocrRecordingUrl, ocrScenarios, withoutFileData } from "./ocr-scenarios.ts";
 
 const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -10,7 +10,7 @@ import {
 } from "./folder-sync.ts";
 import { type Capabilities, detectCapabilities, listFolders } from "./imap-server.ts";
 import type { Logger } from "./log.ts";
-import { loginFor, type MailboxConfig } from "./mailbox-config.ts";
+import { loginFor, type MailboxConfig, providerTraits } from "./mailbox-config.ts";
 import { imapTls } from "./mail-hosts.ts";
 import type { FolderInfo, FolderRole, MailStore } from "./ports.ts";
 import { backoff } from "./timing.ts";
@@ -395,7 +395,7 @@ export class MailboxConnection extends EventEmitter<Events> {
         await this.discoverFolders();
         const inbox = this.inbox();
         if (inbox) await this.syncFolderNow(inbox.path);
-        if (inbox && this.mailbox.provider === "gmail") {
+        if (inbox && providerTraits(this.mailbox.provider).readIsDone) {
           await this.store.reconcileFolder(this.mailbox.id, inbox.path);
         }
       });
@@ -438,7 +438,9 @@ export class MailboxConnection extends EventEmitter<Events> {
     const inbox = this.inbox();
     if (!client?.usable || !inbox || client.mailbox === false) return;
     if (client.mailbox.path === inbox.path) return;
-    await client.mailboxOpen(inbox.path).catch(() => {});
+    await client.mailboxOpen(inbox.path).catch((error: unknown) => {
+      this.log.warn("imap.return_to_inbox_failed", { error });
+    });
     this.requestInboxSync();
   }
 

@@ -36,9 +36,9 @@ import {
   slotAt,
   type Slot,
 } from "@/lib/calendar-grid.ts";
+import { TIME } from "@/lib/dates.ts";
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
-const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 const hourLabel = new Intl.DateTimeFormat(undefined, { hour: "numeric" });
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 
@@ -126,7 +126,7 @@ export function WeekGrid(props: WeekGridProps) {
                 className="absolute end-1.5 z-10 -translate-y-1/2 rounded-sm bg-background px-0.5 text-xs font-medium text-module-calendar tabular-nums"
                 style={{ top: (minutesInto(startOfDayOf(props.now), props.now) / 60) * HOUR_PX }}
               >
-                {time.format(props.now)}
+                {TIME.format(props.now)}
               </span>
             )}
           </div>
@@ -421,7 +421,7 @@ const EventBlock = memo(function EventBlock(
       </span>
       {to - from >= 45 && (
         <span className="truncate opacity-70 tabular-nums">
-          {time.format(new Date(event.start))}
+          {TIME.format(new Date(event.start))}
         </span>
       )}
     </CanvasButton>
@@ -455,7 +455,7 @@ export const Chip = memo(function Chip(
       <AccentBar />
       {props.timed && !event.allDay && (
         <span className="me-1 font-normal opacity-70 tabular-nums">
-          {time.format(new Date(event.start))}
+          {TIME.format(new Date(event.start))}
         </span>
       )}
       {event.title || "(No title)"}

@@ -13,6 +13,7 @@ import {
   type StorageSigningOrigin,
 } from "./signing.ts";
 import type { FileResult } from "./tree.ts";
+import { NOT_FOUND } from "./results.ts";
 
 /** A code works for ten minutes, for five tries. */
 export const STORAGE_SIGNING_CODE_TTL_MS = 10 * 60 * 1000;
@@ -58,8 +59,6 @@ export type SignResult =
   | { status: "already_signed" }
   | { status: "invalid_code" }
   | { status: "version_conflict" };
-
-const NOT_FOUND = { status: "not_found" } as const;
 
 function randomCode() {
   const limit = Math.floor(2 ** 32 / 1_000_000) * 1_000_000;

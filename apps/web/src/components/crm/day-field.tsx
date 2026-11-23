@@ -6,8 +6,7 @@ import { IconCalendar, IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/field";
-
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 /**
  * A calendar day (`YYYY-MM-DD`) in a form: a field like a select's trigger that opens the
@@ -43,7 +42,7 @@ export function DayField(props: {
             )}
           >
             <span className="truncate tabular-nums">
-              {props.value ? DAY.format(new Date(`${props.value}T00:00`)) : ""}
+              {props.value ? DAY_YEAR.format(new Date(`${props.value}T00:00`)) : ""}
             </span>
             {(!props.value || props.isRequired) && (
               <IconCalendar

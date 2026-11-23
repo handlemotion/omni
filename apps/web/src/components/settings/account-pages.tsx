@@ -47,8 +47,8 @@ import {
 import { SettingsRow, settingsRowTextEndClassName, type SettingsRowIcon } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
 import { SettingsConfirmDialog, SettingsRenameDialog } from "./kit/settings-stacked-dialog";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 
 /** "5 minutes ago", "yesterday", "3 weeks ago": how long since a session was last used. */
@@ -346,7 +346,7 @@ export function SecurityPage() {
                       icon={IconKey}
                       label={name}
                       hint={passkey.backedUp ? "synced" : "this device only"}
-                      description={`Added ${DAY.format(new Date(passkey.createdAt))}`}
+                      description={`Added ${DAY_YEAR.format(new Date(passkey.createdAt))}`}
                       control={
                         <SettingsRowMenu
                           label={`Actions for ${name}`}

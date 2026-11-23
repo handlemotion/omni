@@ -141,22 +141,6 @@ export function useReopen() {
   };
 }
 
-/** `mutate({ threadId, mailboxId })`: assigned to you. */
-export function useClaim() {
-  const { run, ...rest } = useChange();
-  const client = useQueryClient();
-  const email = useSession().data?.user.email;
-  return {
-    ...rest,
-    mutate: ({ threadId, mailboxId }: { threadId: string; mailboxId: string }) =>
-      run(
-        threadId,
-        { type: "claim", memberId: memberInInbox(client, mailboxId, email) },
-        { mailboxId },
-      ),
-  };
-}
-
 /** `mutate({ threadId, memberId })`: assigned to that member, or unassigned with `null`. */
 export function useAssign() {
   const { run, ...rest } = useChange();

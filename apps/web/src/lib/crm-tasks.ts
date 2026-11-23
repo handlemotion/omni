@@ -5,10 +5,16 @@ import {
   queryOptions,
   type QueryClient,
 } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
+import {
+  onRecord,
+  recordFilter as filterForRecord,
+  type Api,
+  type CrmRecordKind,
+  type CrmTask,
+  type CrmTaskPage,
+} from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
-import type { CrmRecordKind } from "./crm.ts";
 import {
   dropCrmEntity,
   dropFromPages,
@@ -29,8 +35,7 @@ type Json<T> = T extends { json: infer J } ? J : never;
 /** A task's place in the workspace: open beside everyone's tasks. */
 export const taskPath = (id: string) => `/crm/tasks?assignee=anyone&task=${encodeURIComponent(id)}`;
 
-export type CrmTaskPage = InferResponseType<Tasks["$get"], 200>;
-export type CrmTask = CrmTaskPage["tasks"][number];
+export type { CrmTask, CrmTaskPage } from "@omni/client";
 export type CrmTaskCounts = InferResponseType<Tasks["counts"]["$get"], 200>["counts"];
 export type NewTask = Json<InferRequestType<Tasks["$post"]>>;
 export type TaskChange = Json<InferRequestType<Tasks[":id"]["$patch"]>>;
@@ -280,16 +285,9 @@ export const deleteTaskMutation = (client: QueryClient) =>
   });
 
 /** The filter for a record's own tasks. */
-export const recordFilter = (kind: CrmRecordKind, id: string) =>
-  (kind === "companies"
-    ? { company: id }
-    : kind === "people"
-      ? { person: id }
-      : { deal: id }) satisfies TaskFilter as TaskFilter;
+export const recordFilter: (kind: CrmRecordKind, id: string) => TaskFilter = filterForRecord;
 
-/** The record fields of a new task on `kind`/`id`. */
-export const onRecord = (kind: CrmRecordKind, id: string) =>
-  kind === "companies" ? { companyId: id } : kind === "people" ? { personId: id } : { dealId: id };
+export { onRecord };
 
 /** The record a task is on, as a link names it. */
 export function taskRecord(task: CrmTask) {
@@ -302,76 +300,12 @@ export function taskRecord(task: CrmTask) {
   return null;
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** `YYYY-MM-DD` in this device's time zone, for a date input. */
-export function dayOf(iso: string | null) {
-  if (!iso) return "";
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/** A picked day as the moment the API stores: the end of that day here. */
-export function dueAtOf(day: string) {
-  if (!day) return null;
-  const [year, month, date] = day.split("-").map(Number);
-  return new Date(year!, month! - 1, date!, 23, 59, 59, 999).toISOString();
-}
-
-export type DueGroup = "overdue" | "today" | "upcoming" | "none";
-
-export const DUE_GROUPS: { id: DueGroup; label: string }[] = [
-  { id: "overdue", label: "Overdue" },
-  { id: "today", label: "Today" },
-  { id: "upcoming", label: "Upcoming" },
-  { id: "none", label: "No due date" },
-];
-
-/** Where an open task falls by its due time, in this device's day. */
-export function dueGroup(task: Pick<CrmTask, "dueAt">, now = new Date()) {
-  let group: DueGroup = "upcoming";
-  if (!task.dueAt) group = "none";
-  else if (new Date(task.dueAt) < now) group = "overdue";
-  else if (dayOf(task.dueAt) === dayOf(now.toISOString())) group = "today";
-  return group;
-}
-
-/**
- * The due time a task takes when dropped on `group`: the end of today, of tomorrow, or none.
- * Undefined when the drop changes nothing: an open task can't be moved into Overdue, and a task
- * already in the group keeps its own day.
- */
-export function dueOnDrop(task: CrmTask, group: DueGroup, now = new Date()) {
-  if (group === "overdue" || dueGroup(task, now) === group) return undefined;
-  if (group === "none") return null;
-  const day = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + (group === "today" ? 0 : 1),
-    12,
-  );
-  return dueAtOf(dayOf(day.toISOString()));
-}
-
-const SHORT = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-const LONG = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-/** "Today", "Tomorrow", "Mar 4", or with the year when it isn't this year. */
-export function dueLabel(iso: string | null, now = new Date()) {
-  if (!iso) return null;
-  const date = new Date(iso);
-  const today = dayOf(now.toISOString());
-  const shifted = (days: number) =>
-    dayOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 12).toISOString());
-  const tomorrow = shifted(1);
-  const yesterday = shifted(-1);
-  const day = dayOf(iso);
-  if (day === today) return "Today";
-  if (day === tomorrow) return "Tomorrow";
-  if (day === yesterday) return "Yesterday";
-  return (date.getFullYear() === now.getFullYear() ? SHORT : LONG).format(date);
-}
+export {
+  DUE_GROUPS,
+  dayOf,
+  dueAtOf,
+  dueGroup,
+  dueLabel,
+  dueOnDrop,
+  type DueGroup,
+} from "@omni/client";

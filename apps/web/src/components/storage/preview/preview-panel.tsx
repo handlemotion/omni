@@ -32,7 +32,6 @@ import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { CommentsPanel } from "../comments-panel.tsx";
 import { TypeBadge } from "../file-glyph.tsx";
-import { DAY } from "../file-table.tsx";
 import { FIELD_OFFSET, NameField } from "../name-field.tsx";
 import { PdfMarksContext } from "./pdf-marks.tsx";
 import {
@@ -48,6 +47,7 @@ import { PreviewBody } from "./preview-body.tsx";
 import { PreviewRail } from "./preview-rail.tsx";
 import { usePreviewTools } from "./preview-tools.tsx";
 import { downloadFile } from "@/lib/download.ts";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 export function PreviewPanel(props: {
   node: StorageNode;
@@ -235,8 +235,8 @@ function Details(props: { node: StorageNode; border: boolean; shown: boolean }) 
   const rows: [string, ReactNode][] = [
     ["Kind", <TypeBadge key="kind" label={fileType(node.name, node.mimeType).label} />],
     ["Size", formatBytes(node.size)],
-    ["Modified", DAY.format(new Date(node.updatedAt))],
-    ["Created", DAY.format(new Date(node.createdAt))],
+    ["Modified", DAY_YEAR.format(new Date(node.updatedAt))],
+    ["Created", DAY_YEAR.format(new Date(node.createdAt))],
   ];
   return (
     <DescriptionList

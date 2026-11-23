@@ -39,9 +39,6 @@ export const crmPersonSearch = z.object({
   task: optionalId,
 });
 
-/** Drive's Search: `q` matches file and folder names on the server. */
-export const fileSearchSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
-
 const RECORD_SORTS = ["name", "created", "updated"] as const;
 const DEAL_SORTS = [...RECORD_SORTS, "value", "closeOn", "stageEntered"] as const;
 const isoDay = optional(z.string().check(z.regex(/^\d{4}-\d{2}-\d{2}$/)));
@@ -102,7 +99,6 @@ export const crmProjectsSearch = z.object({
 
 export type CrmCompaniesSearch = z.infer<typeof crmCompaniesSearch>;
 export type CrmPeopleSearch = z.infer<typeof crmPeopleSearch>;
-export type CrmDealsSearch = z.infer<typeof crmDealsSearch>;
 export type CrmProjectsSearch = z.infer<typeof crmProjectsSearch>;
 /**
  * A Storage folder's page: the mailbox the switcher keeps, and the file open in the preview or the

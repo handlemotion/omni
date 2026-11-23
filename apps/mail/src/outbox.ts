@@ -5,7 +5,7 @@ import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import { composeForwardCopy, type Forwarding } from "./forward-copy.ts";
 import type { Logger } from "./log.ts";
 import { smtpTls } from "./mail-hosts.ts";
-import { loginFor, type MailboxConfig } from "./mailbox-config.ts";
+import { loginFor, type MailboxConfig, providerTraits } from "./mailbox-config.ts";
 import {
   type ImapSession,
   type MailboxConnection,
@@ -211,7 +211,9 @@ export class OutboxExecutor {
       case "mark_read":
       case "mark_unread":
         if (mailbox.kind === "shared") return Promise.resolve();
-        if (mailbox.provider === "gmail" && !action.payload.done) return Promise.resolve();
+        if (providerTraits(mailbox.provider).readIsDone && !action.payload.done) {
+          return Promise.resolve();
+        }
         return connection.run(async (session) => {
           await selectTarget(session, action.payload, async () => {
             const uids = action.payload.uids.join(",");

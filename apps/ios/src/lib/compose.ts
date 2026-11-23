@@ -1,13 +1,12 @@
-import type { Thread } from "@omni/client";
+import { idempotencyHeader, retryUnreached, type Thread } from "@omni/client";
 import { forwardSubject, replyRecipients, replySubject } from "@omni/mail-core/compose";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { api, ApiError, call, inWorkspace } from "./api.ts";
+import { api, call, inWorkspace } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
-const header = (key: string) => ({ "idempotency-key": key });
-const retry = (count: number, error: Error) =>
-  error instanceof ApiError && error.status === 0 && count < 3;
+const header = idempotencyHeader;
+const retry = retryUnreached(3);
 
 const ADDRESS = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 

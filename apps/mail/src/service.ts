@@ -24,11 +24,12 @@ import { PgForwarding } from "./forward-copy.ts";
 import { connectGoogle, createGoogleOAuth } from "./providers/gmail.ts";
 import { createGoogleCalendar } from "./providers/google-calendar.ts";
 import { createCreditWatch } from "./hosting/credit-watch.ts";
-import { disconnectGoogle, disconnectHostedMailbox, disconnectMailbox } from "./disconnect.ts";
+import { disconnectGoogle, disconnectMailbox } from "./disconnect.ts";
 import { createPurelymailHost } from "./hosting/purelymail-host.ts";
 import { createLoginRotation } from "./hosting/rotate-login.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
 import { type MailHostPolicy, withPlaintextPolicy } from "./mail-hosts.ts";
+import { providerTraits } from "./mailbox-config.ts";
 import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
 import { rehomeMailboxes } from "./rehome.ts";
@@ -234,13 +235,14 @@ export async function startService(config: ServiceConfig, log: Logger) {
         await setMailboxStatus(db, row.id, "error");
         continue;
       }
+      const traits = providerTraits(row.provider);
       const connection = supervisor.add({
         id: row.id,
         orgId: row.orgId,
         address: row.address,
         kind: row.kind,
         provider: row.provider,
-        ...(row.provider === "gmail" && gmailSyncDays > 0
+        ...(traits.syncWindow && gmailSyncDays > 0
           ? { syncSince: new Date(row.createdAt.getTime() - gmailSyncDays * DAY_MS) }
           : {}),
         user: credentials.user,
@@ -255,7 +257,7 @@ export async function startService(config: ServiceConfig, log: Logger) {
       connection.on("connected", () => void setStatus("active"));
       connection.on("auth_failed", () => {
         void setStatus("error");
-        if (row.provider === "purelymail") void rotateLogin?.rotate(row);
+        if (traits.hostedLogin) void rotateLogin?.rotate(row);
       });
     }
   }
@@ -340,7 +342,6 @@ export async function startService(config: ServiceConfig, log: Logger) {
         }
       : {}),
     disconnectGoogle: (input) => disconnectGoogle(disconnectDeps, input),
-    disconnectHosted: (input) => disconnectHostedMailbox(disconnectDeps, input),
     disconnectMailbox: (input) => disconnectMailbox(disconnectDeps, input),
     log: httpLog,
     dns: createDnsLookup({

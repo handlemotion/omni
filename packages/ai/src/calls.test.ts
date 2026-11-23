@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
-import { triage, type ModelClient, type TriageInput } from "./index.ts";
+import { triage } from "./triage.ts";
+import type { ModelClient, TriageInput } from "./types.ts";
 
 const thread: TriageInput = {
   from: { name: "Ana", address: "ana@client.example" },

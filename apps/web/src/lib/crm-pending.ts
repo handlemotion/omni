@@ -6,9 +6,6 @@ const settle = new Map<
   { resolve: (id: string) => void; reject: (error: unknown) => void }
 >();
 
-/** True for an id `pendingId` minted. */
-export const isPendingId = (id: string) => id.startsWith(PREFIX);
-
 /** A new pending id, for a create about to show its row. */
 export function pendingId() {
   const id = `${PREFIX}${crypto.randomUUID()}`;

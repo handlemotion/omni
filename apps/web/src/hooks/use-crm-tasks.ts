@@ -2,7 +2,6 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useCallback, useMemo } from "react";
 import {
   createTaskMutation,
-  crmTaskCountsQuery,
   crmTaskQuery,
   crmTasksQuery,
   deleteTaskMutation,
@@ -22,10 +21,6 @@ export function useCrmTasks(filter: TaskFilter) {
 
 export function useCrmTask(id: string) {
   return useQuery(crmTaskQuery(id));
-}
-
-export function useCrmTaskCounts() {
-  return useQuery(crmTaskCountsQuery());
 }
 
 /**

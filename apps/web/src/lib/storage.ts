@@ -4,8 +4,7 @@ import {
   queryOptions,
   type QueryClient,
 } from "@tanstack/react-query";
-import type { Api } from "@omni/client";
-import type { InferResponseType } from "hono/client";
+import type { Api, DriveNode, StorageListPage } from "@omni/client";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import {
@@ -16,8 +15,8 @@ import {
   storageNodeRemoved,
 } from "./storage-cache.ts";
 
-export type StorageListPage = InferResponseType<Api["storage"]["nodes"]["$get"], 200>;
-export type StorageNode = StorageListPage["nodes"][number];
+export type { StorageListPage } from "@omni/client";
+export type StorageNode = DriveNode;
 export type StorageFolderView = NonNullable<StorageListPage["folder"]>;
 export type StorageSpace = Exclude<StorageNode["space"], "teamspace">;
 /** Where a listing, a new folder or an upload goes: a drive's root, or inside a folder. */
@@ -202,16 +201,4 @@ export const storageUsageQuery = () =>
     queryFn: ({ signal }) => call(api.storage.usage.$get(undefined, { init: { signal } })),
   });
 
-const UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
-
-/** "1.4 MB": a byte count in binary units, one decimal under 10 (none when it is .0). */
-export function formatBytes(bytes: number) {
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < UNITS.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  const digits = unit > 0 && value < 10 ? 1 : 0;
-  return `${Number(value.toFixed(digits))} ${UNITS[unit]}`;
-}
+export { formatBytes } from "@omni/client";

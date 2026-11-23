@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
-import { api, ApiError, call } from "./api.ts";
+import { idempotencyHeader, retryUnreached } from "@omni/client";
+import { api, call } from "./api.ts";
 import {
   applyEffect,
   invalidateThread,
@@ -16,12 +17,11 @@ export interface Keyed {
   key: string;
 }
 
-const retry = (failureCount: number, error: Error) =>
-  error instanceof ApiError && error.status === 0 && failureCount < 10;
+const retry = retryUnreached(10);
 
 const scope = { id: "mail-actions" };
 
-const header = (key: string) => ({ "idempotency-key": key });
+const header = idempotencyHeader;
 
 function optimistic<V extends Keyed & { threadId: string }>(
   client: QueryClient,

@@ -9,12 +9,13 @@ import {
   type CrmStage,
 } from "@/lib/crm.ts";
 import { MemberAvatar } from "./member-avatar.tsx";
-import { DAY, Muted, RecordMark, type RecordColumn } from "./record-list.tsx";
+import { Muted, RecordMark, type RecordColumn } from "./record-list.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
-const day = (iso: string | null) => (iso ? DAY.format(new Date(iso)) : null);
+const day = (iso: string | null) => (iso ? DAY_YEAR.format(new Date(iso)) : null);
 /** A `YYYY-MM-DD` date, read in the viewer's own day. */
 export const calendarDay = (iso: string | null | undefined) =>
-  iso ? DAY.format(new Date(`${iso}T00:00:00`)) : null;
+  iso ? DAY_YEAR.format(new Date(`${iso}T00:00:00`)) : null;
 
 /** A stage's name, coloured by its kind: open neutral, won and done green, lost red. */
 export function StageBadge({ stage, deal }: { stage: CrmStage | undefined; deal: CrmDeal }) {

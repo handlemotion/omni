@@ -27,6 +27,18 @@ import {
   type StorageSpace,
 } from "./core.ts";
 import { leaveTombstones, nextRevision } from "./revision.ts";
+import {
+  NOT_FOUND,
+  FORBIDDEN,
+  LOCKED,
+  VERSION_CONFLICT,
+  type NotFound,
+  type Forbidden,
+  type InvalidName,
+  type TooDeep,
+  type Locked,
+  type VersionConflict,
+} from "./results.ts";
 
 /** Where something goes or is listed: inside a folder, or at the root of a drive. */
 export type StoragePlace =
@@ -59,16 +71,6 @@ export interface StorageNodeView {
   /** In Trash itself or inside a folder that is: only a member reaches such a node. */
   inTrash: boolean;
 }
-
-export type NotFound = { status: "not_found" };
-/** Reachable, but the holder's role does not allow the change. */
-export type Forbidden = { status: "forbidden" };
-export type InvalidName = { status: "invalid_name" };
-export type TooDeep = { status: "too_deep" };
-/** A locked file, or a folder holding one, refuses the change. */
-export type Locked = { status: "locked" };
-/** The node changed since the revision the caller read; nothing was changed. */
-export type VersionConflict = { status: "version_conflict" };
 
 /** What a sync client read: a change is refused when the node has moved on since. */
 export interface StorageGuard {
@@ -110,10 +112,6 @@ export type MoveResult =
 export type TrashResult = NodeResult | Locked | VersionConflict;
 export type FileResult = { status: "ok"; file: StorageNode; r2Key: string } | NotFound;
 
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
-export const LOCKED = { status: "locked" } as const;
-export const VERSION_CONFLICT = { status: "version_conflict" } as const;
 /** For an update that is not an edit of the row, such as a new revision: "Modified" stays. */
 export const keepUpdatedAt = sql<Date>`${storageNodes.updatedAt}`;
 
@@ -140,6 +138,15 @@ export async function reach(ex: Db, door: Door, nodeId: string) {
   return access ? { chain, node: chain[0]!, access } : null;
 }
 
+/**
+ * As `reach`, for a node that must be live: null as well when it or a folder above it is in
+ * Trash. Only a member reaches such a node at all, and only to restore it or delete it for good.
+ */
+export async function reachLive(ex: Db, door: Door, nodeId: string) {
+  const found = await reach(ex, door, nodeId);
+  return found && !inTrash(found.chain) ? found : null;
+}
+
 type Reached = NonNullable<Awaited<ReturnType<typeof reach>>>;
 
 const placeIn = (found: Reached, writable: boolean, attached: boolean) => ({
@@ -155,8 +162,8 @@ const placeIn = (found: Reached, writable: boolean, attached: boolean) => ({
 /** A live place to list or write in, resolved through the door. */
 export async function resolvePlace(ex: Db, door: Door, place: StoragePlace) {
   if ("parentId" in place) {
-    const found = await reach(ex, door, place.parentId);
-    if (!found || found.node.kind !== "folder" || inTrash(found.chain)) return null;
+    const found = await reachLive(ex, door, place.parentId);
+    if (found?.node.kind !== "folder") return null;
     return placeIn(found, found.access.inside, false);
   }
   const drive =
@@ -188,8 +195,8 @@ const isImageName = (name: string) => /\.(png|jpe?g|gif|webp)$/i.test(name);
  */
 export async function resolveUploadPlace(ex: Db, door: Door, place: StoragePlace, name: string) {
   if (!("parentId" in place)) return resolvePlace(ex, door, place);
-  const found = await reach(ex, door, place.parentId);
-  if (!found || inTrash(found.chain)) return null;
+  const found = await reachLive(ex, door, place.parentId);
+  if (!found) return null;
   if (found.node.kind === "folder") return placeIn(found, found.access.inside, false);
   if (found.node.attached || !holdsImages(found.node) || !isImageName(name)) return null;
   return placeIn(found, editsContent(found.access) && !found.node.lockedAt, true);
@@ -232,8 +239,8 @@ const moveInto: (
   const orgId = await orgOfNode(tx, nodeId);
   if (!orgId) return NOT_FOUND;
   await lockTree(tx, orgId);
-  const found = await reach(tx, door, nodeId);
-  if (!found || inTrash(found.chain)) return NOT_FOUND;
+  const found = await reachLive(tx, door, nodeId);
+  if (!found) return NOT_FOUND;
   if (!found.access.change) return FORBIDDEN;
   const { node } = found;
   if (stale(node, guard)) return VERSION_CONFLICT;
@@ -307,10 +314,8 @@ export function treeOperations(db: Db, door: Door) {
         .from(storageNodes)
         .where(eq(storageNodes.shareId, shareId));
       if (!row) return null satisfies StorageNodeView | null;
-      const found = await reach(db, door, row.id);
-      return (
-        found && !inTrash(found.chain) ? view(found.chain, found.access) : null
-      ) satisfies StorageNodeView | null;
+      const found = await reachLive(db, door, row.id);
+      return (found ? view(found.chain, found.access) : null) satisfies StorageNodeView | null;
     },
 
     async list(
@@ -362,8 +367,8 @@ export function treeOperations(db: Db, door: Door) {
             return result;
           }
           await lockTree(tx, orgId);
-          const found = await reach(tx, door, nodeId);
-          if (!found || inTrash(found.chain)) {
+          const found = await reachLive(tx, door, nodeId);
+          if (!found) {
             const result: RenameResult = NOT_FOUND;
             return result;
           }

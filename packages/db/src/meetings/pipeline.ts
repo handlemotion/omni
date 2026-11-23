@@ -12,7 +12,7 @@ import {
   meetingsSpeakers,
   meetingsStatus,
 } from "../schema/meetings.ts";
-import type { Ex } from "./core.ts";
+import { teammateRole, type Ex } from "./core.ts";
 
 export type MeetingStatus = (typeof meetingsStatus.enumValues)[number];
 
@@ -351,7 +351,7 @@ export async function memberAudience(ex: Ex, meetingId: string) {
   const granted = new Set(grants.map((g) => g.address));
   const reach = new Set<string>();
   for (const p of people) {
-    const teammate = p.role.split(",").some((r) => r.trim() !== "freelancer");
+    const teammate = teammateRole(p.role);
     const addresses = [p.verified ? p.email : null, p.extra]
       .filter((a): a is string => !!a)
       .map((a) => a.toLowerCase());

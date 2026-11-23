@@ -11,7 +11,7 @@ import { type Db, findOrgMailboxById } from "@omni/db";
 import { z } from "zod";
 import { openCredentials } from "../credentials.ts";
 import type { Logger } from "../log.ts";
-import type { TokenSource } from "../mailbox-config.ts";
+import { providerTraits, type TokenSource } from "../mailbox-config.ts";
 import { ProvisionError } from "../provisioning.ts";
 import { type GoogleOAuth, googleTokenSource } from "./gmail.ts";
 
@@ -87,7 +87,7 @@ export function createGoogleCalendar(deps: GoogleCalendarDeps) {
   async function tokenFor(input: { orgId: string; mailboxId: string }) {
     const mailbox = await findOrgMailboxById(deps.db, input.orgId, input.mailboxId);
     if (!mailbox) throw new ProvisionError(404, "No such mailbox");
-    if (mailbox.provider !== "gmail") return null;
+    if (!providerTraits(mailbox.provider).googleAccount) return null;
     const credentials = await openCredentials(deps.keyring, mailbox.id, mailbox.credentialsEnc);
     if (!("oauth" in credentials)) return null;
     let cached = tokens.get(mailbox.id);

@@ -9,11 +9,17 @@ function originAllowed(origin: string | undefined, allowed: string[]) {
   return origin === undefined || allowed.includes(origin);
 }
 
-function toolScope(body: unknown) {
-  if (typeof body !== "object" || body === null) return undefined;
-  const { method, params } = body as { method?: unknown; params?: { name?: unknown } };
-  if (method !== "tools/call" || typeof params?.name !== "string") return undefined;
-  return TOOL_SCOPES[params.name];
+function toolScopes(body: unknown) {
+  const scopes = new Set<string>();
+  for (const message of Array.isArray(body) ? body : [body]) {
+    if (typeof message !== "object" || message === null) continue;
+    const { method, params } = message as { method?: unknown; params?: { name?: unknown } };
+    if (method !== "tools/call") continue;
+    const scope = typeof params?.name === "string" ? TOOL_SCOPES.get(params.name) : undefined;
+    if (!scope) return null;
+    scopes.add(scope);
+  }
+  return [...scopes];
 }
 
 export const mcp = new Hono<AppEnv>()
@@ -26,14 +32,20 @@ export const mcp = new Hono<AppEnv>()
     }
     const caller = await authenticate(c.req.raw, auth, db, baseURL);
     if (caller instanceof Response) return caller;
-    const needed = toolScope(
+    const needed = toolScopes(
       await c.req.raw
         .clone()
         .json()
         .catch(() => null),
     );
-    if (needed && !caller.scopes.has(needed))
-      return insufficientScope(baseURL, [needed], caller.scopes);
+    if (!needed) {
+      return c.json(
+        { jsonrpc: "2.0", id: null, error: { code: -32602, message: "Unknown tool" } },
+        400,
+      );
+    }
+    const missing = needed.filter((scope) => !caller.scopes.has(scope));
+    if (missing.length) return insufficientScope(baseURL, missing, caller.scopes);
     c.set("log", log.child({ component: "mcp", clientId: caller.clientId }));
 
     const context = {

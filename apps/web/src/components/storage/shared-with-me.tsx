@@ -12,10 +12,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useSharedWithMe } from "@/hooks/use-storage.ts";
-import { COLUMN, DAY, FileTableBones, Muted, NameCell } from "./file-table.tsx";
+import { COLUMN, FileTableBones, Muted, NameCell } from "./file-table.tsx";
 import { LinkRowsMenu } from "./node-menu.tsx";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 const ROLE = { viewer: "Viewer", commenter: "Commenter", editor: "Editor" } as const;
 
@@ -74,7 +75,7 @@ export function SharedWithMe() {
                       <span className="block truncate text-muted-foreground">{item.orgName}</span>
                     </TableCell>
                     <TableCell className={COLUMN.date}>
-                      <Muted>{DAY.format(new Date(item.sharedAt))}</Muted>
+                      <Muted>{DAY_YEAR.format(new Date(item.sharedAt))}</Muted>
                     </TableCell>
                     <TableCell>
                       <Muted>{ROLE[item.role]}</Muted>

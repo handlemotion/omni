@@ -30,8 +30,7 @@ export interface Cursor {
   seq: number;
 }
 
-/** `since=<epoch>.<seq>` as a client sends it, or null when it is not one. */
-export function parseCursor(raw: string | null) {
+function parseCursor(raw: string | null) {
   const match = raw?.match(/^([0-9a-f-]{36})\.(\d{1,15})$/);
   if (!match?.[1] || !match[2]) return null;
   return { epoch: match[1], seq: Number(match[2]) } satisfies Cursor;

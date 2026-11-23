@@ -1,4 +1,4 @@
-import type { Api } from "@omni/client";
+import type { Api, Conversation } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 
 export type {
@@ -12,6 +12,13 @@ export type {
   Message,
   PendingInvitation,
   SearchResult,
+  Assignee,
+  Conversation,
+  ConversationStatus,
+  Notification,
+  NotificationPage,
+  Priority,
+  Tag,
   Thread,
   ThreadPage,
   ThreadSummary,
@@ -90,21 +97,9 @@ export type ConversationCounts = InferResponseType<
   200
 >["counts"];
 
-/** A helpdesk conversation: status, assignee, priority, due times, tags and timeline events. */
-export type Conversation = InferResponseType<Api["threads"][":id"]["conversation"]["$get"], 200>;
-export type ConversationStatus = Conversation["status"];
-export type Priority = Conversation["priority"];
 export type ConversationEvent = Conversation["events"][number];
 /** An internal note in a conversation's timeline. */
 export type Note = Conversation["notes"][number];
-export type NotificationPage = InferResponseType<Api["notifications"]["$get"], 200>;
-/** One notification: `kind` (assigned, mention, customer_reply, …), the thread, its subject. */
-export type Notification = NotificationPage["notifications"][number];
-export type Tag = InferResponseType<Api["mailboxes"][":id"]["tags"]["$get"], 200>["tags"][number];
-export type Assignee = InferResponseType<
-  Api["mailboxes"][":id"]["assignees"]["$get"],
-  200
->["assignees"][number];
 /**
  * A shared inbox's SLA settings: `policies` (targets in minutes per priority, null untracked),
  * `businessHours` (null: always open) and whether it auto-assigns new conversations.

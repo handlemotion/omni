@@ -12,9 +12,7 @@ import {
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./context.ts";
-import { DomainError } from "./domains.ts";
 import { createLogger } from "./log.ts";
-import { MailServiceError } from "./mail-service.ts";
 
 export interface ErrorExtras {
   /** The first offending field of a validation error. */
@@ -35,7 +33,7 @@ export class ApiFailure extends Error {
   }
 }
 
-export function wantsNestedErrors(c: Context) {
+function wantsNestedErrors(c: Context) {
   return c.req.header(ERROR_FORMAT_HEADER) === ERROR_FORMAT_VERSION;
 }
 
@@ -68,17 +66,12 @@ export function apiError(
   return c.json(errorBody(c, code, message, extras), ERROR_CODES[code].status);
 }
 
-function statusOf(error: unknown) {
-  if (error instanceof HTTPException) return error.status;
-  if (error instanceof DomainError || error instanceof MailServiceError) return error.status;
-  return undefined;
-}
-
 /** `app.onError`: every thrown refusal gets its code here; anything else is a 500 that says nothing. */
 export function answerThrown(error: Error, c: Context<AppEnv>) {
   if (error instanceof ApiFailure) return apiError(c, error.code, error.message, error.extras);
-  const status = statusOf(error);
-  if (status !== undefined) return apiError(c, codeForStatus(status), error.message);
+  if (error instanceof HTTPException) {
+    return apiError(c, codeForStatus(error.status), error.message);
+  }
   (c.var.log ?? createLogger()).error("http.error", { error, orgId: c.var.member?.orgId });
   return apiError(c, "internal_server_error", "internal error");
 }

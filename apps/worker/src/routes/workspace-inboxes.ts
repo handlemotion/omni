@@ -1,8 +1,4 @@
-import {
-  HOSTED_DISCONNECT_PATH,
-  hostedDisconnectResultSchema,
-  MAILBOX_DISCONNECT_PATH,
-} from "@omni/contracts";
+import { hostedDisconnectResultSchema, MAILBOX_DISCONNECT_PATH } from "@omni/contracts";
 import {
   giveOrphanedInbox,
   listInboxEvents,
@@ -17,7 +13,6 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { logInboxAction, requireManager } from "../inbox-admin.ts";
 import { callMailService } from "../mail-service.ts";
-import { fromMailService } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 
@@ -36,13 +31,10 @@ function answerOrphan(result: OrphanResult) {
  * its login; the mail stays at the host. Refused (409) when it is someone's only inbox. Retrying
  * one already gone answers 204.
  */
-export async function removeInbox(c: Context<AppEnv>, mailboxId: string, hostedOnly: boolean) {
+export async function removeInbox(c: Context<AppEnv>, mailboxId: string) {
   const orgId = c.var.member.orgId;
   const mailbox = (await listWorkspaceMailboxes(c.var.db, orgId)).find((m) => m.id === mailboxId);
   if (!mailbox) return c.body(null, 204);
-  if (hostedOnly && mailbox.provider !== "purelymail") {
-    throw new HTTPException(404, { message: "not found" });
-  }
   if ((await membersStrandedWithout(c.var.db, orgId, mailboxId)).length > 0) {
     throw new HTTPException(409, {
       message: "this is the only inbox someone can open: give them another one first",
@@ -50,10 +42,10 @@ export async function removeInbox(c: Context<AppEnv>, mailboxId: string, hostedO
   }
   await callMailService(
     c.var,
-    hostedOnly ? HOSTED_DISCONNECT_PATH : MAILBOX_DISCONNECT_PATH,
+    MAILBOX_DISCONNECT_PATH,
     { orgId, mailboxId },
     hostedDisconnectResultSchema,
-  ).catch(fromMailService);
+  );
   await logInboxAction(c, "inbox.removed", mailbox.address, { mailboxId });
   return c.body(null, 204);
 }
@@ -65,7 +57,7 @@ export const workspaceInboxes = new Hono<AppEnv>()
   .use("/workspace/events", requireManager)
 
   .delete("/workspace/inboxes/:id", limitPerMember("provision"), (c) =>
-    removeInbox(c, c.req.param("id"), false),
+    removeInbox(c, c.req.param("id")),
   )
 
   .post(

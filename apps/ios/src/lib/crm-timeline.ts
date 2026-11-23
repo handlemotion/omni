@@ -1,13 +1,12 @@
-import type { Api } from "@omni/client";
+import type { Api, CrmRecordKind, CrmStage } from "@omni/client";
 import { infiniteQueryOptions, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
 import { ApiError, api, auth, call } from "./api.ts";
-import type { CrmRecordKind } from "./crm-mutations.ts";
 import { keys } from "./query-keys.ts";
 import { useWorkspace } from "./workspace.ts";
 
 type Crm = Api["crm"];
-export type CrmStage = InferResponseType<Crm["stages"]["$get"], 200>["stages"][number];
+export type { CrmStage } from "@omni/client";
 type TimelinePage = InferResponseType<Crm["companies"][":id"]["timeline"]["$get"], 200>;
 export type CrmTimelineItem = TimelinePage["items"][number];
 type EventItem = Extract<CrmTimelineItem, { kind: "event" }>["event"];

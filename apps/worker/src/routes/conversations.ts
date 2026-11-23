@@ -1,26 +1,15 @@
 import {
   applyConversationChange,
-  MAX_ROLE_DESCRIPTION,
   CONVERSATION_VIEWS,
   createNote,
-  createTag,
-  deleteBusinessHours,
   deleteNote,
-  deleteSlaPolicy,
-  deleteTag,
-  markNotificationsRead,
   NOTE_MAX_LENGTH,
   updateNote,
   forMember,
   PRIORITIES,
-  putBusinessHours,
-  putSlaPolicy,
-  setAutoAssign,
-  updateTag,
   type ConversationChange,
 } from "@omni/db";
-import { isTimeZone, type BusinessHoursWindow } from "@omni/mail-core/business-hours";
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
@@ -32,7 +21,7 @@ import {
   notifyMembers,
   withdrawNotifications,
 } from "../realtime-announce.ts";
-import { cursorParam, encodeCursor } from "../cursor.ts";
+import { timePageCursor, timePageQuery } from "../cursor.ts";
 import { zValidator, idempotencyHeader } from "../validator.ts";
 import {
   applyChange,
@@ -41,19 +30,12 @@ import {
   failures,
 } from "./conversation-change.ts";
 import { notFound } from "../errors.ts";
-import { canManage } from "../inbox-admin.ts";
-
-const cursorQuery = cursorParam(z.object({ t: z.iso.datetime(), id: z.string().min(1) }))
-  .transform((parsed) => ({ at: parsed.t, id: parsed.id }))
-  .optional();
-
-const pageCursor = (at: string, id: string) => encodeCursor({ t: at, id });
 
 const listQuery = z.object({
   mailboxId: z.string().min(1),
   view: z.enum(CONVERSATION_VIEWS).default("open"),
   tagId: z.string().min(1).optional(),
-  cursor: cursorQuery,
+  cursor: timePageQuery,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
@@ -62,68 +44,10 @@ const noteBody = z.object({
   mentions: z.array(z.string().min(1)).max(50).default([]),
 });
 const notePatchBody = z.object({ body: z.string().trim().min(1).max(NOTE_MAX_LENGTH) });
-const notificationsQuery = z.object({
-  unread: z.enum(["true", "false"]).default("false"),
-  cursor: cursorQuery,
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
-const readBody = z.object({ ids: z.array(z.string().min(1)).min(1).max(500).optional() });
-
 const snoozeBody = z.object({ until: z.iso.datetime({ offset: true }) });
 const assigneeBody = z.object({ memberId: z.string().min(1).nullable() });
 const priorityBody = z.object({ priority: z.enum(PRIORITIES) });
 const tagBody = z.object({ tagId: z.string().min(1) });
-const tagColor = z
-  .string()
-  .regex(/^[a-z][a-z0-9-]{0,31}$/)
-  .nullable();
-const tagDescription = z.string().max(MAX_ROLE_DESCRIPTION);
-const newTagBody = z.object({
-  name: z.string().trim().min(1).max(64),
-  color: tagColor.optional(),
-  description: tagDescription.optional(),
-});
-const tagPatchBody = z
-  .object({
-    name: z.string().trim().min(1).max(64).optional(),
-    color: tagColor.optional(),
-    description: tagDescription.optional(),
-  })
-  .refine(
-    (patch) =>
-      patch.name !== undefined || patch.color !== undefined || patch.description !== undefined,
-    "nothing to change",
-  );
-
-const targetMinutes = z.number().int().min(1).max(525_600).nullable();
-const slaPolicyBody = z.object({
-  firstResponseMinutes: targetMinutes,
-  nextResponseMinutes: targetMinutes,
-  resolutionMinutes: targetMinutes,
-  businessHoursOnly: z.boolean().default(true),
-});
-const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, "HH:MM");
-const businessHoursBody = z.object({
-  timezone: z.string().refine(isTimeZone, "an IANA time zone, e.g. America/Mexico_City"),
-  windows: z
-    .array(
-      z
-        .object({
-          day: z
-            .number()
-            .int()
-            .min(0)
-            .max(6)
-            .transform((d) => d as BusinessHoursWindow["day"]),
-          start: clockTime,
-          end: clockTime,
-        })
-        .refine((w) => w.start < w.end, "end after start"),
-    )
-    .max(70),
-  holidays: z.array(z.iso.date()).max(400).default([]),
-});
-
 const bulkChange = z.discriminatedUnion("type", [
   z.object({ type: z.literal("resolve") }),
   z.object({ type: z.literal("reopen") }),
@@ -137,24 +61,6 @@ const bulkBody = z.object({
   threadIds: z.array(z.string().min(1)).min(1).max(100),
   change: bulkChange,
 });
-const autoAssignBody = z.object({ enabled: z.boolean() });
-const DAY = 86_400_000;
-const REPORT_MAX_DAYS = 92;
-const reportQuery = z
-  .object({
-    from: z.iso.datetime({ offset: true }).optional(),
-    to: z.iso.datetime({ offset: true }).optional(),
-  })
-  .transform(({ from, to }, ctx) => {
-    const end = to ? new Date(to) : new Date();
-    const start = from ? new Date(from) : new Date(end.getTime() - 30 * DAY);
-    if (start >= end || end.getTime() - start.getTime() > REPORT_MAX_DAYS * DAY) {
-      ctx.addIssue({ code: "custom", message: `from before to, at most ${REPORT_MAX_DAYS} days` });
-      return z.NEVER;
-    }
-    return { from: start, to: end };
-  });
-
 const domainChange: (change: z.infer<typeof bulkChange>, memberId: string) => ConversationChange = (
   change,
   memberId,
@@ -171,12 +77,6 @@ const domainChange: (change: z.infer<typeof bulkChange>, memberId: string) => Co
   }
 };
 
-function requireManager(c: Context<AppEnv>) {
-  if (!canManage(c.var.member.role)) {
-    throw new HTTPException(403, { message: "only owners and admins change inbox settings" });
-  }
-}
-
 const writeGuards = [limitPerMember("actions"), zValidator("header", idempotencyHeader)] as const;
 
 export const conversations = new Hono<AppEnv>()
@@ -188,7 +88,7 @@ export const conversations = new Hono<AppEnv>()
     });
     const last = rows.at(-1);
     const nextCursor =
-      last && rows.length === query.limit ? pageCursor(last.pageAt, last.id) : null;
+      last && rows.length === query.limit ? timePageCursor(last.pageAt, last.id) : null;
     return c.json({ conversations: rows.map(({ pageAt: _pageAt, ...row }) => row), nextCursor });
   })
 
@@ -365,146 +265,5 @@ export const conversations = new Hono<AppEnv>()
         }),
       ]),
     );
-    return c.body(null, 204);
-  })
-
-  .get("/notifications", zValidator("query", notificationsQuery), async (c) => {
-    const { unread, cursor, limit } = c.req.valid("query");
-    const page = await forMember(c.var.db, c.var.member.id).listNotifications({
-      unreadOnly: unread === "true",
-      before: cursor,
-      limit,
-    });
-    const last = page.notifications.at(-1);
-    return c.json({
-      unread: page.unread,
-      notifications: page.notifications.map(({ pageAt: _pageAt, ...row }) => row),
-      nextCursor:
-        last && page.notifications.length === limit ? pageCursor(last.pageAt, last.id) : null,
-    });
-  })
-
-  .post("/notifications/read", zValidator("json", readBody), async (c) => {
-    const { ids } = c.req.valid("json");
-    const marked = await markNotificationsRead(c.var.db, c.var.member.id, ids ?? "all");
-    return c.json({ marked });
-  })
-
-  .get("/mailboxes/:id/assignees", async (c) => {
-    const assignees = await forMember(c.var.db, c.var.member.id).mailboxAssignees(
-      c.req.param("id"),
-    );
-    if (!assignees) notFound();
-    return c.json({ assignees });
-  })
-
-  .get("/mailboxes/:id/sla", async (c) => {
-    const settings = await forMember(c.var.db, c.var.member.id).slaSettings(c.req.param("id"));
-    if (!settings) notFound();
-    return c.json(settings);
-  })
-
-  .put("/mailboxes/:id/sla/:priority", zValidator("json", slaPolicyBody), async (c) => {
-    requireManager(c);
-    const priority = z.enum(PRIORITIES).safeParse(c.req.param("priority"));
-    if (!priority.success) notFound();
-    const ok = await putSlaPolicy(
-      c.var.db,
-      c.var.member.orgId,
-      c.req.param("id"),
-      priority.data,
-      c.req.valid("json"),
-    );
-    if (!ok) notFound();
-    return c.json({ ok: true as const });
-  })
-
-  .delete("/mailboxes/:id/sla/:priority", async (c) => {
-    requireManager(c);
-    const priority = z.enum(PRIORITIES).safeParse(c.req.param("priority"));
-    if (!priority.success) notFound();
-    if (!(await deleteSlaPolicy(c.var.db, c.var.member.orgId, c.req.param("id"), priority.data))) {
-      notFound();
-    }
-    return c.body(null, 204);
-  })
-
-  .put("/mailboxes/:id/business-hours", zValidator("json", businessHoursBody), async (c) => {
-    requireManager(c);
-    const ok = await putBusinessHours(
-      c.var.db,
-      c.var.member.orgId,
-      c.req.param("id"),
-      c.req.valid("json"),
-    );
-    if (!ok) notFound();
-    return c.json({ ok: true as const });
-  })
-
-  .delete("/mailboxes/:id/business-hours", async (c) => {
-    requireManager(c);
-    if (!(await deleteBusinessHours(c.var.db, c.var.member.orgId, c.req.param("id")))) notFound();
-    return c.body(null, 204);
-  })
-
-  .put("/mailboxes/:id/auto-assign", zValidator("json", autoAssignBody), async (c) => {
-    requireManager(c);
-    const ok = await setAutoAssign(
-      c.var.db,
-      c.var.member.orgId,
-      c.req.param("id"),
-      c.req.valid("json").enabled,
-    );
-    if (!ok) notFound();
-    return c.json({ ok: true as const });
-  })
-
-  .get("/mailboxes/:id/report", zValidator("query", reportQuery), async (c) => {
-    const range = c.req.valid("query");
-    const report = await forMember(c.var.db, c.var.member.id).inboxReport(c.req.param("id"), range);
-    if (!report) notFound();
-    return c.json({ from: range.from.toISOString(), to: range.to.toISOString(), ...report });
-  })
-
-  .get("/mailboxes/:id/tags", async (c) => {
-    const tags = await forMember(c.var.db, c.var.member.id).listTags(c.req.param("id"));
-    if (!tags) notFound();
-    return c.json({ tags });
-  })
-
-  .post("/mailboxes/:id/tags", zValidator("json", newTagBody), async (c) => {
-    const result = await createTag(
-      c.var.db,
-      c.var.member.id,
-      c.req.param("id"),
-      c.req.valid("json"),
-    );
-    if (!result) notFound();
-    return c.json({ tag: result.tag }, result.created ? 201 : 200);
-  })
-
-  .patch("/mailboxes/:id/tags/:tagId", zValidator("json", tagPatchBody), async (c) => {
-    const result = await updateTag(
-      c.var.db,
-      c.var.member.id,
-      c.req.param("id"),
-      c.req.param("tagId"),
-      c.req.valid("json"),
-    );
-    if (result.status === "not_found") notFound();
-    if (result.status === "conflict") {
-      throw new HTTPException(409, { message: "another tag has that name" });
-    }
-    return c.json({ tag: result.tag });
-  })
-
-  .delete("/mailboxes/:id/tags/:tagId", async (c) => {
-    const deleted = await deleteTag(
-      c.var.db,
-      c.var.member.id,
-      c.req.param("id"),
-      c.req.param("tagId"),
-    );
-    if (!deleted) notFound();
     return c.body(null, 204);
   });

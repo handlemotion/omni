@@ -1,11 +1,9 @@
-import { WORKSPACE_HEADER } from "@omni/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Directory, File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { api, auth, call } from "./api.ts";
+import { api, call, sessionHeaders } from "./api.ts";
 import { config } from "./config.ts";
 import { keys } from "./query-keys.ts";
-import { currentWorkspaceId } from "./workspace-id.ts";
 
 export interface AttachmentRef {
   threadId: string;
@@ -19,11 +17,7 @@ async function downloadAgainEveryTime({ threadId, attachmentId, filename }: Atta
   const folder = new Directory(Paths.cache, "attachments", attachmentId);
   folder.create({ idempotent: true, intermediates: true });
   const file = new File(folder, fileName(filename));
-  const headers: Record<string, string> = {};
-  const cookie = await auth.getCookie();
-  if (cookie) headers.cookie = cookie;
-  const workspace = currentWorkspaceId();
-  if (workspace) headers[WORKSPACE_HEADER] = workspace;
+  const headers = await sessionHeaders();
   const url = `${config.apiUrl}/api/threads/${encodeURIComponent(threadId)}/attachments/${encodeURIComponent(attachmentId)}`;
   await File.downloadFileAsync(url, file, { headers, idempotent: true });
   return { file, folder };

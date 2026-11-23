@@ -13,6 +13,7 @@ import { ItemLabel } from "@/components/ui/dropdown";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import { useRecordHref } from "./record-trail.tsx";
+import { DAY_YEAR } from "@/lib/dates.ts";
 
 const PLAIN_TRIGGER =
   "border-transparent bg-transparent enabled:hover:border-transparent enabled:hover:bg-hover";
@@ -152,8 +153,6 @@ export function MoneyValue(props: {
   );
 }
 
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
-
 /**
  * A calendar day (`YYYY-MM-DD`) picked in place: shown as text like the other values, a calendar
  * opening under it; null once it is cleared.
@@ -200,7 +199,7 @@ export function DayValue(props: {
             )}
           >
             <span className={cn("truncate tabular-nums", !props.value && "text-muted-foreground")}>
-              {props.value ? DAY.format(new Date(`${props.value}T00:00`)) : "–"}
+              {props.value ? DAY_YEAR.format(new Date(`${props.value}T00:00`)) : "–"}
             </span>
             <IconCalendar
               aria-hidden

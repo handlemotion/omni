@@ -1,11 +1,11 @@
-import type { Api } from "@omni/client";
+import type { Api, CrmContract } from "@omni/client";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import { crmChanged } from "./crm-mutations.ts";
 
 type Crm = Api["crm"];
-export type CrmContract = InferResponseType<Crm["contracts"]["$get"], 200>["contracts"][number];
+export type { CrmContract } from "@omni/client";
 export type ContractSigner = NonNullable<CrmContract["signing"]>["signers"][number];
 export type ContractSigners = InferRequestType<
   Crm["contracts"][":id"]["send"]["$post"]

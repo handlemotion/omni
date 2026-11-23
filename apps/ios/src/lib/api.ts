@@ -1,15 +1,7 @@
 import { expoClient } from "@better-auth/expo/client";
-import {
-  WORKSPACE_HEADER,
-  createApi,
-  createAuth,
-  toApiError,
-  type Api,
-  type ApiErrorInfo,
-} from "@omni/client";
+import { WORKSPACE_HEADER, createApi, createAuth, createCall, type Api } from "@omni/client";
 import * as SecureStore from "./secure-store";
 import { Platform } from "react-native";
-import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { config } from "./config.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
 
@@ -45,34 +37,6 @@ export const api: Api = createApi({
 });
 
 /**
- * A failed API call. `status` 0 means the request never got an answer (offline, aborted). The
- * rest is what the Worker said, when it said it: `code` is stable, the message is not.
- */
-export class ApiError extends Error {
-  readonly status: number;
-  readonly code?: string;
-  readonly category?: string;
-  readonly retryable?: boolean;
-  readonly requestId?: string;
-  readonly param?: string;
-  readonly details?: Record<string, unknown>;
-  /** When a 429's window resets (ms since the epoch), from the Worker's `limit`. */
-  readonly retryAt?: number;
-  constructor(status: number, message: string, info: Omit<ApiErrorInfo, "message"> = {}) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.code = info.code;
-    this.category = info.category;
-    this.retryable = info.retryable;
-    this.requestId = info.requestId;
-    this.param = info.param;
-    this.details = info.details;
-    this.retryAt = info.limit?.resetMs;
-  }
-}
-
-/**
  * Request options that name `workspace` on a call, whatever the app is in when it runs: a mutation
  * captures the workspace when the person acts, so a retry after they switch still lands there.
  */
@@ -81,28 +45,18 @@ export function inWorkspace(workspace: string | null) {
 }
 
 /** Awaits a Hono RPC call and returns its typed body, or throws `ApiError`. */
-// oxlint-disable-next-line typescript/no-explicit-any -- mirrors hono's own `parseResponse` bound
-export const call: <T extends ClientResponse<any>>(
-  request: Promise<T>,
-) => ReturnType<typeof parseResponse<T>> = async (request) => {
-  try {
-    return await parseResponse(request);
-  } catch (error) {
-    if (error instanceof DetailedError) {
-      const data = (error.detail as { data?: unknown } | undefined)?.data;
-      const { message, ...info } = toApiError(data, error.message);
-      throw new ApiError(Number(error.statusCode ?? 0), message, info);
-    }
-    throw new ApiError(0, error instanceof Error ? error.message : String(error));
-  }
-};
+export const call = createCall();
 
-/** True for "not signed in" or "not a member": retrying will not help. */
-export function isAuthError(error: unknown) {
-  return error instanceof ApiError && (error.status === 401 || error.status === 403);
-}
+export { ApiError, isAuthError, isNotFound } from "@omni/client";
 
-/** The record is gone (deleted, or never there). */
-export function isNotFound(error: unknown) {
-  return error instanceof ApiError && error.status === 404;
+/**
+ * The session and the workspace, for a request the app makes outside `call()`: a download, an
+ * upload, an image the system loads.
+ */
+export async function sessionHeaders(workspace = currentWorkspaceId()) {
+  const headers: Record<string, string> = {};
+  const cookie = await auth.getCookie();
+  if (cookie) headers.cookie = cookie;
+  if (workspace) headers[WORKSPACE_HEADER] = workspace;
+  return headers;
 }
