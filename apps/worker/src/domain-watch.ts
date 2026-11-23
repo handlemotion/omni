@@ -4,6 +4,7 @@ import { openDb } from "./db.ts";
 import { advanceDomainStep, checkDomain, DomainError, domainView } from "./domains.ts";
 import { loadConfig } from "./env.ts";
 import { createLogger } from "./log.ts";
+import { realtimeOf } from "./realtime-announce.ts";
 
 /** Seconds before each check; the last repeats. */
 export const WATCH_DELAYS_S = [5, 10, 30, 60] as const;
@@ -91,7 +92,7 @@ export class DomainWatch extends DurableObject<Env> {
         else log.warn("domain_watch.check_failed", { error });
       }
       const admins = await orgDomainAdmins(db, state.orgId);
-      const realtime = this.env.REALTIME.get(this.env.REALTIME.idFromName(state.orgId));
+      const realtime = realtimeOf(this.env, state.orgId);
       await realtime.broadcast(admins, { type: "domain", domainId: state.claimId });
       return !done;
     } finally {

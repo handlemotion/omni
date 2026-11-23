@@ -12,13 +12,14 @@ import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 import { talkFiles } from "./files.ts";
 import { announce, deliver, memberTalk, refused, wireMessage } from "./http.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 /** `/api/talk`: direct threads between teammates (`docs/spec/talk.md`). */
 export const talk = new Hono<AppEnv>()
   .get("/people", async (c) => {
     const listed = await memberTalk(c).people();
     if (listed.status !== "ok") return refused(c, listed);
-    const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(c.var.member.orgId));
+    const stub = realtimeOf(c.env, c.var.member.orgId);
     const online = new Set(await stub.online());
     return c.json({
       people: listed.people.map((person) => ({

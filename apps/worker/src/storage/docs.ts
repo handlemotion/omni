@@ -5,6 +5,7 @@ import { s2Basin } from "../s2.ts";
 import { docRecordEvents, LiveFile } from "./doc-live.ts";
 import { refusalFor, writeText, type WriteDeps, type WriteResult } from "./doc-write.ts";
 import { journalLater } from "./journal.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 /** The largest doc an agent may change: what the editor opens whole. */
 export const DOC_MAX_BYTES = 1_000_000;
@@ -23,7 +24,7 @@ export function passOn(
   nodeId: string,
   entries: StorageLiveEntry[],
 ) {
-  const stub = deps.env.REALTIME.get(deps.env.REALTIME.idFromName(orgId));
+  const stub = realtimeOf(deps.env, orgId);
   deps.waitUntil(
     stub
       .docRecords(nodeId, docRecordEvents(nodeId, entries))

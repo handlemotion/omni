@@ -27,6 +27,7 @@ import { checkRateLimit, longestWait, tooManyRequests } from "../rate-limiter.ts
 import { wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
 import { decodeCursor, encodeCursor, memberStorage, refused } from "./http.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 const sharedCursor = z.object({ sharedAt: z.coerce.date(), id: z.string().min(1) });
 
@@ -116,7 +117,7 @@ async function linkSettings(body: {
 const recheckOutside = createMiddleware<AppEnv>(async (c, next) => {
   await next();
   if (c.req.method === "GET" || !c.res.ok) return;
-  const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(c.var.member.orgId));
+  const stub = realtimeOf(c.env, c.var.member.orgId);
   c.executionCtx.waitUntil(
     stub
       .recheckOutsiders("all")

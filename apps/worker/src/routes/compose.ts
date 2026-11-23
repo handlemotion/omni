@@ -4,7 +4,7 @@ import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
-import { fanOut, notifyMembers } from "../realtime.ts";
+import { fanOut, notifyMembers } from "../realtime-announce.ts";
 import { idempotencyHeader, notFound, pingLater } from "./mail.ts";
 import {
   forwardBodySchema,

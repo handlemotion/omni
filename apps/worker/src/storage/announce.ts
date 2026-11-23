@@ -2,6 +2,7 @@ import type { StorageNodeSpace } from "@omni/contracts";
 import type { Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import type { Logger } from "../log.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 /** Where a node lives: its drive. */
 interface Placed {
@@ -51,7 +52,7 @@ export function announceTo(
     drives.set(key, drive);
   }
   for (const { orgId, space, ownerMemberId, teamspaceId, parentIds } of drives.values()) {
-    const stub = at.env.REALTIME.get(at.env.REALTIME.idFromName(orgId));
+    const stub = realtimeOf(at.env, orgId);
     at.waitUntil(
       stub
         .storageChanged(space, ownerMemberId, [...parentIds], teamspaceId ?? null)
@@ -63,7 +64,7 @@ export function announceTo(
 /** Tells the workspace's open apps, after the response, that its teamspaces changed. */
 export function announceTeamspaces(c: Context<AppEnv>) {
   const { orgId } = c.var.member;
-  const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
+  const stub = realtimeOf(c.env, orgId);
   c.executionCtx.waitUntil(
     stub
       .teamspacesChanged()

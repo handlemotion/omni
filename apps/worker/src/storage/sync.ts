@@ -27,6 +27,7 @@ import { wireNode } from "./core.ts";
 import { decodeCursor, encodeCursor, memberStorage, refused } from "./http.ts";
 import { storageReads } from "./routes.ts";
 import { zValidator } from "../validator.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 const syncCursor = z.object({ revision: z.number().int(), id: z.string() });
 
@@ -192,7 +193,7 @@ export const storageSync = new Hono<AppEnv>()
     headers.delete(OUTSIDE_HEADER);
     headers.set(MEMBER_HEADER, id);
     headers.set(SYNC_HEADER, "1");
-    const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
+    const stub = realtimeOf(c.env, orgId);
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
 

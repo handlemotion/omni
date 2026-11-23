@@ -18,7 +18,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
-import { announceToMember, fanOut } from "../realtime.ts";
+import { announceToMember, fanOut } from "../realtime-announce.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { smartSearch } from "../search.ts";
 import { attachmentResponse } from "./assets.ts";

@@ -22,7 +22,12 @@ import type { Logger } from "../log.ts";
 import { modules } from "../modules.ts";
 import { pingMailService } from "../mail-service.ts";
 import type { AiJob } from "../queue.ts";
-import { announceMerges, fanOut, notifyFailedActions, notifyMembers } from "../realtime.ts";
+import {
+  announceMerges,
+  fanOut,
+  notifyFailedActions,
+  notifyMembers,
+} from "../realtime-announce.ts";
 
 const QUEUE_BATCH_MAX = 100;
 

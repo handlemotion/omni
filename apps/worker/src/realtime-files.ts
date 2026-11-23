@@ -6,6 +6,7 @@ import type {
 import { forMember, teamspaceFileAudience } from "@omni/db";
 import { z } from "zod";
 import { openDb } from "./db.ts";
+import { isSyncTag, isWatchTag, memberOfTag, syncTag } from "./realtime-log.ts";
 
 /** What an app sends: this socket has the file open in its editor, or closed it. */
 export const filePresenceMessage = z.object({
@@ -96,11 +97,11 @@ export function driveAudience(
   if (reaching) {
     return insiders(ctx).filter((socket) => {
       const tag = ctx.getTags(socket)[0] ?? "";
-      return reaching.has(tag.startsWith("sync:") ? tag.slice("sync:".length) : tag);
+      return reaching.has(memberOfTag(tag));
     });
   }
   if (ownerMemberId === null) return insiders(ctx);
-  return [...insiders(ctx, ownerMemberId), ...insiders(ctx, `sync:${ownerMemberId}`)];
+  return [...insiders(ctx, ownerMemberId), ...insiders(ctx, syncTag(ownerMemberId))];
 }
 
 /** The app sockets that see the drive: everyone's for Shared, the owner's for My files. */
@@ -109,7 +110,7 @@ export function audience(ctx: DurableObjectState, at: Editing) {
   const only = at.space === "teamspace" ? new Set(at.audience ?? []) : null;
   return sockets.filter((socket) => {
     const tag = ctx.getTags(socket)[0];
-    if (!tag || tag.startsWith("sync:") || tag.startsWith("watch:")) return false;
+    if (!tag || isSyncTag(tag) || isWatchTag(tag)) return false;
     return !only || only.has(tag);
   });
 }
@@ -124,7 +125,7 @@ export function sendTeamspacesChanged(ctx: DurableObjectState) {
   } satisfies StorageTeamspacesChangedEvent);
   for (const socket of insiders(ctx)) {
     const tag = ctx.getTags(socket)[0];
-    if (!tag || tag.startsWith("watch:")) continue;
+    if (!tag || isWatchTag(tag)) continue;
     try {
       socket.send(message);
     } catch {}

@@ -109,8 +109,7 @@
         "apps/web/src/components/settings/account-pages.tsx",
         "apps/web/src/components/ui/avatar.tsx",
         "apps/web/src/components/ui/chart.tsx",
-        "apps/web/src/lib/conversations.ts",
-        "apps/worker/src/realtime.ts"
+        "apps/web/src/lib/conversations.ts"
       ],
       "rules": {
         "complexity": "off"

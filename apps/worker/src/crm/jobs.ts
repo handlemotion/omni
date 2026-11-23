@@ -9,6 +9,7 @@ import {
 import { Effect } from "effect";
 import { retried, runJob, scopedDb } from "../job-effects.ts";
 import { createLogger, type Logger } from "../log.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 const EXPIRY_MAX_BATCHES = 20;
 const SETTLE_MAX_BATCHES = 20;
@@ -39,7 +40,7 @@ function announceContracts(env: Env, db: Db, log: Logger, ended: EndedContract[]
       Effect.tryPromise(async () => {
         const memberIds = await crmMembersOf(db, orgId);
         if (memberIds.length === 0) return;
-        const stub = env.REALTIME.get(env.REALTIME.idFromName(orgId));
+        const stub = realtimeOf(env, orgId);
         await stub.broadcast(memberIds, {
           type: "crm.changed",
           kind: "contract",

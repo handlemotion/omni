@@ -2,22 +2,13 @@ import { DurableObject } from "cloudflare:workers";
 import type {
   HelpdeskRealtimeEvent,
   ModuleChangedEvent,
-  SlaTarget,
   StorageDocEvent,
   StorageNodeSpace,
   TalkEvent,
 } from "@omni/contracts";
-import {
-  forMember,
-  mailboxAudience,
-  membersAccepting,
-  teamspaceAudience,
-  type Db,
-  type NotificationKind,
-} from "@omni/db";
+import { forMember, mailboxAudience, teamspaceAudience, type NotificationKind } from "@omni/db";
 import { z } from "zod";
 import { openDb } from "./db.ts";
-import type { Config } from "./env.ts";
 import {
   docAppendMessage,
   docPresenceMessage,
@@ -37,7 +28,6 @@ import {
   teamSocketClosed,
   teamSocketOpened,
 } from "./realtime-talk.ts";
-import { sendExpoPush } from "./realtime-push.ts";
 import {
   driveAudience,
   filePresenceMessage,
@@ -57,7 +47,16 @@ import {
   recheckOutsiders,
 } from "./realtime-outside.ts";
 import { closeOutsider, leavePresence } from "./realtime-presence.ts";
-import { driveTags, greet, logForMembers, logOf, syncTag, watchTag } from "./realtime-log.ts";
+import {
+  driveTags,
+  greet,
+  isSyncTag,
+  isWatchTag,
+  logForMembers,
+  logOf,
+  syncTag,
+  watchTag,
+} from "./realtime-log.ts";
 
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
@@ -106,6 +105,15 @@ const messageLimit = (raw: string) => {
   if (raw.startsWith('{"type":"doc.presence"')) return MAX_PRESENCE_MESSAGE;
   return MAX_CLIENT_MESSAGE;
 };
+
+function parseClientMessage(raw: string) {
+  if (raw.length > messageLimit(raw)) return null;
+  try {
+    return clientMessage.parse(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * One instance per org. Each open app holds a hibernatable websocket tagged with its member id;
@@ -252,27 +260,27 @@ export class Realtime extends DurableObject<Env> {
   override async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer) {
     if (typeof raw !== "string") return;
     if (isOutsider(this.ctx, socket)) return this.fromOutsider(socket, raw);
-    if (raw.length > messageLimit(raw)) return;
-    let message;
-    try {
-      message = clientMessage.parse(JSON.parse(raw));
-    } catch {
-      return;
-    }
+    const message = parseClientMessage(raw);
+    if (!message) return;
     const memberId = this.ctx.getTags(socket)[0];
-    if (!memberId || memberId.startsWith("sync:") || memberId.startsWith("watch:")) return;
-    if (message.type === "file.presence") {
-      await onFilePresence(this.ctx, this.env, socket, memberId, message);
-      return;
+    if (!memberId || isSyncTag(memberId) || isWatchTag(memberId)) return;
+    switch (message.type) {
+      case "file.presence":
+        return onFilePresence(this.ctx, this.env, socket, memberId, message);
+      case "doc.append":
+        return onDocAppend(this.ctx, this.env, socket, memberId, message);
+      case "doc.presence":
+        return onDocPresence(this.ctx, socket, memberId, message);
+      case "presence":
+        return this.onThreadPresence(socket, memberId, message);
     }
-    if (message.type === "doc.append") {
-      await onDocAppend(this.ctx, this.env, socket, memberId, message);
-      return;
-    }
-    if (message.type === "doc.presence") {
-      onDocPresence(this.ctx, socket, memberId, message);
-      return;
-    }
+  }
+
+  private async onThreadPresence(
+    socket: WebSocket,
+    memberId: string,
+    message: z.output<typeof presenceMessage>,
+  ) {
     const current = presenceOf(socket);
     if (message.state === "left") {
       if (current?.threadId === message.threadId) await this.leave(socket, memberId, current);
@@ -297,32 +305,28 @@ export class Realtime extends DurableObject<Env> {
     setConversation(socket, presence);
     const others = audience.memberIds.filter((m) => m !== memberId);
     await this.send(others, [presenceEvent(memberId, this.memberState(memberId, presence))]);
-    if (current?.threadId !== presence.threadId) {
-      const here = new Map<string, Presence>();
-      for (const other of insiders(this.ctx)) {
-        const theirs = presenceOf(other);
-        const them = this.ctx.getTags(other)[0];
-        if (!theirs || !them || them === memberId || theirs.threadId !== presence.threadId) {
-          continue;
-        }
-        if (here.get(them)?.state !== "replying") here.set(them, theirs);
+    if (current?.threadId !== presence.threadId) this.showWhoIsHere(socket, memberId, presence);
+  }
+
+  private showWhoIsHere(socket: WebSocket, memberId: string, presence: Presence) {
+    const here = new Map<string, Presence>();
+    for (const other of insiders(this.ctx)) {
+      const theirs = presenceOf(other);
+      const them = this.ctx.getTags(other)[0];
+      if (!theirs || !them || them === memberId || theirs.threadId !== presence.threadId) {
+        continue;
       }
-      for (const [them, theirs] of here) {
-        socket.send(JSON.stringify(presenceEvent(them, theirs)));
-      }
+      if (here.get(them)?.state !== "replying") here.set(them, theirs);
+    }
+    for (const [them, theirs] of here) {
+      socket.send(JSON.stringify(presenceEvent(them, theirs)));
     }
   }
 
   private async fromOutsider(socket: WebSocket, raw: string) {
-    if (raw.length > messageLimit(raw)) return;
-    let message;
-    try {
-      message = clientMessage.parse(JSON.parse(raw));
-    } catch {
-      return;
-    }
-    if (message.type === "doc.append") await onOutsideAppend(this.ctx, this.env, socket, message);
-    if (message.type === "doc.presence") {
+    const message = parseClientMessage(raw);
+    if (message?.type === "doc.append") await onOutsideAppend(this.ctx, this.env, socket, message);
+    if (message?.type === "doc.presence") {
       await onOutsidePresence(this.ctx, this.env, socket, message);
     }
   }
@@ -419,171 +423,3 @@ const presenceEvent: (memberId: string, presence: Presence) => HelpdeskRealtimeE
     state: presence.state,
   };
 };
-
-/**
- * Tells every member who can see the mailboxes that these threads changed: `changed` for the
- * mail views and `thread.changed` for helpdesk views. Members with no app open on a mailbox in
- * `push` get an Expo notification instead (when enabled). Watch sockets hear `arrived`, the new
- * mail among the changes (`newArrivals`), as `mail.arrived`.
- */
-export async function fanOut(
-  env: Env,
-  db: Db,
-  config: Config,
-  changes: Map<string, Set<string>>,
-  options: { push?: Set<string>; arrived?: Map<string, Set<string>> } = {},
-) {
-  const audience = await mailboxAudience(db, [...changes.keys()]);
-  const offlineByMailbox = new Map<string, { address: string; memberIds: string[] }>();
-  for (const [mailboxId, threadSet] of changes) {
-    const rows = audience.filter((row) => row.mailboxId === mailboxId);
-    const first = rows[0];
-    if (!first) continue;
-    const threadIds = [...threadSet];
-    const stub = env.REALTIME.get(env.REALTIME.idFromName(first.orgId));
-    const arrived = options.arrived?.get(mailboxId);
-    const offline = await stub.send(
-      rows.map((row) => row.memberId),
-      [
-        { type: "changed", mailboxId, threadIds },
-        { type: "thread.changed", mailboxId, threadIds },
-        ...(arrived?.size
-          ? [{ type: "mail.arrived" as const, mailboxId, threadIds: [...arrived] }]
-          : []),
-      ],
-    );
-    if (options.push?.has(mailboxId)) {
-      offlineByMailbox.set(mailboxId, { address: first.address, memberIds: offline });
-    }
-  }
-  if (config.EXPO_PUSH_ENABLED) {
-    for (const { address, memberIds } of offlineByMailbox.values()) {
-      await sendExpoPush(db, config, memberIds, { title: address, body: "New message" });
-    }
-  }
-}
-
-/**
- * Tells this member's own apps, on every device, that their state on a thread changed: read,
- * Done, Later. That state is theirs alone, so teammates are not told, and nothing else would
- * tell their other devices (a phone left open kept a read thread unread, and its badge).
- */
-export async function announceToMember(
-  env: Env,
-  input: { orgId: string; memberId: string; mailboxId: string; threadId: string },
-) {
-  const stub = env.REALTIME.get(env.REALTIME.idFromName(input.orgId));
-  await stub.broadcast([input.memberId], {
-    type: "changed",
-    mailboxId: input.mailboxId,
-    threadIds: [input.threadId],
-  });
-}
-
-/** Tells everyone who can see the mailbox that threads were merged, so readers can follow. */
-export async function announceMerges(
-  env: Env,
-  db: Db,
-  merges: { mailboxId: string; intoThreadId: string; fromThreadIds: string[] }[],
-) {
-  const audience = await mailboxAudience(db, [...new Set(merges.map((m) => m.mailboxId))]);
-  for (const { mailboxId, intoThreadId, fromThreadIds } of merges) {
-    const rows = audience.filter((row) => row.mailboxId === mailboxId);
-    const first = rows[0];
-    if (!first) continue;
-    const stub = env.REALTIME.get(env.REALTIME.idFromName(first.orgId));
-    await stub.broadcast(
-      rows.map((row) => row.memberId),
-      { type: "merged", mailboxId, intoThreadId, fromThreadIds },
-    );
-  }
-}
-
-/** Tells these members, whose preferences allow it, that they have a new notification. */
-export async function notifyMembers(
-  env: Env,
-  db: Db,
-  input: { orgId: string; threadId: string | null; memberIds: string[]; kind: NotificationKind },
-) {
-  if (input.memberIds.length === 0) return;
-  const accepting = await membersAccepting(db, input.memberIds, input.kind, "realtime");
-  if (accepting.length === 0) return;
-  const stub = env.REALTIME.get(env.REALTIME.idFromName(input.orgId));
-  await stub.broadcast(accepting, {
-    type: "notification",
-    threadId: input.threadId,
-    kind: input.kind,
-  });
-}
-
-/** Tells these members that notifications they had about the thread are gone. */
-export async function withdrawNotifications(
-  env: Env,
-  input: { orgId: string; threadId: string; memberIds: string[] },
-) {
-  if (input.memberIds.length === 0) return;
-  const stub = env.REALTIME.get(env.REALTIME.idFromName(input.orgId));
-  await stub.broadcast(input.memberIds, { type: "notification.removed", threadId: input.threadId });
-}
-
-/** Tells everyone who can see the inbox that a note was added. */
-export async function announceNote(
-  env: Env,
-  db: Db,
-  note: { orgId: string; mailboxId: string; threadId: string; noteId: string },
-) {
-  const audience = await mailboxAudience(db, [note.mailboxId]);
-  if (audience.length === 0) return;
-  const stub = env.REALTIME.get(env.REALTIME.idFromName(note.orgId));
-  await stub.broadcast(
-    audience.map((row) => row.memberId),
-    {
-      type: "note.created",
-      mailboxId: note.mailboxId,
-      threadId: note.threadId,
-      noteId: note.noteId,
-    },
-  );
-}
-
-/** Tells everyone who can see the inbox that a conversation's SLA is at risk or breached. */
-export async function announceSla(
-  env: Env,
-  db: Db,
-  alert: {
-    orgId: string;
-    mailboxId: string;
-    threadId: string;
-    target: SlaTarget;
-    kind: "sla_at_risk" | "sla_breached";
-    dueAt: Date;
-  },
-) {
-  const audience = await mailboxAudience(db, [alert.mailboxId]);
-  if (audience.length === 0) return;
-  const stub = env.REALTIME.get(env.REALTIME.idFromName(alert.orgId));
-  await stub.broadcast(
-    audience.map((row) => row.memberId),
-    {
-      type: alert.kind === "sla_at_risk" ? "sla.at_risk" : "sla.breached",
-      mailboxId: alert.mailboxId,
-      threadId: alert.threadId,
-      target: alert.target,
-      dueAt: alert.dueAt.toISOString(),
-    },
-  );
-}
-
-/** Tells each member whose action failed for good, on their org's realtime object. */
-export async function notifyFailedActions(
-  env: Env,
-  failures: { orgId: string; memberId: string | null; actionId: string; error: string }[],
-) {
-  for (const { orgId, memberId, actionId, error } of failures) {
-    if (!memberId) continue;
-    const stub = env.REALTIME.get(env.REALTIME.idFromName(orgId));
-    await stub.broadcast([memberId], { type: "action", actionId, status: "failed", error });
-  }
-}
-
-export { pushToMembers } from "./realtime-push.ts";

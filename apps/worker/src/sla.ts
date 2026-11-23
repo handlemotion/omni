@@ -2,7 +2,7 @@ import { applyConversationChange, dueSnoozes, emitSlaAlerts, type Db } from "@om
 import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import { createLogger, type Logger } from "./log.ts";
-import { announceSla, fanOut, notifyMembers } from "./realtime.ts";
+import { announceSla, fanOut, notifyMembers } from "./realtime-announce.ts";
 
 export async function wakeSnoozed(scope: {
   env: Env;

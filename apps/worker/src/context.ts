@@ -24,6 +24,7 @@ import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import type { Logger } from "./log.ts";
 import { modules } from "./modules.ts";
+import { realtimeOf } from "./realtime-announce.ts";
 
 export interface Member {
   /** `members.id`: what `forMember` and every mail table key on. */
@@ -66,11 +67,10 @@ export interface AppEnv {
 const leavesRealtime = (env: Env) =>
   ({
     name: "realtime",
-    memberRemoved: (_db, { orgId, memberId }) =>
-      env.REALTIME.get(env.REALTIME.idFromName(orgId)).disconnect(memberId),
+    memberRemoved: (_db, { orgId, memberId }) => realtimeOf(env, orgId).disconnect(memberId),
     memberRoleChanged: async (_db, { orgId, memberId, role, previousRole }) => {
       if (talkRole(role) === talkRole(previousRole)) return;
-      await env.REALTIME.get(env.REALTIME.idFromName(orgId)).disconnect(memberId);
+      await realtimeOf(env, orgId).disconnect(memberId);
     },
   }) satisfies ModuleLifecycle;
 

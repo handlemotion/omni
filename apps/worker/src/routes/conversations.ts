@@ -26,7 +26,12 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { announceNote, fanOut, notifyMembers, withdrawNotifications } from "../realtime.ts";
+import {
+  announceNote,
+  fanOut,
+  notifyMembers,
+  withdrawNotifications,
+} from "../realtime-announce.ts";
 import { zValidator } from "../validator.ts";
 import {
   applyChange,

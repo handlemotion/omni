@@ -33,7 +33,7 @@ import {
 } from "./job-effects.ts";
 import { createLogger, type Logger } from "./log.ts";
 import { pingMailService } from "./mail-service.ts";
-import { fanOut, notifyMembers } from "./realtime.ts";
+import { fanOut, notifyMembers } from "./realtime-announce.ts";
 
 /**
  * Ids only, never mail content. `orgId`, `jobId` and `requestId` (the request that queued it)

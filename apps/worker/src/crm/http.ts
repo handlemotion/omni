@@ -47,6 +47,7 @@ import type { Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { ApiFailure, errorBody } from "../errors.ts";
+import { realtimeOf } from "../realtime-announce.ts";
 
 export const memberCrm: (c: Context<AppEnv>) => MemberCrm = (c) =>
   forMember(c.var.db, c.var.member.id).crm;
@@ -433,7 +434,7 @@ export async function announce(c: Context<AppEnv>, kind: CrmChangedKind, ids: (s
   if (changed.length === 0) return;
   const audience = await memberCrm(c).audience();
   if (audience.status !== "ok" || audience.memberIds.length === 0) return;
-  const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(c.var.member.orgId));
+  const stub = realtimeOf(c.env, c.var.member.orgId);
   c.executionCtx.waitUntil(
     stub
       .broadcast(audience.memberIds, { type: "crm.changed", kind, ids: changed })

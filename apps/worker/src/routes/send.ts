@@ -22,7 +22,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { errorBody } from "../errors.ts";
-import { fanOut } from "../realtime.ts";
+import { fanOut } from "../realtime-announce.ts";
 import { assertLatest, basedOnMessageId, StaleThread } from "./reply-precondition.ts";
 import { notFound, outboxKey, pingLater, type ActionMailbox } from "./mail.ts";
 

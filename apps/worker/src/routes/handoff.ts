@@ -6,7 +6,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { fanOut } from "../realtime.ts";
+import { fanOut } from "../realtime-announce.ts";
 import { zValidator } from "../validator.ts";
 import {
   attachmentList,

@@ -10,7 +10,7 @@ import {
 import { z } from "zod";
 import { inGoodStanding } from "../../billing.ts";
 import { pingMailService } from "../../mail-service.ts";
-import { fanOut, notifyMembers } from "../../realtime.ts";
+import { fanOut, notifyMembers } from "../../realtime-announce.ts";
 import {
   archiveThread,
   markRead,

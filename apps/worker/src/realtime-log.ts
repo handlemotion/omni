@@ -18,6 +18,12 @@ export const teamOf = (memberId: string) => `team:${memberId}`;
 export const syncTag = (memberId: string) => `sync:${memberId}`;
 /** A member's desktop watch socket (`WATCH_HEADER`). */
 export const watchTag = (memberId: string) => `watch:${memberId}`;
+/** Whether a socket's first tag is a desktop sync provider's (`syncTag`). */
+export const isSyncTag = (tag: string) => tag.startsWith(syncTag(""));
+/** Whether a socket's first tag is a desktop watch socket's (`watchTag`). */
+export const isWatchTag = (tag: string) => tag.startsWith(watchTag(""));
+/** The member an app or sync socket belongs to, from its first tag. */
+export const memberOfTag = (tag: string) => (isSyncTag(tag) ? tag.slice(syncTag("").length) : tag);
 
 export interface Cursor {
   epoch: string;
