@@ -9,6 +9,8 @@ export * from "./http.ts";
 export * from "./config.ts";
 export * from "./log.ts";
 export * from "./pg-store.ts";
+export * from "./pg-outbox.ts";
+export type { ContentLinks } from "./message-content.ts";
 export * from "./objects.ts";
 export * from "./notify.ts";
 export * from "./service.ts";

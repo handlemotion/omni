@@ -5,7 +5,8 @@ import { PgForwarding } from "../src/forward-copy.ts";
 import type { MailboxConfig } from "../src/mailbox-config.ts";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { OutboxExecutor } from "../src/outbox.ts";
-import { PgActionSource, PgMailStore } from "../src/pg-store.ts";
+import { PgActionSource } from "../src/pg-outbox.ts";
+import { PgMailStore } from "../src/pg-store.ts";
 import {
   actionRow,
   asClaimed,

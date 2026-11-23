@@ -6,7 +6,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { MailboxConfig } from "../src/mailbox-config.ts";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
-import { PgActionSource, PgMailStore, PgSendFiles } from "../src/pg-store.ts";
+import { PgActionSource, PgSendFiles } from "../src/pg-outbox.ts";
+import { PgMailStore } from "../src/pg-store.ts";
 import {
   actionRow,
   asClaimed,
