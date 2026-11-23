@@ -147,8 +147,7 @@ export class OutboxExecutor {
         return;
       }
       const sent =
-        (action.kind === "send" || action.kind === "forward_copy") &&
-        (action.smtpAcceptedAt || this.accepted.has(action.id));
+        (action.kind === "send" || action.kind === "forward_copy") && this.smtpAccepted(action);
       if (sent && action.attempts >= this.options.maxAttempts) {
         log.error("outbox.sent_not_filed", { error: message, attempts: action.attempts });
         await actions.complete(action.id).catch((completeError: unknown) => {
@@ -199,17 +198,9 @@ export class OutboxExecutor {
           move(session, action.payload, action.payload.destination),
         );
       case "trash":
-        return connection.run(async (session) => {
-          const trash = await session.ensureFolder("trash", "Trash");
-          if (action.payload.folder === trash.path) return;
-          await move(session, action.payload, trash.path);
-        });
+        return connection.run((session) => moveTo(session, action.payload, "trash", "Trash"));
       case "spam":
-        return connection.run(async (session) => {
-          const junk = await session.ensureFolder("junk", "Junk");
-          if (action.payload.folder === junk.path) return;
-          await move(session, action.payload, junk.path);
-        });
+        return connection.run((session) => moveTo(session, action.payload, "junk", "Junk"));
       case "not_spam":
         return connection.run(async (session) => {
           const inbox = session.folder("inbox");
@@ -251,7 +242,7 @@ export class OutboxExecutor {
     const mailbox = connection.mailbox;
     const messageId =
       action.payload.messageId ?? deterministicMessageId(action.idempotencyKey, mailbox.address);
-    const delivered = Boolean(action.smtpAcceptedAt) || this.accepted.has(action.id);
+    const delivered = this.smtpAccepted(action);
     if (delivered && (await this.filedInSent(connection, messageId))) return;
     let files: SendFile[];
     try {
@@ -264,19 +255,11 @@ export class OutboxExecutor {
     const raw = await composeMessage(action.payload, messageId, files);
 
     if (!action.smtpAcceptedAt) {
-      if (!this.accepted.has(action.id)) {
-        if (await this.options.actions.sendingPaused(mailbox.address)) {
-          throw new SendingPausedError(
-            `sending from ${mailbox.address} is paused: its domain's DNS no longer verifies`,
-          );
-        }
+      await this.deliverOnce(action, mailbox, raw, async () => {
         const { to, cc = [], bcc = [] } = action.payload;
         const crm = await this.options.forwarding?.target(mailbox.id);
-        await smtpSend(mailbox, [...to, ...cc, ...bcc, ...(crm ? [crm] : [])], raw);
-        this.accepted.add(action.id);
-      }
-      await persistAccepted(() => this.options.actions.markSmtpAccepted(action.id));
-      this.accepted.delete(action.id);
+        return [...to, ...cc, ...bcc, ...(crm ? [crm] : [])];
+      });
     }
 
     const threadOf = action.payload.inReplyToMessageId;
@@ -300,7 +283,7 @@ export class OutboxExecutor {
     connection: MailboxConnection,
     action: Extract<MailAction, { kind: "forward_copy" }>,
   ) {
-    if (action.smtpAcceptedAt || this.accepted.has(action.id)) return;
+    if (this.smtpAccepted(action)) return;
     const mailbox = connection.mailbox;
     if (!this.options.forwarding) throw new PermanentActionError("this outbox cannot forward");
     const source = await this.options.forwarding.copy(mailbox.id, action.payload.messageId);
@@ -310,11 +293,28 @@ export class OutboxExecutor {
       to: source.to,
       messageId: deterministicMessageId(action.idempotencyKey, mailbox.address),
     });
-    if (await this.options.actions.sendingPaused(mailbox.address)) {
-      throw new SendingPausedError(`sending from ${mailbox.address} is paused`);
+    await this.deliverOnce(action, mailbox, raw, async () => [source.to]);
+  }
+
+  private smtpAccepted(action: MailAction) {
+    return action.smtpAcceptedAt !== null || this.accepted.has(action.id);
+  }
+
+  private async deliverOnce(
+    action: MailAction,
+    mailbox: MailboxConfig,
+    raw: Buffer,
+    recipients: () => Promise<string[]>,
+  ) {
+    if (!this.accepted.has(action.id)) {
+      if (await this.options.actions.sendingPaused(mailbox.address)) {
+        throw new SendingPausedError(
+          `sending from ${mailbox.address} is paused: its domain's DNS no longer verifies`,
+        );
+      }
+      await smtpSend(mailbox, await recipients(), raw);
+      this.accepted.add(action.id);
     }
-    await smtpSend(mailbox, [source.to], raw);
-    this.accepted.add(action.id);
     await persistAccepted(() => this.options.actions.markSmtpAccepted(action.id));
     this.accepted.delete(action.id);
   }
@@ -434,6 +434,17 @@ async function selectTarget(
   } finally {
     lock.release();
   }
+}
+
+async function moveTo(
+  session: ImapSession,
+  target: MessageTarget,
+  role: "trash" | "junk",
+  defaultPath: string,
+) {
+  const folder = await session.ensureFolder(role, defaultPath);
+  if (target.folder === folder.path) return;
+  await move(session, target, folder.path);
 }
 
 async function move(session: ImapSession, target: MessageTarget, destination: string) {
