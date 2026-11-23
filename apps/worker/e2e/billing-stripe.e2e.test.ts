@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
+  authPost,
+  CookieJar,
   createMailbox,
   createMember,
   createOrg,
@@ -316,7 +318,8 @@ describe.runIf(requested)("Stripe test mode", () => {
     const email = `owner-${randomUUID().slice(0, 8)}@omni.test`;
     const member = await createMember(db, org.id, email);
     await db.update(schema.members).set({ role: "owner" }).where(eq(schema.members.id, member.id));
-    return { org, cookie: await signIn(worker, db, email) };
+    const jar = new CookieJar();
+    return { org, jar, cookie: await signIn(worker, db, email, jar) };
   }
 
   async function customerOf(orgId: string) {
@@ -331,7 +334,7 @@ describe.runIf(requested)("Stripe test mode", () => {
 
   test("setup's plan step: the trial starts with no card and no Stripe page; after it, Checkout charges", async () => {
     const { db } = database;
-    const { org, cookie } = await ownerOf("plan-page");
+    const { org, jar, cookie } = await ownerOf("plan-page");
     const plan = (await (await api("/billing", cookie)).json()) as {
       trialAvailable: boolean;
       prices: { month: { amount: number; currency: string } | null };
@@ -397,15 +400,21 @@ describe.runIf(requested)("Stripe test mode", () => {
       role: "owner",
       createdAt: new Date(),
     });
-    await db
-      .update(schema.sessions)
-      .set({ activeOrganizationId: next.id })
-      .where(eq(schema.sessions.userId, userId));
-    expect(await (await api("/billing", cookie)).json()).toMatchObject({ trialAvailable: false });
-    expect((await api("/billing/trial", cookie, { interval: "month" })).status).toBe(409);
+    const switched = await authPost(worker, jar, "/organization/set-active", {
+      organizationId: next.id,
+    });
+    expect(switched.status).toBe(200);
+    expect(await (await api("/billing", jar.header)).json()).toMatchObject({
+      trialAvailable: false,
+    });
+    expect((await api("/billing/trial", jar.header, { interval: "month" })).status).toBe(409);
     expect(
-      (await api("/billing/checkout", cookie, { interval: "month", returnPath: "/onboarding" }))
-        .status,
+      (
+        await api("/billing/checkout", jar.header, {
+          interval: "month",
+          returnPath: "/onboarding",
+        })
+      ).status,
     ).toBe(200);
     const [paid] = (await stripe.checkout.sessions.list({ customer: await customerOf(next.id) }))
       .data;
