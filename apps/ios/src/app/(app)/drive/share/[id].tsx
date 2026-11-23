@@ -1,4 +1,10 @@
-import { ApiError } from "@omni/client";
+import {
+  ApiError,
+  DRIVE_LINK_ACCESS,
+  DRIVE_ROLES,
+  driveRoleLabel,
+  linkAccessLabel,
+} from "@omni/client";
 import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState, type ReactNode } from "react";
@@ -13,10 +19,6 @@ import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { driveErrorAlert, useNode } from "@/lib/drive-actions.ts";
 import {
-  ACCESS,
-  ROLES,
-  accessLabel,
-  roleLabel,
   shareUrl,
   usePutPerson,
   useRemovePerson,
@@ -109,9 +111,9 @@ function AddPerson({ nodeId }: { nodeId: string }) {
       <View style={styles.line}>
         <Button
           intent="plain"
-          label={roleLabel(role)}
-          accessibilityLabel={`Role, ${roleLabel(role)}`}
-          onPress={() => choose("Role", ROLES, setRole)}
+          label={driveRoleLabel(role)}
+          accessibilityLabel={`Role, ${driveRoleLabel(role)}`}
+          onPress={() => choose("Role", DRIVE_ROLES, setRole)}
         />
         <Button label="Invite" disabled={!address} isPending={put.isPending} onPress={invite} />
       </View>
@@ -130,13 +132,13 @@ function People({ sharing }: { sharing: DriveSharing }) {
           <Button
             intent="quiet"
             style={styles.center}
-            label={roleLabel(person.role)}
-            accessibilityLabel={`Role for ${person.email}, ${roleLabel(person.role)}`}
+            label={driveRoleLabel(person.role)}
+            accessibilityLabel={`Role for ${person.email}, ${driveRoleLabel(person.role)}`}
             isPending={remove.isPending && remove.variables?.email === person.email}
             onPress={() =>
               choose(
                 person.email,
-                ROLES,
+                DRIVE_ROLES,
                 (role) =>
                   role !== person.role &&
                   put.mutate(
@@ -163,7 +165,7 @@ function People({ sharing }: { sharing: DriveSharing }) {
           from={person.nodeName}
         >
           <Text size="sm" tone="mutedForeground">
-            {roleLabel(person.role)}
+            {driveRoleLabel(person.role)}
           </Text>
         </PersonRow>
       ))}
@@ -193,7 +195,7 @@ function GeneralAccess({ sharing }: { sharing: DriveSharing }) {
   const [copied, setCopied] = useState(false);
   const url = sharing.shareId ? shareUrl(sharing.shareId) : null;
   const resetting = setLink.isPending && !!setLink.variables && "reset" in setLink.variables;
-  const choices = ACCESS.filter(
+  const choices = DRIVE_LINK_ACCESS.filter(
     (a) =>
       a.id !== "anyone" || sharing.policy?.publicLinks !== false || sharing.linkAccess === a.id,
   );
@@ -202,8 +204,8 @@ function GeneralAccess({ sharing }: { sharing: DriveSharing }) {
       <View style={styles.line}>
         <Button
           intent="plain"
-          label={accessLabel(sharing.linkAccess)}
-          accessibilityLabel={`General access, ${accessLabel(sharing.linkAccess)}`}
+          label={linkAccessLabel(sharing.linkAccess)}
+          accessibilityLabel={`General access, ${linkAccessLabel(sharing.linkAccess)}`}
           isPending={setLink.isPending && !resetting}
           onPress={() =>
             choose("General access", choices, (linkAccess) =>

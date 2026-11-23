@@ -11,17 +11,17 @@ import {
 } from "@tanstack/react-query";
 import {
   idempotencyHeader,
-  type Mailbox,
   type SearchResult,
   type Thread,
   type ThreadPage,
   ApiError,
   isAuthError,
+  opensFull,
+  WARM_NEWEST,
 } from "@omni/client";
 import { useCallback, useMemo } from "react";
 import type { SymbolName } from "./symbols.ts";
 import { api, call, inWorkspace } from "./api.ts";
-import { WARM_NEWEST, opensFull } from "./message-html.ts";
 import { keys } from "./query-keys.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
 
@@ -116,20 +116,6 @@ export const useMailboxes = () => useQuery(mailboxesQuery());
 export const useCounts = () => useQuery(countsQuery());
 export const useThreads = (page: MailPage, mailboxId: string | undefined) =>
   useInfiniteQuery(threadsQuery(page, mailboxId));
-
-/**
- * What a mailbox is called, as on the web: its label ("Work"), else you for your own and its
- * local part for a shared one.
- */
-export function mailboxName(
-  mailbox: Pick<Mailbox, "kind" | "address"> & { label?: string | null },
-  you: string,
-) {
-  if (mailbox.label) return mailbox.label;
-  if (mailbox.kind === "personal") return you;
-  const local = mailbox.address.split("@")[0] ?? mailbox.address;
-  return local.charAt(0).toUpperCase() + local.slice(1);
-}
 
 export { bySection, listTime, type Sectioned } from "@omni/mail-core/list-dates";
 

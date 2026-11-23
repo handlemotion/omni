@@ -1,11 +1,10 @@
+import { BLOCKED_SRC_ATTR } from "@omni/mail-core/blocked-src";
 import { useEffect, useRef, useState } from "react";
 import { routeFrameContextMenu } from "@/components/ui/context-menu";
 import { MESSAGE_FRAME_SANDBOX } from "@/lib/message-html.ts";
 import { messageHtmlUrl } from "@/lib/urls.ts";
 
 const MAX_REFITS = 12;
-
-const BLOCKED_SRC = "data-omni-src";
 
 const FRAME_DEFAULTS =
   'html{padding:16px}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}';
@@ -19,9 +18,9 @@ function applyFrameDefaults(frame: HTMLIFrameElement) {
 }
 
 function loadRemoteImages(frame: HTMLIFrameElement | null) {
-  for (const img of frame?.contentDocument?.querySelectorAll(`img[${BLOCKED_SRC}]`) ?? []) {
-    img.setAttribute("src", img.getAttribute(BLOCKED_SRC) ?? "");
-    img.removeAttribute(BLOCKED_SRC);
+  for (const img of frame?.contentDocument?.querySelectorAll(`img[${BLOCKED_SRC_ATTR}]`) ?? []) {
+    img.setAttribute("src", img.getAttribute(BLOCKED_SRC_ATTR) ?? "");
+    img.removeAttribute(BLOCKED_SRC_ATTR);
   }
 }
 

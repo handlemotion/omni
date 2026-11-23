@@ -23,10 +23,6 @@ interface Draft {
   email: string;
 }
 
-/** Signed outside Omni and still without its signed copy, or about to be. */
-export const takesSignedCopy = (contract: CrmContract) =>
-  !contract.signedNodeId && !(contract.status === "sent" && contract.signing);
-
 const today = () => {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");

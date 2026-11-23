@@ -1,4 +1,9 @@
-import { WORKSPACE_HEADER, type Api, ApiError } from "@omni/client";
+import {
+  STORAGE_THUMBNAIL_MAX_SOURCE_BYTES,
+  WORKSPACE_HEADER,
+  type Api,
+  ApiError,
+} from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import {
   infiniteQueryOptions,
@@ -160,15 +165,13 @@ async function react(reacting: Reacting) {
 export const fileUrl = (messageId: string) =>
   withWorkspace(api.talk.messages[":id"].file.$url({ param: { id: messageId } }).toString());
 
-const THUMBNAIL_MAX_SOURCE_BYTES = 20_000_000;
-
 /**
  * Where a note's image shows inline: Drive's 640 px WebP, kept by the browser for good, unless it
  * moves (a GIF) or is too large to be drawn one; then its own bytes.
  */
 export function imageUrl(messageId: string, file: { size: number; mimeType: string | null }) {
   const own = fileUrl(messageId);
-  if (file.mimeType === "image/gif" || file.size > THUMBNAIL_MAX_SOURCE_BYTES) return own;
+  if (file.mimeType === "image/gif" || file.size > STORAGE_THUMBNAIL_MAX_SOURCE_BYTES) return own;
   const url = new URL(own, window.location.origin);
   url.searchParams.set("size", "640");
   return url.toString();

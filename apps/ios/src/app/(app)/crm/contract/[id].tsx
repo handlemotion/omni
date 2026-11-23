@@ -1,4 +1,4 @@
-import type { CrmContract } from "@omni/client";
+import { contractLine, contractStatus, takesSignedCopy, type CrmContract } from "@omni/client";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { IconFileText } from "@/components/icons.ts";
@@ -10,15 +10,7 @@ import { LoadingPage } from "@/components/ui/loading-page.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import {
-  contractLine,
-  contractStatus,
-  signedCopyOf,
-  signerStatus,
-  takesSignedCopy,
-  useContracts,
-  useVoidContract,
-} from "@/lib/crm-contracts.ts";
+import { signedCopyOf, signerStatus, useContracts, useVoidContract } from "@/lib/crm-contracts.ts";
 import { crmErrorAlert } from "@/lib/crm-errors.ts";
 import { gutter, space } from "@/theme/tokens.ts";
 
