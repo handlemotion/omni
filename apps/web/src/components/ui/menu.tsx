@@ -178,7 +178,7 @@ export function Menu<T extends { id?: Key }>({
     >
       <Content
         {...positionProps(nested, popover, placement)}
-        className={cn(MENU_WIDTH, popupSurface, "overflow-hidden", popover?.className)}
+        className={cn("fixed", MENU_WIDTH, popupSurface, "overflow-hidden", popover?.className)}
         aria-label={props["aria-label"]}
       >
         <div className="relative flex max-h-[inherit] min-h-0 flex-col" {...hover.containerProps}>
