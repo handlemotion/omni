@@ -8,7 +8,7 @@ import { useMailboxes, useThread } from "@/lib/mail.ts";
 import { gutter, space } from "@/theme/tokens.ts";
 
 /**
- * Writing mail, in a sheet: a reply to `threadId` (to everyone on it with `all=1`, or a forward
+ * Writing mail, as a page: a reply to `threadId` (to everyone on it with `all=1`, or a forward
  * of it with `forward=1`), else new mail from `mailbox` or the first one here.
  */
 export default function Compose() {
