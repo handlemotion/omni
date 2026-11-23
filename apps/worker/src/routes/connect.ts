@@ -4,6 +4,7 @@ import {
   googleConnectResultSchema,
   googleDisconnectResultSchema,
 } from "@omni/contracts";
+import { randomToken, sha256, toBase64Url } from "@omni/crypto";
 import { advanceOrgSetup, forUser } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
@@ -26,13 +27,6 @@ const CALENDAR_SCOPES = {
 } as const;
 const COOKIE = "omni_google_connect";
 const COOKIE_PATH = "/api/connect/google";
-
-function toBase64Url(bytes: Uint8Array) {
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
 
 function redirectUri(c: Context<AppEnv>) {
   return new URL(`${COOKIE_PATH}/callback`, c.var.config.auth.baseURL).toString();
@@ -64,13 +58,8 @@ function backToApp(c: Context<AppEnv>, back: Return, outcome: Record<string, str
   return c.redirect(url.toString(), 302);
 }
 
-function randomToken(bytes: number) {
-  return toBase64Url(crypto.getRandomValues(new Uint8Array(bytes)));
-}
-
 async function challengeFor(verifier: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-  return toBase64Url(new Uint8Array(digest));
+  return toBase64Url(await sha256(verifier));
 }
 
 function googleMailboxes(c: Context<AppEnv>) {

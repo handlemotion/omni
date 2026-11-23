@@ -1,4 +1,4 @@
-import { signRequest } from "@omni/crypto";
+import { signedPost } from "@omni/crypto";
 import { MAIL_PING_PATH } from "@omni/contracts";
 import { HTTPException } from "hono/http-exception";
 import type { z } from "zod";
@@ -12,27 +12,20 @@ export interface MailServiceScope {
   log: Logger;
 }
 
-async function signedPost(
+async function post(
   scope: MailServiceScope,
   path: string,
-  body: string,
-  options: { nonce?: string; timeoutMs: number },
+  json: string | undefined,
+  timeoutMs: number,
 ) {
-  const url = new URL(path, scope.config.MAIL_SERVICE_URL);
-  const headers = await signRequest({
+  const { url, init } = await signedPost({
     secret: scope.config.MAIL_SERVICE_HMAC_SECRET,
-    method: "POST",
-    path: url.pathname + url.search,
-    body,
-    ...(options.nonce ? { nonce: options.nonce } : {}),
+    baseUrl: scope.config.MAIL_SERVICE_URL,
+    path,
+    json,
     requestId: scope.requestId,
   });
-  return fetch(url, {
-    method: "POST",
-    headers: body ? { ...headers, "content-type": "application/json" } : headers,
-    body,
-    signal: AbortSignal.timeout(options.timeoutMs),
-  });
+  return fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
 }
 
 /**
@@ -43,7 +36,7 @@ export async function pingMailService(scope: MailServiceScope) {
   const log = scope.log.child({ component: "mail-service" });
   const started = Date.now();
   try {
-    const response = await signedPost(scope, MAIL_PING_PATH, "", { timeoutMs: 10_000 });
+    const response = await post(scope, MAIL_PING_PATH, undefined, 10_000);
     const durationMs = Date.now() - started;
     if (response.ok) log.info("mail_service.ping", { status: response.status, durationMs });
     else log.warn("mail_service.ping_failed", { status: response.status, durationMs });
@@ -81,10 +74,7 @@ export async function callMailService<S extends z.ZodType>(
   const started = Date.now();
   let response: Response;
   try {
-    response = await signedPost(scope, path, JSON.stringify(body), {
-      nonce: crypto.randomUUID().replaceAll("-", ""),
-      timeoutMs: 60_000,
-    });
+    response = await post(scope, path, JSON.stringify(body), 60_000);
   } catch (error) {
     log.warn("mail_service.call_failed", { error, durationMs: Date.now() - started });
     throw new MailServiceError(

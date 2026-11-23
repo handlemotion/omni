@@ -3,7 +3,7 @@ import { existsSync, fstatSync } from "node:fs";
 import { createServer } from "node:http";
 import { parseArgs } from "node:util";
 import { GOOGLE_CONNECT_PATH, googleConnectResultSchema } from "@omni/contracts";
-import { signRequest } from "@omni/crypto";
+import { signedPost } from "@omni/crypto";
 import { createDb, findMemberByEmail } from "@omni/db";
 import { z } from "zod";
 import { createGoogleOAuth, GOOGLE_SCOPE_PARAM } from "../providers/gmail.ts";
@@ -106,19 +106,13 @@ const { db, close } = createDb(DATABASE_URL, { onnotice: () => {} });
 const memberId = await findMemberByEmail(db, values.org!, values.owner!).finally(close);
 if (!memberId) fail(`no member with email ${values.owner} in org ${values.org}`);
 
-const body = JSON.stringify({ orgId: values.org, memberId, code, codeVerifier, redirectUri });
-const headers = await signRequest({
+const signed = await signedPost({
   secret: MAIL_SERVICE_HMAC_SECRET,
-  method: "POST",
+  baseUrl: MAIL_SERVICE_URL,
   path: GOOGLE_CONNECT_PATH,
-  body,
-  nonce: randomBytes(16).toString("hex"),
+  json: JSON.stringify({ orgId: values.org, memberId, code, codeVerifier, redirectUri }),
 });
-const response = await fetch(new URL(GOOGLE_CONNECT_PATH, MAIL_SERVICE_URL), {
-  method: "POST",
-  headers: { ...headers, "content-type": "application/json" },
-  body,
-});
+const response = await fetch(signed.url, signed.init);
 const json: unknown = await response.json().catch(() => null);
 const result = googleConnectResultSchema.safeParse(json);
 if (!response.ok || !result.success)

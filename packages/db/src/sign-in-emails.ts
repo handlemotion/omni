@@ -1,3 +1,4 @@
+import { randomToken, sha256Hex } from "@omni/crypto";
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, eq, sql, TransactionRollbackError } from "drizzle-orm";
 import type { Db } from "./client.ts";
@@ -9,19 +10,6 @@ import { userEmails } from "./schema/identity.ts";
 /** A link to add an address works for an hour, once. */
 export const SIGN_IN_EMAIL_TOKEN_TTL_MS = 60 * 60 * 1000;
 const TOKEN_PREFIX = "sign-in-email:";
-
-async function sha256Hex(text: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function randomToken() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
 
 /**
  * Whose address this is: the user whose primary it is, verified or not, or the user who verified
@@ -144,7 +132,7 @@ export const startSignInEmail: (
   const owner = await findEmailOwner(db, email);
   if (owner?.userId === input.userId) return { status: "yours" };
   if (owner) return { status: "taken" };
-  const token = randomToken();
+  const token = randomToken(32);
   const expiresAt = new Date(Date.now() + SIGN_IN_EMAIL_TOKEN_TTL_MS);
   await db.insert(verifications).values({
     id: crypto.randomUUID(),

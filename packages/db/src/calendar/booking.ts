@@ -1,3 +1,4 @@
+import { randomToken } from "@omni/crypto";
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import {
   bookingSlots,
@@ -102,14 +103,6 @@ function badHours(input: BookingLinkPatch, current?: LinkRow) {
 const badLink = (input: BookingLinkPatch, current?: LinkRow) =>
   badShape(input) ?? badHours(input, current);
 
-function newSlug() {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-
 /** The member's booking links whose calendar they can still open, newest first. */
 export async function memberBookingLinks(
   ex: Ex,
@@ -146,7 +139,7 @@ export async function createBookingLink(
       title: input.title.trim(),
       orgId: calendar.orgId,
       memberId,
-      slug: newSlug(),
+      slug: randomToken(16),
     })
     .returning();
   if (!row) throw new Error("booking link insert returned nothing");

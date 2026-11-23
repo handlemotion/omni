@@ -2,7 +2,7 @@ import { randomUUIDv7 } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MAIL_PING_PATH } from "@omni/contracts";
-import { parseKeyring, signRequest } from "@omni/crypto";
+import { parseKeyring, signedPost } from "@omni/crypto";
 import { createDb, createOrgWithOwner, findMailboxByAddress, saveMailbox } from "@omni/db";
 import { subscriptions } from "@omni/db/schema";
 import { eq } from "drizzle-orm";
@@ -103,6 +103,6 @@ async function fillInbox(credentials: PasswordCredentials, wanted: (file: string
 async function pingMailService() {
   const { MAIL_SERVICE_URL: url, MAIL_SERVICE_HMAC_SECRET: secret } = env;
   if (!url || !secret) return;
-  const headers = await signRequest({ secret, method: "POST", path: MAIL_PING_PATH });
-  await fetch(new URL(MAIL_PING_PATH, url), { method: "POST", headers }).catch(() => null);
+  const signed = await signedPost({ secret, baseUrl: url, path: MAIL_PING_PATH });
+  await fetch(signed.url, signed.init).catch(() => null);
 }

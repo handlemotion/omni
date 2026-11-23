@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { transcribe, type ModelClient, type OcrSource } from "@omni/ai";
+import { toBase64 } from "@omni/crypto";
 import {
   saveStorageText,
   storageFilesToRead,
@@ -28,14 +29,6 @@ interface Ocr {
   log: Logger;
 }
 
-function base64(bytes: Uint8Array) {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(binary);
-}
-
 async function transcribed(ocr: Ocr, file: StorageFileToRead, source: OcrSource) {
   ocr.left--;
   const started = Date.now();
@@ -59,7 +52,7 @@ async function pictureText(env: Env, ocr: Ocr, file: StorageFileToRead) {
     .transform({ width: OCR_PICTURE_EDGE, height: OCR_PICTURE_EDGE, fit: "scale-down" })
     .output({ format: "image/jpeg", quality: 85, anim: false });
   const bytes = new Uint8Array(await drawn.response().arrayBuffer());
-  return transcribed(ocr, file, { kind: "image", mediaType: "image/jpeg", data: base64(bytes) });
+  return transcribed(ocr, file, { kind: "image", mediaType: "image/jpeg", data: toBase64(bytes) });
 }
 
 async function readPicture(env: Env, ocr: Ocr | null, file: StorageFileToRead) {
@@ -108,7 +101,7 @@ async function readText(env: Env, ocr: Ocr | null, file: StorageFileToRead, log:
     if (ocr && needsOcr(reader, text, pages)) {
       if (file.size > OCR_PDF_MAX_BYTES || pages! > OCR_PDF_MAX_PAGES)
         return { ...base, status: "too_large" } satisfies StorageTextInput;
-      const read = await transcribed(ocr, file, { kind: "pdf", data: base64(bytes) });
+      const read = await transcribed(ocr, file, { kind: "pdf", data: toBase64(bytes) });
       return { ...base, status: read.text ? "ok" : "empty", ...read } satisfies StorageTextInput;
     }
     return { ...base, status: text ? "ok" : "empty", text, truncated } satisfies StorageTextInput;

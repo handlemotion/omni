@@ -1,6 +1,8 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });
 
+type Digestible = Parameters<typeof crypto.subtle.digest>[1];
+
 export function utf8(text: string) {
   return encoder.encode(text) as Uint8Array<ArrayBuffer> satisfies Uint8Array<ArrayBuffer>;
 }
@@ -15,9 +17,15 @@ export function toHex(bytes: Uint8Array) {
   return out;
 }
 
-/** SHA-256 of the text's UTF-8 bytes, as lowercase hex. */
-export async function sha256Hex(text: string) {
-  return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", utf8(text))));
+/** SHA-256 of the bytes, or of a string's UTF-8 bytes. */
+export async function sha256(data: string | Digestible) {
+  const bytes = typeof data === "string" ? utf8(data) : data;
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+}
+
+/** SHA-256 as lowercase hex. */
+export async function sha256Hex(data: string | Digestible) {
+  return toHex(await sha256(data));
 }
 
 export const fromHex: (hex: string) => Uint8Array<ArrayBuffer> | null = (hex) => {
@@ -27,10 +35,23 @@ export const fromHex: (hex: string) => Uint8Array<ArrayBuffer> | null = (hex) =>
   return out;
 };
 
-export function toBase64Url(bytes: Uint8Array) {
+/** Standard, padded base64. */
+export function toBase64(bytes: Uint8Array) {
   let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+/** URL-safe base64 without padding. */
+export function toBase64Url(bytes: Uint8Array) {
+  return toBase64(bytes).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+/** `bytes` random bytes from the CSPRNG, as unpadded base64url. */
+export function randomToken(bytes: number) {
+  return toBase64Url(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
 /** Accepts standard or URL-safe base64, padded or not. Returns null on malformed input. */

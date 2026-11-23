@@ -4,6 +4,7 @@ import {
   MEETINGS_MAX_CHUNKS,
   type MeetingChunksResponse,
 } from "@omni/contracts";
+import { sha256Hex } from "@omni/crypto";
 import { meetingsPipeline } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
@@ -20,11 +21,6 @@ export const chunksPrefix = (orgId: string, meetingId: string) =>
 
 const SHA256 = /^[0-9a-f]{64}$/;
 
-async function sha256Of(bytes: ArrayBuffer) {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 async function readChunk(c: Context<AppEnv>) {
   const declared = (c.req.header("x-content-sha256") ?? "").toLowerCase();
   if (!SHA256.test(declared)) return null;
@@ -32,7 +28,7 @@ async function readChunk(c: Context<AppEnv>) {
   if (!Number.isInteger(length) || length <= 0 || length > MEETINGS_MAX_CHUNK_BYTES) return null;
   const bytes = await c.req.arrayBuffer();
   if (bytes.byteLength === 0 || bytes.byteLength > MEETINGS_MAX_CHUNK_BYTES) return null;
-  return { bytes, sha256: declared, matches: (await sha256Of(bytes)) === declared };
+  return { bytes, sha256: declared, matches: (await sha256Hex(bytes)) === declared };
 }
 
 /**

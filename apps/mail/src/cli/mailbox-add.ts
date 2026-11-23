@@ -2,7 +2,7 @@ import { randomUUIDv7 } from "node:crypto";
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { MAIL_PING_PATH } from "@omni/contracts";
-import { parseKeyring, signRequest } from "@omni/crypto";
+import { parseKeyring, signedPost } from "@omni/crypto";
 import { createDb, findMailboxByAddress, findMemberByEmail, saveMailbox } from "@omni/db";
 import { z } from "zod";
 import { type PasswordCredentials, sealCredentials } from "../credentials.ts";
@@ -154,11 +154,8 @@ try {
 
 const { MAIL_SERVICE_URL: serviceUrl, MAIL_SERVICE_HMAC_SECRET: secret } = config.data;
 if (serviceUrl && secret) {
-  const headers = await signRequest({ secret, method: "POST", path: MAIL_PING_PATH });
-  const response = await fetch(new URL(MAIL_PING_PATH, serviceUrl), {
-    method: "POST",
-    headers,
-  }).catch(() => null);
+  const signed = await signedPost({ secret, baseUrl: serviceUrl, path: MAIL_PING_PATH });
+  const response = await fetch(signed.url, signed.init).catch(() => null);
   console.error(
     response?.status === 202
       ? "mail service pinged: it connects the mailbox now"

@@ -12,6 +12,7 @@ import {
   type StorageSigningItemResponse,
   type StorageSigningListResponse,
 } from "@omni/contracts";
+import { toHex } from "@omni/crypto";
 import {
   forUser,
   issueSigningLinks,
@@ -74,8 +75,7 @@ async function hashObject(bucket: R2Bucket, key: string) {
   if (!object) return null;
   const digest = new crypto.DigestStream("SHA-256");
   await object.body.pipeTo(digest);
-  const bytes = new Uint8Array(await digest.digest);
-  return { isPdf, sha256: [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("") };
+  return { isPdf, sha256: toHex(new Uint8Array(await digest.digest)) };
 }
 
 const SIGNING_FAILURES = {

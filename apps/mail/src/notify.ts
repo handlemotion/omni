@@ -1,6 +1,5 @@
-import { randomUUID } from "node:crypto";
 import { MAIL_EVENTS_PATH, type MailEvent, MAX_EVENTS_PER_REQUEST } from "@omni/contracts";
-import { signRequest } from "@omni/crypto";
+import { signedPost } from "@omni/crypto";
 import type { Logger } from "./log.ts";
 import { backoffDelay } from "./timing.ts";
 
@@ -35,7 +34,6 @@ export class WorkerNotifier {
   private readonly options: Required<Omit<NotifierOptions, "onDelivered">> &
     Pick<NotifierOptions, "onDelivered">;
   private readonly pending = new Set<string>();
-  private readonly url: string;
   private queue: QueuedEvent[] = [];
   private timer: NodeJS.Timeout | null = null;
   private flushing: Promise<void> | null = null;
@@ -50,7 +48,6 @@ export class WorkerNotifier {
       maxAttempts: 8,
       ...options,
     };
-    this.url = new URL(MAIL_EVENTS_PATH, options.workerUrl).toString();
   }
 
   /** `pendingId`: the event's `pending_mail_events` row, deleted once the Worker accepts it. */
@@ -104,17 +101,14 @@ export class WorkerNotifier {
     const log = this.options.logger;
     for (let attempt = 1; ; attempt++) {
       try {
-        const headers = await signRequest({
+        const { url, init } = await signedPost({
           secret: this.options.secret,
-          method: "POST",
-          path: new URL(this.url).pathname,
-          body,
-          nonce: randomUUID(),
+          baseUrl: this.options.workerUrl,
+          path: MAIL_EVENTS_PATH,
+          json: body,
         });
-        const response = await fetch(this.url, {
-          method: "POST",
-          headers: { ...headers, "content-type": "application/json" },
-          body,
+        const response = await fetch(url, {
+          ...init,
           signal: AbortSignal.timeout(DELIVER_TIMEOUT_MS),
         });
         if (response.ok) return true;
