@@ -1,0 +1,109 @@
+name: iOS update
+
+# Publishes an EAS Update (OTA JS/TS/UI bundle) for the iOS app in ~30 seconds on Linux.
+# TestFlight builds (ios-release.yml) subscribe to the `production` channel and gate updates by
+# native fingerprint (`runtimeVersion: { policy: "fingerprint" }`), so native changes still go
+# through a full TestFlight build while JS/TS/UI changes reach testers on next launch.
+#
+# Runs on pushes to `main` that touch the iOS app or its workspace dependencies, and on demand
+# (`workflow_dispatch`) for any branch/channel. Skips cleanly when `EXPO_TOKEN` or
+# `OMNI_IOS_EAS_PROJECT_ID` is unset (self-hosted forks without an Expo account).
+# Settings come from Doppler `prd_github`, synced to the GitHub environment `production`
+# (docs/operations/releases.md).
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/ios/**
+      - packages/client/**
+      - packages/contracts/**
+      - packages/mail-core/**
+      - .github/workflows/ios-update.yml
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "EAS Update branch to publish to (defaults to production)"
+        required: false
+        default: production
+      message:
+        description: "Update message (defaults to the commit subject)"
+        required: false
+        default: ""
+
+concurrency:
+  group: ios-update-${{ inputs.branch || 'production' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: EAS Update
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Check configuration
+        id: config
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          OMNI_IOS_EAS_PROJECT_ID: ${{ secrets.OMNI_IOS_EAS_PROJECT_ID }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ] || [ -z "$OMNI_IOS_EAS_PROJECT_ID" ]; then
+            echo "Skipping EAS Update: EXPO_TOKEN or OMNI_IOS_EAS_PROJECT_ID is not set."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: steps.config.outputs.enabled == 'true'
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - if: steps.config.outputs.enabled == 'true'
+        run: pnpm install --frozen-lockfile --filter @omni/ios...
+
+      - name: Publish update
+        if: steps.config.outputs.enabled == 'true'
+        working-directory: apps/ios
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          OMNI_IOS_EAS_PROJECT_ID: ${{ secrets.OMNI_IOS_EAS_PROJECT_ID }}
+          EXPO_PUBLIC_OMNI_API_URL: ${{ secrets.EXPO_PUBLIC_OMNI_API_URL }}
+          OMNI_IOS_BUNDLE_ID: ${{ secrets.OMNI_IOS_BUNDLE_ID }}
+          OMNI_IOS_NAME: ${{ secrets.OMNI_IOS_NAME }}
+          OMNI_IOS_SCHEME: ${{ secrets.OMNI_IOS_SCHEME }}
+          OMNI_IOS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_IOS_PROJECT: ${{ secrets.SENTRY_IOS_PROJECT }}
+          OMNI_IOS_LINK_HOST: ${{ secrets.OMNI_IOS_LINK_HOST }}
+          UPDATE_BRANCH: ${{ inputs.branch || 'production' }}
+          UPDATE_MESSAGE: ${{ inputs.message }}
+        run: |
+          message="$UPDATE_MESSAGE"
+          if [ -z "$message" ]; then
+            message="$(git log -1 --pretty=%s)"
+          fi
+          environment=production
+          if [ "$UPDATE_BRANCH" != "production" ]; then
+            environment=preview
+          fi
+          npx --yes eas-cli@latest update \
+            --branch "$UPDATE_BRANCH" \
+            --environment "$environment" \
+            --platform ios \
+            --non-interactive \
+            --message "$message"

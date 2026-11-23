@@ -93,6 +93,7 @@ jobs:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_IOS_PROJECT: ${{ secrets.SENTRY_IOS_PROJECT }}
           OMNI_IOS_LINK_HOST: ${{ secrets.OMNI_IOS_LINK_HOST }}
+          OMNI_IOS_EAS_PROJECT_ID: ${{ secrets.OMNI_IOS_EAS_PROJECT_ID }}
         run: apps/ios/scripts/release-testflight.sh
 
       - name: Clean up

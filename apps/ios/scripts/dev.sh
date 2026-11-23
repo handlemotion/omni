@@ -116,8 +116,8 @@ if [ "$metro_only" = 1 ]; then
 fi
 
 # Native build fingerprint via @expo/fingerprint (falls back to hashing config files if unavailable).
-native_hash="$(node scripts/fingerprint.mjs 2>/dev/null || cat package.json app.config.ts | shasum | cut -c1-16)"
-fingerprint="$native_hash-$OMNI_IOS_BUNDLE_ID-$target"
+native_hash="$(node scripts/fingerprint.mjs 2>/dev/null || cat package.json app.config.ts fingerprint.config.js | shasum | cut -c1-16)"
+fingerprint="$native_hash-$OMNI_IOS_BUNDLE_ID-$target-${OMNI_IOS_EAS_PROJECT_ID:-}"
 
 # Keep build stamps outside the gitignored worktree `ios/` folder so switching worktrees reuses
 # the already-installed Omni Dev build instead of triggering a full native rebuild.

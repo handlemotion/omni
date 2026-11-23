@@ -4,6 +4,8 @@ import pkg from "./package.json";
 
 const scheme = process.env.OMNI_IOS_SCHEME || "omni";
 const linkHost = process.env.OMNI_IOS_LINK_HOST;
+const easProjectId = process.env.OMNI_IOS_EAS_PROJECT_ID;
+const updateChannel = process.env.OMNI_IOS_UPDATE_CHANNEL || "production";
 
 const config: ExpoConfig = {
   name: process.env.OMNI_IOS_NAME || "Omni",
@@ -13,6 +15,16 @@ const config: ExpoConfig = {
   orientation: "portrait",
   scheme,
   userInterfaceStyle: "light",
+  ...(easProjectId
+    ? {
+        runtimeVersion: { policy: "fingerprint" },
+        updates: {
+          url: `https://u.expo.dev/${easProjectId}`,
+          requestHeaders: { "expo-channel-name": updateChannel },
+        },
+        extra: { eas: { projectId: easProjectId } },
+      }
+    : { updates: { enabled: false } }),
   ios: {
     bundleIdentifier: process.env.OMNI_IOS_BUNDLE_ID || "app.omni.ios",
     buildNumber: process.env.OMNI_IOS_BUILD_NUMBER || "1",

@@ -15,6 +15,12 @@ Desktop and iOS releases are cut by release-please and built on GitHub.
 To retry or rebuild a tag: Actions, `Desktop release` or `iOS release`, Run workflow, with the tag.
 To pick a version yourself, put `Release-As: 1.0.0` in the body of a commit to main.
 
+For iOS JS/TS/UI changes that do not touch native code, `iOS update` (`.github/workflows/ios-update.yml`)
+publishes an EAS Update to the `production` channel in about 30 seconds on Linux on every push to
+`main` touching `apps/ios` or its shared packages (or on demand via Run workflow for any branch).
+Native changes are gated by `runtimeVersion: { policy: "fingerprint" }` and still require a full
+TestFlight build via `iOS release`.
+
 ## Settings: Doppler `prd_github`
 
 The release jobs run in the GitHub environment `production`, which Doppler's GitHub sync fills from
@@ -47,6 +53,8 @@ Storage edit) and `OMNI_DESKTOP_UPDATER_KEY` are already there.
 | `EXPO_PUBLIC_SENTRY_DSN`, `OMNI_DESKTOP_SENTRY_DSN`                                             | Optional; the Sentry DSNs of the iOS app and the Mac sync extension. Unset leaves crash reporting off.                                                                              |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_IOS_PROJECT`                                         | Optional; upload the iOS build's source maps and debug symbols to Sentry.                                                                                                           |
 | `OMNI_IOS_LINK_HOST`                                                                            | Optional; the host whose share links open in the iOS app (Associated Domains). Set the Worker's `IOS_APP_IDS` and enable Associated Domains on the App ID first.                    |
+| `OMNI_IOS_EAS_PROJECT_ID`                                                                       | Optional; the Expo EAS project UUID. Enables `expo-updates` in TestFlight and `iOS update` OTA publishes. Unset keeps updates disabled.                                             |
+| `EXPO_TOKEN`                                                                                    | Optional; Expo robot/access token used by `iOS update` (`eas update`) on Linux to publish OTA updates.                                                                              |
 
 `RELEASE_PLEASE_TOKEN` is a repository secret, optional: a fine-grained token on this repository
 with Contents and Pull requests read and write. With it, `Checks` runs on the release pull request

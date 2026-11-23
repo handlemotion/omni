@@ -11,6 +11,8 @@
 #                             App Store Connect (next-build-number.mjs)
 #   OMNI_IOS_VERSION          optional; the version people see (default `version` in package.json,
 #                             which release-please raises)
+#   OMNI_IOS_EAS_PROJECT_ID   optional; Expo EAS project UUID. Unset keeps expo-updates disabled.
+#   OMNI_IOS_UPDATE_CHANNEL   optional; EAS Update channel baked into the binary (default production)
 #   UPLOAD=0                  build and export the .ipa without uploading it
 #   ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID
 #                             optional App Store Connect API key: signs in with it instead of the

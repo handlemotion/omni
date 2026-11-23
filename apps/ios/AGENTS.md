@@ -32,3 +32,9 @@ Extends the root `AGENTS.md` and `DESIGN.md`. How to run it: `README.md`.
   for a state it issued (`apps/worker/e2e/ios-sign-in.e2e.test.ts` proves the server side).
 - No unit tests here (`scripts/check-tests.mjs`). Prove a change by bundling it
   (`pnpm --filter @omni/ios build:check`) and running it against the local stack (`README.md`).
+- **OTA updates (EAS Update).** JS/TS/UI changes merged to `main` ship to TestFlight in ~30s via
+  `.github/workflows/ios-update.yml` on the `production` channel, gated by native fingerprint
+  (`runtimeVersion: { policy: "fingerprint" }` with `fingerprint.config.js`). Native changes
+  (new native modules, Expo SDK/plugin changes, Info.plist/entitlements) change the fingerprint and
+  still need a full TestFlight build (`iOS release`). Keep `updates` env-gated on
+  `OMNI_IOS_EAS_PROJECT_ID` in `app.config.ts` so self-hosters need no Expo account.

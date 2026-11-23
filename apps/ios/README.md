@@ -64,3 +64,23 @@ It prebuilds the native project, archives a Release build, and uploads it (`UPLO
 (`omni://`) in `AUTH_TRUSTED_ORIGINS`, or sign-in links can't return to the app. CocoaPods must be
 installed (`brew install cocoapods`). With an App Store Connect key (`ASC_KEY_PATH`, `ASC_KEY_ID`,
 `ASC_ISSUER_ID`) the build number may be left out: it is asked of App Store Connect.
+
+## Over-the-air updates (EAS Update)
+
+Optional. When `OMNI_IOS_EAS_PROJECT_ID` is unset, `expo-updates` is disabled so self-hosters need
+no Expo account. When set, builds gate updates by native fingerprint
+(`runtimeVersion: { policy: "fingerprint" }` with `fingerprint.config.js`), so native changes still
+go through a full TestFlight build while JS/TS/UI changes ship in ~30 seconds:
+
+- **TestFlight (`production` channel):** every push to `main` touching `apps/ios` or its shared
+  packages runs `.github/workflows/ios-update.yml` on Linux and publishes to the `production` branch.
+  Testers receive the update on their next app launch.
+- **Branch previews in Omni Dev:** publish an update for any branch and open it from the
+  **Extensions** tab inside **Omni Dev** (no laptop or Wi-Fi required):
+
+```bash
+cd apps/ios
+OMNI_IOS_EAS_PROJECT_ID=<project id> npx --yes eas-cli@latest update --branch <branch> --environment preview --platform ios
+```
+
+Check rollout health and crash rates with `eas update:insights` and `eas channel:insights`.
