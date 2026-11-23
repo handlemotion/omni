@@ -467,7 +467,8 @@ treats every meeting as the strictest case:
 
 ## Audio
 
-The recording is a Drive file in the recorder's My files, in a `Recordings` folder, counted
+The recording is a Drive file in the recorder's hidden store (their retired My files,
+`docs/spec/teamspaces.md`, which no Drive view shows), in a `Recordings` folder, counted
 against the workspace's quota, and never in a teamspace, whose members and admins Drive lets in
 by itself. It is shared with nobody in Drive: everyone else plays it through
 `GET /api/meetings/:id/audio`, which checks the meeting's grants and then reads the file by its

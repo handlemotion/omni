@@ -7,57 +7,20 @@ import { forUser, type MemberStorage } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
-import { announceDrives } from "../storage/announce.ts";
 import { deleteStorageObjects, storageLimit } from "../storage/core.ts";
 import { memberStorage, refused as storageRefused } from "../storage/http.ts";
 import { zValidator } from "../validator.ts";
 import { deliver, memberTalk, refused, wireMessage } from "./http.ts";
 
-/** The folder in the sender's My files that drops go into: one shared with nobody else. */
-export const TALK_FOLDER = "Talk";
-const FOLDER_PAGES = 20;
-
-const TALK_NAME = /^Talk(?: \(?\d+\)?)?$/;
-
-async function isPrivate(files: MemberStorage, folderId: string) {
-  const shared = await files.sharing(folderId);
-  return (
-    shared.status === "ok" &&
-    shared.sharing.people.length === 0 &&
-    shared.sharing.linkAccess === "restricted"
-  );
-}
-
-async function talkFolder(files: MemberStorage) {
-  let cursor = null;
-  for (let page = 0; page < FOLDER_PAGES; page++) {
-    const listed = await files.list({ space: "personal" }, { cursor, limit: 200 });
-    if (listed.status !== "ok") return null;
-    for (const node of listed.nodes) {
-      if (
-        node.kind === "folder" &&
-        TALK_NAME.test(node.name) &&
-        (await isPrivate(files, node.id))
-      ) {
-        return { id: node.id, made: null };
-      }
-    }
-    const pastFolders = listed.nodes.some((node) => node.kind === "file");
-    if (pastFolders || !listed.nextCursor) break;
-    cursor = listed.nextCursor;
-  }
-  const made = await files.createFolder({ space: "personal" }, TALK_FOLDER);
-  return made.status === "ok" ? { id: made.node.id, made: made.node } : null;
-}
+const DROPS = { space: "personal" } as const;
 
 async function storeFile(
   c: Context<AppEnv>,
   files: MemberStorage,
-  parentId: string,
   file: { name: string; size: number; mimeType: string | null },
 ) {
   const { limitBytes } = await storageLimit(c.var.db, c.var.config, c.var.member.orgId);
-  const opened = await files.openUpload({ parentId }, { ...file, limitBytes });
+  const opened = await files.openUpload(DROPS, { ...file, limitBytes });
   if (opened.status !== "ok") return opened;
   const { upload } = opened;
   const drop = async () => {
@@ -151,12 +114,9 @@ export const talkFiles = new Hono<AppEnv>()
       return apiError(c, "file_too_large", "the file is larger than one file may be");
     }
     const files = memberStorage(c);
-    const folder = await talkFolder(files);
-    if (!folder) return apiError(c, "forbidden", "you cannot keep files here");
-    const parentId = folder.id;
     const mimeType = c.req.header("content-type")?.split(";")[0]?.trim() || null;
     const name = c.req.valid("query").name;
-    const done = await storeFile(c, files, parentId, { name, size, mimeType });
+    const done = await storeFile(c, files, { name, size, mimeType });
     if (done.status !== "ok") return storageRefused(c, done.status);
     const { node } = done;
     const shared = await files.putGrant(node.id, found.other.shareTo, "viewer");
@@ -175,7 +135,6 @@ export const talkFiles = new Hono<AppEnv>()
         ? refused(c, sent)
         : storageRefused(c, sent.status);
     }
-    announceDrives(c, [folder.made, node]);
     deliver(c, sent.thread, sent.message);
     return c.json({ message: wireMessage(sent.message) } satisfies TalkMessageResponse, 201);
   });

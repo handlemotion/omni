@@ -82,7 +82,7 @@ async function answer(context: ToolContext, drive: StorageContext, nodeId: strin
 async function create(context: ToolContext, input: z.infer<typeof createInput>) {
   const scoped = driveFor(context, input.workspace);
   if ("error" in scoped) return toolError(scoped.error);
-  const at = await placeFor(scoped.drive, input, scoped.workspace);
+  const at = await placeFor(scoped.drive, input);
   if (!at.place) return toolError(at.error ?? "Name a folder or a workspace.");
   const writer = await writerIn(context, scoped.drive, at.orgId);
   if (!writer) return refusal("forbidden");
@@ -143,7 +143,7 @@ export function registerDriveDocs(server: McpServer, context: ToolContext) {
     {
       title: "Write a doc",
       description:
-        "Write a new doc in Drive from Markdown: in the person's My files by default, a company's Shared, or a folder. It opens in Omni as a page anyone with access can edit together. Returns the doc with its `url` to cite.",
+        "Write a new doc in Drive from Markdown: in a folder, or at the top of a teamspace. It opens in Omni as a page anyone with access can edit together. Returns the doc with its `url` to cite.",
       inputSchema: createInput,
       outputSchema,
       annotations: ANNOTATIONS,

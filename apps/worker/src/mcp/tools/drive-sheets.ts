@@ -234,7 +234,7 @@ async function create(context: ToolContext, input: z.infer<typeof createInput>) 
     return toolError("Give exactly one of `tabs` or `csv`.");
   const scoped = driveFor(context, input.workspace);
   if ("error" in scoped) return toolError(scoped.error);
-  const at = await placeFor(scoped.drive, input, scoped.workspace);
+  const at = await placeFor(scoped.drive, input);
   if (!at.place) return toolError(at.error ?? "Name a folder or a workspace.");
   const writer = await writerIn(context, scoped.drive, at.orgId);
   if (!writer) return refusal("forbidden");
@@ -302,7 +302,7 @@ export function registerDriveSheets(server: McpServer, context: ToolContext) {
     {
       title: "Write a sheet",
       description:
-        "Write a new Omni sheet in Drive: tabs of rows (or one tab from CSV), formulas as `=SUM(B2:B9)`, optional column types and frozen header rows. In the person's My files by default, a company's Shared, or a folder. It opens in Omni as a grid anyone with access can edit together. Returns the sheet with its `url` to cite.",
+        "Write a new Omni sheet in Drive: tabs of rows (or one tab from CSV), formulas as `=SUM(B2:B9)`, optional column types and frozen header rows. In a folder, or at the top of a teamspace. It opens in Omni as a grid anyone with access can edit together. Returns the sheet with its `url` to cite.",
       inputSchema: createInput,
       outputSchema,
       annotations: ANNOTATIONS,

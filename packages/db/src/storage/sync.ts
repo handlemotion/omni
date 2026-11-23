@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, organizations } from "../schema/auth.ts";
 import {
@@ -14,8 +14,6 @@ import {
   MAX_WALK,
   nodeColumns,
   pageSize,
-  personalDrive,
-  sharedDrive,
   teamspaceDrive,
   toNode,
   type Drive,
@@ -101,7 +99,7 @@ async function stillSyncedOf(
   reader: { memberId: string; teamspaces: boolean },
   ids: string[],
 ) {
-  if (ids.length === 0) return new Set<string>();
+  if (ids.length === 0 || !reader.teamspaces) return new Set<string>();
   const rows = await ex
     .select({ id: storageNodes.id })
     .from(storageNodes)
@@ -109,13 +107,7 @@ async function stillSyncedOf(
       and(
         inArray(storageNodes.id, ids),
         eq(storageNodes.orgId, orgId),
-        or(
-          eq(storageNodes.space, "shared"),
-          eq(storageNodes.ownerMemberId, reader.memberId),
-          reader.teamspaces
-            ? sql`${storageNodes.teamspaceId} in ${memberTeamspaceIds(reader.memberId)}`
-            : undefined,
-        ),
+        sql`${storageNodes.teamspaceId} in ${memberTeamspaceIds(reader.memberId)}`,
       ),
     );
   return new Set(rows.map((row) => row.id));
@@ -301,8 +293,9 @@ async function syncedTeamspaces(ex: Db, memberIds: string[]) {
 }
 
 /**
- * Every workspace the person belongs to (only `scopeOrgId` when set), with the drives they
- * sync there: their My files and, in a company, Shared, each with its revision.
+ * Every workspace the person belongs to (only `scopeOrgId` when set), with the teamspaces they
+ * sync there, each with its revision. `drives` stays for older clients and is always empty: My
+ * files and Shared are retired (`docs/spec/teamspaces.md`).
  */
 export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: string | null) {
   const rows = await db
@@ -321,29 +314,18 @@ export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: st
       ),
     )
     .orderBy(asc(members.createdAt), asc(members.id));
-  const drivesOf = (row: (typeof rows)[number]) => {
-    const mine: Drive = personalDrive(row.orgId, row.memberId);
-    const shared: Drive = sharedDrive(row.orgId);
-    return [mine, shared];
-  };
   const teamspaces = await syncedTeamspaces(
     db,
     rows.map((row) => row.memberId),
   );
   const teamspaceDrives = teamspaces.map((t) => teamspaceDrive(t.orgId, t.id));
-  const revisions = await driveRevisions(db, [...rows.flatMap(drivesOf), ...teamspaceDrives]);
+  const revisions = await driveRevisions(db, teamspaceDrives);
   return rows.map((row) => ({
     orgId: row.orgId,
     name: row.name,
     slug: row.slug,
     memberId: row.memberId,
-    drives: drivesOf(row).map(
-      (drive) =>
-        ({
-          space: drive.space === "personal" ? "personal" : "shared",
-          revision: revisions.get(driveKey(drive)) ?? 0,
-        }) satisfies StorageSyncDrive,
-    ),
+    drives: [] as StorageSyncDrive[],
     teamspaces: teamspaces
       .filter((t) => t.memberId === row.memberId)
       .map((t) => ({

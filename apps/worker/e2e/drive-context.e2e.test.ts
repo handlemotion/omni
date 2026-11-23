@@ -97,6 +97,12 @@ async function indexAll() {
   for (let run = 0; run < 3; run++) expect(await stack.cron("* * * * *")).toBe("ok");
 }
 
+async function space(person: Person, name: string, open = false) {
+  const made = await stack.api(person.jar, "POST", "/teamspaces", { name, private: !open });
+  expect(made.status).toBe(201);
+  return (made.body.teamspace as { id: string }).id;
+}
+
 async function agentFor(person: Person, scope = DRIVE) {
   return connectAgent(stack.worker.url, person.jar, { scope });
 }
@@ -108,24 +114,26 @@ test("an agent finds and reads files by the words inside them, and only files it
   const carl = await stack.member(acme.id);
   const other = await stack.company("other");
   const bea = await stack.member(other.id);
+  const anas = { teamspaceId: await space(ana, "Ana") };
+  const team = { teamspaceId: await space(ana, "Team", true) };
 
   const report = await stack.upload(
     ana.jar,
-    { space: "personal" },
+    anas,
     "report.pdf",
     await pdf(["Cover page", `Quarterly revenue forecast for ${word} grows nine percent`]),
     PDF,
   );
   const plan = await stack.upload(
     ana.jar,
-    { space: "shared" },
+    team,
     "plan.docx",
     docx(["Launch plan", `The ${word} launch needs a checklist`]),
     DOCX,
   );
   await stack.upload(
     ana.jar,
-    { space: "personal" },
+    anas,
     "budget.xlsx",
     xlsx([
       ["Line", "Cost"],
@@ -133,7 +141,8 @@ test("an agent finds and reads files by the words inside them, and only files it
     ]),
     XLSX,
   );
-  await stack.upload(bea.jar, { space: "personal" }, "bea.md", text(`Bea's own ${word} notes`));
+  const beas = { teamspaceId: await space(bea, "Bea") };
+  await stack.upload(bea.jar, beas, "bea.md", text(`Bea's own ${word} notes`));
   await indexAll();
 
   const anaAgent = await agentFor(ana);
@@ -146,7 +155,7 @@ test("an agent finds and reads files by the words inside them, and only files it
     ids: [plan.id],
   })) as unknown as Fetched;
   expect(read.text).toMatch(/--- Page 2 ---\nQuarterly revenue forecast/);
-  expect(read.url).toBe(`${WEB_ORIGIN}/${acme.slug}/files/my?file=${report.id}`);
+  expect(read.url).toBe(`${WEB_ORIGIN}/${acme.slug}/files/t/${anas.teamspaceId}?file=${report.id}`);
   expect(read.more?.[0]?.text).toContain(`The ${word} launch needs a checklist`);
   expect(read.more?.[0]?.metadata.location).toBe("Shared");
 
@@ -169,10 +178,7 @@ test("an agent finds and reads files by the words inside them, and only files it
   const beaRead = (await call(beaAgent, "drive_fetch", { id: report.id })) as unknown as Fetched;
   expect(beaRead.text).toContain(`forecast for ${word}`);
 
-  const clients = await stack.api(ana.jar, "POST", "/folders", {
-    name: "Clients",
-    space: "personal",
-  });
+  const clients = await stack.api(ana.jar, "POST", "/folders", { name: "Clients", ...anas });
   const nested = await stack.upload(
     ana.jar,
     { parentId: clients.body.node.id },
@@ -208,7 +214,7 @@ test("a replaced file is read again, and a token without drive:read is asked to 
   const after = `after${randomUUID().slice(0, 6)}`;
   const note = await stack.upload(
     ana.jar,
-    { space: "personal" },
+    { teamspaceId: await space(ana, "Ana") },
     "note.md",
     text(`Draft ${before}`),
   );
@@ -247,16 +253,16 @@ test("a replaced file is read again, and a token without drive:read is asked to 
 test("an agent pages through a folder whose names are not Latin", async () => {
   const org = await stack.company("paging");
   const ana = await stack.member(org.id);
+  const teamspaceId = await space(ana, "Ana");
   for (const name of ["日本.md", "💡ideas.md", "ñandú.md"]) {
-    await stack.upload(ana.jar, { space: "personal" }, name, text(name));
+    await stack.upload(ana.jar, { teamspaceId }, name, text(name));
   }
   const agent = await agentFor(ana);
   const seen: string[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 4; page++) {
     const listed = (await call(agent, "drive_list", {
-      workspace: org.id,
-      space: "my_files",
+      teamspace_id: teamspaceId,
       limit: 1,
       ...(cursor ? { cursor } : {}),
     })) as { items: Item[]; next_cursor?: string };
@@ -270,11 +276,12 @@ test("an agent pages through a folder whose names are not Latin", async () => {
 test("a drive_list cursor handed out as standard base64 still pages", async () => {
   const org = await stack.company("legacy-cursor");
   const ana = await stack.member(org.id);
+  const teamspaceId = await space(ana, "Ana");
   for (const name of ["日本.md", "💡ideas.md"]) {
-    await stack.upload(ana.jar, { space: "personal" }, name, text(name));
+    await stack.upload(ana.jar, { teamspaceId }, name, text(name));
   }
   const agent = await agentFor(ana);
-  const ask = { workspace: org.id, space: "my_files", limit: 1 };
+  const ask = { teamspace_id: teamspaceId, limit: 1 };
   type Listed = { items: Item[]; next_cursor?: string };
   const first = (await call(agent, "drive_list", ask)) as Listed;
   const cursor = first.next_cursor ?? "";

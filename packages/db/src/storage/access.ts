@@ -75,7 +75,11 @@ export interface Door {
   root(ex: Db, space: Exclude<StorageSpace, "teamspace">): Promise<Drive | null>;
   /** The root of a teamspace the holder reaches as a member of it or of its open workspace. */
   teamspace(ex: Db, teamspaceId: string): Promise<Drive | null>;
-  /** Every drive the holder reaches as a member: My files, Shared and teamspaces. */
+  /**
+   * Every drive the holder browses as a member: their teamspaces. My files and Shared are
+   * retired (`docs/spec/teamspaces.md`): no listing, search, Recents or sync shows them, and My
+   * files is only the hidden store Talk and Meetings keep their files in.
+   */
   drives(ex: Db): Promise<Drive[]>;
   /** The member recorded as having made a node or opened an upload in `orgId`. */
   actor(ex: Db, orgId: string): Promise<string | null>;
@@ -173,9 +177,7 @@ export const memberDoor: (memberId: string, viaGrants?: boolean) => Door = (
     async drives(ex) {
       const member = await loadMember(ex, memberId);
       if (!member) return [];
-      const legacy: Drive[] = [personalDrive(member.orgId, member.id)];
-      if (!member.freelancer) legacy.push(sharedDrive(member.orgId));
-      return [...legacy, ...(await teamspaceDrives(ex, member))];
+      return teamspaceDrives(ex, member);
     },
     async actor(ex, orgId) {
       const member = await loadMember(ex, memberId);

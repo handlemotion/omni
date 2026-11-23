@@ -162,7 +162,8 @@ export function contextOperations(db: Db, userId: string, scopeOrgId?: string | 
         where g.email in (${sql.join(
           addresses.map((address) => sql`${address}`),
           sql`, `,
-        )}) and n.trashed_at is null ${only ? sql`and n.org_id = ${only}` : sql``}
+        )}) and n.trashed_at is null and n.space <> 'personal'
+          ${only ? sql`and n.org_id = ${only}` : sql``}
       union all
       select c.id, granted.depth + 1 from ${storageNodes} c
         join granted on c.parent_id = granted.id

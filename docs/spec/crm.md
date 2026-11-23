@@ -47,7 +47,7 @@ scopes keep `crm`.
 | One timeline per record           | Events, notes, contracts, emails, merged newest first           | Meetings (`meetings.md`), files, tasks |
 | A pipeline you drag               | Stages with a fixed kind and a free name; a board by stage      | Several pipelines, saved views         |
 | Notes on records                  | Plain notes on one record                                       | Mentions, notes on several records     |
-| Files on records                  | The record's folder in Shared, plus Drive files linked in place | Previews                               |
+| Files on records                  | The record's folder in its space, plus Drive files linked in place | Previews                               |
 | An API first, and agents          | Every route typed; MCP tools                                    | Webhooks                               |
 | A flexible data model             | Fixed columns                                                   | Custom fields as definitions plus JSON |
 | Contracts and a client's own view | Stored, tracked, sent and signed in Omni                        | The client dashboard                   |
@@ -96,8 +96,8 @@ Dragging a deal to a `won` stage records when it was won. That is the only cerem
 carries on as the project.
 
 **Keep the files.** A deal's Files are a folder at the top of the deal's own teamspace, made with
-the deal (`docs/spec/teamspaces.md`); a deal made before teamspaces keeps its folder in Shared,
-under `Clients`. Dropping a file on
+the deal (`docs/spec/teamspaces.md`); a deal made before teamspaces, and a company, gets its own
+teamspace with its folder at the top the first time a file needs one. Dropping a file on
 the deal uploads it there, and the same folder is in Storage, where it can be shared like any
 other. A file that already lives elsewhere in Drive is linked, not moved or copied (founder's
 call, Nov 20, 2026): "Add from Drive" adds a reference, like a symlink, in `crm_file_links`, and
@@ -158,7 +158,7 @@ people from outside the team who reach it, by address, each with a scope (founde
   conversation sidebar narrowed to their projects. No company or person pages, no lists of them, no
   new deals, no changes to a deal itself, no workspace settings. Every operation of the member door
   names what it opens to a freelancer; one that names nothing answers `not_found`, so a new
-  operation stays closed to them until it says otherwise. In Drive they have My files and no Shared:
+  operation stays closed to them until it says otherwise. In Drive they have only the spaces they are added to:
   being added gives them editor on the project's folder, which they open from Shared with me, and
   being taken off removes it. They hear no realtime CRM changes.
 - **What we charge stays with the team** (founder's call, Nov 20, 2026). A freelancer reads no

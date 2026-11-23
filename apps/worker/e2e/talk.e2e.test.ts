@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { schema } from "@omni/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   pushFrame,
@@ -177,7 +177,7 @@ test("someone outside the workspace never reads, writes or reacts in a thread", 
   expect(messages.body.messages.map((m: { body: string }) => m.body)).toEqual(["private"]);
 });
 
-test("a dropped file lands in the sender's Drive, shared with the recipient and nobody else", async () => {
+test("a dropped file is kept out of sight in Drive, shared with the recipient and nobody else", async () => {
   const { ana, ben, cy } = await workspace("talk-file");
   const benSocket = await connect(ben.cookie);
   const threadId = (await api(ana.cookie, "POST", "/threads", { memberId: ben.id })).body.thread.id;
@@ -203,12 +203,30 @@ test("a dropped file lands in the sender's Drive, shared with the recipient and 
     .select()
     .from(schema.storageNodes)
     .where(eq(schema.storageNodes.id, message.file.nodeId));
-  expect(node).toMatchObject({ space: "personal", ownerMemberId: ana.id, kind: "file" });
-  const [folder] = await db
-    .select()
-    .from(schema.storageNodes)
-    .where(eq(schema.storageNodes.id, node!.parentId!));
-  expect(folder).toMatchObject({ name: "Talk", kind: "folder", ownerMemberId: ana.id });
+  expect(node).toMatchObject({
+    space: "personal",
+    ownerMemberId: ana.id,
+    kind: "file",
+    parentId: null,
+  });
+  const seen = async (cookie: string, path: string) => {
+    const got = await fetch(new URL(`/api/storage${path}`, worker.url), { headers: { cookie } });
+    expect(got.status).toBe(200);
+    const body = (await got.json()) as {
+      nodes?: { id: string }[];
+      items?: { node: { id: string } }[];
+    };
+    return [...(body.nodes ?? []), ...(body.items ?? []).map((item) => item.node)].map((n) => n.id);
+  };
+  for (const [cookie, path] of [
+    [ana.cookie, "/recent"],
+    [ana.cookie, "/search?q=q3"],
+    [ben.cookie, "/recent"],
+    [ben.cookie, "/search?q=q3"],
+    [ben.cookie, "/shared-with-me"],
+  ] as const) {
+    expect(await seen(cookie, path)).not.toContain(node!.id);
+  }
   const grants = await db
     .select({ email: schema.storageGrants.email, role: schema.storageGrants.role })
     .from(schema.storageGrants)
@@ -282,7 +300,7 @@ test("a dropped file lands in the sender's Drive, shared with the recipient and 
     .where(
       and(eq(schema.storageNodes.ownerMemberId, ana.id), eq(schema.storageNodes.kind, "folder")),
     );
-  expect(talkFolders.map((f) => f.name)).toEqual(["Talk"]);
+  expect(talkFolders).toEqual([]);
   benSocket.socket.close();
 });
 
@@ -350,48 +368,34 @@ test("reactions reach both and come back on the note", async () => {
   anaSocket.socket.close();
 });
 
-test("a drop never lands in a Talk folder the sender shared with someone else", async () => {
-  const { ana, ben, cy } = await workspace("talk-shared-folder");
+test("two drops of one name are both kept, side by side in the hidden store", async () => {
+  const { ana, ben } = await workspace("talk-same-name");
   const threadId = (await api(ana.cookie, "POST", "/threads", { memberId: ben.id })).body.thread.id;
-  const drop = async (name: string) => {
+  const drop = async () => {
     const response = await fetch(
-      new URL(`/api/talk/threads/${threadId}/files?name=${name}`, worker.url),
+      new URL(`/api/talk/threads/${threadId}/files?name=notes.txt`, worker.url),
       {
         method: "POST",
         headers: { cookie: ana.cookie, "content-type": "text/plain" },
-        body: name,
+        body: "notes",
       },
     );
     expect(response.status).toBe(201);
     return ((await response.json()) as { message: { file: { nodeId: string } } }).message.file
       .nodeId;
   };
+  const first = await drop();
+  const second = await drop();
+  expect(second).not.toBe(first);
   const { db } = database;
-  const parentOf = async (nodeId: string) =>
-    (await db.select().from(schema.storageNodes).where(eq(schema.storageNodes.id, nodeId)))[0]!
-      .parentId!;
-
-  const firstFolder = await parentOf(await drop("first.txt"));
-  const [folder] = await db
-    .select()
+  const rows = await db
+    .select({ parentId: schema.storageNodes.parentId, trashedAt: schema.storageNodes.trashedAt })
     .from(schema.storageNodes)
-    .where(eq(schema.storageNodes.id, firstFolder));
-  await db.insert(schema.storageGrants).values({
-    orgId: folder!.orgId,
-    nodeId: firstFolder,
-    email: cy.email,
-    role: "viewer",
-    createdAt: new Date(),
-  });
-
-  const secondFolder = await parentOf(await drop("second.txt"));
-  expect(secondFolder).not.toBe(firstFolder);
-  const inherited = await db
-    .select()
-    .from(schema.storageGrants)
-    .where(eq(schema.storageGrants.nodeId, secondFolder));
-  expect(inherited).toEqual([]);
-  expect(await parentOf(await drop("third.txt"))).toBe(secondFolder);
+    .where(inArray(schema.storageNodes.id, [first, second]));
+  expect(rows).toEqual([
+    { parentId: null, trashedAt: null },
+    { parentId: null, trashedAt: null },
+  ]);
 });
 
 test("a file reaches a recipient whose session is held to the workspace by their company address", async () => {
