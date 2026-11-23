@@ -20,9 +20,10 @@ import { colors, radius, space } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
 import { useReduceMotion } from "./use-reduce-motion.ts";
 
-const INSET = space(2.5);
-const SCREEN_CORNER = space(14);
+const INSET = space(3.5);
+const SCREEN_CORNER = space(15);
 const CORNER = SCREEN_CORNER - INSET;
+const TOP_CORNER = space(7);
 const MAX_SHARE = 0.8;
 const OPEN_MS = 360;
 const CLOSE_MS = 240;
@@ -204,7 +205,10 @@ const styles = StyleSheet.create({
     right: INSET,
     paddingTop: space(2),
     paddingHorizontal: space(1.5),
-    borderRadius: CORNER,
+    borderTopLeftRadius: TOP_CORNER,
+    borderTopRightRadius: TOP_CORNER,
+    borderBottomLeftRadius: CORNER,
+    borderBottomRightRadius: CORNER,
     borderCurve: "continuous",
     backgroundColor: colors.background,
   },
