@@ -27,9 +27,6 @@ import { RAIL_BLOCK } from "./nav-bar.tsx";
 const EDGE_FADE = space(4);
 const FLING = 600;
 
-/** How much of the page card stays on screen under the status bar while the pages are up. */
-export const CARD_PEEK = space(14);
-
 /** How long the section takes to open and close, and its curve. */
 export const SECTION_MS = 300;
 export const SECTION_EASE = Easing.out(Easing.cubic);
@@ -42,17 +39,17 @@ const ROWS = {
   meetings: MeetingsMenu,
 } as const;
 
-const RAIL_GAP = space(2);
+const RAIL_GAP = -space(2);
 
 /**
  * Where the rail floats and how far things slide: the rail and the pages under it rise by `lift`,
- * the page card by `cardLift`, so its content stops just above the rail, peeking under the status bar.
+ * the page card by `cardLift`, so it clears the screen and the rail sits under the status bar.
  */
 export function useRailLayout() {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const railBottom = Math.max(insets.bottom - space(3), space(2));
-  const lift = height - insets.top - CARD_PEEK - railBottom - RAIL_BLOCK - RAIL_GAP;
+  const lift = height - insets.top - railBottom - RAIL_BLOCK - RAIL_GAP;
   return { railBottom, lift, cardLift: lift + railBottom + RAIL_GAP };
 }
 

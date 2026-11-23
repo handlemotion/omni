@@ -185,15 +185,8 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
     opacity: interpolate(progress.value, [0.4, 1], [0, 1], Extrapolation.CLAMP),
   }));
   const fold = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 0.4], [1, 0], Extrapolation.CLAMP),
-  }));
-  const pages = useAnimatedStyle(() => ({
-    width: interpolate(progress.value, [0, 1], [pagesWidth, 0], Extrapolation.CLAMP),
-    marginLeft: interpolate(progress.value, [0, 1], [GAP, 0], Extrapolation.CLAMP),
-  }));
-  const action = useAnimatedStyle(() => ({
-    width: interpolate(progress.value, [0, 1], [SIDE, 0], Extrapolation.CLAMP),
-    marginLeft: interpolate(progress.value, [0, 1], [GAP, 0], Extrapolation.CLAMP),
+    opacity: interpolate(progress.value, [0, 0.5], [1, 0], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(progress.value, [0, 0.6], [1, 0.85], Extrapolation.CLAMP) }],
   }));
 
   return (
@@ -209,8 +202,12 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
         <View style={styles.grabber} />
       </Pressable>
       <View pointerEvents="box-none" style={styles.row}>
+        <View style={styles.slotSpace} />
         <GestureDetector gesture={swipe}>
-          <Animated.View accessibilityRole="tablist" style={[styles.modules, moduleWrap]}>
+          <Animated.View
+            accessibilityRole="tablist"
+            style={[styles.modules, styles.grow, moduleWrap]}
+          >
             <Animated.View style={[styles.moduleRow, { width: full }, moduleRow]}>
               <Animated.View
                 pointerEvents="none"
@@ -239,7 +236,7 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
         </GestureDetector>
         <Animated.View
           pointerEvents={shell.isOpen ? "none" : "auto"}
-          style={[styles.foldWrap, pages, fold]}
+          style={[styles.foldWrap, styles.gapStart, fold]}
         >
           {shortcuts.items.length ? (
             <PagePill
@@ -252,7 +249,7 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
         </Animated.View>
         <Animated.View
           pointerEvents={shell.isOpen ? "none" : "auto"}
-          style={[styles.foldWrap, styles.actionWrap, action, fold]}
+          style={[styles.foldWrap, styles.gapStart, fold]}
         >
           <ModuleMainAction />
         </Animated.View>
@@ -379,8 +376,10 @@ const styles = StyleSheet.create({
     left: space(1),
     right: space(1),
   },
-  foldWrap: { overflow: "hidden" },
-  actionWrap: { alignItems: "flex-end" },
+  foldWrap: { alignItems: "center", justifyContent: "center" },
+  gapStart: { marginLeft: GAP },
+  slotSpace: { width: SIDE, height: SIDE },
+  grow: { position: "absolute", left: EDGE, zIndex: 1 },
   pages: {
     height: NAV_BAR,
     flexDirection: "row",
