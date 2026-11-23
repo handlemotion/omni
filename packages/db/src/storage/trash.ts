@@ -18,16 +18,15 @@ import {
   type StorageNode,
 } from "./core.ts";
 import { nextRevision } from "./revision.ts";
+import { keepUpdatedAt, reach, retryNameRace, type NodeResult } from "./tree.ts";
 import {
-  keepUpdatedAt,
+  NOT_FOUND,
+  FORBIDDEN,
   LOCKED,
-  reach,
-  retryNameRace,
+  type NotFound,
   type Forbidden,
   type Locked,
-  type NodeResult,
-  type NotFound,
-} from "./tree.ts";
+} from "./results.ts";
 
 /** Days a trashed node can still be restored. */
 export const STORAGE_TRASH_DAYS = 30;
@@ -45,9 +44,6 @@ export type DeleteForeverResult =
   | Forbidden
   | Locked
   | { status: "not_trashed" };
-
-const NOT_FOUND = { status: "not_found" } as const;
-const FORBIDDEN = { status: "forbidden" } as const;
 
 export function trashOperations(db: Db, door: Door, memberId: string) {
   return {

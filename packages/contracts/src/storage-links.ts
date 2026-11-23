@@ -83,3 +83,6 @@ export const storageSharedUploadingResponseSchema = z.object({
 
 export type StorageSharedUpload = z.infer<typeof storageSharedUploadSchema>;
 export type StorageSharedUploadingResponse = z.infer<typeof storageSharedUploadingResponseSchema>;
+
+/** A person's address as a grant or a signer stores it: trimmed and lowercase. */
+export const storageEmailSchema = z.string().trim().toLowerCase().pipe(z.email().max(320));

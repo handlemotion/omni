@@ -6,6 +6,7 @@ import {
   linkDoor,
   loadMember,
   memberDoor,
+  type DoorKind,
   type LinkVisitor,
 } from "./storage/access.ts";
 import { inTrash, type StorageListCursor, type StorageSpace } from "./storage/core.ts";
@@ -378,7 +379,7 @@ export interface SharedAccess {
   /** The member or grant door that opened it, for changes. A link alone never writes. */
   writer: MemberStorage | SharedStorage | null;
   /** The door that opened it, as the sharing audit records it. */
-  via: "member" | "grant" | "link";
+  via: DoorKind;
   /** False when the link alone opened it and the link is view only: no bytes leave. */
   downloads: boolean;
   /** Where its comments are read and written: the writer's door, or the link's for its guest. */

@@ -55,8 +55,11 @@ export const editsContent = (access: Access) =>
  */
 export const readsComments = (access: Access) => access.role !== "viewer";
 
+/** How a door opens Storage: membership of the node's space, a grant by address, or a link. */
+export type DoorKind = "member" | "grant" | "link";
+
 export interface Door {
-  kind: "member" | "grant" | "link";
+  kind: DoorKind;
   /**
    * What the holder may do with `chain[0]`. A grant or a link opens nothing in Trash; a member
    * still reaches it there, so callers that need a live node check `inTrash` themselves.
