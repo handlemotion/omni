@@ -84,8 +84,9 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
 }
 
 /// The window chrome (docs/spec/desktop.md, "Window"). macOS: the title bar overlays the page,
-/// no title, traffic lights on the web title bar's centre line. Windows and Linux keep the native
-/// frame until the web app and the bundled page draw minimize, maximize and close themselves.
+/// no title, traffic lights on the web title bar's centre line. Windows starts with the native
+/// frame; a web app that draws minimize, maximize and close takes it off (`set_decorations`), and
+/// the system shadow, the rounded corners and the resize edges stay. Linux keeps the frame.
 fn chrome<'a, R: Runtime, M: Manager<R>>(
     builder: WebviewWindowBuilder<'a, R, M>,
 ) -> WebviewWindowBuilder<'a, R, M> {
@@ -97,6 +98,8 @@ fn chrome<'a, R: Runtime, M: Manager<R>>(
         // 34 at 31.8), so 26 puts it 24pt down: the middle of the web app's 48px title row. At x 16
         // the red one's centre is 23pt in, on the sidebar icons' axis.
         .traffic_light_position(tauri::LogicalPosition::new(16.0, 26.0));
+    #[cfg(windows)]
+    let builder = builder.shadow(true);
     builder
 }
 

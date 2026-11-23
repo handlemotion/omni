@@ -233,9 +233,18 @@ after a spike. Swift side: Foundation and FileProvider only.
 - **First run.** A hosted build opens its configured origin directly. A build with no origin
   shows the server picker; the answer is stored and changeable from the app menu.
 - **Window.** macOS: `titleBarStyle: Overlay`, hidden title, traffic lights positioned to sit on
-  the navigation row's centre line. Windows: the native frame for now (snap layouts, and Change
-  Server and Check for Updates in the tray, as there is no app menu). Later, once the web app
-  draws minimize, maximize and close at the end of the same row: no native decorations.
+  the navigation row's centre line. Windows: no native title bar. The web app draws minimize,
+  maximize (restore when maximized) and close at the window's top right corner, on every screen,
+  as Windows draws them (46px wide, the title row's height, Segoe Fluent Icons' glyphs, close red
+  under the pointer, glyphs muted while the window is inactive), and the title row leaves them
+  room. The page takes the frame off itself (`setDecorations(false)`) and draws the controls only
+  once that succeeds, so an older shell keeps its frame and an older web app never loses its
+  controls; the window keeps the frameless state across launches (`window-state`), and opening a
+  different server puts the frame back until that server's app takes it. The bundled page draws
+  the same controls while the frame is off. The system shadow, rounded corners and resize edges
+  stay, and dragging to a screen edge snaps; the snap-layouts flyout on the maximize button needs
+  a native hit test (`tauri-plugin-decorum`, after a spike). Change Server and Check for Updates
+  are in the tray, as there is no app menu.
 - **Stays running.** Closing the window keeps the app in the menu bar / tray so the realtime
   signal keeps reaching the provider. The tray menu: Open Omni, Open Drive folder, sync status,
   Pause sync, Quit. Launch at login is on by default and a setting.
@@ -300,8 +309,7 @@ primitives, and add no text.
   the WebView2 bootstrapper embedded for machines without it; `Omni.exe`; the installer stops on
   anything older than Windows 10 (`src-tauri/windows/installer-hooks.nsh`). Signed with Azure
   Trusted Signing through `signCommand` once its account is set up; until then unsigned, and
-  SmartScreen warns on first download. The window keeps the native frame until the web app
-  draws its own controls; the unread count is the taskbar button's overlay icon, which the page
+  SmartScreen warns on first download. The web app draws the window's controls ("Window"); the unread count is the taskbar button's overlay icon, which the page
   draws (`desktop-bridge.ts`), since Windows has no count badge.
 - **CI.** A `Desktop` workflow, on pull requests touching `apps/desktop/**`: Rust fmt, clippy
   and tests on Linux, and Clippy for Windows cross-compiled on Linux (`cargo-xwin`); unsigned

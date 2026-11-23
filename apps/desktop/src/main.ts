@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const PROBE_TIMEOUT_MS = 8000;
 
@@ -99,4 +100,25 @@ async function start() {
   if (!(await open(origin, offline, path))) showOffline(origin, path);
 }
 
+async function drawCaption() {
+  if (!navigator.userAgent.includes("Windows")) return;
+  const window = getCurrentWindow();
+  if (await window.isDecorated()) return;
+  const caption = document.querySelector<HTMLElement>("#caption");
+  const maximize = caption?.querySelector<HTMLButtonElement>("#maximize");
+  if (!caption || !maximize) return;
+  const showMaximized = async () => {
+    const maximized = await window.isMaximized();
+    maximize.textContent = maximized ? "\uE923" : "\uE922";
+    maximize.setAttribute("aria-label", maximized ? "Restore" : "Maximize");
+  };
+  caption.querySelector("#minimize")?.addEventListener("click", () => void window.minimize());
+  maximize.addEventListener("click", () => void window.toggleMaximize());
+  caption.querySelector("#close")?.addEventListener("click", () => void window.close());
+  await window.onResized(() => void showMaximized());
+  await showMaximized();
+  caption.hidden = false;
+}
+
+void drawCaption().catch((error: unknown) => console.warn("caption failed", error));
 void start();

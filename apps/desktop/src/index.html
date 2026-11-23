@@ -95,6 +95,49 @@
         opacity: 0;
         animation: loading-in 300ms ease-out 400ms forwards;
       }
+      /* Windows, with the frame off (the server's web app took it): the window's top row, a drag
+         region, with minimize, maximize and close at its end, drawn as Windows draws them. */
+      #caption {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 1;
+        display: flex;
+        justify-content: flex-end;
+        height: 48px;
+      }
+      #caption[hidden] {
+        display: none;
+      }
+      #caption button {
+        width: 46px;
+        height: 48px;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--fg);
+        font:
+          10px "Segoe Fluent Icons",
+          "Segoe MDL2 Assets";
+      }
+      #caption button:hover {
+        background: color-mix(in srgb, var(--fg) 4%, transparent);
+      }
+      #caption button:active {
+        background: color-mix(in srgb, var(--fg) 2%, transparent);
+      }
+      /* Over the loading screen's white, whatever the system's appearance. */
+      body:has(#loading:not([hidden])) #caption {
+        --fg: #111111;
+      }
+      #caption button#close:hover {
+        background: #c42b1c;
+        color: #ffffff;
+      }
+      #caption button#close:active {
+        background: rgb(196 43 28 / 0.9);
+        color: #ffffff;
+      }
       @keyframes loading-in {
         to {
           opacity: 1;
@@ -103,6 +146,11 @@
     </style>
   </head>
   <body>
+    <div id="caption" data-tauri-drag-region hidden>
+      <button type="button" id="minimize" aria-label="Minimize">&#xE921;</button>
+      <button type="button" id="maximize" aria-label="Maximize">&#xE922;</button>
+      <button type="button" id="close" aria-label="Close">&#xE8BB;</button>
+    </div>
     <div id="loading" aria-hidden="true">
       <svg viewBox="0 0 32 32">
         <rect width="32" height="32" rx="7" fill="#0d3eef" />

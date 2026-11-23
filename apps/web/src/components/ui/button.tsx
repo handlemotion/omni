@@ -37,6 +37,12 @@ export const buttonStyles = tv({
         "shadow-(--shadow-button) border-border [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-black)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:color-mix(in_oklab,var(--color-foreground)_4%,var(--color-background))]",
       ghost:
         "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)] aria-pressed:[--btn-bg:var(--color-accent)] aria-pressed:[--btn-icon:var(--color-foreground)]",
+      /** A window control the page draws on Windows (minimize, maximize), flat and square. */
+      caption:
+        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-secondary)] in-data-inactive:[--btn-foreground:var(--color-muted-foreground)]",
+      /** The window's close control on Windows: red under the pointer, with a white glyph. */
+      "caption-close":
+        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-caption-close)] in-data-inactive:[--btn-foreground:var(--color-muted-foreground)] hover:[--btn-foreground:var(--color-white)] active:[--btn-foreground:var(--color-white)]",
       plain:
         "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:transparent]",
     },
@@ -62,6 +68,8 @@ export const buttonStyles = tv({
         "*:data-[slot=loader]:size-4.5",
       ],
       inset: "size-4.5 shrink-0 border-0",
+      /** Windows' caption button: 46 wide, the title bar's height, a 10px glyph. */
+      caption: "h-12 w-11.5 shrink-0 font-caption text-[10px]",
       text: ["gap-x-1 p-0 text-xs", "*:[svg]:size-3"],
     },
 
@@ -73,6 +81,10 @@ export const buttonStyles = tv({
   compoundVariants: [
     { size: "inset", isCircle: false, class: "rounded-sm" },
     { size: "sq-2xs", isCircle: false, class: "rounded-sm" },
+    {
+      size: "caption",
+      class: "rounded-none motion-safe:[&:active]:not-aria-[haspopup]:scale-100",
+    },
   ],
   defaultVariants: {
     intent: "primary",

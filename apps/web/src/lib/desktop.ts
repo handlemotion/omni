@@ -77,6 +77,33 @@ export const desktop = {
     },
   },
 
+  /**
+   * The window's own minimize, maximize and close, drawn by the page on Windows in place of the
+   * native frame (docs/spec/desktop.md, "Window"). `claim` takes the frame off and resolves true
+   * once it is off; false elsewhere, and on a shell too old to allow it, which keeps its frame.
+   */
+  frame: {
+    claim: () =>
+      desktop.platform === "windows"
+        ? bridge()
+            .then((b) => b.dropFrame())
+            .then(
+              () => true,
+              () => false,
+            )
+        : Promise.resolve(false),
+    minimize: () => run("minimize", (b) => b.minimize()),
+    toggleMaximize: () => run("maximize", (b) => b.toggleMaximize()),
+    close: () => run("close", (b) => b.close()),
+    /** Calls `handler` with whether the window is maximized; returns the unsubscribe. */
+    onMaximized: (handler: (maximized: boolean) => void) => {
+      const stop = bridge()
+        .then((b) => b.onMaximized(handler))
+        .catch(() => () => {});
+      return () => void stop.then((unlisten) => unlisten());
+    },
+  },
+
   /** The Dock badge: a count, or none at zero. On Windows, the taskbar button's overlay icon. */
   setBadge(count: number) {
     if (desktop.platform === "windows") run("badge", (b) => b.setOverlayBadge(count));

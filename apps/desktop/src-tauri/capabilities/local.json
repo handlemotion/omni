@@ -1,8 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "local",
-  "description": "The bundled local shell (server picker, offline screen): read the chosen server and open one. No filesystem, no shell, no HTTP.",
+  "description": "The bundled local shell (server picker, offline screen): read the chosen server and open one, and, with the frame off on Windows, move, minimize, maximize and close the window. No filesystem, no shell, no HTTP.",
   "windows": ["main"],
   "local": true,
-  "permissions": ["core:default", "allow-server-origin", "allow-open-server"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "allow-server-origin",
+    "allow-open-server"
+  ]
 }

@@ -130,6 +130,9 @@
   --collaborator-6: #b0288f;
   --collaborator-foreground: #ffffff;
 
+  /* Windows' own close button red, on the window controls the page draws there. */
+  --caption-close: #c42b1c;
+
   /* Status colors: not designed yet, Intent UI defaults until they are. */
   --danger: #ef2a51; /* The onboarding reference's red, more saturated. */
   --danger-foreground: #ffffff;
@@ -150,6 +153,8 @@
 @theme inline {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  /* Windows' window-control glyphs: Segoe Fluent Icons on 11, Segoe MDL2 Assets on 10. */
+  --font-caption: "Segoe Fluent Icons", "Segoe MDL2 Assets";
   /* Inter's recommended web setting (rsms.me/inter): ligatures and contextual alternates. */
   --font-sans--font-feature-settings: "liga" 1, "calt" 1;
   /* Regular text a step over Inter's 400, which reads thin at 13px. `font-normal` follows it. */
@@ -236,6 +241,7 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
   --color-collaborator-foreground: var(--collaborator-foreground);
+  --color-caption-close: var(--caption-close);
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-foreground);
   --color-danger-subtle: var(--danger-subtle);

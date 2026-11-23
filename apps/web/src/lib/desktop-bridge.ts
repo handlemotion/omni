@@ -63,6 +63,23 @@ export const startDragging = () => getCurrentWindow().startDragging();
 
 export const toggleMaximize = () => getCurrentWindow().toggleMaximize();
 
+export const minimize = () => getCurrentWindow().minimize();
+
+/** Closing hides the window: the shell keeps running in the tray (`window.rs`). */
+export const close = () => getCurrentWindow().close();
+
+/** Takes the native frame off; rejects on a shell that predates granting it. */
+export const dropFrame = () => getCurrentWindow().setDecorations(false);
+
+/** Calls `handler` with whether the window is maximized, now and on every resize. */
+export async function onMaximized(handler: (maximized: boolean) => void) {
+  const window = getCurrentWindow();
+  const report = () => void window.isMaximized().then(handler, () => {});
+  const unlisten = await window.onResized(report);
+  report();
+  return unlisten;
+}
+
 /** Brings the window back: shown (closing it only hides it), not minimized, in front. */
 export async function focusWindow() {
   const window = getCurrentWindow();

@@ -16,7 +16,8 @@ use crate::deep_link::{is_app_path, on_server};
 const STORE: &str = "shell.json";
 const SERVER_KEY: &str = "server";
 
-/// What the server origin may call: window dragging and controls, the badge (on Windows the
+/// What the server origin may call: window dragging and controls (on Windows, taking the frame
+/// off to draw its own minimize, maximize and close), the badge (on Windows the
 /// taskbar overlay icon, an image the page draws), notifications (and showing the window when one
 /// is clicked), the launch-at-login switch, opening links outside, events, the magic-link
 /// callback (`deep_link.rs`), the sync commands and the meeting recorder's (`recording/`). No
@@ -30,6 +31,7 @@ const REMOTE_PERMISSIONS: &[&str] = &[
     "core:window:allow-is-maximized",
     "core:window:allow-is-fullscreen",
     "core:window:allow-close",
+    "core:window:allow-set-decorations",
     "core:window:allow-set-badge-count",
     "core:window:allow-set-overlay-icon",
     "core:image:allow-new",
@@ -121,6 +123,9 @@ pub fn open_server<R: Runtime>(
 ) -> Result<(), String> {
     let origin = parse_origin(&origin)?;
     let store = app.store(STORE).map_err(|e| e.to_string())?;
+    let same_server = store
+        .get(SERVER_KEY)
+        .is_some_and(|stored| stored.as_str() == Some(origin.as_str()));
     store.set(SERVER_KEY, origin.as_str());
     store.save().map_err(|e| e.to_string())?;
 
@@ -148,6 +153,12 @@ pub fn open_server<R: Runtime>(
     let window = app
         .get_webview_window("main")
         .ok_or("the main window is gone")?;
+    // A web app that draws its own window controls takes the frame off itself, and the window
+    // keeps that from launch to launch (`tauri-plugin-window-state`). Another server's app may not
+    // draw them, so it starts with the frame back on.
+    if !same_server && !cfg!(target_os = "macos") {
+        window.set_decorations(true).map_err(|e| e.to_string())?;
+    }
     window.navigate(page).map_err(|e| e.to_string())
 }
 

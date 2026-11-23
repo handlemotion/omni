@@ -9,14 +9,17 @@ import { SearchButton } from "@/components/search/search-trigger";
 import { PresenceStack } from "@/components/talk/presence-stack";
 import { NavArrows } from "./nav-arrows";
 import { NotificationsButton } from "./notifications";
+import { useWindowControls } from "./window-controls";
 
 /**
  * The window's top row, on the shell's grey (not on a phone): the workspace switcher past the
  * traffic lights, the sidebar toggle (resting on it while the sidebar is closed previews the nav),
- * back and forward, and at the far end the teammates online now, search, then notifications.
+ * back and forward, and at the far end the teammates online now, search, then notifications (and,
+ * on Windows, room for the window controls past them).
  */
 export function TitleBar() {
   const { isMobile, open, toggleSidebar } = useSidebar();
+  const controls = useWindowControls();
   if (isMobile) return null;
   const menu = contextMenuProps((target) =>
     target.closest("button, a, [role=group]")
@@ -33,7 +36,7 @@ export function TitleBar() {
   return (
     <div
       {...menu}
-      className={`fixed inset-x-0 top-0 z-35 flex h-12 items-center gap-0.5 bg-shell pe-2.5 **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]! ${desktop.platform === "mac" ? "ps-[88px]" : "ps-[13.5px]"}`}
+      className={`fixed inset-x-0 top-0 z-35 flex h-12 items-center gap-0.5 bg-shell ${controls ? "pe-36.5" : "pe-2.5"} **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]! ${desktop.platform === "mac" ? "ps-[88px]" : "ps-[13.5px]"}`}
     >
       <WorkspaceSwitcher chevron />
       <span
