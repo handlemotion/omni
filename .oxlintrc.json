@@ -68,7 +68,8 @@
         "allow": {
           "apps/mail/e2e/purelymail-live.e2e.test.ts": 4,
           "apps/worker/e2e/billing-stripe.e2e.test.ts": 5,
-          "apps/worker/e2e/storage-billing-stripe.e2e.test.ts": 3
+          "apps/worker/e2e/storage-billing-stripe.e2e.test.ts": 3,
+          "vitest.shared.mts": 3
         }
       }
     ],
