@@ -111,8 +111,7 @@
         "apps/web/src/components/ui/chart.tsx",
         "apps/web/src/lib/conversations.ts",
         "apps/worker/src/image-proxy.ts",
-        "apps/worker/src/realtime.ts",
-        "apps/worker/src/routes/library.ts"
+        "apps/worker/src/realtime.ts"
       ],
       "rules": {
         "complexity": "off"

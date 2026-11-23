@@ -63,6 +63,35 @@ function writeFailed(error: CannedReplyWriteError): never {
   notFound();
 }
 
+type TemplateContext = NonNullable<Awaited<ReturnType<typeof templateContext>>>;
+
+function templateValues({ customer, agent, inboxAddress, orgName }: TemplateContext) {
+  return {
+    "customer.name": customer?.name ?? null,
+    "customer.first_name": firstName(customer?.name),
+    "customer.email": customer?.address ?? null,
+    "customer.company": customer?.company ?? null,
+    "agent.name": agent?.name ?? null,
+    "agent.first_name": firstName(agent?.name),
+    "agent.email": agent?.email ?? null,
+    "inbox.address": inboxAddress,
+    "org.name": orgName,
+  };
+}
+
+function renderCanned(
+  reply: { bodyText: string; bodyHtml: string | null },
+  values: ReturnType<typeof templateValues>,
+) {
+  const text = renderTemplate(reply.bodyText, values);
+  const html = reply.bodyHtml ? renderTemplate(reply.bodyHtml, values, { html: true }) : null;
+  return {
+    text: text.text,
+    html: html?.text ?? null,
+    missing: [...new Set([...text.missing, ...(html?.missing ?? [])])],
+  };
+}
+
 export const library = new Hono<AppEnv>()
   .get("/mailboxes/:mailboxId/signature", async (c) => {
     const found = await memberSignatures(c.var.db, c.var.member.id, c.req.param("mailboxId"));
@@ -141,23 +170,8 @@ export const library = new Hono<AppEnv>()
       ]);
       if (!reply || !context) notFound();
       if (reply.mailboxId && reply.mailboxId !== context.mailboxId) notFound();
-      const values = {
-        "customer.name": context.customer?.name ?? null,
-        "customer.first_name": firstName(context.customer?.name),
-        "customer.email": context.customer?.address ?? null,
-        "customer.company": context.customer?.company ?? null,
-        "agent.name": context.agent?.name ?? null,
-        "agent.first_name": firstName(context.agent?.name),
-        "agent.email": context.agent?.email ?? null,
-        "inbox.address": context.inboxAddress,
-        "org.name": context.orgName,
-      };
-      const text = renderTemplate(reply.bodyText, values);
-      const html = reply.bodyHtml ? renderTemplate(reply.bodyHtml, values, { html: true }) : null;
       return c.json({
-        text: text.text,
-        html: html?.text ?? null,
-        missing: [...new Set([...text.missing, ...(html?.missing ?? [])])],
+        ...renderCanned(reply, templateValues(context)),
         setStatus: reply.setStatus,
         addTagIds: reply.addTagIds,
       });
