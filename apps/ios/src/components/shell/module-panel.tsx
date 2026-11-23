@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef } from "react";
-import { ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { StyleSheet, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { usePanGesture } from "react-native-gesture-handler";
+import { GestureDetector, useNativeGesture, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   useAnimatedRef,
   useAnimatedScrollHandler,
   Extrapolation,
   interpolate,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -77,6 +78,65 @@ export function useSectionPull(progress: SharedValue<number>, travel: number) {
   });
 }
 
+function LinkPage({
+  progress,
+  travel,
+  children,
+  ...scroll
+}: {
+  progress: SharedValue<number>;
+  travel: number;
+  children: ReactNode;
+  style: StyleProp<ViewStyle>;
+  contentContainerStyle: StyleProp<ViewStyle>;
+}) {
+  const shell = useMenu();
+  const scrollY = useSharedValue(0);
+  const anchor = useSharedValue<number | null>(null);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+  const settle = (open: boolean) => (open ? shell.open() : shell.close());
+  const native = useNativeGesture({});
+  const pull = usePanGesture({
+    activeOffsetY: 8,
+    failOffsetX: [-16, 16],
+    simultaneousWith: native,
+    onBegin: () => {
+      "worklet";
+      anchor.value = null;
+    },
+    onUpdate: (e) => {
+      "worklet";
+      if (scrollY.value > 0 && anchor.value === null) return;
+      if (anchor.value === null) anchor.value = e.translationY;
+      progress.value = Math.min(1, Math.max(0, 1 - (e.translationY - anchor.value) / travel));
+    },
+    onDeactivate: (e) => {
+      "worklet";
+      if (anchor.value === null) return;
+      const open = progress.value > 0.75 && e.velocityY < FLING;
+      progress.value = withTiming(open ? 1 : 0, { duration: SECTION_MS, easing: SECTION_EASE });
+      scheduleOnRN(settle, open);
+    },
+  });
+  return (
+    <GestureDetector gesture={pull}>
+      <GestureDetector gesture={native}>
+        <Animated.ScrollView
+          {...scroll}
+          bounces={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </Animated.ScrollView>
+      </GestureDetector>
+    </GestureDetector>
+  );
+}
+
 /**
  * The module's pages under the rail, on the same white surface, hidden below the screen until the rail
  * and page slide up. The pages of every module sit side by side: swiping them sideways opens the
@@ -118,12 +178,19 @@ export function ModuleSection({
     if (entry && entry.id !== module) place.openModule(entry.id);
   };
 
+  const [mounted, setMounted] = useState(shell.isOpen);
+  useAnimatedReaction(
+    () => progress.value > 0,
+    (showing, before) => {
+      if (showing !== before) scheduleOnRN(setMounted, showing);
+    },
+  );
   const lift = useAnimatedStyle(() => ({ transform: [{ translateY: -travel * progress.value }] }));
   const reveal = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.4], [0, 1], Extrapolation.CLAMP),
   }));
 
-  if (shell.searching) return null;
+  if (shell.searching || !mounted) return null;
   return (
     <Animated.View style={[styles.section, { top: height - railBottom }, lift]}>
       <Animated.View
@@ -147,16 +214,17 @@ export function ModuleSection({
           {modules.map((entry) => {
             const Rows = ROWS[entry.id];
             const page = (
-              <ScrollView
+              <LinkPage
                 key={entry.id}
-                showsVerticalScrollIndicator={false}
+                progress={progress}
+                travel={travel}
                 style={{ width, height: travel + railBottom }}
                 contentContainerStyle={[styles.rows, { paddingBottom: insets.bottom + space(2) }]}
               >
                 <Rows />
-              </ScrollView>
+              </LinkPage>
             );
-            if (entry.id === module && place.onRoot) return page;
+            if (entry.id === place.module && place.onRoot) return page;
             return (
               <RootPlace
                 key={entry.id}

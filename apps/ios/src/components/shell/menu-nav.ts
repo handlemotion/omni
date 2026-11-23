@@ -1,7 +1,7 @@
 import { router, useGlobalSearchParams, usePathname } from "expo-router";
 import { HeaderHeightContext } from "expo-router/react-navigation";
 import { createContext, use } from "react";
-import { useLastPlaces } from "./menu-context.tsx";
+import { useLastPlaces, usePending, useSetPending } from "./menu-context.tsx";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isCrmPage, type CrmPage } from "@/lib/crm.ts";
 import { drivePageIn, type DrivePage } from "@/lib/drive.ts";
@@ -11,7 +11,7 @@ import { space } from "@/theme/tokens.ts";
 
 /** The shell's round buttons (the module actions) and the top bar's height below the status bar. */
 export const SHELL_CONTROL = space(11);
-const SHELL_BAR = space(2) + SHELL_CONTROL + space(2.5);
+const SHELL_BAR = space(2) + SHELL_CONTROL;
 
 /** Where a module's root page starts: under the shell's top bar and its hairline. */
 export function useShellTop() {
@@ -63,6 +63,13 @@ export const RootPlace = createContext<{
 const definedOnly = (params: PlaceParams | undefined) =>
   Object.fromEntries(Object.entries(params ?? {}).filter(([, value]) => value !== undefined));
 
+/** The module the shell's rail shows: the one being opened, else the one on screen. */
+export function useShownModule() {
+  const pending = usePending();
+  const { module } = useMenuPlace();
+  return pending ?? module;
+}
+
 const isAway = (root: { away?: boolean } | null) => root?.away === true;
 
 /**
@@ -76,6 +83,7 @@ export function useMenuPlace() {
   const global = useGlobalSearchParams<PlaceParams>();
   const company = hasCrm(useWorkspace().active);
   const last = useLastPlaces();
+  const setPending = useSetPending();
   const module = root?.module ?? moduleOf(pathname);
   const onRoot = root ? true : pathname === MODULE_HOME[module];
   const here = onRoot && !isAway(root);
@@ -91,7 +99,10 @@ export function useMenuPlace() {
 
   const openModule = (next: Module) => {
     if (next === module && here) return;
-    router.replace({ pathname: MODULE_HOME[next], params: definedOnly(last[next]) });
+    setPending(next);
+    requestAnimationFrame(() =>
+      router.replace({ pathname: MODULE_HOME[next], params: definedOnly(last[next]) }),
+    );
   };
 
   const openPage = (next: Module, page: string) => {

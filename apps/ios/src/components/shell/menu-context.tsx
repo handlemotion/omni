@@ -25,6 +25,9 @@ export interface ShellState {
   setSearchIn: (module: Module | null) => void;
   /** The page each module was last left on, to reopen it there. */
   lastPlace: Partial<Record<Module, PlaceParams>>;
+  /** A module the rail already shows while navigation to it catches up. */
+  pending: Module | null;
+  setPending: (module: Module | null) => void;
   remember: (module: Module, params: PlaceParams) => void;
   /** The root page's rows have scrolled under the top bar. */
   scrolled: boolean;
@@ -39,6 +42,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [searchIn, setSearchIn] = useState<Module | null>(null);
+  const [pending, setPending] = useState<Module | null>(null);
   const [lastPlace, setLastPlace] = useState<Partial<Record<Module, PlaceParams>>>({});
   const remember = useCallback((module: Module, params: PlaceParams) => {
     setLastPlace((was) => {
@@ -63,10 +67,12 @@ export function MenuProvider({ children }: { children: ReactNode }) {
       setSearchIn,
       lastPlace,
       remember,
+      pending,
+      setPending,
       scrolled,
       setScrolled,
     }),
-    [isOpen, query, searchIn, lastPlace, remember, scrolled],
+    [isOpen, query, searchIn, lastPlace, remember, pending, scrolled],
   );
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }
@@ -74,6 +80,16 @@ export function MenuProvider({ children }: { children: ReactNode }) {
 /** The page each module was last left on; empty outside the signed-in shell. */
 export function useLastPlaces() {
   return use(ShellContext)?.lastPlace ?? {};
+}
+
+/** The module the rail already shows while navigation to it catches up, if any. */
+export function usePending() {
+  return use(ShellContext)?.pending ?? null;
+}
+
+/** Marks a module as shown before navigating to it; a no-op outside the signed-in shell. */
+export function useSetPending() {
+  return use(ShellContext)?.setPending ?? (() => {});
 }
 
 /** The shell's state, for its bars, its module panel and the module pages under them. */

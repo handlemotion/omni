@@ -37,7 +37,7 @@ import { DRIVE_PAGES, type DrivePage } from "@/lib/drive.ts";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
-import { useMenuPlace } from "./menu-nav.ts";
+import { useMenuPlace, useShownModule, type Module } from "./menu-nav.ts";
 import { ModuleMainAction } from "./module-action.tsx";
 import { useModules } from "./modules.ts";
 
@@ -54,7 +54,8 @@ const NAV_HANDLE = space(5);
 const SIDE = space(11);
 const GAP = space(3);
 const EDGE = space(6.5);
-const SWIPE = 30;
+const SWIPE = 16;
+const FLICK = 300;
 const SPRING = { damping: 18, stiffness: 260, mass: 0.6 };
 /** The rail's whole height: its handle and its row. */
 export const RAIL_BLOCK = NAV_HANDLE + NAV_BAR;
@@ -72,24 +73,25 @@ const CRM: { id: CrmPage; icon: Glyph }[] = [
   { id: "tasks", icon: IconChecklist },
 ];
 
-function useShortcuts() {
+function useShortcuts(shown: Module) {
   const place = useMenuPlace();
   const company = hasCrm(useWorkspace().active);
-  if (place.module === "mail") {
+  const landed = shown === place.module;
+  if (shown === "mail") {
     return {
-      current: place.mailPage,
+      current: landed ? place.mailPage : undefined,
       items: MAIL.map((p) => ({ ...p, label: MAIL_PAGES[p.id].label })),
       open: (id: string) => place.openMail({ page: id as MailPage }),
     };
   }
-  if (place.module === "crm") {
+  if (shown === "crm") {
     return {
-      current: place.crmPage,
+      current: landed ? place.crmPage : undefined,
       items: CRM.map((p) => ({ ...p, label: CRM_PAGES[p.id].label })),
       open: (id: string) => place.openPage("crm", id),
     };
   }
-  if (place.module === "drive") {
+  if (shown === "drive") {
     const drive: { id: DrivePage; icon: Glyph }[] = [
       { id: "recents", icon: IconClock3 },
       { id: "my", icon: IconUserRound },
@@ -97,7 +99,7 @@ function useShortcuts() {
       { id: "trash", icon: IconTrash },
     ];
     return {
-      current: place.drivePage,
+      current: landed ? place.drivePage : undefined,
       items: drive.map((p) => ({ ...p, label: DRIVE_PAGES[p.id].label })),
       open: (id: string) => place.openPage("drive", id),
     };
@@ -118,10 +120,11 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
   const place = useMenuPlace();
   const modules = useModules();
   const { width } = useWindowDimensions();
-  const shortcuts = useShortcuts();
+  const shown = useShownModule();
+  const shortcuts = useShortcuts(shown);
   const current = Math.max(
     0,
-    modules.findIndex((m) => m.id === place.module),
+    modules.findIndex((m) => m.id === shown),
   );
   const full = width - EDGE * 2;
   const slot = full / Math.max(modules.length, 1);
@@ -160,7 +163,7 @@ export function NavBar({ progress }: { progress: SharedValue<number> }) {
         scheduleOnRN(pick, index);
         return;
       }
-      if (Math.abs(e.translationX) < SWIPE) return;
+      if (Math.abs(e.translationX) < SWIPE && Math.abs(e.velocityX) < FLICK) return;
       scheduleOnRN(step, e.translationX < 0 ? 1 : -1);
     },
   });

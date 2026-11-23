@@ -15,7 +15,7 @@ import { BarFade } from "@/components/ui/edge-blur.tsx";
 import { useReduceMotion } from "@/components/ui/use-reduce-motion.ts";
 import { colors, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
-import { useMenuPlace } from "./menu-nav.ts";
+import { useMenuPlace, useShownModule } from "./menu-nav.ts";
 import {
   ModuleSection,
   SECTION_EASE,
@@ -38,7 +38,12 @@ const TAIL = space(24);
  */
 export function ShellFrame({ children }: { children: ReactNode }) {
   const shell = useMenu();
-  const { module } = useMenuPlace();
+  const { module: landed } = useMenuPlace();
+  const module = useShownModule();
+  const { pending, setPending } = shell;
+  useEffect(() => {
+    if (pending && pending === landed) setPending(null);
+  }, [pending, landed, setPending]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { railBottom, lift, cardLift } = useRailLayout();
