@@ -17,7 +17,6 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { logInboxAction, requireManager } from "../inbox-admin.ts";
 import { callMailService } from "../mail-service.ts";
-import { fromMailService } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 
@@ -53,7 +52,7 @@ export async function removeInbox(c: Context<AppEnv>, mailboxId: string, hostedO
     hostedOnly ? HOSTED_DISCONNECT_PATH : MAILBOX_DISCONNECT_PATH,
     { orgId, mailboxId },
     hostedDisconnectResultSchema,
-  ).catch(fromMailService);
+  );
   await logInboxAction(c, "inbox.removed", mailbox.address, { mailboxId });
   return c.body(null, 204);
 }

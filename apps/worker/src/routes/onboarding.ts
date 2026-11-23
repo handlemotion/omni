@@ -2,7 +2,7 @@ import { mayCreateOrganization } from "@omni/auth";
 import { newChallenge } from "@omni/crypto";
 import {
   advanceOrgSetup,
-  DOMAIN_ADMIN_ROLES,
+  MANAGER_ROLES,
   ensurePersonalSpace,
   ownPersonalSpace,
   findMemberDomain,
@@ -46,7 +46,7 @@ import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 
 const requireDomainAdmin = createMiddleware<AppEnv>(async (c, next) => {
-  if (!(DOMAIN_ADMIN_ROLES as readonly string[]).includes(c.var.member.role)) {
+  if (!(MANAGER_ROLES as readonly string[]).includes(c.var.member.role)) {
     throw new HTTPException(403, { message: "only owners and admins can set up mail" });
   }
   await next();
@@ -312,7 +312,7 @@ export const onboarding = new Hono<AppEnv>()
       const to = c.req.valid("json").organizationId;
       if (to === member.orgId) throw new HTTPException(400, { message: "that is this workspace" });
       const role = await roleInOrg(db, user.id, to);
-      if (!role || !(DOMAIN_ADMIN_ROLES as readonly string[]).includes(role)) {
+      if (!role || !(MANAGER_ROLES as readonly string[]).includes(role)) {
         throw new HTTPException(403, {
           message: "you can only move a domain to a workspace you own or administer",
         });

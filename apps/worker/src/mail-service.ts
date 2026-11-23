@@ -1,5 +1,6 @@
 import { signRequest } from "@omni/crypto";
 import { MAIL_PING_PATH } from "@omni/contracts";
+import { HTTPException } from "hono/http-exception";
 import type { z } from "zod";
 import type { Config } from "./env.ts";
 import type { Logger } from "./log.ts";
@@ -11,29 +12,38 @@ export interface MailServiceScope {
   log: Logger;
 }
 
+async function signedPost(
+  scope: MailServiceScope,
+  path: string,
+  body: string,
+  options: { nonce?: string; timeoutMs: number },
+) {
+  const url = new URL(path, scope.config.MAIL_SERVICE_URL);
+  const headers = await signRequest({
+    secret: scope.config.MAIL_SERVICE_HMAC_SECRET,
+    method: "POST",
+    path: url.pathname + url.search,
+    body,
+    ...(options.nonce ? { nonce: options.nonce } : {}),
+    requestId: scope.requestId,
+  });
+  return fetch(url, {
+    method: "POST",
+    headers: body ? { ...headers, "content-type": "application/json" } : headers,
+    body,
+    signal: AbortSignal.timeout(options.timeoutMs),
+  });
+}
+
 /**
  * Tells the mail service the outbox has work. Best effort: the action is already in
  * `mail_actions` and the mail service polls it, so a lost ping only delays the action.
  */
 export async function pingMailService(scope: MailServiceScope) {
-  const { config, requestId } = scope;
   const log = scope.log.child({ component: "mail-service" });
-  const url = new URL(MAIL_PING_PATH, config.MAIL_SERVICE_URL);
   const started = Date.now();
   try {
-    const headers = await signRequest({
-      secret: config.MAIL_SERVICE_HMAC_SECRET,
-      method: "POST",
-      path: url.pathname + url.search,
-      body: "",
-      requestId,
-    });
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: "",
-      signal: AbortSignal.timeout(10_000),
-    });
+    const response = await signedPost(scope, MAIL_PING_PATH, "", { timeoutMs: 10_000 });
     const durationMs = Date.now() - started;
     if (response.ok) log.info("mail_service.ping", { status: response.status, durationMs });
     else log.warn("mail_service.ping_failed", { status: response.status, durationMs });
@@ -44,13 +54,15 @@ export async function pingMailService(scope: MailServiceScope) {
   }
 }
 
-/** The mail service refused or failed a call; `status` is what the Worker answers with. */
-export class MailServiceError extends Error {
+/**
+ * The mail service refused or failed a call; `status` is what the Worker answers with. It is an
+ * `HTTPException`, so a route that lets it through answers it like any other refusal.
+ */
+export class MailServiceError extends HTTPException {
   override name = "MailServiceError";
-  readonly status: 400 | 409 | 422 | 502;
+  declare readonly status: 400 | 409 | 422 | 502;
   constructor(status: 400 | 409 | 422 | 502, message: string) {
-    super(message);
-    this.status = status;
+    super(status, { message });
   }
 }
 
@@ -65,26 +77,13 @@ export async function callMailService<S extends z.ZodType>(
   body: unknown,
   result: S,
 ) {
-  const { config, requestId } = scope;
   const log = scope.log.child({ component: "mail-service", path });
   const started = Date.now();
-  const url = new URL(path, config.MAIL_SERVICE_URL);
-  const text = JSON.stringify(body);
-  const headers = await signRequest({
-    secret: config.MAIL_SERVICE_HMAC_SECRET,
-    method: "POST",
-    path: url.pathname + url.search,
-    body: text,
-    nonce: crypto.randomUUID().replaceAll("-", ""),
-    requestId,
-  });
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
-      body: text,
-      signal: AbortSignal.timeout(60_000),
+    response = await signedPost(scope, path, JSON.stringify(body), {
+      nonce: crypto.randomUUID().replaceAll("-", ""),
+      timeoutMs: 60_000,
     });
   } catch (error) {
     log.warn("mail_service.call_failed", { error, durationMs: Date.now() - started });

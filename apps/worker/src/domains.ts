@@ -27,9 +27,10 @@ import {
 } from "@omni/db";
 import { challengeRecordName } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
+import { HTTPException } from "hono/http-exception";
 import { systemMailSender } from "./context.ts";
 import { inspectDomain } from "./dns-check.ts";
-import { callMailService, MailServiceError, type MailServiceScope } from "./mail-service.ts";
+import { callMailService, type MailServiceScope } from "./mail-service.ts";
 
 export interface DomainDeps extends MailServiceScope {
   db: Db;
@@ -38,26 +39,9 @@ export interface DomainDeps extends MailServiceScope {
   waitUntil(promise: Promise<unknown>): void;
 }
 
-/** A refusal with the status the route answers. */
-export class DomainError extends Error {
-  override name = "DomainError";
-  readonly status: 400 | 403 | 404 | 409 | 410 | 422 | 429 | 502;
-  constructor(status: DomainError["status"], message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-function fromMailService(error: unknown): never {
-  if (error instanceof MailServiceError) throw new DomainError(error.status, error.message);
-  throw error;
-}
-
 /** The domain's own nameservers' answers, through the mail service. */
 export function lookupDns(scope: MailServiceScope, body: DnsLookupBody) {
-  return callMailService(scope, DNS_LOOKUP_PATH, body, dnsLookupResultSchema).catch(
-    fromMailService,
-  );
+  return callMailService(scope, DNS_LOOKUP_PATH, body, dnsLookupResultSchema);
 }
 
 /**
@@ -188,12 +172,12 @@ export async function claimDomain(
   const { db } = deps;
   const conflict = await conflictingLock(db, member.orgId, domain);
   if (conflict) {
-    throw new DomainError(
-      409,
-      conflict.domain === domain
-        ? `${domain} is already set up by another workspace`
-        : `${domain} is under ${conflict.domain}, which another workspace set up`,
-    );
+    throw new HTTPException(409, {
+      message:
+        conflict.domain === domain
+          ? `${domain} is already set up by another workspace`
+          : `${domain} is under ${conflict.domain}, which another workspace set up`,
+    });
   }
   const provision =
     host === "gmail"
@@ -203,7 +187,7 @@ export async function claimDomain(
           PROVISION_DOMAIN_PATH,
           { domain, add: false },
           provisionDomainResultSchema,
-        ).catch(fromMailService);
+        );
   const challenge = await newChallenge();
   const opened = await openClaim(db, {
     orgId: member.orgId,
@@ -214,10 +198,9 @@ export async function claimDomain(
     dnsRecords: provision.provider === "purelymail" ? provision.records : [],
   });
   if ("error" in opened) {
-    throw new DomainError(
-      409,
-      "this workspace already has 5 domains waiting for DNS: finish one or let it expire",
-    );
+    throw new HTTPException(409, {
+      message: "this workspace already has 5 domains waiting for DNS: finish one or let it expire",
+    });
   }
   if (opened.created) {
     await audit(deps, member.orgId, member.id, "domain.claimed", domain);
@@ -265,7 +248,9 @@ export const checkDomain: (
 
   if (claim && !lock) {
     if (claim.expiresAt <= new Date()) {
-      throw new DomainError(410, `the claim on ${domain} expired: add the domain again`);
+      throw new HTTPException(410, {
+        message: `the claim on ${domain} expired: add the domain again`,
+      });
     }
     const { check, challengeFound } = await inspectDomain(deps, {
       domain,
@@ -280,12 +265,14 @@ export const checkDomain: (
     const result = await lockClaim(db, claim);
     if (!result.ok) {
       if (result.reason === "expired") {
-        throw new DomainError(410, `the claim on ${domain} expired: add the domain again`);
+        throw new HTTPException(410, {
+          message: `the claim on ${domain} expired: add the domain again`,
+        });
       }
       await audit(deps, member.orgId, member.id, "domain.claim_refused", domain, {
         lockedDomain: result.by,
       });
-      throw new DomainError(409, `${domain} was set up by another workspace first`);
+      throw new HTTPException(409, { message: `${domain} was set up by another workspace first` });
     }
     if (result.locked) {
       await audit(deps, member.orgId, member.id, "domain.verified", domain);
@@ -324,7 +311,7 @@ async function addAtProvider(deps: DomainDeps, claim: DomainClaim | null, lock: 
     PROVISION_DOMAIN_PATH,
     { domain, add: true },
     provisionDomainResultSchema,
-  ).catch(fromMailService);
+  );
   const records = provision.provider === "purelymail" ? provision.records : [];
   const saved = await saveMailDomain(db, {
     orgId: lock.orgId,
@@ -335,7 +322,8 @@ async function addAtProvider(deps: DomainDeps, claim: DomainClaim | null, lock: 
     verified:
       provision.provider === "imap" || (provision.added && records.every((r) => r.verified)),
   });
-  if (!saved) throw new DomainError(409, `${domain} is no longer set up by this workspace`);
+  if (!saved)
+    throw new HTTPException(409, { message: `${domain} is no longer set up by this workspace` });
   const result: { setup: DomainSetup; addError?: string } = {
     setup: { claim, lock: saved } as DomainSetup,
     addError: provision.provider === "purelymail" ? provision.addError : undefined,
