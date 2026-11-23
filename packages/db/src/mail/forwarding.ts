@@ -11,7 +11,7 @@ import {
   type forwardScope,
 } from "../schema/index.ts";
 
-export type ForwardScope = (typeof forwardScope.enumValues)[number];
+type ForwardScope = (typeof forwardScope.enumValues)[number];
 
 const CLOCK_SLACK_MS = 5 * 60_000;
 
@@ -154,11 +154,7 @@ async function threadBackfill(db: Db, row: ForwardContext, ownMessageId: string)
   return received.map((r) => r.id);
 }
 
-/**
- * A user's forwarding settings: one entry per personal mailbox they own, in every organization
- * they belong to (a personal space and company workspaces alike). With `scopeOrgId`,
- * only that organization's. The owner grant and the org match are the same checks `forUser` runs.
- */
+/** Personal mailboxes `userId` owns, optionally only in `scopeOrgId`. */
 export function ownedPersonalMailbox(userId: string, scopeOrgId?: string | null) {
   return and(
     eq(mailboxes.kind, "personal"),
@@ -169,6 +165,11 @@ export function ownedPersonalMailbox(userId: string, scopeOrgId?: string | null)
   );
 }
 
+/**
+ * A user's forwarding settings: one entry per personal mailbox they own, in every organization
+ * they belong to (a personal space and company workspaces alike). With `scopeOrgId`,
+ * only that organization's. The owner grant and the org match are the same checks `forUser` runs.
+ */
 export function forwardingFor(db: Db, userId: string, scopeOrgId?: string | null) {
   const owned = ownedPersonalMailbox(userId, scopeOrgId);
   return {

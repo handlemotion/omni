@@ -3,6 +3,7 @@ import { and, asc, desc, eq, exists, isNotNull, lte, sql, type AnyColumn } from 
 import type { Db } from "../client.ts";
 import type { Executor } from "./conversation-core.ts";
 import {
+  attachmentContentHash,
   attachments,
   mailboxAccess,
   mailboxFolders,
@@ -158,7 +159,7 @@ export async function findMemberAttachmentByHash(db: Db, memberId: string, sha25
     .innerJoin(messages, eq(messages.id, attachments.messageId))
     .where(
       and(
-        sql`split_part(${attachments.r2Key}, '/att/', 2) = ${sha256}`,
+        eq(attachmentContentHash(attachments.r2Key), sha256),
         exists(grantFor(db, memberId, messages.mailboxId, messages.orgId)),
       ),
     )
