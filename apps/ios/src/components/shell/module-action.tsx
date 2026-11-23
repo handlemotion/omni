@@ -1,7 +1,6 @@
 import { router } from "expo-router";
 import { useAddActions } from "@/components/drive/add-menu.tsx";
 import {
-  IconBell,
   IconCompose,
   IconFile,
   IconFolderPlus,
@@ -10,11 +9,7 @@ import {
   IconSearch,
 } from "@/components/icons.ts";
 import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
-import {
-  FloatingButton,
-  FloatingGroup,
-  type FloatingGroupAction,
-} from "@/components/ui/floating.tsx";
+import { FloatingButton } from "@/components/ui/floating.tsx";
 import type { CrmPage } from "@/lib/crm.ts";
 import type { DrivePlace } from "@/lib/drive-actions.ts";
 import { DRIVE_PAGES, useTeamspaces } from "@/lib/drive.ts";
@@ -123,37 +118,24 @@ function useModuleAction() {
   return { action, sheet };
 }
 
-/**
- * The top bar's right-hand group, opposite the page title: the module's search and Mail's
- * Notifications, in one Liquid Glass pill.
- */
-export function ModuleActions() {
+/** The module's search as a round grey button beside its main action; none where it has no search. */
+export function ModuleSearch() {
   const place = useMenuPlace();
   const { close, setQuery, setSearchIn } = useMenu();
-  const group: FloatingGroupAction[] = [];
-  if (SEARCH_PLACEHOLDER[place.module]) {
-    group.push({
-      icon: IconSearch,
-      label: SEARCH_PLACEHOLDER[place.module] ?? "Search",
-      onPress: () => {
+  const label = SEARCH_PLACEHOLDER[place.module];
+  if (!label) return null;
+  return (
+    <FloatingButton
+      icon={IconSearch}
+      label={label}
+      glyph={iconSize.md}
+      onPress={() => {
         close();
         setQuery("");
         setSearchIn(place.module);
-      },
-    });
-  }
-  if (place.module === "mail") {
-    group.push({
-      icon: IconBell,
-      label: "Notifications",
-      onPress: () => {
-        close();
-        router.push("/mail/notifications");
-      },
-    });
-  }
-  if (group.length === 0) return null;
-  return <FloatingGroup compact actions={group} />;
+      }}
+    />
+  );
 }
 
 /** The module's main action (New message, New file…) as a round brand button on the page. */

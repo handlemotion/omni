@@ -23,8 +23,10 @@ import { MENU_INSET, MenuUnder } from "./menu-row.tsx";
 import { CalendarMenu, CrmMenu, DriveMenu, MailMenu, MeetingsMenu } from "./menu-rows.tsx";
 import { RootPlace, useMenuPlace } from "./menu-nav.ts";
 import { useModules } from "./modules.ts";
+import { WorkspaceButton } from "./menu-workspace.tsx";
 import { DOCK_HEIGHT, ModuleDock } from "./module-dock.tsx";
 
+const WORKSPACE_SIZE = space(7);
 const HANDLE = space(4);
 const EDGE_FADE = space(6);
 const FLING = 600;
@@ -81,7 +83,7 @@ export function useSectionPull(progress: SharedValue<number>, travel: number) {
 }
 
 /**
- * The section under a module's root page, on the grey surface: a handle, the module dock, and
+ * The section under a module's root page, on the grey surface: a handle, the module dock with the workspace at its end, and
  * under them the module's pages. Pulling the dock up (or tapping the handle) slides the page card
  * and the dock up until the card only peeks under the status bar; pulling down, tapping the card,
  * or picking a page slides them back. The pages of every module sit side by side: swiping them
@@ -146,7 +148,12 @@ export function ModuleSection({
           >
             <View style={styles.grabber} />
           </Pressable>
-          <ModuleDock follow={follow} />
+          <View style={styles.dockRow}>
+            <ModuleDock follow={follow} />
+            <View style={styles.workspace}>
+              <WorkspaceButton size={WORKSPACE_SIZE} />
+            </View>
+          </View>
         </View>
       </GestureDetector>
       <Animated.View
@@ -210,6 +217,14 @@ export function ModuleSection({
 
 const styles = StyleSheet.create({
   section: { position: "absolute", left: 0, right: 0 },
+  dockRow: { justifyContent: "center" },
+  workspace: {
+    position: "absolute",
+    right: space(4),
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+  },
   handle: { height: HANDLE, alignItems: "center", justifyContent: "center" },
   grabber: {
     width: space(7),

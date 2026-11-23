@@ -7,14 +7,14 @@ import { ScrollEdge } from "@/components/ui/scroll-edge.tsx";
 import { space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import { RootPlace, TopInset, useShellTop, type Module } from "./menu-nav.ts";
-import { ModuleMainAction } from "./module-action.tsx";
+import { ModuleMainAction, ModuleSearch } from "./module-action.tsx";
 import { ShellChrome } from "./shell.tsx";
 
 const BOTTOM_FADE = space(16);
 
 /**
  * A module's root page in the shell's card (`ShellFrame`): its title and actions on top, a soft
- * fade at the card's bottom edge and the module's main action above it. Remembers its own page so
+ * fade at the card's bottom edge and the module's search and main action above it. Remembers its own page so
  * the module reopens there.
  */
 export function ModuleRoot({ module, children }: { module: Module; children: ReactNode }) {
@@ -41,6 +41,7 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
           <ShellChrome />
           {shell.searching || shell.isOpen ? null : (
             <View style={styles.main}>
+              <ModuleSearch />
               <ModuleMainAction />
             </View>
           )}
@@ -52,5 +53,12 @@ export function ModuleRoot({ module, children }: { module: Module; children: Rea
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  main: { position: "absolute", right: space(4), bottom: space(5) },
+  main: {
+    position: "absolute",
+    right: space(4),
+    bottom: space(5),
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(2.5),
+  },
 });
