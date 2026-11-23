@@ -28,13 +28,10 @@ import {
 import { useModules } from "./modules.ts";
 import { NAV_BAR, NavBar, RAIL_BLOCK } from "./nav-bar.tsx";
 
-const CARD_RADIUS = space(11);
-
 /**
- * The signed-in app's frame: every page, root or pushed, sits in a white card with round bottom
- * corners, outlined on top of whatever the page draws, with the rail (`NavBar`) floating over its
- * foot. Pulling the rail up, or tapping its handle or module, raises the rail and slides the card
- * up just above it, until the card only peeks under the status bar, blurred and dimmed behind a
+ * The signed-in app's frame: every page, root or pushed, on one white surface with the rail
+ * (`NavBar`) floating over its foot. Pulling the rail up, or tapping its handle or module, raises
+ * the rail and slides the page up just above it, until the card only peeks under the status bar, blurred and dimmed behind a
  * prompt; the module's pages show beneath the rail. Tapping or pulling the card or the rail down
  * slides it all back. Pages see the rail as part of the bottom safe area, so their own bottom bars
  * sit above it. Only the open search field takes the whole screen.
@@ -49,6 +46,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
   const still = useReduceMotion();
   const progress = useSharedValue(shell.isOpen ? 1 : 0);
   const pull = useSectionPull(progress, lift);
+  const pullCard = useSectionPull(progress, lift);
   const modules = useModules();
   const current = Math.max(
     0,
@@ -83,7 +81,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
 
   return (
     <View style={styles.root}>
-      <Animated.View style={[styles.card, shell.searching && styles.full, card]}>
+      <Animated.View style={[styles.card, card]}>
         <SafeAreaInsetsContext.Provider
           value={shell.searching ? insets : { ...insets, bottom: taken }}
         >
@@ -101,7 +99,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
           </Text>
         </Animated.View>
         {shell.isOpen ? (
-          <GestureDetector gesture={pull}>
+          <GestureDetector gesture={pullCard}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Hide pages"
@@ -110,7 +108,6 @@ export function ShellFrame({ children }: { children: ReactNode }) {
             />
           </GestureDetector>
         ) : null}
-        {shell.searching ? null : <View pointerEvents="none" style={styles.outline} />}
       </Animated.View>
       <ModuleSection module={module} progress={progress} follow={follow} />
       {shell.searching ? null : (
@@ -125,7 +122,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.under, overflow: "hidden" },
+  root: { flex: 1, backgroundColor: colors.background, overflow: "hidden" },
   card: {
     position: "absolute",
     top: 0,
@@ -134,22 +131,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     overflow: "hidden",
     backgroundColor: colors.background,
-    borderBottomLeftRadius: CARD_RADIUS,
-    borderBottomRightRadius: CARD_RADIUS,
-    borderCurve: "continuous",
   },
-  full: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   rail: { position: "absolute", left: 0, right: 0 },
-  outline: {
-    ...StyleSheet.absoluteFill,
-    borderColor: colors.underLine,
-    borderBottomWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomLeftRadius: CARD_RADIUS,
-    borderBottomRightRadius: CARD_RADIUS,
-    borderCurve: "continuous",
-  },
   wash: { ...StyleSheet.absoluteFill, backgroundColor: colors.background, opacity: 0.35 },
   hint: {
     position: "absolute",

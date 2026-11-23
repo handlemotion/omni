@@ -15,11 +15,10 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
-import { RowHighlight } from "@/components/ui/pressable-row.tsx";
 import { colors, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
 import type { Module } from "./menu-nav.ts";
-import { MENU_INSET, MenuUnder } from "./menu-row.tsx";
+import { MENU_INSET } from "./menu-row.tsx";
 import { CalendarMenu, CrmMenu, DriveMenu, MailMenu, MeetingsMenu } from "./menu-rows.tsx";
 import { RootPlace, useMenuPlace } from "./menu-nav.ts";
 import { useModules } from "./modules.ts";
@@ -82,7 +81,7 @@ export function useSectionPull(progress: SharedValue<number>, travel: number) {
 }
 
 /**
- * The module's pages under the rail, on the grey surface, hidden below the screen until the rail
+ * The module's pages under the rail, on the same white surface, hidden below the screen until the rail
  * and page slide up. The pages of every module sit side by side: swiping them sideways opens the
  * module they land on, each page already marking where that module opens.
  */
@@ -157,11 +156,7 @@ export function ModuleSection({
                 style={{ width, height: travel }}
                 contentContainerStyle={[styles.rows, { paddingBottom: insets.bottom + space(2) }]}
               >
-                <MenuUnder value>
-                  <RowHighlight value={colors.underFill}>
-                    <Rows />
-                  </RowHighlight>
-                </MenuUnder>
+                <Rows />
               </ScrollView>
             );
             if (entry.id === module && place.onRoot) return page;
@@ -178,8 +173,8 @@ export function ModuleSection({
         <Svg pointerEvents="none" width="100%" height={EDGE_FADE} style={styles.fade}>
           <Defs>
             <LinearGradient id="underFade" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={colors.under} stopOpacity={1} />
-              <Stop offset="1" stopColor={colors.under} stopOpacity={0} />
+              <Stop offset="0" stopColor={colors.background} stopOpacity={1} />
+              <Stop offset="1" stopColor={colors.background} stopOpacity={0} />
             </LinearGradient>
           </Defs>
           <Rect width="100%" height="100%" fill="url(#underFade)" />
