@@ -1,9 +1,10 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
   Easing,
+  useAnimatedRef,
   useAnimatedScrollHandler,
   Extrapolation,
   interpolate,
@@ -112,6 +113,10 @@ export function ModuleSection({
   );
   const swiped = useRef(false);
   const start = useMemo(() => ({ x: current * width, y: 0 }), [current, width]);
+  const pager = useAnimatedRef<Animated.ScrollView>();
+  useEffect(() => {
+    pager.current?.scrollTo({ x: current * width, animated: false });
+  }, [pager, current, width]);
   const onScroll = useAnimatedScrollHandler((e) => {
     follow.value = e.contentOffset.x / width;
   });
@@ -150,6 +155,7 @@ export function ModuleSection({
         style={[styles.pages, reveal]}
       >
         <Animated.ScrollView
+          ref={pager}
           horizontal
           pagingEnabled
           onScroll={onScroll}
@@ -177,7 +183,7 @@ export function ModuleSection({
                 </MenuUnder>
               </ScrollView>
             );
-            if (entry.id === module) return page;
+            if (entry.id === module && place.onRoot) return page;
             return (
               <RootPlace
                 key={entry.id}

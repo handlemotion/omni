@@ -1,6 +1,7 @@
 import { Redirect, Stack } from "expo-router";
 import { IconCircleAlert } from "@/components/icons.ts";
 import { MenuProvider } from "@/components/shell/menu-context.tsx";
+import { ShellFrame } from "@/components/shell/shell-frame.tsx";
 import { ClearSearchOnModuleChange } from "@/components/shell/shell.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
@@ -12,10 +13,10 @@ import { useWorkspace } from "@/lib/workspace.ts";
 import { colors } from "@/theme/tokens.ts";
 
 /**
- * Everything past sign-in: the modules, each a stack of its own, one on screen at a
- * time, under one shell: a top bar (☰, the module pill, the workspace), a bottom bar (search and
- * the module's main action) and the menu that slides down between them, drawn on each module's
- * root page (`ModuleRoot`) so pushed pages cover it natively. No tab bar.
+ * Everything past sign-in: the modules, each a stack of its own, one on screen at a time, inside
+ * one frame (`ShellFrame`): every page sits in its card, with the module dock and the module's
+ * pages under it on every page, pushed ones included. Each module's root page draws its own title
+ * bar and main action (`ModuleRoot`).
  * Signed out, or signed out elsewhere, goes back to sign-in. Calls wait for the workspace list,
  * so the first ones already name the workspace the app is in; until then the launch screen stays
  * up. Opening another workspace resets every answer on screen (`openWorkspace`), so each page
@@ -41,19 +42,21 @@ export default function SignedInLayout() {
   }
   return (
     <MenuProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: "none",
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      >
-        <Stack.Screen name="mail" />
-        <Stack.Screen name="drive" />
-        <Stack.Screen name="crm" />
-        <Stack.Screen name="calendar" />
-        <Stack.Screen name="meetings" />
-      </Stack>
+      <ShellFrame>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "none",
+            contentStyle: { backgroundColor: colors.background },
+          }}
+        >
+          <Stack.Screen name="mail" />
+          <Stack.Screen name="drive" />
+          <Stack.Screen name="crm" />
+          <Stack.Screen name="calendar" />
+          <Stack.Screen name="meetings" />
+        </Stack>
+      </ShellFrame>
       <ClearSearchOnModuleChange />
     </MenuProvider>
   );
