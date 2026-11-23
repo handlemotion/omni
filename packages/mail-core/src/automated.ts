@@ -17,6 +17,32 @@ export interface Automated {
  */
 export type HeaderLookup = (name: string) => string | null;
 
+const AUTO_REPLY_FLAG_HEADERS = ["x-autoreply", "x-autorespond", "x-autoresponder"] as const;
+
+const lower = (value: string | null | undefined) => value?.trim().toLowerCase();
+
+const multipartReportKind = (header: HeaderLookup) => {
+  const contentType = header("content-type")?.toLowerCase() ?? "";
+  if (!contentType.startsWith("multipart/report")) return null;
+  const reportType = /report-type\s*=\s*"?([\w-]+)/.exec(contentType)?.[1];
+  if (reportType === "delivery-status") return "bounce";
+  if (reportType === "disposition-notification") return "auto-reply";
+  return null;
+};
+
+const isLegacyBounce = (header: HeaderLookup, fromAddress: string | null) =>
+  header("x-failed-recipients") !== null ||
+  fromAddress?.toLowerCase().startsWith("mailer-daemon@") === true;
+
+const isAutoReply = (header: HeaderLookup, autoSubmitted: string) => {
+  if (autoSubmitted === "auto-replied") return true;
+  if (lower(header("precedence") ?? header("x-precedence")) === "auto_reply") return true;
+  return AUTO_REPLY_FLAG_HEADERS.some((name) => {
+    const value = lower(header(name));
+    return value !== undefined && value !== "no" && value !== "false";
+  });
+};
+
 /**
  * Classifies a message as automated from its top-level headers and sender, or returns null
  * for mail a person wrote. Header signals only (RFC 3834, RFC 3464, RFC 8098 and the common
@@ -30,23 +56,11 @@ export const automatedKind: (
   header: HeaderLookup,
   fromAddress: string | null,
 ) => AutomatedKind | null = (header, fromAddress) => {
-  const contentType = header("content-type")?.toLowerCase() ?? "";
-  if (contentType.startsWith("multipart/report")) {
-    const reportType = /report-type\s*=\s*"?([\w-]+)/.exec(contentType)?.[1];
-    if (reportType === "delivery-status") return "bounce";
-    if (reportType === "disposition-notification") return "auto-reply";
-  }
-  if (header("x-failed-recipients") !== null) return "bounce";
-  if (fromAddress?.toLowerCase().startsWith("mailer-daemon@")) return "bounce";
-
-  const autoSubmitted = header("auto-submitted")?.split(";")[0]?.trim().toLowerCase() ?? "";
-  if (autoSubmitted === "auto-replied") return "auto-reply";
-  const precedence = (header("precedence") ?? header("x-precedence") ?? "").trim().toLowerCase();
-  if (precedence === "auto_reply") return "auto-reply";
-  for (const name of ["x-autoreply", "x-autorespond", "x-autoresponder"]) {
-    const value = header(name)?.trim().toLowerCase();
-    if (value !== undefined && value !== "no" && value !== "false") return "auto-reply";
-  }
+  const report = multipartReportKind(header);
+  if (report) return report;
+  if (isLegacyBounce(header, fromAddress)) return "bounce";
+  const autoSubmitted = lower(header("auto-submitted")?.split(";")[0]) ?? "";
+  if (isAutoReply(header, autoSubmitted)) return "auto-reply";
   if (autoSubmitted !== "" && autoSubmitted !== "no") return "auto-generated";
   return null;
 };
@@ -58,9 +72,7 @@ export const AUTOMATED_HEADERS = [
   "auto-submitted",
   "precedence",
   "x-precedence",
-  "x-autoreply",
-  "x-autorespond",
-  "x-autoresponder",
+  ...AUTO_REPLY_FLAG_HEADERS,
 ] as const;
 
 const RETURNED_MESSAGE_ID = /^message-id:[ \t]*(?:\r?\n[ \t]+)?(<[^<>\s]+>)/im;

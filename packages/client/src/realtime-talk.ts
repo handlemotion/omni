@@ -1,11 +1,5 @@
 import type { TalkEvent, TalkFile, TalkMessage, TalkReaction } from "@omni/contracts";
-
-export const isId = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0;
-
-const isText = (value: unknown): value is string => typeof value === "string";
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+import { isId, isObject, isText } from "./realtime-guards.ts";
 
 const isTalkReactions = (value: unknown): value is TalkReaction[] =>
   Array.isArray(value) &&

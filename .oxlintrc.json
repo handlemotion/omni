@@ -115,17 +115,14 @@
         "apps/worker/src/realtime.ts",
         "apps/worker/src/routes/internal.ts",
         "apps/worker/src/routes/library.ts",
-        "apps/worker/src/routes/stripe-webhook.ts",
-        "packages/client/src/realtime.ts",
-        "packages/mail-core/src/automated.ts",
-        "packages/mail-core/src/sanitize.test.ts"
+        "apps/worker/src/routes/stripe-webhook.ts"
       ],
       "rules": {
         "complexity": "off"
       }
     },
     {
-      "files": ["apps/worker/src/routes/internal.ts", "packages/mail-core/src/sanitize.test.ts"],
+      "files": ["apps/worker/src/routes/internal.ts"],
       "rules": {
         "max-depth": "off"
       }

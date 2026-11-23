@@ -1,6 +1,6 @@
 import type { MeetingChunksResponse, StopMeetingBody } from "@omni/contracts";
-import { ERROR_FORMAT_HEADER, ERROR_FORMAT_VERSION, toApiError } from "@omni/contracts/errors";
-import { RecordingUploadError, type RecordingTransport } from "./recordings.ts";
+import { toApiError } from "@omni/contracts/errors";
+import { failure, send, type Answer, type RecordingTransport } from "./recording-transport.ts";
 
 /** One chunk of a browser recording as it waits on the computer. */
 export interface SpooledChunk {
@@ -71,33 +71,8 @@ export function chunkRetryMs(attempt: number, random = Math.random()) {
   return Math.round(base * (1 + random / 5));
 }
 
-type Answer = { status: number; ok: boolean; json: unknown };
-
-async function send(
-  transport: RecordingTransport,
-  method: string,
-  path: string,
-  init: { body?: BodyInit; headers?: Record<string, string> } = {},
-) {
-  const response = await (transport.fetch ?? fetch)(new URL(`/api${path}`, transport.baseUrl), {
-    method,
-    credentials: "include",
-    headers: { [ERROR_FORMAT_HEADER]: ERROR_FORMAT_VERSION, ...init.headers, ...transport.headers },
-    body: init.body,
-  });
-  const text = await response.text();
-  const json: unknown = text ? JSON.parse(text) : null;
-  return { status: response.status, ok: response.ok, json } satisfies Answer;
-}
-
 const passing = (status: number) =>
   status === 0 || status === 408 || status === 422 || status === 429 || status >= 500;
-
-const failure = (answer: Answer, what: string) =>
-  new RecordingUploadError(
-    answer.status,
-    toApiError(answer.json, `${what} failed (${answer.status})`),
-  );
 
 const reasonOf = (answer: Answer) => toApiError(answer.json, "").details?.reason;
 

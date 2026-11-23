@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { sanitizeHtml } from "./html.ts";
-import { attribute, elements, parseBodyFragment, textContent } from "./tree.ts";
+import { attribute, elements, parseBodyFragment, textContent, type Element } from "./tree.ts";
 
 const PROXY = "https://img.omni.test/p?u=";
 const ATTACHMENTS = "https://omni.test/attachments/";
@@ -45,45 +45,62 @@ const scheme = (url: string) =>
 const loadsFromUs = (url: string) =>
   url.startsWith(PROXY) || url.startsWith(ATTACHMENTS) || /^data:image\//i.test(url);
 
+const SAFE_SCHEMES = ["http", "https", "mailto", "tel", "cid"];
+
+function cssHazards(css: string, where: string) {
+  const found: string[] = [];
+  if (/@import|expression\s*\(|\\|image-set|\bimage\s*\(|\bsrc\s*\(/i.test(css)) {
+    found.push(`${where}: unsafe CSS ${css.slice(0, 80)}`);
+  }
+  const urls = [...css.matchAll(/url\(\s*["']?([^"')]*)/gi)].map((m) => m[1] ?? "");
+  if ((css.match(/url\(/gi) ?? []).length !== urls.length || /url\([^)]*$/i.test(css)) {
+    found.push(`${where}: unterminated url(`);
+  }
+  for (const url of urls) if (!loadsFromUs(url)) found.push(`${where}: css url ${url}`);
+  return found;
+}
+
+function urlAttributeHazards(tag: string, name: string, value: string) {
+  const found: string[] = [];
+  const s = scheme(value);
+  const inlineImage = tag === "img" && /^data:image\//i.test(value.trim());
+  if (s !== null && !SAFE_SCHEMES.includes(s) && !inlineImage) {
+    found.push(`${tag}[${name}=${value.slice(0, 40)}]`);
+  }
+  if (name === "src" && !loadsFromUs(value)) found.push(`${tag}[src=${value}]`);
+  return found;
+}
+
+function attributeHazards(tag: string, name: string, value: string) {
+  const found: string[] = [];
+  if (name.startsWith("on")) found.push(`${tag}[${name}]`);
+  if (FETCHING_ATTRIBUTES.includes(name)) found.push(`${tag}[${name}]`);
+  if (name === "style") found.push(...cssHazards(value, `${tag}[style]`));
+  if (URL_ATTRIBUTES.includes(name)) found.push(...urlAttributeHazards(tag, name, value));
+  return found;
+}
+
+function linkHazards(element: Element) {
+  const tag = element.tagName;
+  if ((tag !== "a" && tag !== "area") || attribute(element, "href") === null) return [];
+  const found: string[] = [];
+  const rel = attribute(element, "rel") ?? "";
+  if (attribute(element, "target") !== "_blank") found.push(`${tag} opens in the frame`);
+  if (!/\bnoopener\b/.test(rel)) found.push(`${tag} no noopener`);
+  if (!/\bnoreferrer\b/.test(rel)) found.push(`${tag} no noreferrer`);
+  return found;
+}
+
 function hazards(html: string) {
   const found: string[] = [];
-  const checkCss = (css: string, where: string) => {
-    if (/@import|expression\s*\(|\\|image-set|\bimage\s*\(|\bsrc\s*\(/i.test(css)) {
-      found.push(`${where}: unsafe CSS ${css.slice(0, 80)}`);
-    }
-    const urls = [...css.matchAll(/url\(\s*["']?([^"')]*)/gi)].map((m) => m[1] ?? "");
-    if ((css.match(/url\(/gi) ?? []).length !== urls.length || /url\([^)]*$/i.test(css)) {
-      found.push(`${where}: unterminated url(`);
-    }
-    for (const url of urls) if (!loadsFromUs(url)) found.push(`${where}: css url ${url}`);
-  };
-
   for (const element of elements(parseBodyFragment(html))) {
     const tag = element.tagName;
     if (EXECUTES_OR_EMBEDS.has(tag)) found.push(`<${tag}>`);
-    if (tag === "style") checkCss(textContent(element), "<style>");
-    for (const { name, value } of element.attrs) {
-      if (name.startsWith("on")) found.push(`${tag}[${name}]`);
-      if (FETCHING_ATTRIBUTES.includes(name)) found.push(`${tag}[${name}]`);
-      if (name === "style") checkCss(value, `${tag}[style]`);
-      if (URL_ATTRIBUTES.includes(name)) {
-        const s = scheme(value);
-        if (s !== null && !["http", "https", "mailto", "tel", "cid"].includes(s)) {
-          if (!(tag === "img" && /^data:image\//i.test(value.trim()))) {
-            found.push(`${tag}[${name}=${value.slice(0, 40)}]`);
-          }
-        }
-        if (name === "src" && !loadsFromUs(value)) found.push(`${tag}[src=${value}]`);
-      }
-    }
-    if ((tag === "a" || tag === "area") && attribute(element, "href") !== null) {
-      if (attribute(element, "target") !== "_blank") found.push(`${tag} opens in the frame`);
-      if (!/\bnoopener\b/.test(attribute(element, "rel") ?? "")) found.push(`${tag} no noopener`);
-      if (!/\bnoreferrer\b/.test(attribute(element, "rel") ?? ""))
-        found.push(`${tag} no noreferrer`);
-    }
+    if (tag === "style") found.push(...cssHazards(textContent(element), "<style>"));
+    for (const { name, value } of element.attrs) found.push(...attributeHazards(tag, name, value));
+    found.push(...linkHazards(element));
   }
-  return found satisfies string[];
+  return found;
 }
 
 const T = "https://t.example.com";
