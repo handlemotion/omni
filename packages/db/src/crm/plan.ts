@@ -1,3 +1,4 @@
+import { CRM_PLAN_DESCRIPTION_MAX, CRM_PLAN_TITLE_MAX } from "@omni/contracts";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { crmDeliverables, crmMilestones } from "../schema/crm/projects.ts";
@@ -92,8 +93,6 @@ export type DeliverableResult =
   | InvalidFile
   | PlanFull;
 
-export const CRM_PLAN_TITLE_MAX = 300;
-export const CRM_PLAN_DESCRIPTION_MAX = 20_000;
 /** A project holds at most this many of each, so the plan is always read whole. */
 export const CRM_PLAN_MAX = 200;
 

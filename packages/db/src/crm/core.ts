@@ -224,28 +224,6 @@ export const MAX_PAGE = 200;
 export const pageSize = (limit?: number) =>
   Math.min(Math.max(Math.trunc(limit ?? DEFAULT_PAGE), 1), MAX_PAGE);
 
-/** A list ordered by name: the last row's name and id. */
-export interface CrmNameCursor {
-  name: string;
-  id: string;
-}
-
-/** Rows after the cursor in `(lower(name), id)` order. */
-export function afterName(name: AnyColumn, id: AnyColumn, cursor?: CrmNameCursor | null) {
-  if (!cursor) return undefined;
-  return sql`(lower(${name}), ${id}) > (lower(${cursor.name}), ${cursor.id})`;
-}
-
-/** Cuts a page fetched with one extra row and gives the next cursor. */
-export function namePage<T extends { name: string; id: string }>(rows: T[], limit: number) {
-  const items = rows.slice(0, limit);
-  const last = items.at(-1);
-  return {
-    items,
-    nextCursor: rows.length > limit && last ? { name: last.name, id: last.id } : null,
-  };
-}
-
 /** Escapes `%`, `_` and `\` for a `like` pattern. */
 export const likePrefix = (word: string) => `${word.replaceAll(/[\\%_]/g, (c) => `\\${c}`)}%`;
 

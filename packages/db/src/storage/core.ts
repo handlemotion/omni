@@ -110,14 +110,6 @@ export const sharedDrive = (orgId: string) =>
 export const teamspaceDrive = (orgId: string, teamspaceId: string) =>
   ({ orgId, space: "teamspace", ownerMemberId: null, teamspaceId }) satisfies Drive;
 
-/** SQL condition: the row at `alias` (a node, upload or tombstone) is in `drive`. */
-export function inDriveSql(drive: Drive, alias: string) {
-  const t = sql.raw(alias);
-  return sql`(${t}.org_id = ${drive.orgId} and ${t}.space = ${drive.space}
-    and coalesce(${t}.owner_member_id, '') = ${drive.ownerMemberId ?? ""}
-    and coalesce(${t}.teamspace_id, '') = ${drive.teamspaceId ?? ""})`;
-}
-
 /** The one rule for where a file's bytes live. The name is not in it. */
 export const storageObjectKey = (orgId: string, fileId: string) => `orgs/${orgId}/${fileId}`;
 

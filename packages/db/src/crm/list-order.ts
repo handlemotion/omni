@@ -1,8 +1,9 @@
+import type { CrmSortDir } from "@omni/contracts";
 import { asc, desc, sql, type AnyColumn, type SQL } from "drizzle-orm";
 
 /** How a list is ordered. Deals add `value`, `closeOn`, `stageEntered`. */
 export type CrmSortKey = "name" | "created" | "updated" | "value" | "closeOn" | "stageEntered";
-export type CrmSortDir = "asc" | "desc";
+export type { CrmSortDir };
 
 export interface CrmSort {
   key: CrmSortKey;

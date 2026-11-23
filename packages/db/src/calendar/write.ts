@@ -1,3 +1,4 @@
+import { CALENDAR_GUESTS_MAX, CALENDAR_TEXT_MAX, CALENDAR_TITLE_MAX } from "@omni/contracts";
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import type { OutgoingEvent } from "@omni/mail-core/calendar";
 import { and, eq, ne } from "drizzle-orm";
@@ -13,9 +14,6 @@ export interface Writer {
   mailboxes: readonly VisibleMailbox[];
 }
 
-export const CALENDAR_GUESTS_MAX = 100;
-const TITLE_MAX = 500;
-const TEXT_MAX = 20_000;
 const LONGEST_MS = 14 * 86_400_000;
 
 export type NotOrganizer = { status: "not_organizer" };
@@ -161,7 +159,10 @@ export async function answerEvent(
 const invalidAt = (field: string) => ({ status: "invalid_event", field }) satisfies InvalidEvent;
 
 function badTimes(input: OwnEventPatch) {
-  if (input.title !== undefined && (!input.title.trim() || input.title.length > TITLE_MAX)) {
+  if (
+    input.title !== undefined &&
+    (!input.title.trim() || input.title.length > CALENDAR_TITLE_MAX)
+  ) {
     return "title";
   }
   if (!input.start || !input.end) return null;
@@ -170,8 +171,8 @@ function badTimes(input: OwnEventPatch) {
 }
 
 function badDetail(input: OwnEventPatch) {
-  if ((input.description?.length ?? 0) > TEXT_MAX) return "description";
-  if ((input.location?.length ?? 0) > TITLE_MAX) return "location";
+  if ((input.description?.length ?? 0) > CALENDAR_TEXT_MAX) return "description";
+  if ((input.location?.length ?? 0) > CALENDAR_TITLE_MAX) return "location";
   if (input.conferenceUrl && !/^https:\/\//i.test(input.conferenceUrl)) return "conferenceUrl";
   const guests = input.guests ?? [];
   if (guests.length > CALENDAR_GUESTS_MAX) return "guests";

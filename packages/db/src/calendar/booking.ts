@@ -1,3 +1,4 @@
+import { BOOKING_NAME_MAX, BOOKING_NOTE_MAX, BOOKING_TITLE_MAX } from "@omni/contracts";
 import { randomToken } from "@omni/crypto";
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import {
@@ -16,10 +17,6 @@ import { listEvents } from "./read.ts";
 import { createOwnEvent, type InvalidEvent } from "./write.ts";
 
 type LinkRow = typeof calendarBookingLinks.$inferSelect;
-
-export const BOOKING_TITLE_MAX = 200;
-export const BOOKING_NAME_MAX = 200;
-export const BOOKING_NOTE_MAX = 2_000;
 
 export interface BookingLinkInput {
   calendarId: string;

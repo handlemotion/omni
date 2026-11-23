@@ -1,10 +1,9 @@
+import { CALENDAR_WINDOW_MAX_DAYS } from "@omni/contracts";
 import { expandSeries } from "@omni/mail-core/calendar";
 import { and, eq, gt, inArray, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { calendarAttendees, calendarCalendars, calendarEvents } from "../schema/index.ts";
 import { NOT_FOUND, type Ex, type VisibleMailbox } from "./core.ts";
 
-/** The longest window one read expands. */
-export const CALENDAR_WINDOW_MAX_DAYS = 62;
 const DAY_MS = 86_400_000;
 
 export type CalendarResponse = (typeof calendarAttendees.$inferSelect)["response"];

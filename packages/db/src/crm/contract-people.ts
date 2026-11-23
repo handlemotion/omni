@@ -1,3 +1,4 @@
+import { CONTRACT_PEOPLE_MAX } from "@omni/contracts";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { sqlHasRole } from "../roles.ts";
@@ -12,9 +13,6 @@ import { loadDeal } from "./records.ts";
 
 /** The folder in a project's folder that only the team sees: contracts, signed copies. */
 export const ADMIN_FOLDER_NAME = "Admin";
-
-/** At most this many people involved in one contract. */
-export const CONTRACT_PEOPLE_MAX = 20;
 
 export type InvalidPeople = { status: "invalid_contract"; param: "memberIds" };
 

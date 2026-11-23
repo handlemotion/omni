@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { crmTimelineMeetingItemSchema } from "./crm-meetings.ts";
 import { crmOneRecordKey } from "./crm-records.ts";
+import { BULK_MAX, CONTRACT_PEOPLE_MAX, CRM_NOTE_MAX_LENGTH } from "./crm-values.ts";
 import { CRM_CONTRACT_STATUSES, CRM_STAGE_KINDS } from "./crm-values.ts";
 import { storageSendForSignatureBodySchema, storageSignatureStatusSchema } from "./storage.ts";
 
@@ -51,7 +52,6 @@ export const crmDealSchema = z.object({
   name: z.string(),
   companyId: id.nullable(),
   stageId: id,
-  /** The kind of the stage it is in. */
   stageKind: crmStageKindSchema,
   stageEnteredAt: isoDate,
   ownerMemberId: id.nullable(),
@@ -140,7 +140,6 @@ export const crmContractSchema = z.object({
   /** A file in the workspace's drives, wherever it lives; use `/api/storage` on it. Locked once signed. */
   documentNodeId: id.nullable(),
   signedAt: isoDate.nullable(),
-  /** `YYYY-MM-DD`. */
   effectiveOn: day.nullable(),
   expiresOn: day.nullable(),
   createdByMemberId: id.nullable(),
@@ -335,10 +334,10 @@ export const crmCreateNoteBodySchema = z
     companyId: id.optional(),
     personId: id.optional(),
     dealId: id.optional(),
-    body: z.string().max(20_000),
+    body: z.string().max(CRM_NOTE_MAX_LENGTH),
   })
   .transform(({ body, ...ids }, ctx) => ({ record: crmOneRecordKey(ids, ctx), body }));
-export const crmUpdateNoteBodySchema = z.object({ body: z.string().max(20_000) });
+export const crmUpdateNoteBodySchema = z.object({ body: z.string().max(CRM_NOTE_MAX_LENGTH) });
 
 /** `GET /contracts?company=|deal=`: newest first. A company's include those on its deals. */
 export const crmContractsQuerySchema = z
@@ -363,7 +362,7 @@ export const crmCreateContractBodySchema = z
     effectiveOn: day.nullable().optional(),
     expiresOn: day.nullable().optional(),
     /** Members of the workspace it involves. */
-    memberIds: z.array(id).max(20).optional(),
+    memberIds: z.array(id).max(CONTRACT_PEOPLE_MAX).optional(),
   })
   .refine((contract) => Boolean(contract.companyId || contract.dealId), {
     message: "give a companyId, a dealId or both",
@@ -383,7 +382,7 @@ export const crmUpdateContractBodySchema = z.object({
   effectiveOn: day.nullable().optional(),
   expiresOn: day.nullable().optional(),
   /** Replaces the members it involves. */
-  memberIds: z.array(id).max(20).optional(),
+  memberIds: z.array(id).max(CONTRACT_PEOPLE_MAX).optional(),
 });
 
 /**
@@ -465,9 +464,9 @@ export const crmPersonDetailResponseSchema = crmPersonResponseSchema.extend({
   deals: z.array(crmDealSchema).optional(),
 });
 
-/** `POST /companies/bulk`, `/people/bulk`, `/deals/bulk`: one action on up to 200 records. */
+/** `POST /companies/bulk`, `/people/bulk`, `/deals/bulk`: one action on up to `BULK_MAX` records. */
 export const crmBulkBodySchema = z.object({
-  ids: z.array(id).min(1).max(200),
+  ids: z.array(id).min(1).max(BULK_MAX),
   action: z.discriminatedUnion("action", [
     z.object({ action: z.literal("archive") }),
     z.object({ action: z.literal("restore") }),

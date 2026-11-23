@@ -41,9 +41,6 @@ import { ProvisionError, type Provisioner } from "./provisioning.ts";
 /** Decides whether a request really came from the Worker. */
 export type RequestVerifier = (request: Request) => Promise<boolean>;
 
-/** Trusts nothing. For a service built without a secret (tests of the HTTP shell). */
-export const rejectAll: RequestVerifier = async () => false;
-
 /**
  * The HMAC + timestamp check from `@omni/crypto` (never hand-roll a second one). A nonce, when
  * the sender includes one, is accepted once within the signature window.

@@ -1,3 +1,4 @@
+import type { StorageRole } from "@omni/contracts";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { hasRole, isManager, loadMemberRow } from "../roles.ts";
 import type { Db } from "../client.ts";
@@ -18,8 +19,7 @@ import {
 } from "./core.ts";
 import { ownsTeamspace, teamspaceDrives, teamspaceReach } from "./teamspaces.ts";
 
-/** `member` is someone in the node's space; the others come from a grant or a link. */
-export type StorageRole = "member" | "editor" | "commenter" | "viewer";
+export type { StorageRole };
 
 export interface Access {
   role: StorageRole;
