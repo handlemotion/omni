@@ -24,6 +24,11 @@ cp apps/mail/.env.example apps/mail/.env
 cp apps/worker/.dev.vars.example apps/worker/.dev.vars
 ```
 
+Every checkout and worktree shares the one stack (compose project `omni`). If `stack:up` reports
+that a container name such as `/omni-s2` is already in use, that container was created under
+another project name: `docker rm -f` it and run `pnpm stack:up` again. A missing s2-lite
+(`localhost:54380`) shows up as live-doc e2e tests timing out or failing with `doc.refused`.
+
 ## Database
 
 Omni needs Postgres 16 or newer (the local stack runs 18). Migrations are plain SQL in
