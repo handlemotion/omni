@@ -9,14 +9,17 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SvgProps } from "react-native-svg";
-import { IconSearch, IconX } from "@/components/icons.ts";
+import { IconMicrophone, IconSearch, IconX } from "@/components/icons.ts";
 import { FloatingButton, FloatingField, FloatingPill } from "@/components/ui/floating.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { floatingControl, iconSize, space, text } from "@/theme/tokens.ts";
 import { DOCK_HEIGHT } from "./module-dock.tsx";
 
+/** The gap between the search bar and the module dock under it. */
+export const SEARCH_DOCK_GAP = space(5);
+
 /** How far a list under the bar and dock scrolls past its last row, so chrome never covers it. */
-export const FLOATING_BAR_SPACE = floatingControl + DOCK_HEIGHT + space(12);
+export const FLOATING_BAR_SPACE = floatingControl + SEARCH_DOCK_GAP + DOCK_HEIGHT + space(10);
 
 const SIDE = space(4);
 
@@ -65,6 +68,11 @@ export function FloatingBar({
     onSearch("");
     onStop?.();
   };
+  const open = () => {
+    onStart?.();
+    setFocus(true);
+    setSearching(true);
+  };
   const bottom =
     searching && keyboard ? keyboard + space(2.5) : Math.max(insets.bottom - space(1), space(3));
   return (
@@ -104,11 +112,8 @@ export function FloatingBar({
               <FloatingPill
                 icon={IconSearch}
                 label={placeholder}
-                onPress={() => {
-                  onStart?.();
-                  setFocus(true);
-                  setSearching(true);
-                }}
+                trailing={{ icon: IconMicrophone, label: "Dictate", onPress: open }}
+                onPress={open}
               />
             </View>
           ) : null}
@@ -147,7 +152,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    gap: space(2.5),
+    gap: SEARCH_DOCK_GAP,
   },
   row: {
     flexDirection: "row",

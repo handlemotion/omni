@@ -19,11 +19,11 @@ import {
   IconWarning,
 } from "@/components/icons.ts";
 import { MenuRow, SheetDivider } from "@/components/shell/menu-row.tsx";
-import { BottomFade } from "@/components/ui/bottom-fade.tsx";
+import { BarFade } from "@/components/ui/edge-blur.tsx";
 import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { FloatingButton, FloatingGroup } from "@/components/ui/floating.tsx";
 import { canReplyAll } from "@/lib/compose.ts";
-import { space } from "@/theme/tokens.ts";
+import { floatingControl, space } from "@/theme/tokens.ts";
 import { forward, listMessage, reply, type ThreadActions } from "./use-thread-actions.ts";
 
 const SIDE = space(4);
@@ -129,13 +129,11 @@ export function ThreadBottomBar(props: {
   const insets = useSafeAreaInsets();
   const { thread, actions: act } = props;
   const id = thread.id;
+  const bottom = Math.max(insets.bottom - space(1), SIDE);
   return (
     <>
-      <BottomFade />
-      <View
-        pointerEvents="box-none"
-        style={[styles.bottom, { paddingBottom: Math.max(insets.bottom - space(1), SIDE) }]}
-      >
+      <BarFade middle={bottom + floatingControl / 2} />
+      <View pointerEvents="box-none" style={[styles.bottom, { paddingBottom: bottom }]}>
         <FloatingGroup
           actions={[
             { icon: IconReply, label: "Reply", onPress: () => reply(id, false) },

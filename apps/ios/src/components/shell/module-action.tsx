@@ -2,8 +2,16 @@ import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useAddActions } from "@/components/drive/add-menu.tsx";
-import { IconCompose, IconFile, IconFolderPlus, IconImage, IconPlus } from "@/components/icons.ts";
+import {
+  IconBell,
+  IconCompose,
+  IconFile,
+  IconFolderPlus,
+  IconImage,
+  IconPlus,
+} from "@/components/icons.ts";
 import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
+import { FloatingGroup, type FloatingGroupAction } from "@/components/ui/floating.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import type { CrmPage } from "@/lib/crm.ts";
 import type { DrivePlace } from "@/lib/drive-actions.ts";
@@ -24,12 +32,9 @@ const NEW_RECORD: Record<CrmPage, { kind: string; label: string }> = {
   tasks: { kind: "task", label: "New task" },
 };
 
-/**
- * The current module's main CTA pill (Compose in Mail, Add in Drive, New in CRM), shared between
- * the bottom floating bar above the module dock and the bottom-right of the left sidebar drawer.
- * Uses tinted Liquid Glass on iOS 26+ and falls back to the solid primary fill elsewhere.
- */
-export function ModuleActionPill() {
+type ModuleAction = FloatingBarAction & { title: string; glyphSize: number };
+
+function useModuleAction() {
   const { close } = useMenu();
   const place = useMenuPlace();
   const adding = useSheet();
@@ -47,45 +52,82 @@ export function ModuleActionPill() {
   const add = useAddActions(addPlace);
   const record = NEW_RECORD[place.crmPage ?? "companies"];
 
-  const actions: Partial<Record<Module, FloatingBarAction & { title: string; glyphSize: number }>> =
-    {
-      mail: {
-        icon: IconCompose,
-        glyphSize: 16,
-        title: "Compose",
-        label: "New message",
-        onPress: () => {
-          close();
-          router.push({
-            pathname: "/mail/compose",
-            params: place.mailbox ? { mailbox: place.mailbox } : {},
-          });
-        },
+  const actions: Partial<Record<Module, ModuleAction>> = {
+    mail: {
+      icon: IconCompose,
+      glyphSize: 16,
+      title: "Compose",
+      label: "New message",
+      onPress: () => {
+        close();
+        router.push({
+          pathname: "/mail/compose",
+          params: place.mailbox ? { mailbox: place.mailbox } : {},
+        });
       },
-      drive: {
-        icon: IconPlus,
-        glyphSize: iconSize.md,
-        title: "Add",
-        label: "Add",
-        onPress: () => {
-          close();
-          adding.open();
-        },
+    },
+    drive: {
+      icon: IconPlus,
+      glyphSize: iconSize.md,
+      title: "Add",
+      label: "Add",
+      onPress: () => {
+        close();
+        adding.open();
       },
-      crm: {
-        icon: IconPlus,
-        glyphSize: iconSize.md,
-        title: "New",
-        label: record.label,
-        onPress: () => {
-          close();
-          if (record.kind === "task") router.push("/crm/task-new");
-          else router.push({ pathname: "/crm/form", params: { kind: record.kind } });
-        },
+    },
+    crm: {
+      icon: IconPlus,
+      glyphSize: iconSize.md,
+      title: "New",
+      label: record.label,
+      onPress: () => {
+        close();
+        if (record.kind === "task") router.push("/crm/task-new");
+        else router.push({ pathname: "/crm/form", params: { kind: record.kind } });
       },
-    };
+    },
+  };
 
-  const action = actions[place.module];
+  const sheet = (
+    <>
+      <BottomSheet
+        isOpen={adding.isOpen}
+        onClose={adding.close}
+        onClosed={adding.onClosed}
+        title={`Add to ${addLabel}`}
+      >
+        <MenuRow
+          icon={IconFolderPlus}
+          muted
+          label="New folder"
+          onPress={() => adding.pick(add.newFolder)}
+        />
+        <MenuRow
+          icon={IconImage}
+          muted
+          label="Photos and videos"
+          onPress={() => adding.pick(add.uploadMedia)}
+        />
+        <MenuRow
+          icon={IconFile}
+          muted
+          label="Choose file"
+          onPress={() => adding.pick(add.uploadFiles)}
+        />
+      </BottomSheet>
+    </>
+  );
+  const action: ModuleAction | undefined = actions[place.module];
+  return { action, sheet };
+}
+
+/**
+ * The module's main action as a pill at the bottom-right of the left sidebar drawer: tinted
+ * Liquid Glass on iOS 26+, the solid primary fill elsewhere.
+ */
+export function ModuleActionPill() {
+  const { action, sheet } = useModuleAction();
   if (!action) return null;
 
   const Icon = action.icon;
@@ -119,31 +161,36 @@ export function ModuleActionPill() {
           <View style={[styles.pill, styles.fallback]}>{content}</View>
         )}
       </Pressable>
-      <BottomSheet
-        isOpen={adding.isOpen}
-        onClose={adding.close}
-        onClosed={adding.onClosed}
-        title={`Add to ${addLabel}`}
-      >
-        <MenuRow
-          icon={IconFolderPlus}
-          muted
-          label="New folder"
-          onPress={() => adding.pick(add.newFolder)}
-        />
-        <MenuRow
-          icon={IconImage}
-          muted
-          label="Photos and videos"
-          onPress={() => adding.pick(add.uploadMedia)}
-        />
-        <MenuRow
-          icon={IconFile}
-          muted
-          label="Choose file"
-          onPress={() => adding.pick(add.uploadFiles)}
-        />
-      </BottomSheet>
+      {sheet}
+    </>
+  );
+}
+
+/**
+ * The top bar's right-hand group, opposite ☰: Mail's Notifications beside the module's main
+ * action, in one Liquid Glass pill.
+ */
+export function ModuleActions() {
+  const { action, sheet } = useModuleAction();
+  const place = useMenuPlace();
+  const { close } = useMenu();
+  const group: FloatingGroupAction[] = [];
+  if (place.module === "mail") {
+    group.push({
+      icon: IconBell,
+      label: "Notifications",
+      onPress: () => {
+        close();
+        router.push("/mail/notifications");
+      },
+    });
+  }
+  if (action) group.push({ icon: action.icon, label: action.label, onPress: action.onPress });
+  if (group.length === 0) return null;
+  return (
+    <>
+      <FloatingGroup compact actions={group} />
+      {sheet}
     </>
   );
 }

@@ -247,6 +247,9 @@ importers:
       '@react-native-community/datetimepicker':
         specifier: 9.2.1
         version: 9.2.1(expo@58.0.26)(react-native@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
+      '@react-native-masked-view/masked-view':
+        specifier: 0.3.2
+        version: 0.3.2(react-native@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       '@sentry/react-native':
         specifier: ~8.28.1
         version: 8.28.1(6c569efa0acb80651f2770428f6f933a)
@@ -262,6 +265,9 @@ importers:
       expo:
         specifier: ~58.0.26
         version: 58.0.26(c8e979b4c97f4c3faa0233d3bb885db1)
+      expo-blur:
+        specifier: ~58.0.6
+        version: 58.0.6(expo@58.0.26)(react-native@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       expo-clipboard:
         specifier: ~58.0.4
         version: 58.0.4(expo@58.0.26)(react-native@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
@@ -5983,6 +5989,13 @@ packages:
 
   expo-asset@58.0.21:
     resolution: {integrity: sha512-qaJmuTtswggXdBQfiUdpxrVGM7l+tH8iEDHwVDMuxyCF/kAau8sUGVuWrDKYNW4yAx7Z8ncgsT8s27pXjRH5GA==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
+
+  expo-blur@58.0.6:
+    resolution: {integrity: sha512-gjcw+pBi/15Qy9L0vD6n+KbEbutz6owvrjbYr+74kSaNgj0DEf2qJ7cEU3EJ8/f8KcZss0/7sUWWO9FtBEg+Wg==}
     peerDependencies:
       expo: '*'
       react: '*'
@@ -13657,6 +13670,12 @@ snapshots:
       - supports-color
       - typescript
     optional: true
+
+  expo-blur@58.0.6(expo@58.0.26)(react-native@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0):
+    dependencies:
+      expo: 58.0.26(c8e979b4c97f4c3faa0233d3bb885db1)
+      react: 19.3.0
+      react-native: 0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2)
 
   expo-clipboard@58.0.4(expo@58.0.26)(react-native@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0):
     dependencies:
