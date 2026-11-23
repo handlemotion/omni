@@ -297,7 +297,7 @@ export class OutboxExecutor {
   }
 
   private smtpAccepted(action: MailAction) {
-    return action.smtpAcceptedAt !== null || this.accepted.has(action.id);
+    return Boolean(action.smtpAcceptedAt) || this.accepted.has(action.id);
   }
 
   private async deliverOnce(
