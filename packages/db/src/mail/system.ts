@@ -1,6 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members, pushTokens } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 
 /** Members who can see each mailbox, with the mailbox's org and address, for realtime fan-out. */
 export async function mailboxAudience(db: Db, mailboxIds: string[]) {
@@ -14,10 +15,7 @@ export async function mailboxAudience(db: Db, mailboxIds: string[]) {
     })
     .from(mailboxAccess)
     .innerJoin(mailboxes, eq(mailboxes.id, mailboxAccess.mailboxId))
-    .innerJoin(
-      members,
-      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailboxes.orgId)),
-    )
+    .innerJoin(members, grantInOrg(mailboxes.orgId))
     .where(inArray(mailboxAccess.mailboxId, mailboxIds));
 }
 

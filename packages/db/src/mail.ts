@@ -1,23 +1,37 @@
+export { memberMail, userMail, type MemberQueries } from "./mail/queries.ts";
 export {
-  memberMail,
-  userMail,
   TRIAGE_AUTO_FILE_CONFIDENCE,
   LANES,
   type Lane,
   THREAD_VIEWS,
   type ThreadView,
+  type ThreadCursor,
+} from "./mail/inbox-views.ts";
+export {
   CONVERSATION_VIEWS,
   type ConversationView,
   type ConversationCursor,
-  type ThreadCursor,
   SLA_AT_RISK_MINUTES,
-  type Participant,
-  type MemberQueries,
-} from "./mail/queries.ts";
-export type { Executor, NotificationKind } from "./mail/conversation-core.ts";
+} from "./mail/conversation-views.ts";
+export type { Participant } from "./mail/grants.ts";
+export {
+  type ChangeFailure,
+  type ChangeResult,
+  type ConversationChange,
+  type ConversationRow,
+  type Executor,
+  type NotificationKind,
+  PRIORITIES,
+  type Priority,
+  type Status,
+} from "./mail/conversation-core.ts";
 export type { InboxAuditAction } from "./mail/inbox-admin.ts";
 export * from "./mail/writers.ts";
-export * from "./mail/mail-sync.ts";
+export * from "./mail/mailbox-registry.ts";
+export * from "./mail/folder-sync.ts";
+export * from "./mail/threading.ts";
+export * from "./mail/message-lifecycle.ts";
+export * from "./mail/outbox.ts";
 export * from "./mail/mailbox-credentials.ts";
 export * from "./mail/thread-merge.ts";
 export * from "./mail/pending-mail-events.ts";
@@ -39,6 +53,15 @@ export * from "./mail/customers.ts";
 export * from "./mail/arrivals.ts";
 export * from "./mail/drafts.ts";
 export * from "./mail/conversations.ts";
+export {
+  ARCHIVE_DELAY_SECONDS,
+  type Applied,
+  applyStatus,
+  assign,
+} from "./mail/conversation-steps.ts";
+export { applyInboundMessage, type InboundResult } from "./mail/conversation-inbound.ts";
+export * from "./mail/conversation-sweeps.ts";
+export { setAutoAssign } from "./mail/auto-assign.ts";
 export * from "./mail/handoff.ts";
 export * from "./mail/conversation-tags.ts";
 export * from "./mail/conversation-notes.ts";

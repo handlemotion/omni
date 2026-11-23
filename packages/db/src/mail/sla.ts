@@ -4,7 +4,7 @@ import { and, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
-import { SLA_AT_RISK_MINUTES } from "./queries.ts";
+import { SLA_AT_RISK_MINUTES } from "./conversation-views.ts";
 import {
   businessHours,
   conversationEvents,
@@ -18,6 +18,7 @@ import {
   threads,
   type BusinessHoursWindow,
 } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Executor = Db | Tx;
@@ -409,13 +410,7 @@ export const emitSlaAlerts: (db: Db, now: Date, limit?: number) => Promise<SlaAl
             await tx
               .select({ id: mailboxAccess.memberId })
               .from(mailboxAccess)
-              .innerJoin(
-                members,
-                and(
-                  eq(members.id, mailboxAccess.memberId),
-                  eq(members.organizationId, alert.row.orgId),
-                ),
-              )
+              .innerJoin(members, grantInOrg(alert.row.orgId))
               .where(eq(mailboxAccess.mailboxId, alert.row.mailboxId))
           ).map((m) => m.id);
       if (recipients.length === 0) return [];

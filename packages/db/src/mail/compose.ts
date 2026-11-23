@@ -17,6 +17,7 @@ import {
   uploads,
   users,
 } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 
 /** A mailbox this member can see, or null. Never includes `credentials_enc`. */
 export async function memberMailbox(db: Db, memberId: string, mailboxId: string) {
@@ -32,10 +33,7 @@ export async function memberMailbox(db: Db, memberId: string, mailboxId: string)
       mailboxAccess,
       and(eq(mailboxAccess.mailboxId, mailboxes.id), eq(mailboxAccess.memberId, memberId)),
     )
-    .innerJoin(
-      members,
-      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailboxes.orgId)),
-    )
+    .innerJoin(members, grantInOrg(mailboxes.orgId))
     .where(eq(mailboxes.id, mailboxId));
   return row ?? null;
 }

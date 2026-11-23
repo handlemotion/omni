@@ -17,7 +17,8 @@ import {
 } from "../src/calendar.ts";
 import { calendarOf } from "../src/calendar/core.ts";
 import { forMember } from "../src/for-member.ts";
-import { addLocation, liveGmailMailboxes } from "../src/mail/mail-sync.ts";
+import { addLocation } from "../src/mail/folder-sync.ts";
+import { liveGmailMailboxes } from "../src/mail/mailbox-registry.ts";
 import { createThread, upsertFolder, upsertMessage } from "../src/mail/writers.ts";
 import { calendarEvents, mailboxes } from "../src/schema/index.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";

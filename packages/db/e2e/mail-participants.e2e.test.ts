@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
-import { pruneMessages } from "../src/mail/mail-sync.ts";
+import { pruneMessages } from "../src/mail/message-lifecycle.ts";
 import { ensurePersonalSpace } from "../src/personal-space.ts";
 import { mergeThreads } from "../src/mail/thread-merge.ts";
 import { indexParticipants, PARTICIPANT_SETTLE_MS } from "../src/mail/thread-participants.ts";

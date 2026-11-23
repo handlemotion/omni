@@ -1,6 +1,7 @@
 import { and, asc, count, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members, users } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 import { listWorkspaceMailboxes } from "./workspace-mailboxes.ts";
 
 type WorkspaceMailbox = Awaited<ReturnType<typeof listWorkspaceMailboxes>>[number];
@@ -93,10 +94,7 @@ export async function membersStrandedWithout(db: Db, orgId: string, mailboxId: s
   const holders = await db
     .select({ memberId: mailboxAccess.memberId })
     .from(mailboxAccess)
-    .innerJoin(
-      members,
-      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, orgId)),
-    )
+    .innerJoin(members, grantInOrg(orgId))
     .where(eq(mailboxAccess.mailboxId, mailboxId));
   const stranded: string[] = [];
   for (const { memberId } of holders) {

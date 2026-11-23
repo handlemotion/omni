@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, memberRoleDescriptions, members } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 import { orgMember } from "./workspace-mailboxes.ts";
 
 /** A role description's longest form; the settings page and the API cap it here. */
@@ -60,10 +61,7 @@ export async function helpdeskTeammatesForAi(db: Db, mailboxId: string) {
     .select({ id: members.id, role: memberRoleDescriptions.description })
     .from(mailboxAccess)
     .innerJoin(mailboxes, eq(mailboxes.id, mailboxAccess.mailboxId))
-    .innerJoin(
-      members,
-      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailboxes.orgId)),
-    )
+    .innerJoin(members, grantInOrg(mailboxes.orgId))
     .innerJoin(
       memberRoleDescriptions,
       and(

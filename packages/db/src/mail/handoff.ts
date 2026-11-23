@@ -3,12 +3,12 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { enqueueSendWithAttachments } from "./compose.ts";
 import {
-  lockConversation,
+  lockSharedConversation,
   type ConversationRow,
   type Status,
   type Tx,
 } from "./conversation-core.ts";
-import { applyStatus, assign } from "./conversations.ts";
+import { applyStatus, assign, unchanged } from "./conversation-steps.ts";
 import { conversationEvents } from "../schema/index.ts";
 import type { NewMailAction } from "./writers.ts";
 
@@ -38,10 +38,9 @@ export async function enqueueHandoff(
 ) {
   const now = input.now ?? new Date();
   return db.transaction(async (tx) => {
-    const locked = await lockConversation(tx, input.threadId, input.memberId);
-    if (!locked) return { ok: false as const, reason: "not_found" as const };
-    const { kind, ...row } = locked;
-    if (kind !== "shared") return { ok: false as const, reason: "personal_mailbox" as const };
+    const locked = await lockSharedConversation(tx, input.threadId, input.memberId);
+    if (!locked.ok) return locked;
+    const { row } = locked;
     const queued = await enqueueSendWithAttachments(tx, input.send, input.attachments, {
       delaySeconds: input.delaySeconds,
     });
@@ -99,9 +98,9 @@ export async function undoHandoff(
   input: { threadId: string; actionId: string; memberId: string; now?: Date },
 ) {
   const now = input.now ?? new Date();
-  const locked = await lockConversation(tx, input.threadId, null);
-  if (!locked || locked.kind !== "shared") return null;
-  const { kind: _kind, ...row } = locked;
+  const locked = await lockSharedConversation(tx, input.threadId, null);
+  if (!locked.ok) return null;
+  const { row } = locked;
   const [event] = await tx
     .select({ data: conversationEvents.data, actor: conversationEvents.actorMemberId })
     .from(conversationEvents)
@@ -119,7 +118,7 @@ export async function undoHandoff(
   const cause = { cause: "handoff_cancelled" };
   const reopened =
     previous.status === "resolved"
-      ? { row, changed: false, queuedActions: 0 }
+      ? unchanged(row)
       : await applyStatus(tx, row, { type: "reopen" }, now, input.memberId, {
           data: cause,
           dedupeKey: `handoff_cancelled:${input.actionId}`,

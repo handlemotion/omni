@@ -125,6 +125,22 @@ export async function lockConversation(tx: Tx, threadId: string, actorMemberId: 
   return row ?? null;
 }
 
+/**
+ * Locks a shared inbox's conversation for this transaction, as `lockConversation` does. Says why
+ * when there is none: the actor cannot see it, or it is on a personal mailbox.
+ */
+export async function lockSharedConversation(
+  tx: Tx,
+  threadId: string,
+  actorMemberId: string | null,
+) {
+  const locked = await lockConversation(tx, threadId, actorMemberId);
+  if (!locked) return { ok: false as const, reason: "not_found" as const };
+  const { kind, ...row } = locked;
+  if (kind !== "shared") return { ok: false as const, reason: "personal_mailbox" as const };
+  return { ok: true as const, row: row satisfies ConversationRow };
+}
+
 export function stateOf(row: ConversationRow) {
   return {
     status: row.status,

@@ -1,8 +1,10 @@
 import { normalizeAddress } from "@omni/mail-core/addresses";
-import { and, desc, eq, inArray, or, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, members, messages, threadParticipants, threads } from "../schema/index.ts";
-import type { ThreadCursor } from "./queries.ts";
+import type { IsGrantee } from "./grants.ts";
+import type { ThreadCursor } from "./inbox-views.ts";
+import { cleanPreview } from "./thread-preview.ts";
 
 /** The most threads one call returns. */
 export const THREADS_WITH_MAX = 100;
@@ -31,10 +33,8 @@ export interface ThreadWith {
   latestTo: { name: string | null; address: string }[];
 }
 
-const preview = sql`left(btrim(regexp_replace(regexp_replace(left(m.clean_text, 1500), '\\(\\s*https?://[^\\s)]*\\s*\\)|https?://\\S+', ' ', 'g'), '\\s+', ' ', 'g')), 200)`;
-
-/** `threadsWith` for the members `isGrantee` accepts (see `mailQueries` in `for-member.ts`). */
-export function participantQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
+/** `threadsWith` for the members `isGrantee` accepts (see `mailQueries` in `queries.ts`). */
+export function participantQueries(db: Db, isGrantee: IsGrantee) {
   return {
     async threadsWith(options: ThreadsWithOptions) {
       const addresses = [...new Set((options.addresses ?? []).map(normalizeAddress))].filter(
@@ -85,7 +85,7 @@ export function participantQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL
             fromName: string | null;
             fromAddress: string;
             to: { name?: string | null; address: string }[];
-          } | null>`(select jsonb_build_object('subject', m.subject, 'snippet', ${preview}, 'fromName', m.from_name, 'fromAddress', m.from_address, 'to', m.to || m.cc) from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1)`.as(
+          } | null>`(select jsonb_build_object('subject', m.subject, 'snippet', ${cleanPreview(200, 1500)}, 'fromName', m.from_name, 'fromAddress', m.from_address, 'to', m.to || m.cc) from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1)`.as(
             "latest",
           ),
         })

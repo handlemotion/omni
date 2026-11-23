@@ -1,6 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { mailboxAccess, mailboxes, members, tags } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 import { type Executor } from "./conversation-core.ts";
 
 async function memberSeesMailbox(db: Executor, memberId: string, mailboxId: string) {
@@ -11,10 +12,7 @@ async function memberSeesMailbox(db: Executor, memberId: string, mailboxId: stri
       mailboxAccess,
       and(eq(mailboxAccess.mailboxId, mailboxes.id), eq(mailboxAccess.memberId, memberId)),
     )
-    .innerJoin(
-      members,
-      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailboxes.orgId)),
-    )
+    .innerJoin(members, grantInOrg(mailboxes.orgId))
     .where(eq(mailboxes.id, mailboxId));
   return row ?? null;
 }

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
-import { addLocation, reconcileFolder, setLocationFlags } from "../src/mail/mail-sync.ts";
+import { addLocation, reconcileFolder, setLocationFlags } from "../src/mail/folder-sync.ts";
 import { forMember } from "../src/for-member.ts";
 import { threadActionTargets } from "../src/mail/member-mail.ts";
 import { mailboxes, messageLocations, threadState } from "../src/schema/index.ts";

@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, mailboxFolders, members, users } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 
 /**
  * The org's mailboxes, by address. `syncedAt` is the latest folder sync. `people` counts the
@@ -36,10 +37,7 @@ export async function listWorkspaceMailboxes(db: Db, orgId: string) {
     db
       .select({ mailboxId: mailboxAccess.mailboxId, people: sql<number>`count(*)::int` })
       .from(mailboxAccess)
-      .innerJoin(
-        members,
-        and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, orgId)),
-      )
+      .innerJoin(members, grantInOrg(orgId))
       .where(inArray(mailboxAccess.mailboxId, ids))
       .groupBy(mailboxAccess.mailboxId),
   ]);
@@ -59,10 +57,7 @@ export async function listWorkspaceMailboxes(db: Db, orgId: string) {
             image: users.image,
           })
           .from(mailboxAccess)
-          .innerJoin(
-            members,
-            and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, orgId)),
-          )
+          .innerJoin(members, grantInOrg(orgId))
           .innerJoin(users, eq(users.id, members.userId))
           .where(inArray(mailboxAccess.mailboxId, personal))
           .orderBy(asc(mailboxAccess.role), asc(mailboxAccess.createdAt));

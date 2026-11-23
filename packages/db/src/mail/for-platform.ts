@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members } from "../schema/index.ts";
+import { grantInOrg } from "./grants.ts";
 
 /** A SQL condition: the org whose id is `orgId` (a column or a value) has at least one mailbox. */
 export function orgHasMailbox(orgId: SQL | string) {
@@ -50,14 +51,7 @@ export function mailboxesOpenTo(db: Db, userId: string) {
     })
     .from(mailboxes)
     .innerJoin(mailboxAccess, eq(mailboxAccess.mailboxId, mailboxes.id))
-    .innerJoin(
-      members,
-      and(
-        eq(members.id, mailboxAccess.memberId),
-        eq(members.organizationId, mailboxes.orgId),
-        eq(members.userId, userId),
-      ),
-    )
+    .innerJoin(members, and(grantInOrg(mailboxes.orgId), eq(members.userId, userId)))
     .orderBy(asc(mailboxes.kind), asc(mailboxes.address));
 }
 

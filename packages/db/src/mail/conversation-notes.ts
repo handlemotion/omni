@@ -7,7 +7,8 @@ import {
   notes,
   notifications,
 } from "../schema/index.ts";
-import { type Executor, lockConversation, writeEvents, notify } from "./conversation-core.ts";
+import { type Executor, lockSharedConversation, writeEvents, notify } from "./conversation-core.ts";
+import { grantInOrg } from "./grants.ts";
 
 export const NOTE_MAX_LENGTH = 20_000;
 
@@ -20,26 +21,11 @@ export async function createNote(
   input: { threadId: string; memberId: string; body: string; mentions: string[] },
 ) {
   return db.transaction(async (tx) => {
-    const locked = await lockConversation(tx, input.threadId, input.memberId);
-    if (!locked) return { ok: false as const, reason: "not_found" as const };
-    const { kind, ...row } = locked;
-    if (kind !== "shared") return { ok: false as const, reason: "personal_mailbox" as const };
+    const locked = await lockSharedConversation(tx, input.threadId, input.memberId);
+    if (!locked.ok) return locked;
+    const { row } = locked;
     const wanted = [...new Set(input.mentions)];
-    const allowed = wanted.length
-      ? (
-          await tx
-            .select({ id: mailboxAccess.memberId })
-            .from(mailboxAccess)
-            .innerJoin(members, eq(members.id, mailboxAccess.memberId))
-            .where(
-              and(
-                eq(mailboxAccess.mailboxId, row.mailboxId),
-                eq(members.organizationId, row.orgId),
-                inArray(mailboxAccess.memberId, wanted),
-              ),
-            )
-        ).map((m) => m.id)
-      : [];
+    const allowed = await onInbox(tx, row, wanted);
     const mentions = wanted.filter((m) => allowed.includes(m));
     const [note] = await tx
       .insert(notes)
@@ -84,17 +70,21 @@ async function participantsOf(
   const wanted = [
     ...new Set([row.assigneeMemberId, ...authors.map((a) => a.id)].filter((m) => m !== null)),
   ];
-  if (wanted.length === 0) return [];
+  return onInbox(tx, row, wanted);
+}
+
+async function onInbox(
+  tx: Executor,
+  row: { orgId: string; mailboxId: string },
+  memberIds: string[],
+) {
+  if (memberIds.length === 0) return [];
   const allowed = await tx
     .select({ id: mailboxAccess.memberId })
     .from(mailboxAccess)
-    .innerJoin(members, eq(members.id, mailboxAccess.memberId))
+    .innerJoin(members, grantInOrg(row.orgId))
     .where(
-      and(
-        eq(mailboxAccess.mailboxId, row.mailboxId),
-        eq(members.organizationId, row.orgId),
-        inArray(mailboxAccess.memberId, wanted),
-      ),
+      and(eq(mailboxAccess.mailboxId, row.mailboxId), inArray(mailboxAccess.memberId, memberIds)),
     );
   return allowed.map((m) => m.id);
 }
