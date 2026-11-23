@@ -1,19 +1,19 @@
+export { memberMail, userMail, type MemberQueries } from "./mail/queries.ts";
 export {
-  memberMail,
-  userMail,
   TRIAGE_AUTO_FILE_CONFIDENCE,
   LANES,
   type Lane,
   THREAD_VIEWS,
   type ThreadView,
+  type ThreadCursor,
+} from "./mail/inbox-views.ts";
+export {
   CONVERSATION_VIEWS,
   type ConversationView,
   type ConversationCursor,
-  type ThreadCursor,
   SLA_AT_RISK_MINUTES,
-  type Participant,
-  type MemberQueries,
-} from "./mail/queries.ts";
+} from "./mail/conversation-views.ts";
+export type { Participant } from "./mail/grants.ts";
 export type { Executor, NotificationKind } from "./mail/conversation-core.ts";
 export type { InboxAuditAction } from "./mail/inbox-admin.ts";
 export * from "./mail/writers.ts";

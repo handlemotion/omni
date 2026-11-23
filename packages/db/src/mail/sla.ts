@@ -4,7 +4,7 @@ import { and, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
-import { SLA_AT_RISK_MINUTES } from "./queries.ts";
+import { SLA_AT_RISK_MINUTES } from "./conversation-views.ts";
 import {
   businessHours,
   conversationEvents,

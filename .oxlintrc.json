@@ -147,7 +147,6 @@
         "apps/web/src/components/ui/table.tsx",
         "apps/worker/src/routes/compose.ts",
         "packages/db/src/mail/conversations.ts",
-        "packages/db/src/mail/queries.ts",
         "packages/db/src/mail/mail-sync.ts"
       ],
       "rules": {
