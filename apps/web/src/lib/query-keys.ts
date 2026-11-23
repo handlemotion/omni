@@ -1,13 +1,14 @@
 import { currentWorkspaceId } from "./current-workspace.ts";
 import type { ConversationFilter, ThreadFilter } from "./types.ts";
 
-export interface NotificationFilter {
+interface NotificationFilter {
   unread: boolean;
 }
 
 const root = ["omni"] as const;
-const scoped = <const B extends string>(branch: B) =>
-  [...root, currentWorkspaceId() ?? "", branch] as const;
+const inOrg = <const B extends string>(orgId: string, branch: B) =>
+  [...root, orgId, branch] as const;
+const scoped = <const B extends string>(branch: B) => inOrg(currentWorkspaceId() ?? "", branch);
 const mail = () => scoped("mail");
 const org = () => scoped("org");
 const storage = () => scoped("storage");
@@ -129,6 +130,8 @@ export const keys = {
 
   /** Storage: every folder listing, Trash and usage. */
   storage: () => storage(),
+  /** Another workspace's storage, for a change heard about a node there. */
+  storageIn: (orgId: string) => inOrg(orgId, "storage"),
   /** One folder's contents: a space's root, or a folder by id. */
   storageList: (place: { space: string } | { teamspaceId: string } | { parentId: string }) =>
     [...storage(), "list", place] as const,
@@ -194,7 +197,13 @@ export const keys = {
   crmDeal: (id: string) => [...crm(), "deal", id] as const,
   crmStages: () => [...crm(), "stages"] as const,
   crmSettings: () => [...crm(), "settings"] as const,
+  crmTimelines: () => [...crm(), "timeline"] as const,
   crmTimeline: (kind: string, id: string) => [...crm(), "timeline", kind, id] as const,
+  /** Every project's Meetings tab, or one project's. */
+  crmMeetings: (dealId?: string) =>
+    dealId ? ([...crm(), "meetings", dealId] as const) : ([...crm(), "meetings"] as const),
+  /** Every CRM task list, task and count. */
+  crmTasks: () => [...crm(), "tasks"] as const,
   /** A project's milestones and deliverables. */
   crmPlan: (dealId: string) => [...crm(), "plan", dealId] as const,
   /** The people outside the team on a project. */

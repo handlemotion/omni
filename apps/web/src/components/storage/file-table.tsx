@@ -3,12 +3,6 @@ import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { FileTile } from "./file-glyph.tsx";
 
-export const DAY = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
 export const COLUMN = {
   date: "w-36 max-sm:hidden",
   size: "w-24",

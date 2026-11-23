@@ -19,7 +19,7 @@ export type SharedWithMeItem = InferResponseType<
   Api["storage"]["shared-with-me"]["$get"],
   200
 >["items"][number];
-export type StorageLinkPage = InferResponseType<Api["storage"]["shared"][":shareId"]["$get"], 200>;
+type StorageLinkPage = InferResponseType<Api["storage"]["shared"][":shareId"]["$get"], 200>;
 export type StorageLinkUpload = NonNullable<StorageLinkPage["uploading"]>[number];
 
 const PAGE_SIZE = "100";

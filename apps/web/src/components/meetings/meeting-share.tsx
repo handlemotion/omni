@@ -161,7 +161,7 @@ function People({ meeting }: { meeting: Meeting }) {
 
 function GeneralAccess({ meeting }: { meeting: Meeting }) {
   const { change } = useMeetingWrites();
-  const { copy, copied } = useClipboard();
+  const { copy, copied } = useClipboard("Link");
   const access = meeting.sharing?.access ?? "restricted";
   const Icon = access === "workspace" ? IconUsers : IconLock;
   return (

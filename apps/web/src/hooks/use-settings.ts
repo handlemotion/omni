@@ -2,7 +2,7 @@ import { useLocation, useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { useWorkspaceSlug } from "./use-workspaces.ts";
 
-export const SETTINGS_PAGES = [
+const SETTINGS_PAGES = [
   "profile",
   "security",
   "shortcuts",

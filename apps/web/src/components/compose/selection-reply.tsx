@@ -8,6 +8,7 @@ import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAddNote } from "@/hooks/use-notes.ts";
 import { quoteText, withReply, type Reply } from "@/lib/reply.ts";
 import { useComposerState } from "./composer-state.tsx";
+import { copyText } from "@/hooks/use-clipboard.ts";
 
 /** Marks an element whose selected text can be replied to; its value names the author. */
 export const REPLY_SOURCE = "data-reply-from";
@@ -72,7 +73,7 @@ export function SelectionReply({ threadId }: { threadId: string }) {
     addNote
       .mutateAsync({ threadId, body: withReply(target.reply, written), mentions: [] })
       .catch((error: Error) => {
-        void navigator.clipboard?.writeText(written).catch(() => undefined);
+        void copyText(written, "Message");
         appToast.error(error.message, { description: "The message is on your clipboard." });
       });
     window.getSelection()?.removeAllRanges();

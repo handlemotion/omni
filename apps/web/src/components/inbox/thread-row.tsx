@@ -1,10 +1,11 @@
 import { useRef } from "react";
 import { SkeletonBox } from "skullet/react";
-import { ConversationMeta, rowTime } from "@/components/inbox/conversation-meta";
+import { ConversationMeta } from "@/components/inbox/conversation-meta";
 import { SenderAvatar, byAddress } from "@/components/avatar/sender-avatar";
 import { GridListHeader, GridListItem } from "@/components/ui/grid-list";
 import type { ListRow } from "@/components/inbox/thread-list";
 import { usePrefetchThread } from "@/hooks/use-mail.ts";
+import { rowTime } from "@/lib/dates.ts";
 
 const HOVER_INTENT = 80;
 

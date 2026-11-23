@@ -18,6 +18,7 @@ import { endDrag, startDrag, timedTodo } from "@/lib/calendar-drag.ts";
 import { stableId } from "@/lib/crm-pending.ts";
 import type { Todo } from "@/lib/calendar-tasks.ts";
 import { dayOf, dueAtOf, dueGroup, dueLabel, type DueGroup } from "@/lib/crm-tasks.ts";
+import { TIME } from "@/lib/dates.ts";
 
 const SECTIONS: { id: DueGroup; label: string; fixed: boolean }[] = [
   { id: "overdue", label: "Overdue", fixed: false },
@@ -157,12 +158,10 @@ function NewTodo({ section, onDone }: { section: DueGroup; onDone: () => void })
   );
 }
 
-const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-
 function dueText(task: Todo) {
   const day = dueLabel(task.dueAt);
   if (!task.dueAt || !timedTodo(task)) return day;
-  const at = clock.format(new Date(task.dueAt));
+  const at = TIME.format(new Date(task.dueAt));
   return day === "Today" ? at : `${day} ${at}`;
 }
 

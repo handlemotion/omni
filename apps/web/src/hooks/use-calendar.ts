@@ -21,8 +21,6 @@ import {
 import { eventKey } from "@/lib/calendar-grid.ts";
 
 export const useCalendars = () => useQuery(calendarsQuery());
-export const useCalendarEvents = (from: Date, to: Date) =>
-  useQuery({ ...calendarEventsQuery(from, to), placeholderData: (previous) => previous });
 const joinWindows = (results: UseQueryResult<CalendarEvent[]>[]) => {
   const byKey = new Map<string, CalendarEvent>();
   for (const result of results) {

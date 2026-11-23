@@ -1,18 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import {
-  archiveMutation,
   doneMutation,
   laterMutation,
   markReadMutation,
-  moveMutation,
   replyMutation,
-  sendMutation,
   trashMutation,
   undoneMutation,
   unsubscribeMutation,
 } from "../lib/mail-mutations.ts";
-import { dismissFailure, removePending, type ActionFailure } from "../lib/pending.ts";
+import { dismissFailure, type ActionFailure } from "../lib/pending.ts";
 import { keys } from "../lib/query-keys.ts";
 import { useKeyedMutation } from "./keyed-mutation.ts";
 
@@ -39,11 +36,6 @@ export function useMarkUndone() {
   return useKeyedMutation(undoneMutation(useQueryClient()));
 }
 
-/** `mutate({ threadId })`. */
-export function useArchive() {
-  return useKeyedMutation(archiveMutation(useQueryClient()));
-}
-
 /** `mutate({ threadId })`: every copy goes to the mailbox's Trash. */
 export function useMoveToTrash() {
   return useKeyedMutation(trashMutation(useQueryClient()));
@@ -54,22 +46,12 @@ export function useUnsubscribe() {
   return useKeyedMutation(unsubscribeMutation(useQueryClient()));
 }
 
-/** `mutate({ threadId, destination })`, where `destination` is an IMAP folder path. */
-export function useMove() {
-  return useKeyedMutation(moveMutation(useQueryClient()));
-}
-
 /**
  * `mutate({ threadId, text, html?, replyAll? })`. The reply appears in `useThread(...).pending`
  * immediately and is replaced by the real message when it arrives.
  */
 export function useSendReply() {
   return useKeyedMutation(replyMutation(useQueryClient()));
-}
-
-/** `mutate({ mailboxId, to, cc?, bcc?, subject, text, html? })` for a new message. */
-export function useSend() {
-  return useKeyedMutation(sendMutation(useQueryClient()));
 }
 
 /**
@@ -84,15 +66,6 @@ export function useMarkReadOnOpen(thread: { id: string; read: boolean } | undefi
     done.current = thread.id;
     if (!thread.read) mutate({ threadId: thread.id, read: true });
   }, [thread, mutate]);
-}
-
-/** Drops a failed pending reply from the thread (e.g. after the user copied the text). */
-export function useDiscardPending() {
-  const client = useQueryClient();
-  return useCallback(
-    (threadId: string, key: string) => removePending(client, threadId, key),
-    [client],
-  );
 }
 
 /**

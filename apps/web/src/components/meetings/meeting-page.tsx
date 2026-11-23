@@ -128,7 +128,7 @@ function GroupCrumb({ meeting }: { meeting: Meeting }) {
 }
 
 function HeaderActions(props: { meeting: Meeting; onShare: () => void }) {
-  const { copy, copied } = useClipboard();
+  const { copy, copied } = useClipboard("Link");
   return (
     <>
       <Button

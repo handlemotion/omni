@@ -33,6 +33,7 @@ import { useMember } from "@/hooks/use-session.ts";
 import type { CrmRecordKind, CrmStage, CrmTimelineItem } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MeetingLine } from "./record-meetings.tsx";
+import { copyText } from "@/hooks/use-clipboard.ts";
 
 const WHEN = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -406,7 +407,7 @@ function NoteCard(props: { noteId: string; body: string; author: string | null }
           {
             icon: IconCopy,
             label: "Copy note",
-            onAction: () => void navigator.clipboard?.writeText(props.body).catch(() => {}),
+            onAction: () => void copyText(props.body, "Note"),
           },
           mine && "separator",
           ...(mine ? items : []),

@@ -7,7 +7,6 @@ import {
   onThreadsMerged,
   RECHECK_SENDS_FAST_MS,
   RECHECK_SENDS_SLOW_MS,
-  realtimeStatus,
   recheckOutstanding,
   recheckPendingSends,
   SEND_SOCKET_MS,
@@ -78,11 +77,6 @@ export function useRealtimeConnection(orgId: string, options: { memberId?: strin
   useEffect(() => {
     if (threadId) void recheckPendingSends(client, threadId);
   }, [client, threadId]);
-}
-
-/** `connecting`, `open` or `closed`: for a "reconnecting…" indicator. */
-export function useRealtimeStatus() {
-  return useSyncExternalStore(realtimeStatus.subscribe, realtimeStatus.get, realtimeStatus.get);
 }
 
 /**

@@ -428,7 +428,7 @@ function SettingRow(props: { label: string; children: React.ReactNode }) {
 }
 
 function LinkField({ url }: { url: string }) {
-  const { copy, copied } = useClipboard();
+  const { copy, copied } = useClipboard("Link");
   return (
     <TextField aria-label="Link" isReadOnly value={url} className="min-w-0 flex-1">
       <InputGroup>

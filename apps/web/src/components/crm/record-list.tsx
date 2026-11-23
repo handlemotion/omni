@@ -27,12 +27,6 @@ import {
 import { descriptorOf, fromDescriptor, type SortState } from "./list-sort.tsx";
 import { withWorkspace } from "@/lib/current-workspace.ts";
 
-export const DAY = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
 export interface RecordColumn<T> {
   title: string;
   /** Its width; secondary columns leave on a phone with `max-sm:hidden`. */

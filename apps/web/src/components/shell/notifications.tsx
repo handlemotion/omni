@@ -15,7 +15,6 @@ import {
   IconSliders,
   IconX,
 } from "@/components/icons/central";
-import { rowTime } from "@/components/inbox/conversation-meta";
 import { Avatar } from "@/components/ui/avatar";
 import { Button, PageBarActions } from "@/components/ui/button";
 import { contextMenuProps } from "@/components/ui/context-menu";
@@ -45,6 +44,7 @@ import type { Notification } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { CountBadge } from "./count-badge";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
+import { rowTime } from "@/lib/dates.ts";
 
 /** Notifications, drawn as an inbox: opens and closes the panel, and wears your unread count. */
 export function NotificationsButton() {

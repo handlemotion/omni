@@ -1,4 +1,4 @@
-export type DesktopPlatform = "mac" | "windows" | "linux";
+type DesktopPlatform = "mac" | "windows" | "linux";
 
 const inShell = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 

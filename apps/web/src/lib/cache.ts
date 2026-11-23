@@ -33,9 +33,25 @@ export async function snapshotThread(client: QueryClient, threadId: string) {
   ] satisfies Snapshot;
 }
 
-export function restore(client: QueryClient, snapshot: Snapshot | undefined) {
+/**
+ * Stops the fetches under each key (an answer from before a write would undo it) and keeps what
+ * they hold, for `restoreQueries` when the write fails.
+ */
+export async function holdQueries(client: QueryClient, ...queryKeys: QueryKey[]) {
+  await Promise.all(queryKeys.map((queryKey) => client.cancelQueries({ queryKey })));
+  return queryKeys.flatMap((queryKey) => client.getQueriesData({ queryKey })) satisfies Snapshot;
+}
+
+export function restoreQueries(client: QueryClient, snapshot: Snapshot | undefined) {
   for (const [key, data] of snapshot ?? []) client.setQueryData(key, data);
 }
+
+/**
+ * For a write's `onSettled`: true unless another write with `mutationKey` is still in flight. Only
+ * the last one refetches, so an earlier answer can't show a later optimistic change undone.
+ */
+export const lastWrite = (client: QueryClient, mutationKey: QueryKey) =>
+  client.isMutating({ mutationKey }) <= 1;
 
 type ThreadPatch = Partial<ThreadSummary> & Partial<Thread>;
 
@@ -102,7 +118,7 @@ export function restoreFailed(
   snapshot: Snapshot | undefined,
   variables: { threadId: string },
 ) {
-  restore(client, snapshot);
+  restoreQueries(client, snapshot);
   for (const effect of pendingEffects(client, variables)) applyEffect(client, effect);
   void invalidateThread(client, variables.threadId);
 }
