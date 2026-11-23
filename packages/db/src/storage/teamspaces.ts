@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { sqlHasRole } from "../roles.ts";
 import { members, users } from "../schema/auth.ts";
 import {
   storageNodes,
@@ -385,6 +386,7 @@ export function teamspaceOperations(db: Db, load: () => Promise<StorageMember | 
  * it (who is editing a file, a live document's changes). Empty when there is no such teamspace.
  */
 export async function teamspaceAudience(ex: Db, teamspaceId: string) {
+  const role = sql`m.role`;
   const rows = (await ex.execute(sql`
     select m.id from ${storageTeamspaces} t
       join ${members} m on m.organization_id = t.org_id
@@ -392,10 +394,9 @@ export async function teamspaceAudience(ex: Db, teamspaceId: string) {
         on tm.teamspace_id = t.id and tm.member_id = m.id
     where t.id = ${teamspaceId} and (
       tm.member_id is not null
-      or 'owner' = any(string_to_array(replace(m.role, ' ', ''), ','))
-      or 'admin' = any(string_to_array(replace(m.role, ' ', ''), ','))
-      or (not t.private
-        and not 'freelancer' = any(string_to_array(replace(m.role, ' ', ''), ',')))
+      or ${sqlHasRole(role, "owner")}
+      or ${sqlHasRole(role, "admin")}
+      or (not t.private and not ${sqlHasRole(role, "freelancer")})
     )`)) as unknown as { id: string }[];
   return rows.map((row) => row.id);
 }

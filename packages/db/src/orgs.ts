@@ -3,13 +3,7 @@ import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { members, organizations, users } from "./schema/index.ts";
 
-/** The roles that manage a workspace: its inboxes, domains, billing and settings. */
-export const MANAGER_ROLES = ["owner", "admin"] as const;
-
-/** Whether a member's role (Better Auth stores several as a comma list) is a manager's. */
-export function isManager(role: string) {
-  return role.split(",").some((r) => (MANAGER_ROLES as readonly string[]).includes(r.trim()));
-}
+export { isManager, MANAGER_ROLES } from "./roles.ts";
 
 /** Lowercase, ASCII letters and digits joined by single dashes. */
 export function slugify(name: string) {

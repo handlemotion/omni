@@ -11,7 +11,7 @@ import {
   TransactionRollbackError,
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import { MANAGER_ROLES } from "./orgs.ts";
+import { MANAGER_ROLES } from "./roles.ts";
 import { countMailboxesOnDomain, type InboxAuditAction } from "./mail.ts";
 import {
   auditEvents,

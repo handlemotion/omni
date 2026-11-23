@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import { isTeammate, loadMemberRow } from "../roles.ts";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
 import { talkThreads } from "../schema/talk.ts";
@@ -17,24 +18,10 @@ export const NOT_FOUND = { status: "not_found" } as const;
 export type NoTalk = typeof NO_TALK;
 export type NotFound = typeof NOT_FOUND;
 
-/** Roles a teammate holds: any but a freelancer's alone. Owners and admins are teammates. */
-export const isTeammateRole = (role: string) => {
-  const roles = role.split(",").map((r) => r.trim());
-  return roles.some((r) => r !== "freelancer");
-};
-
 /** The member, when Talk is open to them; null otherwise. */
 export async function loadTalkMember(ex: Ex, memberId: string) {
-  const [row] = await ex
-    .select({
-      id: members.id,
-      orgId: members.organizationId,
-      userId: members.userId,
-      role: members.role,
-    })
-    .from(members)
-    .where(eq(members.id, memberId));
-  if (!row || !isTeammateRole(row.role)) return null;
+  const row = await loadMemberRow(ex, memberId);
+  if (!row || !isTeammate(row.role)) return null;
   return { id: row.id, orgId: row.orgId, userId: row.userId } satisfies TalkMember;
 }
 
@@ -52,7 +39,7 @@ export async function teammateOf(ex: Ex, me: TalkMember, memberId: string) {
     .from(members)
     .innerJoin(users, eq(users.id, members.userId))
     .where(and(eq(members.id, memberId), eq(members.organizationId, me.orgId)));
-  return row && isTeammateRole(row.role) ? row : null;
+  return row && isTeammate(row.role) ? row : null;
 }
 
 /** The pair in the order a thread keeps it. */

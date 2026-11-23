@@ -1,3 +1,4 @@
+import { normalizeAddress } from "@omni/mail-core/addresses";
 import { randomBytes } from "node:crypto";
 import { and, desc, eq, ne } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -21,8 +22,6 @@ export interface StartMeeting {
   /** The recorder confirmed everyone was told. Starting without it is refused. */
   consent: boolean;
 }
-
-const lower = (a: string) => a.trim().toLowerCase();
 
 const POLICY = { status: "policy" } as const;
 
@@ -87,7 +86,9 @@ async function shareWithAttendees(
 ) {
   const meeting = { id: meetingId };
   const owner = actor.addresses[0];
-  const attendees = new Map(people.map((a) => [lower(a.address), a.name?.trim() || null]));
+  const attendees = new Map(
+    people.map((a) => [normalizeAddress(a.address), a.name?.trim() || null]),
+  );
   if (attendees.size) {
     await ex
       .insert(meetingsAttendees)
@@ -208,7 +209,7 @@ export function grantMeeting(
   role: "viewer" | "editor",
 ) {
   return withMeeting(ex, actor, meetingId, "editor", async ({ meeting }) => {
-    const to = lower(address);
+    const to = normalizeAddress(address);
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return { status: "invalid_address" } as const;
     const [current] = await ex
       .select({ role: meetingsGrants.role })
@@ -251,7 +252,7 @@ export function revokeMeeting(
       .where(
         and(
           eq(meetingsGrants.meetingId, meetingId),
-          eq(meetingsGrants.address, lower(address)),
+          eq(meetingsGrants.address, normalizeAddress(address)),
           ne(meetingsGrants.role, "owner"),
         ),
       );
@@ -274,7 +275,7 @@ export function renameSpeaker(
       .update(meetingsSpeakers)
       .set({
         name,
-        address: who.address ? lower(who.address) : null,
+        address: who.address ? normalizeAddress(who.address) : null,
         source: "person",
         confidence: 1,
       })

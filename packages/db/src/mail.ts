@@ -25,34 +25,150 @@ export {
   type Priority,
   type Status,
 } from "./mail/conversation-core.ts";
-export type { InboxAuditAction } from "./mail/inbox-admin.ts";
-export * from "./mail/writers.ts";
-export * from "./mail/mailbox-registry.ts";
-export * from "./mail/folder-sync.ts";
-export * from "./mail/threading.ts";
-export * from "./mail/message-lifecycle.ts";
-export * from "./mail/outbox.ts";
-export * from "./mail/mailbox-credentials.ts";
-export * from "./mail/thread-merge.ts";
-export * from "./mail/pending-mail-events.ts";
-export * from "./mail/system.ts";
+export {
+  createThread,
+  findThreadByProviderId,
+  claimProviderThread,
+  findThreadByMessageIds,
+  upsertMessage,
+  refreshListUnsubscribe,
+  upsertFolder,
+  type MailActionRequest,
+  enqueueAction,
+  claimActions,
+  completeAction,
+} from "./mail/writers.ts";
+export {
+  listServiceMailboxes,
+  findMailbox,
+  setMailboxStatus,
+  findMemberByEmail,
+  findMailboxByAddress,
+  saveMailbox,
+  mailboxOwnerIds,
+  liveGmailMailboxes,
+  findGmailMailboxes,
+  findOrgMailboxById,
+  deleteMailbox,
+} from "./mail/mailbox-registry.ts";
+export {
+  replaceFolders,
+  getFolderPosition,
+  saveFolderPosition,
+  folderLocations,
+  hasLocation,
+  findFolder,
+  addLocation,
+  setLocationFlags,
+  removeLocations,
+  reconcileFolder,
+  resetFolder,
+} from "./mail/folder-sync.ts";
+export {
+  findMessageByHeader,
+  threadsByMessageIds,
+  threadReferencing,
+  threadsReplyingTo,
+  subjectThreadCandidates,
+  messageThread,
+  moveMessageToThread,
+} from "./mail/threading.ts";
+export {
+  orphanedMessages,
+  pruneMessages,
+  pendingNotifications,
+  markNotified,
+} from "./mail/message-lifecycle.ts";
+export {
+  sendAttachmentFiles,
+  nextActionDue,
+  markActionSmtpAccepted,
+  rescheduleAction,
+  deferAction,
+} from "./mail/outbox.ts";
+export { replaceMailboxCredentials } from "./mail/mailbox-credentials.ts";
+export { type MergedThreads, mergeThreads } from "./mail/thread-merge.ts";
+export { pendingMailEventRows, deletePendingMailEvents } from "./mail/pending-mail-events.ts";
+export { mailboxAudience, pushTokensFor } from "./mail/system.ts";
 export * from "./mail/member-mail.ts";
-export * from "./mail/ai-jobs.ts";
-export * from "./mail/ai-helpdesk.ts";
-export * from "./mail/ai-settings.ts";
-export * from "./mail/thread-filters.ts";
-export * from "./mail/placement.ts";
+export {
+  loadThreadForAi,
+  saveTriage,
+  saveSummary,
+  addAiUsage,
+  markTriagePaused,
+} from "./mail/ai-jobs.ts";
+export { awaitingIngest, helpdeskContextForAi, applyAiHelpdeskTriage } from "./mail/ai-helpdesk.ts";
+export {
+  MAX_ROLE_DESCRIPTION,
+  listMemberRoleDescriptions,
+  setMemberRoleDescription,
+} from "./mail/ai-settings.ts";
+export { type MessageFilters, type ThreadFilters } from "./mail/thread-filters.ts";
+export {
+  placeForAddress,
+  type MisplacedMailbox,
+  listMisplacedMailboxes,
+  hasUnsyncedWork,
+  firstSyncDone,
+  carryThreadState,
+} from "./mail/placement.ts";
 export { mailboxCount } from "./mail/mailbox-count.ts";
 export * from "./mail/mailbox-teams.ts";
-export * from "./mail/workspace-mailboxes.ts";
-export * from "./mail/workspace-members.ts";
-export * from "./mail/inbox-admin.ts";
-export * from "./mail/compose.ts";
-export * from "./mail/library.ts";
-export * from "./mail/customers.ts";
-export * from "./mail/arrivals.ts";
-export * from "./mail/drafts.ts";
-export * from "./mail/conversations.ts";
+export { listWorkspaceMailboxes, mailboxAtAddress, orgMember } from "./mail/workspace-mailboxes.ts";
+export {
+  listWorkspaceMembers,
+  memberInboxCount,
+  hasSharedGrant,
+  membersStrandedWithout,
+} from "./mail/workspace-members.ts";
+export {
+  type InboxAuditAction,
+  recordInboxEvent,
+  listInboxEvents,
+  type OrphanResult,
+  giveOrphanedInbox,
+  shareOrphanedInbox,
+  reserveInvitationInbox,
+  claimInvitationInboxes,
+} from "./mail/inbox-admin.ts";
+export {
+  memberMailbox,
+  senderIdentity,
+  newUploadId,
+  uploadKey,
+  createUpload,
+  memberUpload,
+  deleteUnsentUpload,
+  enqueueSendWithAttachments,
+  takeExpiredUploads,
+  memberSignatures,
+  setSignature,
+  deleteSignature,
+} from "./mail/compose.ts";
+export {
+  listCannedReplies,
+  getCannedReply,
+  type CannedReplyScope,
+  type CannedReplyWriteError,
+  createCannedReply,
+  updateCannedReply,
+  deleteCannedReply,
+  templateContext,
+} from "./mail/library.ts";
+export { recordCustomer, searchCustomers, customerProfile } from "./mail/customers.ts";
+export { newArrivals } from "./mail/arrivals.ts";
+export {
+  undoSendSeconds,
+  cancelSend,
+  listDrafts,
+  getDraft,
+  createDraft,
+  saveDraft,
+  deleteDraft,
+  memberSendByKey,
+} from "./mail/drafts.ts";
+export { applyConversationChange, applyAgentReply } from "./mail/conversations.ts";
 export {
   ARCHIVE_DELAY_SECONDS,
   type Applied,
@@ -60,17 +176,33 @@ export {
   assign,
 } from "./mail/conversation-steps.ts";
 export { applyInboundMessage, type InboundResult } from "./mail/conversation-inbound.ts";
-export * from "./mail/conversation-sweeps.ts";
+export {
+  discardedConversations,
+  resolveDiscarded,
+  dueSnoozes,
+} from "./mail/conversation-sweeps.ts";
 export { setAutoAssign } from "./mail/auto-assign.ts";
-export * from "./mail/handoff.ts";
-export * from "./mail/conversation-tags.ts";
-export * from "./mail/conversation-notes.ts";
-export * from "./mail/sla.ts";
+export { enqueueHandoff } from "./mail/handoff.ts";
+export { createTag, updateTag, deleteTag } from "./mail/conversation-tags.ts";
+export { NOTE_MAX_LENGTH, createNote, updateNote, deleteNote } from "./mail/conversation-notes.ts";
+export {
+  putSlaPolicy,
+  deleteSlaPolicy,
+  putBusinessHours,
+  deleteBusinessHours,
+  emitSlaAlerts,
+} from "./mail/sla.ts";
 export * from "./mail/forwarding.ts";
-export * from "./mail/mailbox-label.ts";
-export * from "./mail/dead-letters.ts";
-export * from "./mail/for-platform.ts";
-export * from "./mail/unsubscribes.ts";
+export { setInboxNames, mailboxSenderName } from "./mail/mailbox-label.ts";
+export { recordDeadLetter, listDeadLetters } from "./mail/dead-letters.ts";
+export {
+  orgHasMailbox,
+  countMailboxesOnDomain,
+  findOrgMailbox,
+  mailboxesOpenTo,
+  omniHostedAddresses,
+} from "./mail/for-platform.ts";
+export { recordUnsubscribe } from "./mail/unsubscribes.ts";
 export {
   indexParticipants,
   participantsOf,

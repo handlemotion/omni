@@ -4,7 +4,7 @@ import {
   CALENDAR_TASK_TITLE_MAX,
 } from "@omni/contracts";
 import { and, asc, desc, eq, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
-import { members } from "../schema/auth.ts";
+import { loadMemberRow } from "../roles.ts";
 import { calendarTasks } from "../schema/calendar.ts";
 import { NOT_FOUND, type Ex } from "./core.ts";
 
@@ -129,11 +129,8 @@ export async function lockTask(tx: Ex, orgId: string, id: string) {
 
 /** The workspace's member, or null when they are gone. */
 export async function taskMember(ex: Ex, memberId: string) {
-  const [row] = await ex
-    .select({ id: members.id, orgId: members.organizationId })
-    .from(members)
-    .where(eq(members.id, memberId));
-  return row ?? null;
+  const row = await loadMemberRow(ex, memberId);
+  return row ? { id: row.id, orgId: row.orgId } : null;
 }
 
 export type TaskMember = NonNullable<Awaited<ReturnType<typeof taskMember>>>;

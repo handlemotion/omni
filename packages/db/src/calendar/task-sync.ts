@@ -1,4 +1,5 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { hasRole } from "../roles.ts";
 import { members } from "../schema/auth.ts";
 import { calendarTasks } from "../schema/calendar.ts";
 import type { Ex } from "./core.ts";
@@ -64,7 +65,7 @@ export async function isSoleOwner(ex: Ex, orgId: string, memberId: string) {
     .select({ id: members.id, role: members.role })
     .from(members)
     .where(eq(members.organizationId, orgId));
-  const owners = rows.filter((row) => row.role.split(",").some((role) => role.trim() === "owner"));
+  const owners = rows.filter((row) => hasRole(row.role, "owner"));
   return owners.length === 1 && owners[0]!.id === memberId;
 }
 

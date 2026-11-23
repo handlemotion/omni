@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
+import { isUniqueViolation } from "../pg.ts";
 import { mailboxAccess, mailboxes, members, tags } from "../schema/index.ts";
 import { grantInOrg } from "./grants.ts";
 import { type Executor } from "./conversation-core.ts";
@@ -79,12 +80,7 @@ export async function updateTag(
       .returning(tagColumns);
     return row ? { status: "ok" as const, tag: row } : { status: "not_found" as const };
   } catch (error) {
-    if (
-      (error as { cause?: { code?: string } }).cause?.code === "23505" ||
-      (error as { code?: string }).code === "23505"
-    ) {
-      return { status: "conflict" as const };
-    }
+    if (isUniqueViolation(error)) return { status: "conflict" as const };
     throw error;
   }
 }

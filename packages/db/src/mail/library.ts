@@ -66,7 +66,7 @@ export async function getCannedReply(db: Db, memberId: string, id: string) {
   return row ? withScope(row) : null;
 }
 
-export interface CannedReplyFields {
+interface CannedReplyFields {
   title: string;
   bodyText: string;
   bodyHtml: string | null;

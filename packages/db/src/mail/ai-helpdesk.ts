@@ -52,7 +52,7 @@ export async function helpdeskContextForAi(db: Db, mailboxId: string) {
   return { tags: inboxTags, teammates };
 }
 
-export interface AiHelpdeskChanges {
+interface AiHelpdeskChanges {
   priority: Priority;
   /** Tag ids, most likely first. Only added, never removed. */
   tagIds: readonly string[];

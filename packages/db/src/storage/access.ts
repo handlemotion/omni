@@ -1,4 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { hasRole, isManager, loadMemberRow } from "../roles.ts";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
 import { storageGrants, storagePolicies, type StorageGuest } from "../schema/storage.ts";
@@ -84,8 +85,6 @@ export interface Door {
   guest?: StorageGuest | null;
 }
 
-const ADMIN_ROLES = new Set(["owner", "admin"]);
-
 export interface StorageMember {
   id: string;
   orgId: string;
@@ -103,19 +102,10 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
   ex,
   memberId,
 ) => {
-  const [row] = await ex
-    .select({
-      id: members.id,
-      orgId: members.organizationId,
-      userId: members.userId,
-      role: members.role,
-    })
-    .from(members)
-    .where(eq(members.id, memberId));
+  const row = await loadMemberRow(ex, memberId);
   if (!row) return null;
-  const roles = row.role.split(",").map((role) => role.trim());
-  const admin = roles.some((role) => ADMIN_ROLES.has(role));
-  const freelancer = !admin && roles.includes("freelancer");
+  const admin = isManager(row.role);
+  const freelancer = !admin && hasRole(row.role, "freelancer");
   return {
     id: row.id,
     orgId: row.orgId,
