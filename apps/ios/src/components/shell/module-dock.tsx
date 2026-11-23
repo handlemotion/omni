@@ -1,4 +1,3 @@
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import * as Haptics from "expo-haptics";
 import { StyleSheet, View } from "react-native";
 import {
@@ -26,12 +25,11 @@ const SLOT = space(15);
 const TAP_SLOP = 10;
 const LIFT = 1.12;
 const SPRING = { damping: 18, stiffness: 260, mass: 0.6 };
-const HAS_GLASS = isLiquidGlassAvailable();
 
 /**
  * The bottom dock: the modules side by side, the current one on a pill, on the grey surface
- * under the page. A tap opens a module; dragging sideways lifts the pill into a Liquid Glass lens
- * that slides across the modules (a tick as it crosses each) and opens the one it is let go on. A
+ * under the page. A tap opens a module; dragging sideways lifts the pill and slides it across the
+ * modules (a tick as it crosses each) and opens the one it is let go on. A
  * vertical drag is left to the section around it. `follow` (a module index, fractional mid-swipe)
  * moves the pill with the pages under the dock.
  */
@@ -109,8 +107,6 @@ export function ModuleDock({ follow }: { follow?: SharedValue<number> }) {
   const lens = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value }, { scale: 1 + (LIFT - 1) * lift.value }],
   }));
-  const rest = useAnimatedStyle(() => ({ opacity: HAS_GLASS ? 1 - lift.value : 1 }));
-  const lifted = useAnimatedStyle(() => ({ opacity: lift.value }));
 
   const slot = (index: number) => {
     const entry = modules[index];
@@ -135,17 +131,7 @@ export function ModuleDock({ follow }: { follow?: SharedValue<number> }) {
     <GestureDetector gesture={press}>
       <Animated.View accessibilityRole="tablist" style={[styles.dock, { width: slots * SLOT }]}>
         <Animated.View pointerEvents="none" style={[styles.lens, lens]}>
-          <Animated.View style={[styles.fill, styles.flat, rest]} />
-          {HAS_GLASS ? (
-            <Animated.View style={[StyleSheet.absoluteFill, lifted]}>
-              <GlassView
-                glassEffectStyle="regular"
-                colorScheme="light"
-                isInteractive
-                style={styles.fill}
-              />
-            </Animated.View>
-          ) : null}
+          <View style={[styles.fill, styles.flat]} />
         </Animated.View>
         {modules.map((_, index) => slot(index))}
       </Animated.View>
