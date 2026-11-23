@@ -1,11 +1,10 @@
-import { errorCode, isTransient } from "@omni/client";
+import { ApiError, errorCode, isTransient, Slots } from "@omni/client";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
-import { api, ApiError, call } from "./api.ts";
+import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import type { Session } from "./session.ts";
 import { storageChanged, type StorageNode, type StoragePlace } from "./storage.ts";
 import { abortUpload, uploadFile } from "./storage-upload.ts";
-import { Slots } from "./storage-upload-net.ts";
 import { forgetUpload, resumeKey, savedUpload, saveUpload } from "./storage-upload-resume.ts";
 import { FolderMaker, type Picked } from "./storage-upload-tree.ts";
 import { storageFolderMade, storageListsRefresh, storageNodesChanged } from "./storage-cache.ts";
@@ -20,7 +19,6 @@ export interface UploadItem {
   id: number;
   name: string;
   size: number;
-  /** Bytes sent so far. */
   sent: number;
   status: "queued" | "uploading" | "failed";
   /** Why it failed, as the API (or the network) said it: the screen words it. */

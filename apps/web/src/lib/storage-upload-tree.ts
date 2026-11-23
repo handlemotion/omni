@@ -1,8 +1,9 @@
 import type { DropItem } from "react-aria-components";
 import { isDirectoryDropItem, isFileDropItem } from "react-aria-components/useDrop";
-import { api, ApiError, call } from "./api.ts";
+import { isRateLimited, withRetry, type Slots } from "@omni/client";
+import { api, call } from "./api.ts";
 import type { StorageNode, StoragePlace } from "./storage.ts";
-import { withRetry, type Slots } from "./storage-upload-net.ts";
+import { browserNetwork } from "./storage-upload-net.ts";
 
 /** A file to upload, and the folders between where it was dropped and the file (may be none). */
 interface PickedFile {
@@ -159,7 +160,7 @@ export class FolderMaker {
               : call(api.storage.folders.$post({ json })),
           signal,
         ),
-      { signal, tries: 8, transient: (error) => error instanceof ApiError && error.status === 429 },
+      { signal, network: browserNetwork, transient: isRateLimited },
     );
     this.onMade(node);
     return { parentId: node.id } satisfies StoragePlace;
