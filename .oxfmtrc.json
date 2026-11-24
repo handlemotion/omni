@@ -15,6 +15,8 @@
     ".claude/skills/typesafe-ai/**",
     ".claude/skills/gh-stack/references/**",
     ".claude/skills/hairline-*/**",
-    ".agents/skills/hairline-*/**"
+    ".agents/skills/hairline-*/**",
+    ".claude/skills/sticky/**",
+    ".agents/skills/sticky/**"
   ]
 }
