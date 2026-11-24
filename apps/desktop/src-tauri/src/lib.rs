@@ -5,6 +5,7 @@
 //! layer. Plugins and commands are registered here, the one shared line between them.
 
 mod deep_link;
+mod downloads;
 mod navigation;
 mod recording;
 mod recovery;

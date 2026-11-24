@@ -1,18 +1,19 @@
 //! The main window. Built here rather than in `tauri.conf.json` so it carries the navigation
 //! guard (`navigation.rs`): web pages and the bundled shell load in it, `mailto:` and `tel:` open
 //! their apps, and anything asking for a new window opens in the default browser. Downloads are
-//! saved to the Downloads folder (WebKit cancels them when no handler is set).
+//! saved to the Downloads folder (`downloads.rs`; WebKit cancels them when no handler is set).
 //!
 //! Closing the window hides it: the app stays in the menu bar / tray so sync keeps hearing from
 //! the server (docs/spec/desktop.md, "Stays running").
 
 use std::sync::Arc;
 
-use tauri::webview::{DownloadEvent, NewWindowResponse};
+use tauri::webview::NewWindowResponse;
 use tauri::{App, AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
+use crate::downloads::Downloads;
 use crate::navigation::{Destination, destination, local_origins};
 
 /// Where the bundled shell was served from, so the app can return to its server picker.
@@ -58,16 +59,9 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         .on_navigation(on_navigation)
         .on_new_window(on_new_window)
         // The destination arrives filled in: the Downloads folder, the suggested name, made unique.
-        .on_download(|_, event| {
-            if let DownloadEvent::Finished {
-                url,
-                success: false,
-                ..
-            } = event
-            {
-                eprintln!("download failed: {url}");
-            }
-            true
+        .on_download({
+            let downloads = Downloads::default();
+            move |_, event| downloads.handle(event)
         })
         .build()?;
     app.manage(LocalShell(window.url()?));
