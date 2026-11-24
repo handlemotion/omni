@@ -1,7 +1,9 @@
-import { useLocation, useSearch } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
+import { type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
+  IconChevronDown,
+  IconCircleCheckFilled,
   IconConnections,
   IconLogOut,
   IconSettings,
@@ -14,33 +16,21 @@ import {
   IconMailMark,
   IconMeetingsMark,
 } from "@/components/icons/module-marks";
-import { SearchButton } from "@/components/search/search-trigger";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarItem,
-  SidebarItemTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Avatar } from "@/components/ui/avatar";
+import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { Sidebar, SidebarContent, SidebarItemTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useMember, useSignOut } from "@/hooks/use-session.ts";
-import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { isSettingsPath, useOpenSettings } from "@/hooks/use-settings.ts";
-import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import {
-  useModules,
-  useCurrentModule,
   useModulePress,
-  warmModule,
-  usePressedModule,
+  useModules,
   useOpenModule,
+  usePressedModule,
   WorkspaceSwitcher,
   type ModuleId,
 } from "./module-switcher";
 import { NotificationsButton } from "./notifications";
-import { UpdateTile } from "./update-row";
+import { UpdateRow } from "./update-row";
 
 const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   mail: IconMailMark,
@@ -50,165 +40,95 @@ const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   meetings: IconMeetingsMark,
 };
 
-const SWITCH_MS = 180;
-
-const PATHS: Record<ModuleId, string> = {
-  mail: "mail/inbox",
-  files: "files",
-  crm: "crm/companies",
-  calendar: "calendar",
-  meetings: "meetings",
-};
-
 /**
- * The white island's left part, floating on the shell's grey under the top rail: the rail of
- * modules (your picture at its foot for settings) and, when open, the sidebar: a header in line
- * with the page's own, the module's name with
- * notifications and Search at its end, then its own pages, and the workspace switcher at its foot.
+ * The white island's left part, floating on the shell's grey under the top rail: a header in line
+ * with the page's own, where the module's mark and name, with a chevron, open the module switcher; then the module's own pages; at its foot the workspace switcher, notifications, and
+ * you, whose menu holds settings and Log out.
  */
 export function RailSidebar({ title, children }: { title?: string; children: ReactNode }) {
   const { open } = useSidebar();
+  if (!open) return null;
   return (
-    <div className="peer mt-10 flex shrink-0 overflow-hidden rounded-s-xl border-y border-s border-sidebar-border bg-background">
-      <div className="flex w-13 shrink-0 flex-col items-center gap-1 border-e border-sidebar-border pt-2 pb-3">
-        <ModuleTabs />
-        <div className="mt-auto flex flex-col items-center gap-2">
-          <UpdateTile className="size-8 rounded-lg px-0" />
-          <SettingsButton />
+    <Sidebar
+      collapsible="none"
+      closeButton={false}
+      data-state="expanded"
+      className="peer mt-10 h-auto shrink-0 rounded-s-xl border-y border-s border-e border-sidebar-border bg-background"
+    >
+      <SidebarContent className="gap-3 px-3 pt-0 pb-3 *:shrink-0">
+        <div className="-mb-3 flex h-12 items-center">
+          <SwitchHeader title={title} />
         </div>
-      </div>
-      {open && (
-        <Sidebar
-          collapsible="none"
-          closeButton={false}
-          data-state="expanded"
-          className="h-auto border-e border-sidebar-border bg-background"
-        >
-          <SidebarContent className="gap-3 px-3 pt-0 pb-3 *:shrink-0">
-            <SidebarTitle title={title} />
-            {children}
-            <div className="mt-auto">
+        {children}
+        <div className="mt-auto flex flex-col gap-2">
+          <UpdateRow />
+          <div className="flex items-center gap-0.5">
+            <div className="min-w-0 flex-1">
               <WorkspaceSwitcher workspacesOnly foot />
             </div>
-          </SidebarContent>
-        </Sidebar>
-      )}
-    </div>
+            <NotificationsButton />
+            <YouButton />
+          </div>
+        </div>
+      </SidebarContent>
+    </Sidebar>
   );
 }
 
-function SidebarTitle({ title }: { title?: string }) {
+function SwitchHeader({ title }: { title?: string }) {
   const modules = useModules();
-  const module = usePressedModule();
-  const name = title ?? modules.find((m) => m.id === module)?.label;
-  return (
-    <div className="-mb-3 flex h-12 items-center gap-0.5 ps-2">
-      <h2 className="min-w-0 flex-1 truncate text-md">{name}</h2>
-      <NotificationsButton />
-      <SearchButton />
-    </div>
-  );
-}
-
-function ModuleTabs() {
-  const modules = useModules();
+  const pressed = usePressedModule();
   const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
-  const module = usePressedModule();
-  const shown = useCurrentModule();
-  const current = inSettings ? null : module;
-  const workspace = useWorkspaceSlug();
-  const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  const keep = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
+  const current = inSettings ? null : pressed;
   const openModule = useOpenModule();
   const press = useModulePress();
-  const pressedAt = useRef(0);
-  const menu = contextMenuProps((target) => {
-    const picked = modules.find(
-      (m) => m.id === target.closest("[data-module-tab]")?.getAttribute("data-module-tab"),
-    );
-    if (!picked) return null;
-    return [
-      {
-        icon: MARKS[picked.id],
-        label: `Open ${picked.label}`,
-        onAction: () => void openModule(picked.id),
-      },
-    ] satisfies ContextMenuEntry[];
-  }, "Module actions");
-
+  const module = modules.find((m) => m.id === pressed);
+  const Mark = MARKS[pressed];
+  const name = title ?? module?.label ?? "";
   return (
-    <nav
-      {...menu}
-      aria-label="Modules"
-      className="flex flex-col items-center gap-1"
-      onPointerOver={(event) => {
-        const id = (event.target as Element)
-          .closest("[data-module-tab]")
-          ?.getAttribute("data-module-tab");
-        const picked = modules.find((m) => m.id === id);
-        if (picked) warmModule(picked.id);
-      }}
-      onPointerDownCapture={(event) => {
-        const id = (event.target as Element)
-          .closest("[data-module-tab]")
-          ?.getAttribute("data-module-tab");
-        const picked = modules.find((m) => m.id === id);
-        if (
-          picked &&
-          picked.id !== current &&
-          event.button === 0 &&
-          !event.metaKey &&
-          !event.ctrlKey &&
-          !event.shiftKey
-        ) {
-          pressedAt.current = performance.now();
-          press(picked.id);
-        }
-      }}
-      onClickCapture={(event) => {
-        const id = (event.target as Element)
-          .closest("[data-module-tab]")
-          ?.getAttribute("data-module-tab");
-        const picked = modules.find((m) => m.id === id);
-        if (!picked || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        if (!inSettings && picked.id === shown) return;
-        if (performance.now() - pressedAt.current > SWITCH_MS)
-          pressedAt.current = performance.now();
-        press(picked.id);
-        const left = SWITCH_MS - (performance.now() - pressedAt.current);
-        window.setTimeout(() => void openModule(picked.id), Math.max(0, left));
-      }}
-    >
-      {modules.map((module) => {
-        const isCurrent = module.id === current;
-        const Mark = MARKS[module.id];
-        return (
-          <TooltipTrigger key={module.id} delay={400}>
-            <SidebarItem
-              data-module-tab={module.id}
-              href={`/${encodeURIComponent(workspace)}/${PATHS[module.id]}${keep}`}
-              isCurrent={isCurrent}
-              aria-label={module.label}
-              className={cn(
-                "size-8 shrink-0 justify-center rounded-lg px-0 *:[svg]:size-4.5",
-                !isCurrent && "hover:bg-secondary",
-              )}
+    <MenuTrigger>
+      <SidebarItemTrigger
+        aria-label={`Switch module, currently ${name}`}
+        className="w-auto max-w-full shrink gap-2 px-2 *:[svg]:size-5"
+      >
+        <Mark />
+        <span className="min-w-0 truncate text-md">{name}</span>
+        <IconChevronDown className="-ms-0.5 size-3.5! shrink-0 text-muted-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
+      </SidebarItemTrigger>
+      <Menu placement="bottom start" popover={{ offset: 4, className: "w-60" }}>
+        {modules.map((m) => {
+          const ItemMark = MARKS[m.id];
+          return (
+            <MenuItem
+              key={m.id}
+              id={`module-${m.id}`}
+              textValue={m.label}
+              onAction={() => {
+                if (m.id === current) return;
+                press(m.id);
+                void openModule(m.id);
+              }}
             >
-              <Mark />
-            </SidebarItem>
-            <Tooltip placement="right">{module.label}</Tooltip>
-          </TooltipTrigger>
-        );
-      })}
-    </nav>
+              <ItemMark data-slot="icon" className="size-4.5" />
+              <Checked name={m.label} current={m.id === current} />
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </MenuTrigger>
   );
 }
 
-function SettingsButton() {
+function Checked({ name, current }: { name: string; current: boolean }) {
+  return (
+    <MenuLabel className="col-[2/-1] flex min-w-0 items-center justify-between gap-3">
+      <span className="truncate">{name}</span>
+      {current && <IconCircleCheckFilled className="size-4 shrink-0 text-primary" />}
+    </MenuLabel>
+  );
+}
+
+function YouButton() {
   const { user } = useMember();
   const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
   const openSettings = useOpenSettings();
@@ -218,7 +138,7 @@ function SettingsButton() {
       <SidebarItemTrigger
         aria-label="Settings"
         className={cn(
-          "size-8 justify-center rounded-full px-0",
+          "size-8 shrink-0 justify-center rounded-full px-0",
           inSettings && "[--btn-bg:var(--sidebar-accent)]",
         )}
       >
@@ -227,10 +147,10 @@ function SettingsButton() {
           initials={(user.name || user.email).slice(0, 1).toUpperCase()}
           alt=""
           className="bg-secondary text-muted-foreground outline-0"
-          style={{ "--avatar-size": "24px" } as CSSProperties}
+          style={{ "--avatar-size": "22px" } as CSSProperties}
         />
       </SidebarItemTrigger>
-      <Menu placement="top start" popover={{ offset: 6, className: "w-56" }}>
+      <Menu placement="top end" popover={{ offset: 4, className: "w-56" }}>
         <MenuItem
           id="account"
           textValue="Account settings"
