@@ -93,7 +93,7 @@ export function MeetingPage({ id }: { id: string }) {
               <Tab id="summary">Summary</Tab>
               <Tab id="transcript">Transcript</Tab>
             </TabList>
-            <div className="flex flex-col gap-8 px-10 pt-4 pb-16 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-8 px-10 pt-4 pb-16 lg:flex-row lg:items-start">
               <div className="flex max-w-3xl min-w-0 flex-1 flex-col">
                 <TabPanel id="summary" className="flex flex-col gap-8">
                   <Summary meeting={data} canDecide={editor} />
@@ -106,7 +106,7 @@ export function MeetingPage({ id }: { id: string }) {
                   )}
                 </TabPanel>
               </div>
-              <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-16 lg:w-80">
+              <aside className="flex w-full flex-col gap-4 lg:sticky lg:top-16 lg:max-w-lg lg:min-w-80 lg:flex-1">
                 {tab === "transcript" ? (
                   <>
                     <PlaybackCard meeting={data} />
@@ -116,7 +116,7 @@ export function MeetingPage({ id }: { id: string }) {
                   <>
                     <PlaybackCard meeting={data} />
                     <PeopleCard meeting={data} />
-                    <Card className="py-3">
+                    <Card className="pt-3 pb-2">
                       <Properties
                         meeting={data}
                         onShare={editor ? () => setSharing(true) : undefined}

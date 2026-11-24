@@ -71,7 +71,7 @@ function Waveform({ id }: { id: string }) {
   const at = player.timeMs / max;
   const bars = wave.data ?? Array.from({ length: BARS }, () => 0.08);
   return (
-    <div className="relative h-16 w-full rounded-md has-focus-visible:ring-2 has-focus-visible:ring-ring">
+    <div className="relative h-10 w-full rounded-md has-focus-visible:ring-2 has-focus-visible:ring-ring">
       <div aria-hidden className="flex size-full items-center gap-px">
         {bars.map((height, i) => (
           <span
@@ -103,19 +103,23 @@ export function PlaybackCard({ meeting }: { meeting: Meeting }) {
   if (!player.hasAudio) return null;
   return (
     <Card>
-      <Waveform id={meeting.meeting.id} />
-      <div className="flex h-6 items-center gap-2">
+      <div className="flex items-center gap-3">
         <Button
-          intent="property"
-          size="sq-xs"
+          intent="primary"
+          size="sq-md"
+          isCircle
           aria-label={player.playing ? "Pause" : "Play"}
           onPress={player.toggle}
         >
           {player.playing ? <IconPauseFilled /> : <IconPlayFilled />}
         </Button>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {meetingClock(player.timeMs)} / {meetingClock(player.durationMs)}
-        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <Waveform id={meeting.meeting.id} />
+          <div className="flex justify-between text-xs leading-3 text-muted-foreground tabular-nums">
+            <span>{meetingClock(player.timeMs)}</span>
+            <span>{meetingClock(player.durationMs)}</span>
+          </div>
+        </div>
       </div>
     </Card>
   );
