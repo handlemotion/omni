@@ -1,8 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { crmErrorToast } from "@/components/crm/crm-errors.ts";
 import { RecordPicker } from "@/components/crm/task-dialog.tsx";
-import { IconX } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import {
+  IconBuildings,
+  IconHandshake,
+  IconLink,
+  IconUserRound,
+  IconX,
+} from "@/components/icons/central";
+import { PropertyRow } from "@/components/tasks/task-fields.tsx";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { useAttendeesInCrm } from "@/hooks/use-calendar.ts";
 import { useCrmCompany, useCrmDeal, useCrmPerson, useHasCrm } from "@/hooks/use-crm.ts";
@@ -16,28 +24,26 @@ const RECORDS: Record<string, CrmRecordsKind> = {
   deal: "deals",
 };
 
-const LINK = "truncate text-foreground underline-offset-2 hover:underline";
+const ICONS = { companies: IconBuildings, people: IconUserRound, deals: IconHandshake };
 
 /**
- * The CRM records a meeting is on, linked: the one someone put it on, else the companies and
- * projects its attendees are from. Its editors put it on a record or take it off.
+ * The CRM records a meeting is on, as the task panel shows a task's: the one someone put it on,
+ * else the companies and projects its attendees are from. Its editors put it on one or take it off.
  */
 export function MeetingRecord(props: { meeting: Meeting; canEdit: boolean }) {
   const hasCrm = useHasCrm();
   if (!hasCrm) return null;
   return (
-    <>
-      <dt className="text-muted-foreground">Record</dt>
-      <dd className="flex min-h-7 min-w-0 items-center gap-3">
-        <Records {...props} />
-      </dd>
-    </>
+    <PropertyRow label="Linked to">
+      <Records {...props} />
+    </PropertyRow>
   );
 }
 
 function Records(props: { meeting: Meeting; canEdit: boolean }) {
   const { meeting } = props.meeting;
   const place = useMutation(placeMeetingMutation(useQueryClient()));
+  const [picking, setPicking] = useState(false);
   const placed = meeting.record;
   const records = placed ? RECORDS[placed.kind] : undefined;
   const onRecord = (action: "put" | "remove", to: { records: CrmRecordsKind; id: string }) =>
@@ -51,10 +57,11 @@ function Records(props: { meeting: Meeting; canEdit: boolean }) {
         <PlacedLink records={records} id={placed.id} />
         {props.canEdit && (
           <Button
-            size="sq-xs"
+            size="sq-2xs"
             intent="plain"
             aria-label="Remove from record"
             isPending={place.isPending}
+            className="opacity-0 group-hover/property:opacity-100 focus-visible:opacity-100"
             onPress={() => onRecord("remove", { records, id: placed.id })}
           >
             <IconX />
@@ -63,23 +70,42 @@ function Records(props: { meeting: Meeting; canEdit: boolean }) {
       </>
     );
   }
+  if (picking) {
+    return (
+      <div className="w-full">
+        <RecordPicker
+          label={false}
+          autoFocus
+          value={null}
+          onBlur={() => setPicking(false)}
+          onChange={(picked) => {
+            if (!picked) return;
+            setPicking(false);
+            onRecord("put", { records: picked.kind, id: picked.id });
+          }}
+        />
+      </div>
+    );
+  }
   return (
     <>
       {!meeting.recordOff && <Matched addresses={props.meeting.attendees.map((a) => a.address)} />}
       {props.canEdit && (
-        <div className="ms-auto min-w-0 flex-1">
-          <RecordPicker
-            label={false}
-            value={null}
-            onChange={(picked) =>
-              picked && onRecord("put", { records: picked.kind, id: picked.id })
-            }
-          />
-        </div>
+        <Button
+          intent="property-plain"
+          size="property"
+          data-empty=""
+          onPress={() => setPicking(true)}
+        >
+          <IconLink />
+          <span className="truncate">Add to record</span>
+        </Button>
       )}
     </>
   );
 }
+
+const CHIP = buttonStyles({ intent: "property", size: "property" });
 
 function PlacedLink(props: { records: CrmRecordsKind; id: string }) {
   const { href } = useWorkspacePaths();
@@ -87,10 +113,12 @@ function PlacedLink(props: { records: CrmRecordsKind; id: string }) {
   const person = useCrmPerson(props.id, { enabled: props.records === "people" }).data;
   const deal = useCrmDeal(props.id, { enabled: props.records === "deals" }).data;
   const name = company?.company.name ?? person?.person.name ?? deal?.deal.name;
+  const Icon = ICONS[props.records];
   if (!name) return <span className="text-muted-foreground">–</span>;
   return (
-    <Link href={href(`/crm/${props.records}/${props.id}`)} className={LINK}>
-      {name}
+    <Link href={href(`/crm/${props.records}/${props.id}`)} className={CHIP}>
+      <Icon />
+      <span className="truncate">{name}</span>
     </Link>
   );
 }
@@ -101,23 +129,26 @@ function Matched({ addresses }: { addresses: string[] }) {
   const links = [
     ...(found?.deals ?? []).map((d) => ({
       key: `d:${d.id}`,
+      icon: ICONS.deals,
       to: `/crm/deals/${d.id}`,
       name: d.name,
     })),
     ...(found?.companies ?? []).map((c) => ({
       key: `c:${c.id}`,
+      icon: ICONS.companies,
       to: `/crm/companies/${c.id}`,
       name: c.name,
     })),
   ];
   if (!links.length) return null;
   return (
-    <span className="flex min-w-0 flex-wrap gap-x-3 gap-y-1">
-      {links.map((link) => (
-        <Link key={link.key} href={href(link.to)} className={LINK}>
-          {link.name}
+    <>
+      {links.map(({ key, to, name, icon: Icon }) => (
+        <Link key={key} href={href(to)} className={CHIP}>
+          <Icon />
+          <span className="truncate">{name}</span>
         </Link>
       ))}
-    </span>
+    </>
   );
 }

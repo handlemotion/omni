@@ -1,6 +1,7 @@
 import { ApiError } from "@omni/client";
 import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { MeetingRecord } from "./meeting-record.tsx";
+import { PropertyRow } from "@/components/tasks/task-fields.tsx";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -22,7 +23,6 @@ import {
 } from "@/components/icons/central";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
@@ -93,7 +93,7 @@ export function MeetingPage({ id }: { id: string }) {
               <Tab id="summary">Summary</Tab>
               <Tab id="transcript">Transcript</Tab>
             </TabList>
-            <div className="flex flex-col gap-8 px-10 pt-6 pb-16 lg:flex-row lg:items-start">
+            <div className="flex flex-col gap-8 px-10 pt-4 pb-16 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex max-w-3xl min-w-0 flex-1 flex-col">
                 <TabPanel id="summary" className="flex flex-col gap-8">
                   <Summary meeting={data} canDecide={editor} />
@@ -116,7 +116,7 @@ export function MeetingPage({ id }: { id: string }) {
                   <>
                     <PlaybackCard meeting={data} />
                     <PeopleCard meeting={data} />
-                    <Card className="pt-[7px]">
+                    <Card className="py-3">
                       <Properties
                         meeting={data}
                         onShare={editor ? () => setSharing(true) : undefined}
@@ -211,47 +211,32 @@ function Properties(props: {
     name: names.get(g.address) ?? null,
   }));
   const workspace = props.meeting.sharing?.access === "workspace";
+  const who = [
+    ...(workspace ? ["Workspace"] : []),
+    ...people.map((p) => (p.name ?? p.address).split(/[ @]/)[0]),
+  ].join(", ");
   return (
-    <dl className="grid grid-cols-[5rem_1fr] items-center gap-x-3 gap-y-2 text-sm leading-4">
+    <div className="flex flex-col">
       {props.meeting.sharing && (
-        <Property label="Shared with">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="flex -space-x-1">
-              {people.slice(0, 5).map((person) => (
-                <Avatar
-                  key={person.address}
-                  size="xs"
-                  initials={initial(person.name ?? person.address)}
-                  className="ring-2 ring-background"
-                  title={person.name ?? person.address}
-                />
-              ))}
-            </div>
-            <span className="truncate text-muted-foreground">
-              {[
-                ...(workspace ? ["Everyone in the workspace"] : []),
-                ...people.map((p) => (p.name ?? p.address).split(" ")[0]),
-              ].join(", ")}
-            </span>
-            {props.onShare && (
-              <Button intent="plain" size="sm" onPress={props.onShare} className="ms-auto -me-2">
-                Manage
-              </Button>
+        <PropertyRow label="Shared with">
+          <Button
+            intent="property"
+            size="property"
+            isDisabled={!props.onShare}
+            onPress={props.onShare}
+            aria-label={`Shared with ${who}`}
+          >
+            {people[0] ? (
+              <Avatar size="xs" initials={initial(people[0].name ?? people[0].address)} />
+            ) : (
+              <IconPeople />
             )}
-          </div>
-        </Property>
+            <span className="truncate">{who}</span>
+          </Button>
+        </PropertyRow>
       )}
       <MeetingRecord meeting={props.meeting} canEdit={props.canEdit} />
-    </dl>
-  );
-}
-
-function Property(props: { label: string; children: ReactNode }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{props.label}</dt>
-      <dd className="flex min-h-7 min-w-0 items-center">{props.children}</dd>
-    </>
+    </div>
   );
 }
 
@@ -333,15 +318,6 @@ function Summary({ meeting, canDecide }: { meeting: Meeting; canDecide: boolean 
           }
         >
           <p className="text-sm/6 text-foreground">{notes.summary}</p>
-          {notes.topics.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {notes.topics.map((topic) => (
-                <Badge key={topic} intent="secondary">
-                  {topic}
-                </Badge>
-              ))}
-            </div>
-          )}
         </Block>
       )}
       {meeting.actions.length > 0 && (

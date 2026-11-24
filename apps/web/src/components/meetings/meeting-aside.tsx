@@ -20,7 +20,7 @@ export function Card(props: { title?: string; className?: string; children: Reac
       className={`flex flex-col gap-3 rounded-xl border bg-background p-4 ${props.className ?? ""}`}
     >
       {props.title && (
-        <h2 className="-mt-[3px] text-sm leading-4 text-muted-foreground">{props.title}</h2>
+        <h2 className="-mt-[3px] mb-1 text-sm leading-4 text-muted-foreground">{props.title}</h2>
       )}
       {props.children}
     </section>
@@ -127,7 +127,7 @@ export function PlaybackCard({ meeting }: { meeting: Meeting }) {
       <Waveform id={meeting.meeting.id} />
       <div className="flex h-6 items-center gap-2">
         <Button
-          intent="secondary"
+          intent="property"
           size="sq-xs"
           aria-label={player.playing ? "Pause" : "Play"}
           onPress={player.toggle}
