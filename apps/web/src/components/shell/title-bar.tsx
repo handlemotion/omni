@@ -36,7 +36,7 @@ export function TitleBar() {
       className={`fixed inset-x-0 top-0 z-35 grid h-10 grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_minmax(max-content,1fr)] items-center gap-2 bg-shell px-2.5 **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]!`}
     >
       <span
-        className={`flex items-center gap-0.5 justify-self-start ${desktop.platform === "mac" ? "ms-[75.5px]" : "ms-1"}`}
+        className={`flex items-center gap-0.5 justify-self-start ${desktop.platform === "mac" ? "ms-[67px]" : "ms-1"}`}
       >
         <TooltipTrigger delay={400}>
           <SidebarTrigger

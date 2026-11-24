@@ -63,7 +63,7 @@ const PATHS: Record<ModuleId, string> = {
 /**
  * The white island's left part, floating on the shell's grey under the top rail: the rail of
  * modules (your picture at its foot for settings) and, when open, the sidebar: a header in line
- * with the page's own, the module's name (Calendar goes without, its month is the title) with
+ * with the page's own, the module's name with
  * notifications and Search at its end, then its own pages, and the workspace switcher at its foot.
  */
 export function RailSidebar({ title, children }: { title?: string; children: ReactNode }) {
@@ -100,8 +100,7 @@ export function RailSidebar({ title, children }: { title?: string; children: Rea
 function SidebarTitle({ title }: { title?: string }) {
   const modules = useModules();
   const module = usePressedModule();
-  const name =
-    title ?? (module === "calendar" ? undefined : modules.find((m) => m.id === module)?.label);
+  const name = title ?? modules.find((m) => m.id === module)?.label;
   return (
     <div className="-mb-3 flex h-12 items-center gap-0.5 ps-2">
       <h2 className="min-w-0 flex-1 truncate text-md">{name}</h2>
