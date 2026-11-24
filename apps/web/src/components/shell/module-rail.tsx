@@ -35,6 +35,7 @@ import {
   warmModule,
   usePressedModule,
   useOpenModule,
+  WorkspaceSwitcher,
   type ModuleId,
 } from "./module-switcher";
 import { UpdateRow, UpdateTile } from "./update-row";
@@ -76,6 +77,7 @@ export function RailSidebar({ title, children }: { title?: string; children: Rea
       )}
     >
       <SidebarContent className="gap-3 p-3 *:shrink-0">
+        {open && <WorkspaceSwitcher workspacesOnly />}
         <div className="mb-0.5">
           {open ? (
             <ModuleTabs />

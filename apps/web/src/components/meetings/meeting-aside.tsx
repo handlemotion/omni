@@ -38,9 +38,8 @@ export function DetailRow(props: { label: string; children: ReactNode }) {
 export function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
   return (
     <Avatar
-      size="xs"
       initials={initial(speaker.name)}
-      className={`${speaker.fill} text-white outline-0`}
+      className={`${speaker.fill} text-white outline-0 [--avatar-size:--spacing(4)]`}
     />
   );
 }
@@ -73,8 +72,8 @@ function Track(props: {
         />
       ))}
       <span
-        className="absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-foreground"
-        style={{ left: `${at}%` }}
+        className="absolute -inset-y-1 w-0.5 rounded-full bg-foreground"
+        style={{ left: `calc(${at}% - ${at / 50}px)` }}
       />
     </div>
   );
@@ -112,15 +111,39 @@ function Waveform(props: { id: string; totalMs: number }) {
   );
 }
 
-/**
- * The recording, one card: its sound to seek in (the video's place, once meetings have video),
- * then each speaker's own track with their share of the talking.
- */
+/** The recording: its sound to seek in, the fallback for a meeting with no video. */
 export function RecordingCard({ meeting }: { meeting: Meeting }) {
+  const player = usePlayer();
+  if (!player.hasAudio) return null;
+  const totalMs = Math.max(player.durationMs, meeting.meeting.durationMs ?? 0, 1);
+  return (
+    <Card>
+      <div className="flex flex-col gap-3">
+        <Waveform id={meeting.meeting.id} totalMs={totalMs} />
+        <div className="flex h-3 items-center gap-1.5 text-xs leading-3 text-muted-foreground tabular-nums">
+          <Button
+            intent="plain"
+            size="sq-2xs"
+            aria-label={player.playing ? "Pause" : "Play"}
+            onPress={player.toggle}
+            className="-my-1.5 -ms-1 *:[svg]:size-3"
+          >
+            {player.playing ? <IconPauseFilled /> : <IconPlayFilled />}
+          </Button>
+          <span>{meetingClock(player.timeMs)}</span>
+          <span className="ms-auto">{meetingClock(totalMs)}</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Who spoke when: each speaker's own track, with their share of the talking. */
+export function SpeakersCard({ meeting }: { meeting: Meeting }) {
   const player = usePlayer();
   const transcript = useMeetingTranscript(meeting.meeting.id);
   const speakers = meetingSpeakers(meeting);
-  if (!player.hasAudio) return null;
+  if (!meeting.talk.length) return null;
   const totalMs = Math.max(player.durationMs, meeting.meeting.durationMs ?? 0, 1);
   const turns = (transcript.data ?? []).map((s) => ({
     seq: s.seq,
@@ -131,53 +154,38 @@ export function RecordingCard({ meeting }: { meeting: Meeting }) {
   }));
   return (
     <Card>
-      <div className="flex flex-col gap-2">
-        <Waveform id={meeting.meeting.id} totalMs={totalMs} />
-        <div className="flex h-5 items-center gap-1.5 text-xs leading-3 text-muted-foreground tabular-nums">
-          <Button
-            intent="plain"
-            size="sq-2xs"
-            aria-label={player.playing ? "Pause" : "Play"}
-            onPress={player.toggle}
-            className="-ms-1 *:[svg]:size-3"
-          >
-            {player.playing ? <IconPauseFilled /> : <IconPlayFilled />}
-          </Button>
-          <span>{meetingClock(player.timeMs)}</span>
-          <span className="ms-auto">{meetingClock(totalMs)}</span>
-        </div>
-      </div>
-      {meeting.talk.length > 0 && (
-        <ul className="flex flex-col gap-4 border-t pt-4">
-          {meeting.talk.map((t) => {
-            const speaker = speakers.get(t.label) ?? UNKNOWN;
-            const own = turns.filter((turn) => turn.label === t.label);
-            const next = own.find((turn) => turn.startMs > player.timeMs) ?? own[0];
-            return (
-              <li key={t.label} className="flex flex-col gap-3">
-                <div className="flex h-5 items-center gap-2">
-                  <SpeakerAvatar speaker={speaker} />
-                  <span className="min-w-0 flex-1 truncate text-sm">{speaker.name}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {Math.round(t.share * 100)}% · {talkLength(t.ms)}
-                  </span>
-                  <Button
-                    intent="plain"
-                    size="sq-2xs"
-                    isDisabled={!next}
-                    aria-label={`Play ${speaker.name}`}
-                    onPress={() => next && player.seek(next.startMs)}
-                    className="-me-1 *:[svg]:size-3"
-                  >
-                    <IconPlayFilled />
-                  </Button>
-                </div>
-                <Track turns={own} totalMs={totalMs} atMs={player.timeMs} className="h-1" />
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="flex flex-col gap-4">
+        {meeting.talk.map((t) => {
+          const speaker = speakers.get(t.label) ?? UNKNOWN;
+          const own = turns.filter((turn) => turn.label === t.label);
+          const next = own.find((turn) => turn.startMs > player.timeMs) ?? own[0];
+          const speaking =
+            player.playing &&
+            own.some((turn) => turn.startMs <= player.timeMs && player.timeMs < turn.endMs);
+          return (
+            <li key={t.label} className="flex flex-col gap-3">
+              <div className="flex h-5 items-center gap-2">
+                <SpeakerAvatar speaker={speaker} />
+                <span className="min-w-0 flex-1 truncate text-sm">{speaker.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                  {Math.round(t.share * 100)}% · {talkLength(t.ms)}
+                </span>
+                <Button
+                  intent="plain"
+                  size="sq-2xs"
+                  isDisabled={!next}
+                  aria-label={speaking ? "Pause" : `Play ${speaker.name}`}
+                  onPress={() => (speaking ? player.toggle() : next && player.seek(next.startMs))}
+                  className="-me-1 *:[svg]:size-3"
+                >
+                  {speaking ? <IconPauseFilled /> : <IconPlayFilled />}
+                </Button>
+              </div>
+              <Track turns={own} totalMs={totalMs} atMs={player.timeMs} className="h-1" />
+            </li>
+          );
+        })}
+      </ul>
     </Card>
   );
 }

@@ -10,6 +10,7 @@
         --fg: #111111;
         --muted: #6b6b6b;
         --line: #e4e4e4;
+        --hover: #f0f0f0;
         --recording: #e5484d;
         font:
           13px/1 system-ui,
@@ -23,6 +24,7 @@
           --fg: #f2f2f2;
           --muted: #9a9a9a;
           --line: #2c2c2c;
+          --hover: #242424;
         }
       }
       html,
@@ -30,7 +32,7 @@
         margin: 0;
         height: 100%;
         overflow: hidden;
-        background: var(--bg);
+        background: transparent;
         color: var(--fg);
         user-select: none;
         -webkit-user-select: none;
@@ -42,8 +44,10 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 0 6px 0 14px;
+        padding: 0 6px 0 16px;
         border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--bg);
       }
       .dot {
         width: 8px;
@@ -57,7 +61,7 @@
       }
       time {
         font-variant-numeric: tabular-nums;
-        min-width: 44px;
+        min-width: 40px;
       }
       .level {
         flex: 1;
@@ -73,28 +77,41 @@
         background: var(--fg);
         transition: width 120ms ease-out;
       }
-      @media (prefers-reduced-motion: reduce) {
-        .level span {
-          transition: none;
-        }
-      }
       button {
         flex: none;
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
         display: grid;
         place-items: center;
         border: 0;
-        border-radius: 6px;
+        border-radius: 50%;
         background: transparent;
         color: var(--muted);
         padding: 0;
+        transition:
+          background-color 120ms ease-out,
+          color 120ms ease-out,
+          transform 120ms ease-out;
       }
       button:hover {
+        background: var(--hover);
         color: var(--fg);
       }
       button:active {
-        transform: scale(0.97);
+        transform: scale(0.94);
+      }
+      button:focus-visible {
+        outline: 2px solid var(--fg);
+        outline-offset: -2px;
+      }
+      button + button {
+        margin-inline-start: -6px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .level span,
+        button {
+          transition: none;
+        }
       }
       .pause i {
         width: 8px;
@@ -108,12 +125,13 @@
         border-inline: 0;
         border-block: 5px solid transparent;
         border-left: 8px solid currentColor;
+        margin-inline-start: 2px;
       }
       .stop i {
         width: 9px;
         height: 9px;
         border-radius: 2px;
-        background: currentColor;
+        background: var(--recording);
       }
     </style>
     <script type="module" src="./pill.ts"></script>

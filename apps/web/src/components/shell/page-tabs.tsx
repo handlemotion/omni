@@ -79,6 +79,7 @@ export function PageTabs() {
 
   return (
     <div className="flex min-w-0 items-center gap-1">
+      <span aria-hidden className="size-7 shrink-0" />
       <div
         {...menu}
         ref={list}

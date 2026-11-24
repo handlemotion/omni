@@ -33,7 +33,7 @@ import { groupKind, meetingClock, meetingGroupPath, type Meeting } from "@/lib/m
 import { Link } from "@/components/ui/link";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { ActionItem } from "./meeting-actions.tsx";
-import { Card, DetailRow, RecordingCard } from "./meeting-aside.tsx";
+import { Card, DetailRow, RecordingCard, SpeakersCard } from "./meeting-aside.tsx";
 import { MeetingAudio, usePlayer } from "./meeting-player.tsx";
 import { ShareMeetingDialog } from "./meeting-share.tsx";
 import { MeetingTranscript } from "./meeting-transcript.tsx";
@@ -102,6 +102,7 @@ export function MeetingPage({ id }: { id: string }) {
               </div>
               <aside className="flex w-full flex-col gap-4 lg:sticky lg:top-16 lg:max-w-lg lg:min-w-80 lg:flex-1">
                 <RecordingCard meeting={data} />
+                <SpeakersCard meeting={data} />
                 <Card>
                   <Properties
                     meeting={data}

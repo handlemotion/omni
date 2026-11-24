@@ -225,7 +225,7 @@ function TaskBody(props: {
         </MenuTrigger>
       </PanelHeader>
       <div
-        className={`flex min-h-0 flex-1 flex-col gap-7 ${props.inPlace ? "w-full max-w-2xl pt-1 pb-4" : "overflow-y-auto px-6 pt-1 pb-6"}`}
+        className={`flex min-h-0 flex-1 flex-col gap-7 ${props.inPlace ? "mx-auto w-full max-w-2xl pt-1 pb-4" : "overflow-y-auto px-6 pt-1 pb-6"}`}
       >
         <div className="flex flex-col gap-3">
           <TaskHeading task={task} onSave={save} />
@@ -245,7 +245,7 @@ function PanelHeader(props: {
 }) {
   return (
     <div
-      className={`flex shrink-0 items-center gap-1.5 ${props.inPlace ? "-mt-2 h-10 w-full max-w-2xl" : "h-12 px-4"}`}
+      className={`flex shrink-0 items-center gap-1.5 ${props.inPlace ? "-mt-2 h-10 w-full" : "h-12 px-4"}`}
     >
       <PageBarActions>
         <Button intent="outline" size="sq-sm" aria-label="Close task" onPress={props.onClose}>
