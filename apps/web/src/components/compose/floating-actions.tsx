@@ -1,7 +1,7 @@
 import type { Thread } from "@omni/client";
 import { verificationCode } from "@omni/mail-core/verification-code";
 import { type ReactNode, useMemo } from "react";
-import { IconCheck, IconCopy, IconPencil } from "@/components/icons/central";
+import { IconCheck, IconCopy } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useComposerState } from "./composer-state.tsx";
@@ -39,18 +39,6 @@ function CopyCode({ code }: { code: string }) {
       {copied ? <IconCheck /> : <IconCopy />}
       Copy code
     </Button>
-  );
-}
-
-/** New mail, at the list's bottom right. */
-export function FloatingCompose({ onPress }: { onPress: () => void }) {
-  return (
-    <div className="pointer-events-none absolute end-5 bottom-5 z-20 flex *:pointer-events-auto">
-      <Button intent="primary" size="md" className={FLOAT} onPress={onPress}>
-        <IconPencil />
-        Compose
-      </Button>
-    </div>
   );
 }
 

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { SkeletonBox } from "skullet/react";
 import { IconChevronRight } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
-import { SidebarItem, SidebarLabel } from "@/components/ui/sidebar";
+import { SidebarItem, SidebarLabel, useSidebar } from "@/components/ui/sidebar";
 
 const INDENT_PX = 16;
 
@@ -18,14 +18,17 @@ export function SidebarTreeRow(props: {
   /** Pressing the row itself, as it follows its link. */
   onPress?: () => void;
 }) {
-  const { expand } = props;
+  const { state, isMobile } = useSidebar();
+  const rail = state === "collapsed" && !isMobile;
+  if (rail && props.depth > 0) return null;
+  const expand = rail ? undefined : props.expand;
   return (
     <div className="group/tree relative">
       <SidebarItem
         href={props.href}
         isCurrent={props.isCurrent}
         onPress={props.onPress}
-        style={{ paddingInlineStart: 8 + props.depth * INDENT_PX }}
+        style={rail ? undefined : { paddingInlineStart: 8 + props.depth * INDENT_PX }}
         className={expand ? "pe-8" : undefined}
       >
         {props.icon}

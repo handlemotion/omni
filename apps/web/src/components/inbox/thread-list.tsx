@@ -11,11 +11,11 @@ import type { ConversationRowInfo } from "@/components/inbox/conversation-meta";
 import { DateHeader, RowBones, ThreadRow } from "@/components/inbox/thread-row";
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
-import { HeaderAction, MarkAllRead, ReloadAction } from "@/components/inbox/list-header-actions";
+import { ReloadAction } from "@/components/inbox/list-header-actions";
+import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { RowMenu } from "@/components/inbox/row-menu";
 import { EmptyState } from "@/components/empty/empty-state";
 import { ThreadListEmpty } from "@/components/inbox/list-empty";
-import { FloatingCompose } from "@/components/compose/floating-actions";
 import { IconPencil } from "@/components/icons/central";
 import { Button, PageBarActions } from "@/components/ui/button";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
@@ -41,7 +41,7 @@ import type {
   ThreadView,
 } from "@/lib/types.ts";
 
-const READER_WIDTH = 640;
+const READER_WIDTH = 512;
 const READER_MIN = 400;
 const READER_MAX = 4096;
 const LIST_MIN = 320;
@@ -251,13 +251,16 @@ export function List(
                 <span className="flex md:hidden">
                   <SearchButton />
                 </span>
-                <MarkAllRead rows={threads} />
                 <ReloadAction />
-                {detail && (
-                  <HeaderAction label="Compose" shortcut="compose" onPress={openCompose}>
-                    <IconPencil />
-                  </HeaderAction>
-                )}
+                <Button
+                  intent="outline"
+                  size="sm"
+                  aria-keyshortcuts={ariaKeyShortcuts("compose")}
+                  onPress={openCompose}
+                >
+                  <IconPencil />
+                  Compose
+                </Button>
               </PageBarActions>
             </div>
           </header>
@@ -288,9 +291,6 @@ export function List(
                 </RowMenu>
               )}
             </ListSweepSlot>
-          )}
-          {!detail && !(count > 0 && props.bulkActions) && (
-            <FloatingCompose onPress={openCompose} />
           )}
           {count > 0 && props.bulkActions && (
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-5">
