@@ -125,6 +125,7 @@ function ModuleSwitch({ large = false }: { large?: boolean }) {
               key={m.id}
               id={`module-${m.id}`}
               textValue={m.label}
+              className="pe-2"
               onAction={() => {
                 if (m.id === current) return;
                 press(m.id);
