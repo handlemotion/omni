@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.0](https://github.com/handlemotion/omni/compare/ios-v0.9.0...ios-v0.10.0) (2026-11-24)
+
+
+### Features
+
+* **ios:** compose as a full page with Back, inside the card above the rail ([#71](https://github.com/handlemotion/omni/issues/71)) ([69bdfb7](https://github.com/handlemotion/omni/commit/69bdfb75c0b5cf9e7eb36bf4fb28905a6213c446))
+* **ios:** floating navigation bar: module, main pages, main action; the chevron slides the page up ([#74](https://github.com/handlemotion/omni/issues/74)) ([7ef90ab](https://github.com/handlemotion/omni/commit/7ef90ab089ba15f3cc2fe7e0bf9d2012ef6f4b52))
+* **ios:** keep the module rail on every page, pushed pages included ([#68](https://github.com/handlemotion/omni/issues/68)) ([bcbd217](https://github.com/handlemotion/omni/commit/bcbd21743c2e2cfe57134eb988cfcc7642e082c0))
+* **ios:** our own floating sheet, inset with concentric corners, closing on a pull anywhere ([#69](https://github.com/handlemotion/omni/issues/69)) ([2788fc9](https://github.com/handlemotion/omni/commit/2788fc967b40b4ae3ed376e26c30a2c4b5145da8))
+* **ios:** pull the links down to close the rail, instant module switch, clean lockfile ([#76](https://github.com/handlemotion/omni/issues/76)) ([9eef346](https://github.com/handlemotion/omni/commit/9eef3461514c4fd14704fa9fd1c82f9181d4ec62))
+* **ios:** small title alone on top; workspace in the module rail, search beside the main action ([#73](https://github.com/handlemotion/omni/issues/73)) ([10d8dbc](https://github.com/handlemotion/omni/commit/10d8dbc9cc89f60bc6a5e706a017fb7ec0a0d08c))
+* **ios:** solid controls instead of Liquid Glass ([#72](https://github.com/handlemotion/omni/issues/72)) ([b301e99](https://github.com/handlemotion/omni/commit/b301e995e6a3aa4e5000c090d72141bc892bd838))
+* rename the product from Omni to Wok in everything people read ([#92](https://github.com/handlemotion/omni/issues/92)) ([973284a](https://github.com/handlemotion/omni/commit/973284a380d2b08d3906b15028df5a640c4424c3))
+
 ## [0.9.0](https://github.com/handlemotion/omni/compare/ios-v0.8.0...ios-v0.9.0) (2026-11-23)
 
 
