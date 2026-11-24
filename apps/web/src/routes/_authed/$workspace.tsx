@@ -125,7 +125,7 @@ function Shell() {
             {settings ? <SettingsNav /> : <AppSidebar />}
             <NotificationsPanel />
             <CommandMenu />
-            <SidebarInset className="min-w-0 md:mt-12 md:rounded-e-xl md:border-y md:border-e md:border-sidebar-border">
+            <SidebarInset className="min-w-0 md:mt-10 md:rounded-e-xl md:border-y md:border-e md:border-sidebar-border">
               <SidebarResizeGrip />
               <ModuleBoundary>
                 <Outlet />

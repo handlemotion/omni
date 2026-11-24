@@ -113,7 +113,7 @@ export function NotificationsPanel() {
   return (
     <div
       className={`pointer-events-none fixed bottom-0 end-0 z-30 flex justify-end overflow-hidden ${
-        isMobile ? "start-0 top-0" : "start-0 top-12"
+        isMobile ? "start-0 top-0" : "start-0 top-10"
       }`}
     >
       <aside

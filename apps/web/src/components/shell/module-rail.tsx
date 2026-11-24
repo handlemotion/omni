@@ -39,6 +39,7 @@ import {
   WorkspaceSwitcher,
   type ModuleId,
 } from "./module-switcher";
+import { NotificationsButton } from "./notifications";
 import { UpdateTile } from "./update-row";
 
 const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
@@ -61,17 +62,16 @@ const PATHS: Record<ModuleId, string> = {
 
 /**
  * The white island's left part, floating on the shell's grey under the top rail: the rail of
- * modules (with Search, and your picture at its foot for settings) and, when open, the sidebar:
- * the module's name (Calendar goes without, its month is the title), its own pages, and the
- * workspace switcher at its foot.
+ * modules (your picture at its foot for settings) and, when open, the sidebar: a header in line
+ * with the page's own, the module's name (Calendar goes without, its month is the title) with
+ * notifications and Search at its end, then its own pages, and the workspace switcher at its foot.
  */
 export function RailSidebar({ title, children }: { title?: string; children: ReactNode }) {
   const { open } = useSidebar();
   return (
-    <div className="peer mt-12 flex shrink-0 overflow-hidden rounded-s-xl border-y border-s border-sidebar-border bg-background">
-      <div className="flex w-13 shrink-0 flex-col items-center gap-1 border-e border-sidebar-border py-3">
+    <div className="peer mt-10 flex shrink-0 overflow-hidden rounded-s-xl border-y border-s border-sidebar-border bg-background">
+      <div className="flex w-13 shrink-0 flex-col items-center gap-1 border-e border-sidebar-border pt-2 pb-3">
         <ModuleTabs />
-        <SearchButton />
         <div className="mt-auto flex flex-col items-center gap-2">
           <UpdateTile className="size-8 rounded-lg px-0" />
           <SettingsButton />
@@ -84,7 +84,7 @@ export function RailSidebar({ title, children }: { title?: string; children: Rea
           data-state="expanded"
           className="h-auto border-e border-sidebar-border bg-background"
         >
-          <SidebarContent className="gap-3 p-3 *:shrink-0">
+          <SidebarContent className="gap-3 px-3 pt-0 pb-3 *:shrink-0">
             <SidebarTitle title={title} />
             {children}
             <div className="mt-auto">
@@ -102,8 +102,13 @@ function SidebarTitle({ title }: { title?: string }) {
   const module = usePressedModule();
   const name =
     title ?? (module === "calendar" ? undefined : modules.find((m) => m.id === module)?.label);
-  if (!name) return null;
-  return <h2 className="-mb-1 flex h-7 items-center px-2 text-md">{name}</h2>;
+  return (
+    <div className="-mb-3 flex h-12 items-center gap-0.5 ps-2">
+      <h2 className="min-w-0 flex-1 truncate text-md">{name}</h2>
+      <NotificationsButton />
+      <SearchButton />
+    </div>
+  );
 }
 
 function ModuleTabs() {
