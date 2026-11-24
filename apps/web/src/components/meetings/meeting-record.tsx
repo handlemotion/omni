@@ -28,7 +28,7 @@ export function MeetingRecord(props: { meeting: Meeting; canEdit: boolean }) {
   return (
     <>
       <dt className="text-muted-foreground">Record</dt>
-      <dd className="flex min-h-8 min-w-0 items-center gap-3">
+      <dd className="flex min-h-7 min-w-0 items-center gap-3">
         <Records {...props} />
       </dd>
     </>

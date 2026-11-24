@@ -89,7 +89,7 @@ export function MeetingTranscript(props: { meeting: Meeting; canRename: boolean 
                     {meetingClock(turn.segments[0]!.startMs)}
                   </span>
                 </div>
-                <p className="font-mono text-sm/7 text-foreground">
+                <p className="text-sm/6 text-foreground">
                   {turn.segments.map((segment) => (
                     <Segment key={segment.seq} segment={segment} fill={speaker.fill} />
                   ))}

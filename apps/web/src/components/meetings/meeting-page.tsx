@@ -35,7 +35,7 @@ import { Link } from "@/components/ui/link";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { ActionItem } from "./meeting-actions.tsx";
 import { Card, PeopleCard, PlaybackCard, TimelineCard } from "./meeting-aside.tsx";
-import { MeetingAudio, PlayerRow, usePlayer } from "./meeting-player.tsx";
+import { MeetingAudio, usePlayer } from "./meeting-player.tsx";
 import { ShareMeetingDialog } from "./meeting-share.tsx";
 import { MeetingTranscript } from "./meeting-transcript.tsx";
 
@@ -76,57 +76,58 @@ export function MeetingPage({ id }: { id: string }) {
     >
       <MeetingAudio id={id} hasAudio={m.hasAudio} durationMs={m.durationMs}>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="flex flex-col gap-8 px-10 pt-10 pb-16 lg:flex-row lg:items-start">
-            <article className="flex max-w-3xl min-w-0 flex-1 flex-col gap-6">
-              <header className="flex flex-col gap-3">
-                <h1 className="text-2xl text-foreground">{m.title ?? "Untitled meeting"}</h1>
-                <MetaRow meeting={data} />
-              </header>
-              <Progress meeting={data} />
-              <Tabs
-                className="w-full"
-                selectedKey={tab}
-                onSelectionChange={(key) => setTab(key === "transcript" ? "transcript" : "summary")}
-              >
-                <TabList
-                  aria-label="Meeting"
-                  className="sticky top-0 z-10 bg-background pt-1.5 [--tab-list-pb:--spacing(1.5)]"
-                >
-                  <Tab id="summary">Summary</Tab>
-                  <Tab id="transcript">Transcript</Tab>
-                </TabList>
-                <TabPanel id="summary" className="flex flex-col gap-8 pt-6">
+          <header className="flex max-w-3xl flex-col gap-3 px-10 pt-6 pb-6">
+            <h1 className="text-2xl text-foreground">{m.title ?? "Untitled meeting"}</h1>
+            <MetaRow meeting={data} />
+            <Progress meeting={data} />
+          </header>
+          <Tabs
+            className="w-full"
+            selectedKey={tab}
+            onSelectionChange={(key) => setTab(key === "transcript" ? "transcript" : "summary")}
+          >
+            <TabList
+              aria-label="Meeting"
+              className="sticky top-0 z-10 bg-background px-10 pt-1.5 [--tab-list-pb:--spacing(1.5)]"
+            >
+              <Tab id="summary">Summary</Tab>
+              <Tab id="transcript">Transcript</Tab>
+            </TabList>
+            <div className="flex flex-col gap-8 px-10 pt-6 pb-16 lg:flex-row lg:items-start">
+              <div className="flex max-w-3xl min-w-0 flex-1 flex-col">
+                <TabPanel id="summary" className="flex flex-col gap-8">
                   <Summary meeting={data} canDecide={editor} />
                 </TabPanel>
-                <TabPanel id="transcript" className="flex flex-col pt-6">
+                <TabPanel id="transcript" className="flex flex-col">
                   {m.status === "ready" ? (
                     <MeetingTranscript meeting={data} canRename={editor} />
                   ) : (
                     <Quiet>–</Quiet>
                   )}
                 </TabPanel>
-              </Tabs>
-            </article>
-            <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-6 lg:w-80">
-              {tab === "transcript" ? (
-                <>
-                  <PlaybackCard meeting={data} />
-                  <TimelineCard meeting={data} />
-                </>
-              ) : (
-                <>
-                  <PeopleCard meeting={data} />
-                  <Card>
-                    <Properties
-                      meeting={data}
-                      onShare={editor ? () => setSharing(true) : undefined}
-                      canEdit={editor}
-                    />
-                  </Card>
-                </>
-              )}
-            </aside>
-          </div>
+              </div>
+              <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-16 lg:w-80">
+                {tab === "transcript" ? (
+                  <>
+                    <PlaybackCard meeting={data} />
+                    <TimelineCard meeting={data} />
+                  </>
+                ) : (
+                  <>
+                    <PlaybackCard meeting={data} />
+                    <PeopleCard meeting={data} />
+                    <Card className="pt-[7px]">
+                      <Properties
+                        meeting={data}
+                        onShare={editor ? () => setSharing(true) : undefined}
+                        canEdit={editor}
+                      />
+                    </Card>
+                  </>
+                )}
+              </aside>
+            </div>
+          </Tabs>
         </div>
       </MeetingAudio>
       {sharing && <ShareMeetingDialog meeting={data} onClose={() => setSharing(false)} />}
@@ -204,7 +205,6 @@ function Properties(props: {
   onShare: (() => void) | undefined;
   canEdit: boolean;
 }) {
-  const player = usePlayer();
   const names = new Map(props.meeting.attendees.map((a) => [a.address, a.name]));
   const people = (props.meeting.sharing?.grants ?? []).map((g) => ({
     address: g.address,
@@ -212,12 +212,7 @@ function Properties(props: {
   }));
   const workspace = props.meeting.sharing?.access === "workspace";
   return (
-    <dl className="grid grid-cols-[5rem_1fr] items-center gap-x-3 gap-y-3 text-sm">
-      {player.hasAudio && (
-        <Property label="Audio">
-          <PlayerRow />
-        </Property>
-      )}
+    <dl className="grid grid-cols-[5rem_1fr] items-center gap-x-3 gap-y-2 text-sm leading-4">
       {props.meeting.sharing && (
         <Property label="Shared with">
           <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -239,7 +234,7 @@ function Properties(props: {
               ].join(", ")}
             </span>
             {props.onShare && (
-              <Button intent="plain" size="sm" onPress={props.onShare} className="ms-auto">
+              <Button intent="plain" size="sm" onPress={props.onShare} className="ms-auto -me-2">
                 Manage
               </Button>
             )}
@@ -255,7 +250,7 @@ function Property(props: { label: string; children: ReactNode }) {
   return (
     <>
       <dt className="text-muted-foreground">{props.label}</dt>
-      <dd className="flex min-h-8 min-w-0 items-center">{props.children}</dd>
+      <dd className="flex min-h-7 min-w-0 items-center">{props.children}</dd>
     </>
   );
 }

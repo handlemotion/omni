@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { IconMicrophone, IconStop } from "@/components/icons/central";
+import { IconMicrophoneFilled, IconStop } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { DesktopRecordingRequest } from "@omni/client";
@@ -110,7 +110,7 @@ export function RecordButton() {
       isPending={recorder.phase === "starting" || recorder.phase === "stopping"}
       onPress={recorder.ask}
     >
-      <IconMicrophone />
+      <IconMicrophoneFilled />
       Record
     </Button>
   );

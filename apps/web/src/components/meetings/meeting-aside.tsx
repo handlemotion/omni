@@ -10,10 +10,18 @@ import { initial, meetingSpeakers, talkLength, UNKNOWN, type Speaker } from "./m
 
 const BARS = 96;
 
-export function Card(props: { title?: string; children: ReactNode }) {
+/**
+ * A panel card: 16px from its border to the nearest letters or control edges on every side. The
+ * title's line box carries 3px over its capitals (Inter 13/16), so it starts 3px higher.
+ */
+export function Card(props: { title?: string; className?: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 rounded-xl border bg-background p-4">
-      {props.title && <h2 className="text-sm text-muted-foreground">{props.title}</h2>}
+    <section
+      className={`flex flex-col gap-3 rounded-xl border bg-background p-4 ${props.className ?? ""}`}
+    >
+      {props.title && (
+        <h2 className="-mt-[3px] text-sm leading-4 text-muted-foreground">{props.title}</h2>
+      )}
       {props.children}
     </section>
   );
@@ -25,11 +33,11 @@ export function PeopleCard({ meeting }: { meeting: Meeting }) {
   if (!meeting.talk.length) return null;
   return (
     <Card title="People">
-      <ul className="flex flex-col gap-2.5">
+      <ul className="flex flex-col gap-3">
         {meeting.talk.map((t) => {
           const speaker = speakers.get(t.label) ?? UNKNOWN;
           return (
-            <li key={t.label} className="flex items-center gap-2.5">
+            <li key={t.label} className="flex h-5 items-center gap-2">
               <SpeakerAvatar speaker={speaker} />
               <span className="min-w-0 flex-1 truncate text-sm">{speaker.name}</span>
               <span className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-secondary">
@@ -117,7 +125,7 @@ export function PlaybackCard({ meeting }: { meeting: Meeting }) {
   return (
     <Card>
       <Waveform id={meeting.meeting.id} />
-      <div className="flex items-center gap-3">
+      <div className="flex h-6 items-center gap-2">
         <Button
           intent="secondary"
           size="sq-xs"
@@ -151,15 +159,15 @@ export function TimelineCard({ meeting }: { meeting: Meeting }) {
           const turns = segments.filter((s) => s.speaker === t.label);
           const next = turns.find((s) => s.startMs > player.timeMs) ?? turns[0];
           return (
-            <li key={t.label} className="flex flex-col gap-1.5">
-              <div className="flex h-6 items-center gap-1.5">
+            <li key={t.label} className="flex flex-col gap-2">
+              <div className="flex h-5 items-center gap-2">
                 <Button
                   intent="plain"
                   size="sq-xs"
                   isDisabled={!player.hasAudio || !next}
                   aria-label={`Play ${speaker.name}`}
                   onPress={() => next && player.seek(next.startMs)}
-                  className="-ms-1"
+                  className="-ms-1.5 -me-0.5 size-5"
                 >
                   <IconPlayFilled />
                 </Button>
