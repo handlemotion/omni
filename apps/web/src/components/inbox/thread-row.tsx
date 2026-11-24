@@ -42,15 +42,7 @@ export function ThreadRow({
       textValue={`${sender} ${thread.subject}`}
       className={`mx-2.5 h-10 gap-3 rounded-lg px-3 selected:bg-primary-subtle **:data-[slot=indicator]:mix-blend-multiply ${isCurrent ? "bg-accent" : ""}`}
     >
-      <span className="relative flex w-[min(--spacing(36),25%)] shrink-0">
-        {thread.unread && (
-          <span
-            aria-label="Unread"
-            className="absolute -start-2.25 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-primary"
-          />
-        )}
-        <span className={`min-w-0 truncate ${tone}`}>{sender}</span>
-      </span>
+      <span className={`w-[min(--spacing(36),25%)] shrink-0 truncate ${tone}`}>{sender}</span>
       <SenderAvatar
         isSquare
         who={byAddress(thread.senderAddress)}
@@ -58,11 +50,12 @@ export function ThreadRow({
         className="shrink-0 bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(5)]"
       />
       <span className="ms-3 flex w-[min(--spacing(64),30%)] shrink-0 items-center gap-2 @max-4xl:min-w-0 @max-4xl:flex-1">
-        <span className={`min-w-0 flex-1 truncate ${tone}`}>
-          {thread.subject || "(no subject)"}
-        </span>
+        <span className={`min-w-0 truncate ${tone}`}>{thread.subject || "(no subject)"}</span>
+        {thread.unread && (
+          <span aria-label="Unread" className="size-1.5 shrink-0 rounded-full bg-primary" />
+        )}
         {(thread.count ?? 0) > 1 && (
-          <span className="shrink-0 text-xs text-subtle-foreground tabular-nums">
+          <span className="ms-auto shrink-0 text-xs text-subtle-foreground tabular-nums">
             {thread.count}
           </span>
         )}
