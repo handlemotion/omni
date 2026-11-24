@@ -37,6 +37,7 @@ import { usePreloadScreens } from "../../hooks/use-preload-screens.ts";
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
 import { useThreadInItsWorkspace, useWarmWorkspaces } from "../../hooks/use-workspaces.ts";
 import { billingQuery } from "../../lib/billing.ts";
+import { desktop } from "../../lib/desktop.ts";
 import { currentWorkspaceId } from "../../lib/current-workspace.ts";
 import { requireMember, requireUser } from "../../lib/guards.ts";
 import { allMailboxesQuery, countsQuery, mailboxesQuery } from "../../lib/mail-queries.ts";
@@ -125,7 +126,9 @@ function Shell() {
             {settings ? <SettingsNav /> : <AppSidebar />}
             <NotificationsPanel />
             <CommandMenu />
-            <SidebarInset className="min-w-0 md:mt-12 md:rounded-tr-2xl md:border-t md:border-e md:border-sidebar-border">
+            <SidebarInset
+              className={`min-w-0 md:border-s md:border-sidebar-border ${desktop.isDesktop ? "md:mt-12 md:border-t" : ""}`}
+            >
               <SidebarResizeGrip />
               <ModuleBoundary>
                 <Outlet />

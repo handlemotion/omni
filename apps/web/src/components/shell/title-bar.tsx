@@ -12,15 +12,21 @@ import { PageTabs } from "./page-tabs";
 import { useWindowControls } from "./window-controls";
 
 /**
- * The top rail, on the shell's grey over the white island (not on a phone). Its left edge holds
- * the sidebar toggle (past the traffic lights in the desktop app) and the workspace switcher; its middle the open pages as tabs; its right edge who is online now and
+ * The top rail, in the desktop app only (a browser goes without it, and so without page tabs), on
+ * the shell's grey over the rails and the page. Its left edge holds the sidebar toggle (past the
+ * traffic lights) and the back and forward arrows; its middle the open pages as tabs; its right edge who is online now and
  * notifications (and, on Windows, room for the window controls past them).
  */
 export function TitleBar() {
-  const { isMobile, open, toggleSidebar } = useSidebar();
+  const { isMobile } = useSidebar();
+  if (isMobile || !desktop.isDesktop) return null;
+  return <DesktopTitleBar />;
+}
+
+function DesktopTitleBar() {
+  const { open, toggleSidebar } = useSidebar();
   const controls = useWindowControls();
   usePageTabsSync();
-  if (isMobile) return null;
   const menu = contextMenuProps((target) =>
     target.closest("button, a, [role=group], [role=tab]")
       ? null
@@ -51,7 +57,7 @@ export function TitleBar() {
           </SidebarTrigger>
           <Tooltip>{open ? "Close sidebar" : "Open sidebar"}</Tooltip>
         </TooltipTrigger>
-        {desktop.isDesktop && <NavArrows />}
+        <NavArrows />
       </span>
       <span className="flex min-w-0 justify-self-center">
         <PageTabs />

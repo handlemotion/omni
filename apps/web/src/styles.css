@@ -64,16 +64,15 @@
   --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
-  /* A grey fill a hair under the page's white (a step subtler than `surface`), so the sidebar
-     reads apart from the content beside its hairline border. */
-  --sidebar: #fefefe;
-  /* The window around the content card (title bar and module rail): hover fills on it use
+  /* The sidebar sits on the shell's warm grey, beside the white page. */
+  --sidebar: var(--shell);
+  /* The window around the white page (top rail, icon rail, sidebar): hover fills on it use
      `secondary`. */
-  --shell: #f5f5f5;
+  --shell: #f7f7f3;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);
-  --sidebar-accent: var(--accent);
+  --sidebar-accent: #ededea; /* The current item on the shell's warm grey. */
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
