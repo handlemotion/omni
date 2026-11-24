@@ -25,12 +25,12 @@ import { placeKey } from "./node-drag.tsx";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { canEditFile, isDoc } from "./editor/document-editor.tsx";
-import { ViewToggle } from "./file-sections.tsx";
-import { FolderBody, folderIsEmpty, HeaderActions } from "./folder-body.tsx";
+import { FolderBody, folderIsEmpty } from "./folder-body.tsx";
+import { FolderActions, FolderBottomBar, FolderPane } from "./folder-bars.tsx";
 import { useFolderContextMenus, useNewFolderRequest } from "./folder-context.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
 import { useWarmNeighbors } from "./preview/warm-preview.ts";
-import { SelectionBar, useBulkTrash } from "./selection-bar.tsx";
+import { useBulkTrash } from "./selection-bar.tsx";
 import { ShareDialog } from "./share-dialog.tsx";
 import { SignaturesDialog } from "./signatures-dialog.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
@@ -98,6 +98,11 @@ export function FolderView(props: {
   source: FolderSource;
   /** More of the header's actions, before New folder and Upload (a CRM record's Add from Drive). */
   actions?: ReactNode;
+  /**
+   * `bottom`: no header; the actions and Upload sit in a bar under the files, after the trail,
+   * as a CRM record's tabs end (its Files tab).
+   */
+  bar?: "top" | "bottom";
 }) {
   const { source } = props;
   const shell = props.sidebar !== false;
@@ -162,6 +167,24 @@ export function FolderView(props: {
   const rowRef = useRef<HTMLDivElement>(null);
   const folderRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
+  const body = (
+    <FolderBody
+      source={source}
+      selection={selection}
+      selectionMenu={context.selection}
+      background={context.background}
+      onKeyDown={selectionKeys}
+      menu={menu}
+      open={open}
+      drafts={drafts}
+      rename={rename}
+      extra={props.actions}
+      onNewFolder={folders.start}
+      onNewDoc={docs.make}
+      newDocPending={docs.making}
+      onFiles={send}
+    />
+  );
 
   return (
     <div
@@ -173,41 +196,43 @@ export function FolderView(props: {
           ref={folderRef}
           className={`flex min-w-0 flex-1 flex-col ${split || comments.node ? "min-w-80" : ""}`}
         >
-          <StorageFrame
-            title={props.title()}
-            sidebar={props.sidebar}
-            actions={
-              <FolderActions
-                extra={props.actions}
-                empty={folderIsEmpty(source, drafts)}
-                selection={selection}
-                source={source}
-                onNewFolder={folders.start}
-                onNewDoc={docs.make}
-                newDocPending={docs.making}
-                onFiles={send}
-                onMove={() => setMovingSelection(true)}
-              />
-            }
-          >
-            <FolderBody
-              source={source}
-              selection={selection}
-              selectionMenu={context.selection}
-              background={context.background}
-              onKeyDown={selectionKeys}
-              menu={menu}
-              open={open}
-              drafts={drafts}
-              rename={rename}
-              extra={props.actions}
-              onNewFolder={folders.start}
-              onNewDoc={docs.make}
-              newDocPending={docs.making}
-              onFiles={send}
-            />
-            <UploadsPanel />
-          </StorageFrame>
+          {props.bar === "bottom" ? (
+            <FolderPane
+              bar={
+                <FolderBottomBar
+                  trail={props.title()}
+                  actions={props.actions}
+                  selection={selection}
+                  source={source}
+                  onFiles={send}
+                  onMove={() => setMovingSelection(true)}
+                />
+              }
+            >
+              {body}
+            </FolderPane>
+          ) : (
+            <StorageFrame
+              title={props.title()}
+              sidebar={props.sidebar}
+              actions={
+                <FolderActions
+                  extra={props.actions}
+                  empty={folderIsEmpty(source, drafts)}
+                  selection={selection}
+                  source={source}
+                  onNewFolder={folders.start}
+                  onNewDoc={docs.make}
+                  newDocPending={docs.making}
+                  onFiles={send}
+                  onMove={() => setMovingSelection(true)}
+                />
+              }
+            >
+              {body}
+              <UploadsPanel />
+            </StorageFrame>
+          )}
         </div>
       )}
       {node && (
@@ -427,46 +452,6 @@ function useSelectionKeys(selection: NodeSelection, source: FolderSource) {
     }
     event.preventDefault();
   };
-}
-
-function FolderActions(props: {
-  extra: ReactNode;
-  empty: boolean;
-  selection: NodeSelection;
-  source: FolderSource;
-  onNewFolder: () => void;
-  onNewDoc: (() => void) | undefined;
-  newDocPending: boolean;
-  onFiles: (files: File[] | Picked) => void;
-  onMove: () => void;
-}) {
-  const { selection, source } = props;
-  if (!selection.active) {
-    if (props.empty) return null;
-    return (
-      <>
-        <ViewToggle />
-        {props.extra}
-        <HeaderActions
-          canWrite={source.canWrite}
-          onNewFolder={props.onNewFolder}
-          onNewDoc={props.onNewDoc}
-          newDocPending={props.newDocPending}
-          onFiles={props.onFiles}
-        />
-      </>
-    );
-  }
-  return (
-    <SelectionBar
-      selection={selection}
-      shareId={source.shareId}
-      canMove={source.canWrite}
-      canDownload={!!source.download}
-      canTrash={source.canTrash}
-      onMove={props.onMove}
-    />
-  );
 }
 
 function MoveSelection(props: {

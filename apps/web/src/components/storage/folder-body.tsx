@@ -28,6 +28,7 @@ import type { StorageNode } from "@/lib/storage.ts";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { FileSections, FileSectionsBones, type Drafts } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
+import { useInPane } from "./in-pane.ts";
 import { NodeMenu } from "./node-menu.tsx";
 import { dropOperation, placeKey, useDropInto, useRoomDrop, type NodeDrag } from "./node-drag.tsx";
 
@@ -154,6 +155,7 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
   const { source, open } = props;
   const { list } = source;
   const { select } = open;
+  const inPane = useInPane();
   const selected = useMemo(
     () => ({ id: open.id, onChange: (id: string | null) => select(id) }),
     [open.id, select],
@@ -176,8 +178,8 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
     return (
       <NodeMenu nodes={list.nodes} menu={props.menu} background={props.background}>
         <EmptyState figure="drawer" {...source.empty}>
-          {props.extra}
-          <HeaderActions {...props} canWrite={source.canWrite} />
+          {!inPane && props.extra}
+          {!inPane && <HeaderActions {...props} canWrite={source.canWrite} />}
         </EmptyState>
       </NodeMenu>
     );

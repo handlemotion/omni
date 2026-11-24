@@ -55,6 +55,8 @@ function CrmLists({ mailbox }: { mailbox: string | undefined }) {
   const navigate = useNavigate();
   const creating = useCreating();
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
+  const { deals } = useCrmDeals(PROJECTS, { all: true });
+  const ownRow = deals.some((deal) => pathname === `${CRM_LISTS.deals.path}/${deal.id}`);
   return (
     <>
       {ROWS.map(({ list, icon, creates }) => {
@@ -74,7 +76,7 @@ function CrmLists({ mailbox }: { mailbox: string | undefined }) {
               href={href}
               isCurrent={
                 under(pathname, path) ||
-                (list === "projects" && under(pathname, CRM_LISTS.deals.path))
+                (list === "projects" && under(pathname, CRM_LISTS.deals.path) && !ownRow)
               }
               tooltip={label}
             >

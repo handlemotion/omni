@@ -19,7 +19,8 @@ import type { InlineRename } from "@/hooks/use-inline-rename.ts";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
 import { useStorageView, type StorageView } from "@/hooks/use-storage-view.ts";
 import { type StorageNode } from "@/lib/storage.ts";
-import { CARDS_LAYOUT, CardsLayout } from "./cards-layout.ts";
+import { CARDS_LAYOUT, CardsLayout, COMPACT_CARDS_LAYOUT } from "./cards-layout.ts";
+import { useInPane } from "./in-pane.ts";
 import { FileCard, FileCardBones, KEEP_IN_MENU } from "./file-card.tsx";
 import { NodeName, type ItemName } from "./name-field.tsx";
 import { DraftCard, DraftRow, type DraftHandlers } from "./folder-draft.tsx";
@@ -213,6 +214,7 @@ function Items(props: {
     : nodes;
   const top = useRevealDraft(drafts.find((d) => d.step === "naming")?.key);
   const shifting = useShifting();
+  const compact = useInPane();
   const renaming = props.rename?.renaming;
   const named =
     renaming?.at === "list" && props.nodes.some((n) => n.id === renaming.id) ? renaming : null;
@@ -231,10 +233,11 @@ function Items(props: {
     ...(typing ? { keyboardNavigationBehavior: "tab" as const } : {}),
   };
   if (props.view === "cards") {
+    const cards = compact ? COMPACT_CARDS_LAYOUT : CARDS_LAYOUT;
     return (
       <>
         {top}
-        <Virtualizer layout={CardsLayout} layoutOptions={CARDS_LAYOUT}>
+        <Virtualizer layout={CardsLayout} layoutOptions={cards}>
           <GridList {...list} layout="grid" className={`bg-transparent ${shifting}`}>
             {(node) =>
               "gap" in node ? (

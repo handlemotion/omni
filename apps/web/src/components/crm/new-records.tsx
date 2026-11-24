@@ -253,7 +253,7 @@ export function CompanyValue(props: {
           plain
           autoComplete="off"
           placeholder="–"
-          className="h-8 w-full truncate rounded-md px-2 hover:bg-hover focus:bg-hover"
+          className="h-8 w-full truncate rounded-md ps-2 pe-8 hover:bg-hover focus:bg-hover"
           onBlur={() => setText(null)}
         />
         <ComboBoxContent items={companies}>

@@ -8,7 +8,6 @@ import {
 import { cn } from "cn";
 import { tv } from "tailwind-variants";
 import { cx } from "@/lib/primitive";
-import { useInPageBar } from "./button";
 
 export type ToggleSize = "xs" | "sm" | "md" | "lg" | "sq-xs" | "sq-sm" | "sq-md" | "sq-lg";
 
@@ -30,10 +29,7 @@ const useToggleGroupContext = () => use(ToggleGroupContext);
 export interface ToggleGroupProps extends ToggleButtonGroupProps {
   size?: ToggleSize;
   isCircle?: boolean;
-  /**
-   * Icons only, with no track: the chosen option keeps a faint border and its icon at full ink,
-   * the others are dimmed. For a quiet switch beside a section's header.
-   */
+  /** Kept for callers; every group now draws the same, with no track. */
   bare?: boolean;
 }
 
@@ -42,12 +38,10 @@ export function ToggleGroup({
   orientation = "horizontal",
   selectionMode = "single",
   isCircle,
-  bare,
+  bare: _bare,
   className,
   ...props
 }: ToggleGroupProps) {
-  const inBar = useInPageBar();
-  const quiet = bare && !inBar;
   return (
     <ToggleGroupContext.Provider value={{ size, selectionMode, orientation }}>
       <ToggleButtonGroup
@@ -57,14 +51,12 @@ export function ToggleGroup({
         className={cx(
           [
             "[--toggle-group-radius:var(--radius-lg)] [--toggle-gutter:--spacing(0.5)]",
-            "[--toggle-foreground:var(--color-foreground)] [--toggle-selected-bg:var(--color-background)] [--toggle-selected-foreground:var(--color-foreground)]",
+            "[--toggle-foreground:var(--color-muted-foreground)] [--toggle-selected-bg:var(--color-accent)] [--toggle-selected-foreground:var(--color-foreground)]",
             "[--toggle-focused-bg:transparent] [--toggle-focused-foreground:var(--color-foreground)]",
-            "[--toggle-hover-bg:transparent] [--toggle-hover-foreground:var(--color-foreground)]",
+            "[--toggle-hover-bg:var(--color-hover)] [--toggle-hover-foreground:var(--color-foreground)]",
             "[--btn-icon:var(--color-muted-foreground)] [--btn-icon-active:var(--color-foreground)]",
             "inline-flex overflow-hidden p-(--toggle-gutter)",
-            quiet
-              ? "[--toggle-selected-bg:transparent] *:data-[slot=toggle-group-item]:selected:inset-ring *:data-[slot=toggle-group-item]:selected:inset-ring-border"
-              : "bg-accent",
+            "*:data-[slot=toggle-group-item]:selected:inset-ring *:data-[slot=toggle-group-item]:selected:inset-ring-border",
             orientation === "horizontal" ? "flex-row" : "flex-col",
             selectionMode === "single" ? "gap-(--toggle-gutter)" : "gap-0",
             isCircle ? "rounded-full" : "rounded-(--toggle-group-radius)",
