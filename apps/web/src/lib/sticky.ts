@@ -131,7 +131,10 @@ const POINTER = "(hover: hover) and (pointer: fine)";
 
 const SAMPLES = 48;
 
-export const keyframes = ({ into, outof, travel, at }: Curve) => {
+export const keyframes = (
+  { into, outof, travel, at }: Curve,
+  write = (y: number) => `0 ${y}px`,
+) => {
   const [a, b] = [into[0], outof[1]];
   const xs = new Set([a, 0, into[1], outof[0], travel, b]);
 
@@ -142,8 +145,23 @@ export const keyframes = ({ into, outof, travel, at }: Curve) => {
   return [...xs]
     .filter((x) => x >= a && x <= b)
     .sort((u, v) => u - v)
-    .map((x) => ({ offset: (x - a) / (b - a), translate: `0 ${at(x)}px` }));
+    .map((x) => ({ offset: (x - a) / (b - a), translate: write(at(x)) }));
 };
+
+const COVER = "data-sticky-cover";
+
+const lift = (y: number) => `0 ${-Math.max(0, y)}px`;
+
+const coverStyles = () => {
+  if (document.getElementById(COVER)) return;
+  const style = document.createElement("style");
+  style.id = COVER;
+  style.textContent = `[${COVER}]::before{content:"";position:absolute;inset:0;z-index:-1;background:inherit;pointer-events:none;translate:0 calc(-1 * var(--sticky-cover, 0px))}`;
+  document.head.append(style);
+};
+
+const canCover = (el: HTMLElement) =>
+  el.hasAttribute(COVER) || getComputedStyle(el, "::before").content === "none";
 
 const raf = (fn: () => void) => {
   let id = requestAnimationFrame(function loop() {
@@ -200,6 +218,7 @@ const one = (
   let c: Curve | null = null;
   let engage = 0;
   let anim: Animation | null = null;
+  let cover: Animation | null = null;
   let untick: (() => void) | null = null;
   let frozen = false;
   let scroller: HTMLElement | null = null;
@@ -209,10 +228,14 @@ const one = (
   const stop = () => {
     anim?.cancel();
     anim = null;
+    cover?.cancel();
+    cover = null;
     untick?.();
     untick = null;
     built = null;
     el.style.translate = "";
+    el.style.removeProperty("--sticky-cover");
+    el.removeAttribute(COVER);
   };
 
   const offset = () => parseFloat(getComputedStyle(el).translate.split(" ")[1] ?? "") || 0;
@@ -241,7 +264,7 @@ const one = (
     const engage = flow.top - p.top - top;
     const travel = Math.max(0, floor - flow.bottom - parseFloat(s.marginBottom));
     const span = distance * view.height;
-    const lead = top > 0 ? view.scroll + flow.top - view.top - top : 0;
+    const lead = view.scroll + flow.top - view.top - top;
 
     return {
       engage,
@@ -275,6 +298,12 @@ const one = (
 
     built = next.from;
 
+    const covered = into[1] > into[0] && canCover(el);
+    if (covered) {
+      coverStyles();
+      el.setAttribute(COVER, "");
+    }
+
     if (timeline) {
       const options: RangeOptions = {
         timeline,
@@ -285,6 +314,8 @@ const one = (
       };
 
       anim = el.animate(keyframes(next.curve), options);
+      if (covered)
+        cover = el.animate(keyframes(next.curve, lift), { ...options, pseudoElement: "::before" });
       return;
     }
 
@@ -296,6 +327,7 @@ const one = (
 
       last = y;
       el.style.translate = y ? `0 ${y}px` : "";
+      if (covered) el.style.setProperty("--sticky-cover", `${Math.max(0, y)}px`);
     };
 
     let off: (() => void) | null = ticker(tick);
@@ -332,6 +364,8 @@ const one = (
       anim.cancel();
       anim = null;
     }
+    cover?.cancel();
+    cover = null;
 
     untick?.();
     untick = null;
@@ -509,7 +543,7 @@ function all(first?: string | StickyOptions, second: StickyOptions = {}) {
  * @alpacka/sticky 0.2.1 (the `sticky` skill, github.com/jesperlandberg/alpacka),
  * forked to measure against the nearest scroll container instead of the root
  * scroller only, since every signed-in screen scrolls inside its own box.
- * A sticky flush with its scrollport's edge (`top: 0`) only eases out: landing,
- * it would trail its line and show the content scrolling past above it.
+ * While a sticky lands it trails its line, so a `::before` in its own
+ * background rises with it to cover the strip above.
  */
 export const sticky = Object.assign(one, { all });
