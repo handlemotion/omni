@@ -287,7 +287,7 @@ primitives, and add no text.
     holds account, workspace and connection settings, Invite, Upgrade and Log out.
   - **Who is online** (Talk) sits in each page's own header, before its actions: the inbox list,
     a thread, Drive, Clients and a client's record, Calendar, Meetings. With panes side by side
-    (a thread open beside the list) only the rightmost header shows it.
+    (a thread open beside the list) only the leftmost header shows it.
 - On a phone the sidebar is the sheet it was, with the workspace switcher in its top row and the
   module switcher at its foot.
 - `⌘[` / `⌘]` (`Alt+←` / `Alt+→` on Windows) go back and forward; `⌘,` opens Settings; `⌘N`

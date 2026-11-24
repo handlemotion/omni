@@ -3,7 +3,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   useEffect,
   useLayoutEffect,
-  useState,
+  useRef,
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
@@ -174,31 +174,43 @@ export function PresenceStack() {
   );
 }
 
-const slots: symbol[] = [];
+const slots: HTMLElement[] = [];
 const slotListeners = new Set<() => void>();
 const changed = () => slotListeners.forEach((listener) => listener());
 const subscribeSlots = (listener: () => void) => {
   slotListeners.add(listener);
   return () => void slotListeners.delete(listener);
 };
+const byPage = (a: HTMLElement, b: HTMLElement) =>
+  a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
 
 /**
  * Who is online, in a page header's actions. With panes side by side (a thread open beside the
- * list) only the header mounted last, the rightmost, shows it, so the faces appear once and the
- * Talk window has one face to sit under. Not in a window narrower than a tablet, where Talk does
- * not count you as online either (`lib/realtime.ts`).
+ * list) only the header that comes first on the page, the leftmost, shows it, so the faces appear
+ * once and the Talk window has one face to sit under. Not in a window narrower than a tablet,
+ * where Talk does not count you as online either (`lib/realtime.ts`).
  */
 export function PagePresence() {
-  const [slot] = useState(() => Symbol("presence"));
+  const slot = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
-    slots.push(slot);
+    const el = slot.current;
+    if (!el) return;
+    slots.push(el);
+    slots.sort(byPage);
     changed();
     return () => {
-      slots.splice(slots.indexOf(slot), 1);
+      slots.splice(slots.indexOf(el), 1);
       changed();
     };
-  }, [slot]);
-  const shown = useSyncExternalStore(subscribeSlots, () => slots.at(-1) === slot);
+  }, []);
+  const shown = useSyncExternalStore(
+    subscribeSlots,
+    () => !!slot.current && slots[0] === slot.current,
+  );
   const narrow = useIsMobile();
-  return shown && !narrow ? <PresenceStack /> : null;
+  return (
+    <span ref={slot} className="contents">
+      {shown && !narrow && <PresenceStack />}
+    </span>
+  );
 }
