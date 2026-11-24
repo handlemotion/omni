@@ -58,8 +58,14 @@ test("a deal's Files tab uploads a large file into the deal's folder, previews i
   const { page, api } = await signedIn(member.id, org.id, org.slug);
 
   const deal = await api("POST", "/api/crm/deals", { name: "Website rebuild" });
-  const briefs = await api("POST", "/api/storage/folders", { space: "shared", name: "Briefs" });
-  await page.goto(new URL(`/${org.slug}/files/shared/${briefs.node.id}`, worker.url).toString());
+  const { teamspace } = await api("POST", "/api/storage/teamspaces", { name: "Marketing" });
+  const briefs = await api("POST", "/api/storage/folders", {
+    teamspaceId: teamspace.id,
+    name: "Briefs",
+  });
+  await page.goto(
+    new URL(`/${org.slug}/files/t/${teamspace.id}/${briefs.node.id}`, worker.url).toString(),
+  );
   await page.getByRole("button", { name: "Upload", exact: true }).first().waitFor();
   await page
     .locator("input[type=file]:not([webkitdirectory])")

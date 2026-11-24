@@ -74,11 +74,17 @@ async function sync(token: string, method: string, path: string, body?: unknown)
   return { status: response.status, body: (text ? JSON.parse(text) : null) as any };
 }
 
-async function drain(token: string, orgId: string, space: string, cursor?: string) {
+async function drain(
+  token: string,
+  orgId: string,
+  place: string | { teamspace: string },
+  cursor?: string,
+) {
+  const where = typeof place === "string" ? { space: place } : place;
   // oxlint-disable-next-line typescript/no-explicit-any -- test reads of JSON answers
   const changes: any[] = [];
   for (let page = 0; page < 50; page++) {
-    const query = new URLSearchParams({ space, limit: "2", ...(cursor ? { cursor } : {}) });
+    const query = new URLSearchParams({ ...where, limit: "2", ...(cursor ? { cursor } : {}) });
     const answer = await sync(token, "GET", `/${orgId}/changes?${query}`);
     expect(answer.status).toBe(200);
     changes.push(...answer.body.changes);
@@ -90,17 +96,36 @@ async function drain(token: string, orgId: string, space: string, cursor?: strin
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
-test("a sync token reaches the person's own drives and nothing else", async () => {
+test("a sync token reaches the person's own teamspaces and nothing else; My files and Shared are not listed", async () => {
   const acme = await stack.company(`acme-${randomUUID().slice(0, 6)}`);
   const other = await stack.company(`other-${randomUUID().slice(0, 6)}`);
   const ana = await stack.member(acme.id);
   const bo = await stack.member(acme.id);
   const outsider = await stack.member(other.id);
   await ensurePersonalSpace(stack.db, ana.userId);
-  const anas = await stack.upload(ana.jar, { space: "personal" }, "ana.txt", bytes("ana"));
-  const shared = await stack.upload(ana.jar, { space: "shared" }, "team.txt", bytes("team"));
-  const bos = await stack.upload(bo.jar, { space: "personal" }, "bo.txt", bytes("bo"));
-  const theirs = await stack.upload(outsider.jar, { space: "shared" }, "x.txt", bytes("x"));
+  const teamspace = async (person: typeof ana, name: string, open = false) => {
+    const made = await stack.api(person.jar, "POST", "/teamspaces", { name, private: !open });
+    expect(made.status).toBe(201);
+    return made.body.teamspace.id as string;
+  };
+  const anaSpace = await teamspace(ana, "Ana");
+  const teamSpace = await teamspace(ana, "Team", true);
+  const anas = await stack.upload(ana.jar, { teamspaceId: anaSpace }, "ana.txt", bytes("ana"));
+  const shared = await stack.upload(ana.jar, { teamspaceId: teamSpace }, "team.txt", bytes("t"));
+  await stack.upload(ana.jar, { space: "personal" }, "hidden.txt", bytes("h"));
+  await stack.upload(ana.jar, { space: "shared" }, "legacy.txt", bytes("l"));
+  const bos = await stack.upload(
+    bo.jar,
+    { teamspaceId: await teamspace(bo, "Bo") },
+    "bo.txt",
+    bytes("bo"),
+  );
+  const theirs = await stack.upload(
+    outsider.jar,
+    { teamspaceId: await teamspace(outsider, "Theirs", true) },
+    "x.txt",
+    bytes("x"),
+  );
   const picked = await fetch(at("/api/oauth/workspace"), {
     method: "POST",
     headers: { cookie: ana.jar.header, "content-type": "application/json" },
@@ -112,25 +137,25 @@ test("a sync token reaches the person's own drives and nothing else", async () =
   const drives = await sync(token, "GET", "/drives");
   expect(drives.status).toBe(200);
   expect(drives.body.workspaces).toHaveLength(2);
-  expect(drives.body.workspaces).toContainEqual({
-    orgId: acme.id,
-    name: acme.name,
-    drives: [
-      { space: "personal", revision: anas.revision },
-      { space: "shared", revision: shared.revision },
-    ],
-    teamspaces: [],
-  });
+  const listed = drives.body.workspaces.find((w: { orgId: string }) => w.orgId === acme.id);
+  expect(listed).toMatchObject({ orgId: acme.id, name: acme.name, drives: [] });
+  expect(
+    (listed.teamspaces as { id: string; revision: number }[]).toSorted((a, b) =>
+      a.id.localeCompare(b.id),
+    ),
+  ).toEqual(
+    [
+      { id: anaSpace, name: "Ana", revision: anas.revision },
+      { id: teamSpace, name: "Team", revision: shared.revision },
+    ].toSorted((a, b) => a.id.localeCompare(b.id)),
+  );
   const own = drives.body.workspaces.find((w: { orgId: string }) => w.orgId !== acme.id);
-  expect(own.drives).toEqual([
-    { space: "personal", revision: 0 },
-    { space: "shared", revision: 0 },
-  ]);
+  expect(own.drives).toEqual([]);
   expect(own.orgId).not.toBe(other.id);
 
-  const mine = await drain(token, acme.id, "personal");
+  const mine = await drain(token, acme.id, { teamspace: anaSpace });
   expect(mine.changes.map((change) => change.node.name)).toEqual(["ana.txt"]);
-  const team = await drain(token, acme.id, "shared");
+  const team = await drain(token, acme.id, { teamspace: teamSpace });
   expect(team.changes.map((change) => change.node.name)).toEqual(["team.txt"]);
 
   expect((await sync(token, "GET", `/${acme.id}/nodes/${bos.id}`)).status).toBe(404);
@@ -138,7 +163,7 @@ test("a sync token reaches the person's own drives and nothing else", async () =
   const rename = await sync(token, "PATCH", `/${acme.id}/nodes/${bos.id}`, { name: "mine.txt" });
   expect(rename.status).toBe(404);
   const elsewhere = [
-    `/${other.id}/changes?space=shared`,
+    `/${other.id}/changes?teamspace=${theirs.teamspaceId}`,
     `/${other.id}/nodes/${theirs.id}`,
     `/${other.id}/files/${theirs.id}/content`,
     `/${acme.id}/nodes/${theirs.id}`,

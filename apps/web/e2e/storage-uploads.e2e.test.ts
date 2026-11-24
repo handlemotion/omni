@@ -18,6 +18,7 @@ import {
   SYSTEM_MAIL_FROM,
   type TestDb,
 } from "../../worker/e2e/support.ts";
+import { openSpace } from "./spaces.ts";
 
 const PART = 16 * 1024 * 1024;
 
@@ -114,7 +115,8 @@ const uploadReady = (page: Page) =>
   page.getByRole("button", { name: "Upload", exact: true }).first().waitFor({ timeout: 15_000 });
 
 test("500 small files upload with at most 6 requests open at once and one listing refetch", async () => {
-  const page = await signedIn(`many-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`many-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await uploadReady(page);
   await page.waitForLoadState("networkidle");
   const { seen, reset } = watch(page);
@@ -148,7 +150,8 @@ test("500 small files upload with at most 6 requests open at once and one listin
 });
 
 test("a folder tree picked or dropped is made again, empty folders too, files in place", async () => {
-  const page = await signedIn(`tree-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`tree-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await uploadReady(page);
   const tag = `tree${Date.now()}`;
   const root = join(scratch, tag);
@@ -203,7 +206,8 @@ test("a folder tree picked or dropped is made again, empty folders too, files in
 });
 
 test("after a reload, picking the same file again sends only the parts the server lacks", async () => {
-  const page = await signedIn(`resume-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`resume-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await uploadReady(page);
   const name = `resume${Date.now()}.bin`;
   const path = join(scratch, name);
@@ -236,7 +240,8 @@ test("after a reload, picking the same file again sends only the parts the serve
 });
 
 test("an upload that loses the network for 30 s finishes on its own once it is back", async () => {
-  const page = await signedIn(`offline-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`offline-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await uploadReady(page);
   const name = `offline${Date.now()}.bin`;
   const size = 3 * PART;

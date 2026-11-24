@@ -24,8 +24,16 @@ function board(ops: CanvasOp[]) {
   return sceneToJson(made.scene);
 }
 
-const canvas = (person: Person, place: { space: "personal" | "shared" }, json: string) =>
+type Place = { space: "personal" | "shared" } | { teamspaceId: string };
+
+const canvas = (person: Person, place: Place, json: string) =>
   stack.upload(person.jar, place, "Roof repair", bytes(json), CANVAS_TYPE);
+
+async function teamspace(person: Person, name: string, open = false) {
+  const made = await stack.api(person.jar, "POST", "/teamspaces", { name, private: !open });
+  expect(made.status).toBe(201);
+  return { teamspaceId: (made.body.teamspace as { id: string }).id };
+}
 
 async function textOf(nodeId: string) {
   for (let run = 0; run < 3; run++) expect(await stack.cron("* * * * *")).toBe("ok");
@@ -45,7 +53,8 @@ test("a canvas is found by the words on it, never by its JSON, and a broken one 
     { op: "add", kind: "sticky", text: `Call the ${word}`, parent: "plan", ref: "call" },
     { op: "add", kind: "sticky", text: "Order tiles", place: { near: "call", side: "right" } },
   ]);
-  const made = await canvas(ana, { space: "shared" }, json);
+  const team = await teamspace(ana, "Team", true);
+  const made = await canvas(ana, team, json);
   expect(made).toMatchObject({ name: "Roof repair", mimeType: CANVAS_TYPE });
 
   expect(await textOf(made.id)).toMatchObject({
@@ -64,7 +73,7 @@ test("a canvas is found by the words on it, never by its JSON, and a broken one 
 
   const broken = await stack.upload(
     ana.jar,
-    { space: "shared" },
+    team,
     "Broken board",
     bytes('{"omni":"canvas","v":1,"elements":[{"id":"a","kind":"sticky","text":"no box"}]}'),
     CANVAS_TYPE,
@@ -137,7 +146,7 @@ test("a tile of a file the reader cannot open names nothing, and no one can put 
   const beas = await connectAgent(stack.worker.url, bea.jar, scope);
   const secret = await stack.upload(
     ana.jar,
-    { space: "personal" },
+    await teamspace(ana, "Ana"),
     "Secret salaries.pdf",
     bytes("%PDF-1.4"),
     "application/pdf",
@@ -146,7 +155,7 @@ test("a tile of a file the reader cannot open names nothing, and no one can put 
     name: "drive_create_canvas",
     arguments: {
       name: "Budget",
-      space: "shared",
+      teamspace_id: (await teamspace(ana, "Team", true)).teamspaceId,
       ops: [{ op: "add", kind: "file", file_id: secret.id, page: 2, ref: "tile" }],
     },
   });

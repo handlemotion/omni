@@ -17,6 +17,7 @@ import {
   startWorkerWithNetwork,
   SYSTEM_MAIL_FROM,
 } from "../../worker/e2e/support.ts";
+import { openSpace } from "./spaces.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
@@ -48,13 +49,14 @@ afterAll(async () => {
 });
 
 test("files and folders move by dragging them onto folders on the page and in the sidebar", async () => {
-  const page = await signedIn(`drag-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`drag-${Date.now()}@gmail.test`, "/files");
+  const teamspaceId = await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  const photos = await folder(page, { name: "Photos", space: "personal" });
-  const projects = await folder(page, { name: "Projects", space: "personal" });
+  const photos = await folder(page, { name: "Photos", teamspaceId });
+  const projects = await folder(page, { name: "Projects", teamspaceId });
   const drafts = await folder(page, { name: "Drafts", parentId: projects });
   await page
     .locator("input[type=file]")
@@ -100,12 +102,12 @@ test("files and folders move by dragging them onto folders on the page and in th
   await expect
     .poll(() => names(page, { parent: projects }))
     .toEqual(["Drafts", "Photos", "forest.png"]);
-  expect(await names(page, { space: "personal" })).toEqual(["Projects"]);
+  expect(await names(page, { teamspace: teamspaceId })).toEqual(["Projects"]);
   expect(await names(page, { parent: photos })).toEqual(["dropped.txt", "sunset.png"]);
   await page.getByRole("row", { name: /Photos/ }).waitFor({ state: "detached" });
 
   await drag(page, sidebar("Photos"), sidebar("Projects"), "bottom");
-  await expect.poll(() => names(page, { space: "personal" })).toEqual(["Photos", "Projects"]);
+  await expect.poll(() => names(page, { teamspace: teamspaceId })).toEqual(["Photos", "Projects"]);
   expect(await names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
 });
 
@@ -123,7 +125,7 @@ async function drag(page: Page, from: Locator, to: Locator, at: "middle" | "bott
 
 async function folder(
   page: Page,
-  json: { name: string } & ({ space: string } | { parentId: string }),
+  json: { name: string } & ({ teamspaceId: string } | { parentId: string }),
 ) {
   const response = await page.request.post("/api/storage/folders", {
     data: json,
@@ -133,7 +135,7 @@ async function folder(
   return ((await response.json()) as { node: { id: string } }).node.id;
 }
 
-async function names(page: Page, where: { space: string } | { parent: string }) {
+async function names(page: Page, where: { teamspace: string } | { parent: string }) {
   const response = await page.request.get("/api/storage/nodes", {
     params: { ...where, limit: "100" },
   });

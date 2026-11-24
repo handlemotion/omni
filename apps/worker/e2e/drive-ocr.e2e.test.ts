@@ -79,16 +79,18 @@ async function textRow(nodeId: string) {
 test("an agent finds a photo and a scanned PDF by the words in them", async () => {
   const org = await stack.company("ocr");
   const ana = await stack.member(org.id);
+  const made = await stack.api(ana.jar, "POST", "/teamspaces", { name: "Ana", private: true });
+  const teamspaceId = made.body.teamspace.id as string;
   const receipt = await stack.upload(
     ana.jar,
-    { space: "personal" },
+    { teamspaceId },
     "IMG_2041.jpg",
     fixture("receipt.jpg"),
     "image/jpeg",
   );
   const minutes = await stack.upload(
     ana.jar,
-    { space: "shared" },
+    { teamspaceId },
     "scan-0001.pdf",
     fixture("minutes-scan.pdf"),
     "application/pdf",

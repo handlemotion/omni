@@ -14,6 +14,7 @@ import {
   SYSTEM_MAIL_FROM,
   type TestDb,
 } from "../../worker/e2e/support.ts";
+import { openSpace } from "./spaces.ts";
 
 const place = (url: URL | string) => `/${new URL(url).pathname.split("/").slice(2).join("/")}`;
 
@@ -210,7 +211,8 @@ test("switching module from the rail keeps a document's edits, and the pages gli
   const page = await openInbox("blocked");
   await rail(page, "Drive").click();
   await shows(page, "files");
-  await page.goto(page.url().replace(/\/files.*$/, "/files/my"));
+  await openSpace(page);
+  const spaceAt = page.url();
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -230,7 +232,7 @@ test("switching module from the rail keeps a document's edits, and the pages gli
   await shows(page, "crm");
   await expect.poll(() => pageAt(page)).toBe(2);
 
-  await page.goto(page.url().replace(/\/crm\/.*$/, "/files/my"));
+  await page.goto(spaceAt);
   await page.getByRole("row", { name: /plan\.md/ }).click();
   await page.locator("[contenteditable=true]").getByRole("heading", { name: "Plan B" }).waitFor();
 });

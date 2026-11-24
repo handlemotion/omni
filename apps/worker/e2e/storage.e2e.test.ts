@@ -225,15 +225,17 @@ test("folders, names, paging, and Trash: restore puts it back, delete forever re
   const bucket = await stack.bucket();
   const folder = async (name: string, place: object) =>
     (await stack.api(ana.jar, "POST", "/folders", { name, ...place })).body.node as StorageNode;
+  const made = await stack.api(ana.jar, "POST", "/teamspaces", { name: "Ana", private: true });
+  const space = { teamspaceId: made.body.teamspace.id as string };
 
-  const docs = await folder("Docs", { space: "personal" });
-  expect((await folder("docs", { space: "personal" })).name).toBe("docs (1)");
+  const docs = await folder("Docs", space);
+  expect((await folder("docs", space)).name).toBe("docs (1)");
   const a = await stack.upload(ana.jar, { parentId: docs.id }, "a.txt", Buffer.from("aaaa"));
   const twin = await stack.upload(ana.jar, { parentId: docs.id }, "a.txt", Buffer.from("bb"));
   expect(twin.name).toBe("a (1).txt");
   const inner = await folder("Inner", { parentId: docs.id });
 
-  const invalid = await stack.api(ana.jar, "POST", "/folders", { name: "a/b", space: "personal" });
+  const invalid = await stack.api(ana.jar, "POST", "/folders", { name: "a/b", ...space });
   expect(invalid).toMatchObject({ status: 400, body: { code: "INVALID_NAME" } });
   const clash = await stack.api(ana.jar, "PATCH", `/nodes/${twin.id}`, { name: "A.TXT" });
   expect(clash).toMatchObject({ status: 409, body: { code: "NAME_TAKEN" } });
@@ -382,8 +384,10 @@ test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only
   const bucket = await stack.bucket();
   const org = await stack.company("daily");
   const ana = await stack.member(org.id);
-  const old = await stack.upload(ana.jar, { space: "personal" }, "old.bin", randomBytes(100));
-  const recent = await stack.upload(ana.jar, { space: "personal" }, "recent.bin", randomBytes(30));
+  const made = await stack.api(ana.jar, "POST", "/teamspaces", { name: "Ana", private: true });
+  const space = { teamspaceId: made.body.teamspace.id as string };
+  const old = await stack.upload(ana.jar, space, "old.bin", randomBytes(100));
+  const recent = await stack.upload(ana.jar, space, "recent.bin", randomBytes(30));
   const kept = await stack.upload(ana.jar, { space: "shared" }, "kept.bin", randomBytes(7));
   for (const node of [old, recent]) await stack.api(ana.jar, "DELETE", `/nodes/${node.id}`);
   await stack.db

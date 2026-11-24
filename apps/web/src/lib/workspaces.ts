@@ -159,14 +159,14 @@ export function placeInWorkspace(pathname: string) {
 }
 
 const LISTS = ["/mail/inbox", "/mail/later", "/mail/done", "/mail/archive", "/mail/all"];
-const FILE_PLACES = ["/files/my", "/files/shared", "/files/shared-with-me", "/files/trash"];
+const FILE_PLACES = ["/files/recents", "/files/shared-with-me", "/files/trash"];
 const CRM_PLACES = ["/crm/companies", "/crm/people", "/crm/projects", "/crm/deals"];
 
 const under = (place: string, path: string) => place === path || place.startsWith(`${path}/`);
 
 function samePlace(router: Navigator) {
   const place = placeInWorkspace(router.state.location.pathname);
-  if (under(place, "/files")) return FILE_PLACES.find((p) => under(place, p)) ?? "/files/my";
+  if (under(place, "/files")) return FILE_PLACES.find((p) => under(place, p)) ?? "/files";
   if (under(place, "/crm")) return CRM_PLACES.find((p) => under(place, p)) ?? "/crm/companies";
   if (under(place, "/settings")) return place;
   if (under(place, "/calendar")) return calendarPlace(router);

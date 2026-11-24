@@ -13,6 +13,7 @@ import {
   SYSTEM_MAIL_FROM,
   type TestDb,
 } from "../../worker/e2e/support.ts";
+import { openSpace } from "./spaces.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -46,7 +47,8 @@ afterAll(async () => {
 });
 
 test("a box drawn on a PDF page is saved as that page's fractions and pinned there after a reload", async () => {
-  const page = await signedIn(`preview-${Date.now()}@gmail.test`, "/files/my");
+  const page = await signedIn(`preview-${Date.now()}@gmail.test`, "/files");
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()

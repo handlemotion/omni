@@ -40,7 +40,9 @@ const list = async (jar: CookieJar, nodeId: string, base = "") => {
 test("a Commenter reads and writes comments and nothing more; a Viewer and a link alone reach none", async () => {
   const org = await stack.company(`comments-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
-  const file = await stack.upload(ana.jar, { space: "personal" }, "deck.pdf", bytes("%PDF"));
+  const made = await stack.api(ana.jar, "POST", "/teamspaces", { name: "Ana", private: true });
+  const place = { teamspaceId: made.body.teamspace.id as string };
+  const file = await stack.upload(ana.jar, place, "deck.pdf", bytes("%PDF"));
   const opened = await stack.api(ana.jar, "POST", `/files/${file.id}/comments`, {
     body: "Page 2 needs the new numbers",
     anchor: { kind: "pdf", page: 2, x: 0.1, y: 0.2, width: 0.5, height: 0.1 },

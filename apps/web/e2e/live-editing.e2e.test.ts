@@ -33,6 +33,7 @@ import {
   SYSTEM_MAIL_FROM,
   type TestDb,
 } from "../../worker/e2e/support.ts";
+import { openSpace } from "./spaces.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -85,7 +86,8 @@ test("two editors on one Markdown file see each other's typing, and the page is 
     }),
   );
   const ana = await context.newPage();
-  await ana.goto(new URL("/files/my", origin).toString());
+  await ana.goto(new URL("/files", origin).toString());
+  await openSpace(ana);
   await ana
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -149,7 +151,8 @@ test("New doc opens an empty page, and blocks picked from / are saved as Markdow
     }),
   );
   const page = await own.newPage();
-  await page.goto(new URL("/files/my", origin).toString());
+  await page.goto(new URL("/files", origin).toString());
+  await openSpace(page);
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("menuitem", { name: "New doc" }).click();
   const body = page.locator("[contenteditable=true]");
@@ -215,7 +218,8 @@ test("an image picked from / goes into the doc, and @ links another file", async
     }),
   );
   const page = await own.newPage();
-  await page.goto(new URL("/files/my", origin).toString());
+  await page.goto(new URL("/files", origin).toString());
+  await openSpace(page);
   await page
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -330,7 +334,8 @@ test("a comment on selected text is marked for every editor, follows its words, 
     }),
   );
   const ana = await own.newPage();
-  await ana.goto(new URL("/files/my", origin).toString());
+  await ana.goto(new URL("/files", origin).toString());
+  await openSpace(ana);
   await ana
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -412,7 +417,8 @@ test("an assistant's edit lands live in an open doc, merged with what the person
     }),
   );
   const ana = await own.newPage();
-  await ana.goto(new URL("/files/my", origin).toString());
+  await ana.goto(new URL("/files", origin).toString());
+  await openSpace(ana);
   await ana
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -473,7 +479,8 @@ test("an assistant's edit too large for one live record reaches an open doc whol
     }),
   );
   const ana = await own.newPage();
-  await ana.goto(new URL("/files/my", origin).toString());
+  await ana.goto(new URL("/files", origin).toString());
+  await openSpace(ana);
   await ana
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -525,7 +532,8 @@ test("a large paste whose author leaves is saved by the open page, even when the
     }),
   );
   const ana = await own.newPage();
-  await ana.goto(new URL("/files/my", origin).toString());
+  await ana.goto(new URL("/files", origin).toString());
+  await openSpace(ana);
   await ana
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -610,7 +618,8 @@ test("a page saves past a split snapshot that never gets its parts, and its save
     }),
   );
   const ana = await own.newPage();
-  await ana.goto(new URL("/files/my", origin).toString());
+  await ana.goto(new URL("/files", origin).toString());
+  await openSpace(ana);
   await ana
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -698,7 +707,8 @@ test("an assistant whose person may only view a doc changes nothing in it, even 
     }),
   );
   const ana = await own.newPage();
-  await ana.goto(new URL(`/${acme.slug}/files/shared`, origin).toString());
+  await ana.goto(new URL(`/${acme.slug}/files`, origin).toString());
+  await openSpace(ana, "Acme");
   await ana
     .getByRole("button", { name: "Upload", exact: true })
     .first()
@@ -767,7 +777,8 @@ test("an assistant's edit to an open doc in a full workspace changes nothing", a
     }),
   );
   const ana = await own.newPage();
-  await ana.goto(new URL("/files/my", origin).toString());
+  await ana.goto(new URL("/files", origin).toString());
+  await openSpace(ana);
   await ana
     .getByRole("button", { name: "Upload", exact: true })
     .first()

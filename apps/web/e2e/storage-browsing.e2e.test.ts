@@ -58,7 +58,7 @@ test("a folder of 200 photos draws from thumbnails alone, under 10 MB, and never
   }
   expect(originals).toBeGreaterThan(10 * 1024 * 1024);
 
-  const page = await person.page(`/files/my/${folder}`);
+  const page = await person.page(await person.space(folder));
   const thumbnails = new Map<string, number>();
   const contents: string[] = [];
   page.on("response", async (response) => {
@@ -82,7 +82,7 @@ test("picking 50 items with the keyboard and trashing them sends one request eac
   for (let i = 0; i < 50; i++) {
     await person.upload({ parentId: folder }, `note-${String(i).padStart(2, "0")}.txt`, "x");
   }
-  const page = await person.page(`/files/my/${folder}`);
+  const page = await person.page(await person.space(folder));
   const trashed: string[] = [];
   page.on("request", (request) => {
     if (request.method() === "DELETE") trashed.push(request.url());
@@ -112,7 +112,7 @@ test("a file added from elsewhere shows in an open folder within 2 s, refetching
   const person = await account(`live-${Date.now()}@gmail.test`);
   const watched = await person.folder("Watched");
   const other = await person.folder("Other", await person.folder("Archive"));
-  const page = await person.page(`/files/my/${watched}`);
+  const page = await person.page(await person.space(watched));
   await page.getByText("This folder is empty").waitFor({ timeout: 30_000 });
   const listed: string[] = [];
   page.on("request", (request) => {
@@ -133,6 +133,25 @@ test("a file added from elsewhere shows in an open folder within 2 s, refetching
   expect(rows.map((r) => r.name)).toEqual(["arrived.txt"]);
 });
 
+test("Drive's sidebar lists only spaces: no Personal or Team, even with files kept in either", async () => {
+  const person = await account(`retired-${Date.now()}@gmail.test`);
+  await person.api("POST", "/folders", { name: "Hidden mine", space: "personal" });
+  await person.api("POST", "/folders", { name: "Hidden team", space: "shared" });
+  const teamspaceId = await person.teamspace();
+  const page = await person.page("/files/my");
+  await page.waitForURL(new RegExp(`/files/t/${teamspaceId}$`), { timeout: 30_000 });
+  const sidebar = page.locator('[data-slot="sidebar"]');
+  await sidebar.getByRole("link", { name: SPACE, exact: true }).waitFor();
+  await sidebar.getByRole("link", { name: "Recents", exact: true }).waitFor();
+  for (const gone of ["Personal", "Team", "Hidden mine", "Hidden team"]) {
+    expect(await sidebar.getByRole("link", { name: gone, exact: true }).count()).toBe(0);
+  }
+  await page.goto(new URL("/files/shared", page.url()).toString());
+  await page.waitForURL(new RegExp(`/files/t/${teamspaceId}$`), { timeout: 30_000 });
+});
+
+const SPACE = "Studio";
+
 async function account(email: string) {
   const origin = String(worker.url);
   const cookie = await signInWithPersonalSpace({ url: new URL(origin) }, db, email);
@@ -151,9 +170,20 @@ async function account(email: string) {
     // oxlint-disable-next-line typescript/no-explicit-any -- test reads of JSON answers
     return (text ? JSON.parse(text) : null) as any;
   };
+  let made: Promise<string> | undefined;
+  const teamspace = () =>
+    (made ??= api("POST", "/teamspaces", { name: SPACE, private: true }).then(
+      (answer: { teamspace: { id: string } }) => answer.teamspace.id,
+    ));
   return {
+    api,
+    teamspace,
+    async space(folderId?: string) {
+      const top = `/files/t/${encodeURIComponent(await teamspace())}`;
+      return folderId ? `${top}/${encodeURIComponent(folderId)}` : top;
+    },
     async folder(name: string, parentId?: string) {
-      const place = parentId ? { parentId } : { space: "personal" };
+      const place = parentId ? { parentId } : { teamspaceId: await teamspace() };
       return (await api("POST", "/folders", { name, ...place })).node.id as string;
     },
     async upload(place: { parentId: string }, name: string, content: string | Uint8Array) {

@@ -52,7 +52,7 @@ test("Mail's compose key works in Mail only, and ⌘K offers it there only", asy
   const menu = page.getByRole("dialog", { name: "Search and commands" });
   const composeCommand = menu.getByRole("option", { name: /Compose/ });
 
-  for (const path of ["/keys/files/my", "/keys/settings/profile"]) {
+  for (const path of ["/keys/files", "/keys/settings/profile"]) {
     await page.goto(new URL(path, origin).toString());
     await page.getByRole("main").waitFor();
     await page.keyboard.press("c");
@@ -64,7 +64,7 @@ test("Mail's compose key works in Mail only, and ⌘K offers it there only", asy
     await menu.waitFor({ state: "hidden" });
   }
 
-  await page.goto(new URL("/keys/files/my", origin).toString());
+  await page.goto(new URL("/keys/files", origin).toString());
   await page.getByRole("main").waitFor();
   await page.keyboard.press("g");
   await page.keyboard.press("i");

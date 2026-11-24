@@ -111,11 +111,38 @@ test("a new contract takes its title from the uploaded PDF and its dates from th
 test("a new contract references a PDF the team keeps elsewhere in Drive, which stays where it lives", async () => {
   const team = await workspace("contract-from-drive");
   const { deal } = await team.api("POST", "/deals", { name: "Website rebuild" });
-  const legal = await team.call("POST", "/api/storage/folders", { space: "shared", name: "Legal" });
-  const page = await team.page(`/files/shared/${legal.node.id}`);
+  const { teamspace } = await team.call("POST", "/api/storage/teamspaces", { name: "Legal" });
+  const legal = await team.call("POST", "/api/storage/folders", {
+    teamspaceId: teamspace.id,
+    name: "Signed",
+  });
+  const page = await team.page(`/files/t/${teamspace.id}/${legal.node.id}`);
   await uploadHere(page, "MSA Acme.pdf");
-  await page.goto(team.url("/files/my"));
-  await uploadHere(page, "MSA Acme mine.pdf");
+  const hidden = await page.evaluate(
+    async (bytes) => {
+      const json = { "content-type": "application/json" };
+      const opened = await fetch("/api/storage/uploads", {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({
+          name: "MSA Acme mine.pdf",
+          size: bytes.length,
+          mimeType: "application/pdf",
+          space: "personal",
+        }),
+      });
+      const { upload } = (await opened.json()) as { upload: { id: string } };
+      await fetch(`/api/storage/uploads/${upload.id}/parts/1`, {
+        method: "PUT",
+        headers: { "content-type": "application/octet-stream" },
+        body: new Uint8Array(bytes),
+      });
+      const done = await fetch(`/api/storage/uploads/${upload.id}/complete`, { method: "POST" });
+      return done.status;
+    },
+    [...PDF],
+  );
+  expect(hidden).toBe(200);
 
   await page.goto(team.url(`/crm/deals/${deal.id}`));
   await page.getByRole("tab", { name: "Contracts" }).click();
@@ -123,8 +150,11 @@ test("a new contract references a PDF the team keeps elsewhere in Drive, which s
   const dialog = page.getByRole("dialog", { name: "New contract" });
   await dialog.getByRole("button", { name: "From Drive" }).click();
   const picker = page.getByRole("dialog", { name: "Choose file" });
-  await picker.getByRole("searchbox").fill("MSA Acme");
   const rows = picker.getByRole("row");
+  await expect
+    .poll(() => rows.allInnerTexts(), { timeout: 15_000 })
+    .toEqual(["Legal", "Website rebuild"]);
+  await picker.getByRole("searchbox").fill("MSA Acme");
   await expect.poll(() => rows.allInnerTexts(), { timeout: 15_000 }).toEqual(["MSA Acme.pdf"]);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/contract-from-drive-picker.png` });
   await rows.first().click();
