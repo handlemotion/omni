@@ -1,15 +1,22 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { IconMicrophone, IconRepeat } from "@/components/icons/central";
 import { RecordMark } from "@/components/crm/record-list";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
-import { useMeetingGroups } from "@/hooks/use-meetings.ts";
+import { useMeetingGroups, useMeetingList } from "@/hooks/use-meetings.ts";
 import { RecordButton } from "@/components/meetings/recorder";
 import { useRecorder } from "@/hooks/use-recorder.ts";
 import { Button } from "@/components/ui/button";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { groupByDate } from "@/lib/date-groups.ts";
-import { groupKind, groupTitle, meetingGroupPath, type MeetingGroup } from "@/lib/meetings.ts";
+import { DAY } from "@/lib/dates.ts";
+import {
+  groupKind,
+  groupTarget,
+  groupTitle,
+  meetingPath,
+  type MeetingGroup,
+} from "@/lib/meetings.ts";
 
 /** The groups of meetings, newest first, under the day or week they last met. */
 export function MeetingsNav() {
@@ -26,14 +33,16 @@ export function MeetingsNav() {
   );
   if (isPending) {
     return (
-      <SidebarSection>
-        <SidebarTreeBones depth={0} />
-      </SidebarSection>
+      <>
+        <SidebarSection>
+          <SidebarTreeBones depth={0} />
+        </SidebarSection>
+        <RecordSection />
+      </>
     );
   }
   return (
     <>
-      <RecordSection />
       {sections.map((section) => (
         <SidebarSection key={section.id} label={section.label}>
           {section.rows.map((group) => (
@@ -53,32 +62,63 @@ export function MeetingsNav() {
           </Button>
         </div>
       )}
+      <RecordSection />
     </>
   );
 }
 
 function GroupRow({ group }: { group: MeetingGroup }) {
   const { place, href } = useWorkspacePaths();
-  const path = meetingGroupPath(group.groupKey);
+  const [open, setOpen] = useState(false);
+  const path = groupTarget(group.groupKey);
   const kind = groupKind(group.groupKey);
   const title = groupTitle(group);
+  const many = kind !== "meeting" && group.meetings > 1;
   return (
-    <SidebarTreeRow
-      href={href(path)}
-      isCurrent={place === path || place === `/meetings/g/${group.groupKey}`}
-      depth={0}
-      icon={
-        kind === "domain" ? (
-          <RecordMark name={title} square size={16} who={{ domain: title }} />
-        ) : kind === "series" ? (
-          <IconRepeat className="size-icon" />
-        ) : (
-          <IconMicrophone className="size-icon" />
-        )
-      }
-      label={title}
-      detail={group.meetings > 1 ? group.meetings : undefined}
-    />
+    <>
+      <SidebarTreeRow
+        href={href(path)}
+        isCurrent={place === path}
+        depth={0}
+        icon={
+          kind === "domain" ? (
+            <RecordMark name={title} square size={16} who={{ domain: title }} />
+          ) : kind === "series" ? (
+            <IconRepeat className="size-icon" />
+          ) : (
+            <IconMicrophone className="size-icon" />
+          )
+        }
+        label={title}
+        detail={many ? group.meetings : undefined}
+        expand={many ? { value: open, toggle: () => setOpen(!open) } : undefined}
+      />
+      {open && <GroupMeetings groupKey={group.groupKey} />}
+    </>
+  );
+}
+
+function GroupMeetings({ groupKey }: { groupKey: string }) {
+  const { place, href } = useWorkspacePaths();
+  const list = useMeetingList(groupKey);
+  if (list.isPending) return <SidebarTreeBones depth={1} />;
+  return (
+    <>
+      {list.data?.map((meeting) => {
+        const path = meetingPath(meeting.id);
+        return (
+          <SidebarTreeRow
+            key={meeting.id}
+            href={href(path)}
+            isCurrent={place === path}
+            depth={1}
+            icon={<IconMicrophone className="size-icon" />}
+            label={meeting.title ?? DAY.format(new Date(meeting.startedAt))}
+            detail={meeting.title ? DAY.format(new Date(meeting.startedAt)) : undefined}
+          />
+        );
+      })}
+    </>
   );
 }
 
@@ -86,8 +126,8 @@ function RecordSection() {
   const recorder = useRecorder();
   if (!recorder) return null;
   return (
-    <SidebarSection>
+    <div className="sticky bottom-0 mt-auto bg-background pt-2">
       <RecordButton />
-    </SidebarSection>
+    </div>
   );
 }

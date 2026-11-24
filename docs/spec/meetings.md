@@ -172,10 +172,12 @@ Tauri in it so `omni-record` drives the same code from a terminal):
   only, which asks for screen recording. Both are Objective-C APIs, so on macOS a Swift helper,
   `omni-capture` in `Contents/MacOS`, captures and pipes mono 48 kHz samples to the Rust side
   (Rust stays free of `unsafe`). Windows: WASAPI loopback on the default output, in Rust.
-- **The microphone** with the system's voice processing on (echo cancellation), so the call's
-  sound coming out of speakers does not land on the mic channel: AVAudioEngine's voice processing
-  on macOS, with other apps' audio not ducked; on Windows the communications capture category
-  with acoustic echo cancellation referenced to the default output, where the device offers it.
+- **The microphone** as the device gives it. On macOS, AVAudioEngine's voice processing (echo
+  cancellation) hands back silence on the mic and on the process tap (seen with AirPods, Nov 24,
+  2026), so it stays off: on speakers the call's sound reaches the mic channel too, and the
+  speaker steps still name the recorder from the intervals below. On Windows the communications
+  capture category with acoustic echo cancellation referenced to the default output, where the
+  device offers it.
 - **Two channels, one file.** Left is the mic, right is the computer's sound, encoded as Opus in
   Ogg at 32 kbit/s, about 14 MB an hour. The mic sets the pace: loopback sends nothing while
   nothing plays, so missing system sound is silence, and system sound running more than 200 ms

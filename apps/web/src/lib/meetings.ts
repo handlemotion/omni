@@ -246,3 +246,7 @@ export function meetingClock(ms: number) {
 
 export const meetingPath = (id: string) => `/meetings/${encodeURIComponent(id)}`;
 export const meetingGroupPath = (key: string) => `/meetings/g/${encodeURIComponent(key)}`;
+
+/** Where a group's sidebar row goes: a meeting on its own opens itself, a series or a client its page. */
+export const groupTarget = (key: string) =>
+  groupKind(key) === "meeting" ? meetingPath(key.slice("meeting:".length)) : meetingGroupPath(key);

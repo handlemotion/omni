@@ -118,7 +118,8 @@ function GroupCrumb({ meeting }: { meeting: Meeting }) {
   const label =
     groupKind(key) === "domain"
       ? key.slice("domain:".length)
-      : (meeting.meeting.title ?? "Meetings");
+      : (meeting.meeting.title ?? "Untitled meeting");
+  if (groupKind(key) === "meeting") return <h1 className="truncate text-md">{label}</h1>;
   return (
     <Link
       href={href(meetingGroupPath(key))}

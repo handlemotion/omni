@@ -4,8 +4,8 @@
 // tag byte ("M" mic, "S" the computer's sound), a little-endian UInt32 sample count and the
 // samples as little-endian Float32. The Rust recorder stops it by killing it.
 //
-// - The microphone through AVAudioEngine with voice processing on (echo cancellation), and
-//   other apps' audio not ducked, so the call sounds as it did.
+// - The microphone through AVAudioEngine, as it is: voice processing (echo cancellation) silences
+//   both the mic and the process tap, so the call's own sound is told apart by the right channel.
 // - The computer's sound through a Core Audio process tap on every process (macOS 14.4+, asks
 //   for audio capture permission), else ScreenCaptureKit with audio only (13 to 14.3, asks for
 //   screen recording).
@@ -105,13 +105,8 @@ final class Microphone {
     private let mono = Mono48k()
 
     func start(_ output: Output) throws {
+        // WARNING: no voice processing. With it on, macOS hands back silence on the mic and on the process tap.
         let input = engine.inputNode
-        try input.setVoiceProcessingEnabled(true)
-        if #available(macOS 14.0, *) {
-            input.voiceProcessingOtherAudioDuckingConfiguration =
-                AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
-                    enableAdvancedDucking: false, duckingLevel: .min)
-        }
         let format = input.outputFormat(forBus: 0)
         input.installTap(onBus: 0, bufferSize: 960, format: format) { [mono] buffer, _ in
             output.send("M", mono.convert(buffer))
