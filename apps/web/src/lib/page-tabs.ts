@@ -20,6 +20,7 @@ export interface PageTabsState {
 
 export const PAGE_TABS_MAX = 10;
 const STORAGE_KEY = "omni:page-tabs";
+const TITLES_KEY = "omni:page-tab-titles";
 
 export type TabModule = "mail" | "files" | "crm" | "calendar" | "meetings" | "settings";
 
@@ -166,7 +167,33 @@ function parse(raw: string | null) {
 
 let state: PageTabsState | null =
   typeof window === "undefined" ? null : parse(window.localStorage.getItem(STORAGE_KEY));
-const titles = new Map<string, string>();
+const titles = new Map<string, string>(
+  typeof window === "undefined" ? [] : parseTitles(window.localStorage.getItem(TITLES_KEY)),
+);
+const titleKey = (href: string) => href.split("#")[0]!;
+
+function parseTitles(raw: string | null) {
+  const none: [string, string][] = [];
+  try {
+    const value: unknown = raw ? JSON.parse(raw) : null;
+    if (!value || typeof value !== "object") return none;
+    return Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    );
+  } catch {
+    return none;
+  }
+}
+
+function saveTitles() {
+  const kept = (state?.tabs ?? []).flatMap((tab) => {
+    const title = titles.get(titleKey(tab.href));
+    return title ? [[titleKey(tab.href), title] as const] : [];
+  });
+  try {
+    window.localStorage.setItem(TITLES_KEY, JSON.stringify(Object.fromEntries(kept)));
+  } catch {}
+}
 const listeners = new Set<() => void>();
 
 const emit = () => {
@@ -179,6 +206,7 @@ function set(next: PageTabsState | null) {
   try {
     if (next) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {}
+  saveTitles();
   emit();
 }
 
@@ -232,15 +260,15 @@ export const pageTabs = {
   },
   move: (id: string, to: number) => state && set(moveTab(state, id, to)),
   /** What a page calls itself (a thread's subject), shown on the tabs that hold it. */
-  name: (href: string, title: string | undefined) => {
-    const path = href.split(/[?#]/)[0]!;
-    if (title ? titles.get(path) === title : !titles.has(path)) return;
-    if (title) titles.set(path, title);
-    else titles.delete(path);
+  name: (href: string, title: string) => {
+    const key = titleKey(href);
+    if (titles.get(key) === title) return;
+    titles.set(key, title);
+    saveTitles();
     if (state) state = { ...state };
     emit();
   },
-  title: (href: string) => titles.get(href.split(/[?#]/)[0]!) ?? tabTitleFromHref(href),
+  title: (href: string) => titles.get(titleKey(href)) ?? tabTitleFromHref(href),
 };
 
 export const usePageTabs = () => useSyncExternalStore(subscribe, () => state);

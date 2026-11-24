@@ -1,4 +1,5 @@
 import { ApiError } from "@omni/client";
+import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { MeetingRecord } from "./meeting-record.tsx";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
@@ -61,6 +62,7 @@ const initial = (name: string) => name.trim().slice(0, 1).toUpperCase();
 export function MeetingPage({ id }: { id: string }) {
   const meeting = useMeeting(id);
   const [sharing, setSharing] = useState(false);
+  usePageTitle(meeting.data?.meeting.title ?? undefined);
   if (!meeting.data) return <MeetingState query={meeting} />;
   const data = meeting.data;
   const m = data.meeting;

@@ -1,5 +1,5 @@
-import { useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
+import { useRouter, useRouterState } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { activeTab, PAGE_TABS_MAX, pageTabs, usePageTabs } from "@/lib/page-tabs.ts";
 import { workspaceHome } from "@/lib/workspaces.ts";
 
@@ -87,11 +87,34 @@ export function usePageTabsStrip(workspace: string) {
   }, [router, state, workspace]);
 }
 
-/** Names the page on its tab (a thread's subject) while it is shown. */
-export function usePageTitle(title: string | undefined) {
-  const router = useRouter();
+const claims = new Map<string, Map<symbol, { depth: number; title: string }>>();
+
+function nameFromClaims(href: string) {
+  let top: { depth: number; title: string } | undefined;
+  for (const claim of claims.get(href)?.values() ?? []) {
+    if (!top || claim.depth >= top.depth) top = claim;
+  }
+  if (top) pageTabs.name(href, top.title);
+}
+
+/**
+ * Names the page on its tab while it is shown: a folder, a record or a thread's subject. `depth`
+ * ranks parts of one page: a file open over its folder (1) names the tab over the folder (0).
+ */
+export function usePageTitle(title: string | undefined, depth = 0) {
+  const href = useRouterState({
+    select: (s) => (s.status === "idle" ? (s.resolvedLocation ?? s.location).href : undefined),
+  });
+  const [key] = useState(() => Symbol("page-title"));
   useEffect(() => {
-    const href = router.state.location.href;
-    pageTabs.name(href, title);
-  }, [router, title]);
+    if (!title || !href) return;
+    const own = claims.get(href) ?? new Map();
+    claims.set(href, own.set(key, { depth, title }));
+    nameFromClaims(href);
+    return () => {
+      own.delete(key);
+      if (own.size === 0) claims.delete(href);
+      nameFromClaims(href);
+    };
+  }, [href, key, title, depth]);
 }
