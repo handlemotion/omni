@@ -3,6 +3,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { IconMicrophone, IconStop } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { DesktopRecordingRequest } from "@omni/client";
+import { useDesktopRecorderState } from "@/hooks/use-desktop-recorder.ts";
 import { RecorderContext, useRecorder, useRecorderState } from "@/hooks/use-recorder.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useMeetingsEnabled } from "@/hooks/use-meetings.ts";
@@ -12,65 +14,105 @@ import { meetingPath } from "@/lib/meetings.ts";
 import { canCapture } from "@/lib/recorder-capture.ts";
 
 /**
- * The browser recorder for the whole app: one recording at a time, the pill while it runs, and
- * the recordings a reload or a crash left on this computer sent in the background. Off in the
- * desktop app, which records with its own recorder.
+ * The recorder for the whole app: one recording at a time and the consent question before it.
+ * In a browser that can share a tab's sound it records here, with the pill, and sends the
+ * recordings a reload or a crash left in the background; in the desktop app the shell captures
+ * and shows its own pill, and this page uploads what it recorded.
  */
 export function RecorderProvider({ children }: { children: ReactNode }) {
-  const enabled = useMeetingsEnabled() && !desktop.isDesktop && canCapture();
-  if (!enabled) return children;
-  return <EnabledRecorder>{children}</EnabledRecorder>;
+  const meetings = useMeetingsEnabled();
+  if (meetings && desktop.isDesktop) return <DesktopRecorder>{children}</DesktopRecorder>;
+  if (!meetings || !canCapture()) return children;
+  return <BrowserRecorder>{children}</BrowserRecorder>;
 }
 
-function EnabledRecorder({ children }: { children: ReactNode }) {
+type Pending = { event: DesktopRecordingRequest["event"] } | null;
+
+function BrowserRecorder({ children }: { children: ReactNode }) {
   const { member } = useMember();
   const recorder = useRecorderState(member.id);
+  const [asking, setAsking] = useState(false);
   return (
-    <RecorderContext value={recorder}>
+    <RecorderContext value={{ ...recorder, ask: () => setAsking(true) }}>
       {children}
+      <Consent
+        isOpen={asking}
+        onCancel={() => setAsking(false)}
+        onConfirm={() => {
+          setAsking(false);
+          void recorder.start();
+        }}
+      />
       <RecorderPill />
     </RecorderContext>
+  );
+}
+
+function DesktopRecorder({ children }: { children: ReactNode }) {
+  const { member } = useMember();
+  const [pending, setPending] = useState<Pending>(null);
+  const recorder = useDesktopRecorderState(member.id, (event) => setPending({ event }));
+  return (
+    <RecorderContext value={{ ...recorder, ask: () => setPending({ event: null }) }}>
+      {children}
+      <Consent
+        isOpen={pending !== null && recorder.phase === "idle"}
+        onCancel={() => setPending(null)}
+        onConfirm={() => {
+          const event = pending?.event ?? null;
+          setPending(null);
+          void recorder.start(event);
+        }}
+      />
+    </RecorderContext>
+  );
+}
+
+function Consent(props: { isOpen: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog
+      role="alertdialog"
+      isOpen={props.isOpen}
+      onOpenChange={(open) => !open && props.onCancel()}
+      closeButton={false}
+    >
+      <DialogHeader>
+        <DialogTitle>Everyone in this meeting knows it is being recorded.</DialogTitle>
+      </DialogHeader>
+      <DialogFooter>
+        <Button intent="outline" onPress={props.onCancel}>
+          Cancel
+        </Button>
+        <Button onPress={props.onConfirm}>Record</Button>
+      </DialogFooter>
+    </Dialog>
   );
 }
 
 /** Record, in the Meetings sidebar; it asks once that everyone was told before it starts. */
 export function RecordButton() {
   const recorder = useRecorder();
-  const [asking, setAsking] = useState(false);
   if (!recorder) return null;
-  const busy = recorder.phase !== "idle";
-  return (
-    <>
-      <Button
-        intent="secondary"
-        size="sm"
-        className="w-full"
-        isDisabled={busy}
-        isPending={recorder.phase === "starting"}
-        onPress={() => setAsking(true)}
-      >
-        <IconMicrophone />
-        Record
+  if (desktop.isDesktop && recorder.phase === "recording") {
+    return (
+      <Button intent="secondary" size="sm" className="w-full" onPress={() => void recorder.stop()}>
+        <IconStop />
+        Stop
       </Button>
-      <Dialog role="alertdialog" isOpen={asking} onOpenChange={setAsking} closeButton={false}>
-        <DialogHeader>
-          <DialogTitle>Everyone in this meeting knows it is being recorded.</DialogTitle>
-        </DialogHeader>
-        <DialogFooter>
-          <Button intent="outline" onPress={() => setAsking(false)}>
-            Cancel
-          </Button>
-          <Button
-            onPress={() => {
-              setAsking(false);
-              void recorder.start();
-            }}
-          >
-            Record
-          </Button>
-        </DialogFooter>
-      </Dialog>
-    </>
+    );
+  }
+  return (
+    <Button
+      intent="secondary"
+      size="sm"
+      className="w-full"
+      isDisabled={recorder.phase !== "idle"}
+      isPending={recorder.phase === "starting" || recorder.phase === "stopping"}
+      onPress={recorder.ask}
+    >
+      <IconMicrophone />
+      Record
+    </Button>
   );
 }
 

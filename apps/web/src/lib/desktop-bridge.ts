@@ -3,7 +3,15 @@ import { listen } from "@tauri-apps/api/event";
 import { Image } from "@tauri-apps/api/image";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { DesktopSyncStatus, DesktopWorkspaceSync } from "@omni/client";
+import type {
+  DesktopRecording,
+  DesktopRecordingRequest,
+  DesktopRecordingSchedule,
+  DesktopRecordingStart,
+  DesktopSyncStatus,
+  DesktopWorkspaceSync,
+  RecordingSpool,
+} from "@omni/client";
 import { onAction, sendNotification } from "@tauri-apps/plugin-notification";
 
 export const openOutside = (url: string) => openUrl(url);
@@ -113,3 +121,31 @@ export async function notify(title: string, body: string, onClick: () => void) {
   if (clicks.size > MAX_CLICKS && oldest !== undefined) clicks.delete(oldest);
   sendNotification({ id, title, body });
 }
+
+/** The meeting recorder (`apps/desktop/src-tauri/src/recording`). */
+export const recordingStart = (recording: DesktopRecordingStart) =>
+  invoke<DesktopRecording>("recording_start", { recording });
+export const recordingStop = () => invoke<DesktopRecording | null>("recording_stop");
+export const recordingList = () => invoke<DesktopRecording[]>("recording_list");
+export const recordingSchedule = (schedule: DesktopRecordingSchedule) =>
+  invoke<void>("recording_schedule", { schedule });
+
+/** The shell's spool, for `finishRecording`. */
+export const recordingSpool: RecordingSpool = {
+  readPart: async (id, partNumber, partSize) =>
+    new Uint8Array(await invoke<ArrayBuffer>("recording_part", { id, partNumber, partSize })),
+  mark: (id, progress) =>
+    invoke<void>("recording_mark", {
+      id,
+      uploadId: progress.uploadId ?? null,
+      nodeId: progress.nodeId ?? null,
+    }),
+  discard: (id) => invoke<void>("recording_discard", { id }),
+};
+
+export const onRecordingChanged = (handler: (recording: DesktopRecording) => void) =>
+  listen<DesktopRecording>("recording-changed", (event) => handler(event.payload));
+export const onRecordingRequested = (handler: (request: DesktopRecordingRequest) => void) =>
+  listen<DesktopRecordingRequest>("recording-requested", (event) => handler(event.payload));
+export const onRecordingOffered = (handler: (request: DesktopRecordingRequest) => void) =>
+  listen<DesktopRecordingRequest>("recording-offered", (event) => handler(event.payload));
