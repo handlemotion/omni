@@ -42,7 +42,7 @@ import type {
   ThreadView,
 } from "@/lib/types.ts";
 
-const READER_WIDTH = 512;
+const READER_WIDTH = 720;
 const READER_MIN = 400;
 const READER_MAX = 4096;
 const LIST_MIN = 320;

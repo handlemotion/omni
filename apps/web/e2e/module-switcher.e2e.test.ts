@@ -121,8 +121,9 @@ async function swipe(page: Page, steps: [dx: number, dy: number][]) {
 
 test("the module switcher opens each module and the pages glide along", async () => {
   const page = await openInbox("chevrons");
+  await page.getByRole("button", { name: /^Switch module, currently / }).click();
   const frames = slideFrames(page);
-  await rail(page, "Drive").click();
+  await page.getByRole("menuitem", { name: "Drive", exact: true }).click();
   await page.waitForURL((url) => place(url) === "/files");
   await shows(page, "files");
   await expect.poll(() => pageAt(page)).toBe(1);

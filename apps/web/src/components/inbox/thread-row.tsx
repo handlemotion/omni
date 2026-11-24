@@ -52,7 +52,7 @@ export function ThreadRow({
         name={sender}
         className="shrink-0 bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(5)]"
       />
-      <span className="ms-3 flex w-[min(--spacing(64),30%)] shrink-0 items-center gap-2 @max-2xl:min-w-0 @max-2xl:flex-1">
+      <span className="ms-3 flex w-[min(--spacing(64),30%)] shrink-0 items-center gap-2 @max-4xl:min-w-0 @max-4xl:flex-1">
         <span className={`min-w-0 flex-1 truncate ${tone}`}>
           {thread.subject || "(no subject)"}
         </span>
@@ -62,7 +62,7 @@ export function ThreadRow({
           </span>
         )}
       </span>
-      <span className="ms-3 min-w-0 flex-1 truncate text-subtle-foreground @max-2xl:hidden">
+      <span className="ms-3 min-w-0 flex-1 truncate text-subtle-foreground @max-4xl:hidden">
         {thread.snippet}
       </span>
       {thread.conversation ? (
