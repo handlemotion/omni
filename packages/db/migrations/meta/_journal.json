@@ -603,6 +603,13 @@
       "when": 1795384951634,
       "tag": "0085_wild_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1795531566457,
+      "tag": "0086_new_maggott",
+      "breakpoints": true
     }
   ]
 }

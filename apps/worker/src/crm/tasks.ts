@@ -1,4 +1,7 @@
 import {
+  calendarTaskCommentBodySchema,
+  type CalendarTaskActivityResponse,
+  type CalendarTaskCommentResponse,
   crmCreateTaskBodySchema,
   crmRecordKeyOf,
   type CrmRecordIds,
@@ -15,6 +18,7 @@ import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 import { announce, memberCrm, refused, wireTask } from "./http.ts";
 import { decodeCursor, encodeCursor } from "../cursor.ts";
+import { emptyComment, wireTaskActivity } from "../calendar/tasks.ts";
 
 const taskCursor = z.object({ at: z.iso.datetime().nullable(), id: z.string().min(1) });
 
@@ -90,6 +94,8 @@ export const tasks = new Hono<AppEnv>()
       body: body.body,
       assigneeMemberId: body.assigneeMemberId,
       dueAt: dateOrNull(body.dueAt),
+      status: body.status,
+      priority: body.priority,
       record: recordOf(body),
     });
     if (made.status !== "ok") return refused(c, made);
@@ -114,6 +120,8 @@ export const tasks = new Hono<AppEnv>()
       assigneeMemberId: body.assigneeMemberId,
       dueAt: dateOrNull(body.dueAt),
       done: body.done,
+      status: body.status,
+      priority: body.priority,
       record: recordOf(body),
     };
     const changed = await crm.updateTask(c.req.param("id"), patch);
@@ -127,4 +135,22 @@ export const tasks = new Hono<AppEnv>()
     if (deleted.status !== "ok") return refused(c, deleted);
     await announceTask(c, deleted.task);
     return c.body(null, 204);
+  })
+
+  .get("/tasks/:id/activity", async (c) => {
+    const found = await memberCrm(c).taskActivity(c.req.param("id"));
+    if (found.status !== "ok") return refused(c, found);
+    return c.json({
+      items: found.items.map(wireTaskActivity),
+    } satisfies CalendarTaskActivityResponse);
+  })
+
+  .post("/tasks/:id/comments", zValidator("json", calendarTaskCommentBodySchema), async (c) => {
+    const crm = memberCrm(c);
+    const made = await crm.commentOnTask(c.req.param("id"), c.req.valid("json").body);
+    if (made.status === "empty_comment") return emptyComment(c);
+    if (made.status !== "ok") return refused(c, made);
+    const task = await crm.task(c.req.param("id"));
+    if (task.status === "ok") await announceTask(c, task.task);
+    return c.json({ item: wireTaskActivity(made.item) } satisfies CalendarTaskCommentResponse, 201);
   });

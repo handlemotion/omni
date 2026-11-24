@@ -26,6 +26,7 @@ import {
 import { calendarTaskKeys } from "./calendar-tasks.ts";
 import { currentId, pendingFailed, pendingMade, settledId } from "./crm-pending.ts";
 import { keys } from "./query-keys.ts";
+import { closureAfter } from "./task-status.ts";
 
 type Tasks = Api["crm"]["tasks"];
 type Json<T> = T extends { json: infer J } ? J : never;
@@ -36,6 +37,7 @@ export const taskPath = (id: string) => `/crm/tasks?assignee=anyone&task=${encod
 export type CrmTaskCounts = InferResponseType<Tasks["counts"]["$get"], 200>["counts"];
 export type NewTask = Json<InferRequestType<Tasks["$post"]>>;
 export type TaskChange = Json<InferRequestType<Tasks[":id"]["$patch"]>>;
+export type { TaskPriority, TaskStatus } from "./task-status.ts";
 
 /** What a tasks list asks for: the API's filters, as the page's search params name them. */
 export interface TaskFilter {
@@ -156,6 +158,8 @@ function draftTask(client: QueryClient, input: PendingTask, self: string | null)
     recordDomain: typeof record?.domain === "string" ? record.domain : null,
     ownerMemberId: self,
     assigneeMemberId: input.assigneeMemberId === undefined ? self : input.assigneeMemberId,
+    status: input.status ?? "todo",
+    priority: input.priority ?? null,
     dueAt: input.dueAt ?? null,
     completedAt: null,
     completedByMemberId: null,
@@ -234,20 +238,17 @@ export const updateTaskMutation = (client: QueryClient, completedBy: string | nu
     meta: { handlesError: true },
     mutationFn: async ({ id, ...json }: TaskChange & { id: string }) =>
       call(api.crm.tasks[":id"].$patch({ param: { id: await settledId(id) }, json })),
-    onMutate: async ({ id, done, ...change }) => {
+    onMutate: async ({ id, done, status, ...change }) => {
       const snapshot = await holdQueries(client, keys.crm());
+      const shown = findCrmEntity(client, currentId(id)) as CrmTask | undefined;
       setCrmFields(client, currentId(id), {
         title: change.title,
         body: change.body,
         subtasks: change.subtasks,
         assigneeMemberId: change.assigneeMemberId,
         dueAt: change.dueAt,
-        ...(done === undefined
-          ? {}
-          : {
-              completedAt: done ? new Date().toISOString() : null,
-              completedByMemberId: done ? completedBy : null,
-            }),
+        priority: change.priority,
+        ...(shown ? closureAfter(shown, { done, status }, completedBy) : {}),
       });
       const task = findCrmEntity(client, currentId(id)) as CrmTask | undefined;
       if (task) showInLists(client, task, completedBy);

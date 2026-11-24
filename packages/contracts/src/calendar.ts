@@ -179,6 +179,24 @@ export type CalendarChangedEvent = z.infer<typeof calendarChangedEventSchema>;
 export const CALENDAR_TASK_TITLE_MAX = 500;
 export const CALENDAR_TASK_BODY_MAX = 20_000;
 export const CALENDAR_TASK_STEPS_MAX = 100;
+export const CALENDAR_TASK_COMMENT_MAX = 10_000;
+
+/**
+ * Where a task stands. `done` and `cancelled` close it (it has a `completedAt`); the others are
+ * open. A task the Worker has no status for reads `todo` while open and `done` while closed.
+ */
+export const CALENDAR_TASK_STATUSES = [
+  "backlog",
+  "todo",
+  "in_progress",
+  "done",
+  "cancelled",
+] as const;
+/** How much a task matters, most first; a task with none has a null `priority`. */
+export const CALENDAR_TASK_PRIORITIES = ["urgent", "high", "medium", "low"] as const;
+
+export const calendarTaskStatusSchema = z.enum(CALENDAR_TASK_STATUSES);
+export const calendarTaskPrioritySchema = z.enum(CALENDAR_TASK_PRIORITIES);
 
 /** A step of a task's checklist, with an id the client makes. */
 export const calendarTaskStepSchema = z.object({
@@ -199,6 +217,10 @@ export const calendarTaskSchema = z.object({
   ownerMemberId: id.nullable(),
   assigneeMemberId: id.nullable(),
   record: z.object({ kind: z.enum(["company", "person", "deal"]), id }).nullable(),
+  /** Absent from a Worker older than this field. */
+  status: calendarTaskStatusSchema.optional(),
+  /** Absent from a Worker older than this field. */
+  priority: calendarTaskPrioritySchema.nullable().optional(),
   /** A moment: a client picking a day sends the end of that day in its time zone. */
   dueAt: isoDate.nullable(),
   completedAt: isoDate.nullable(),
@@ -225,8 +247,9 @@ export const calendarCreateTaskBodySchema = z.object({
 });
 
 /**
- * `PATCH /tasks/:id`: only the fields it names; `done` completes or reopens it. A task's record
- * and assignee change through the CRM's task routes.
+ * `PATCH /tasks/:id`: only the fields it names; `done` completes or reopens it, and `status` moves
+ * it (`done` or `cancelled` close it, the others open it). Given both, `status` wins. A task's
+ * record and assignee change through the CRM's task routes.
  */
 export const calendarUpdateTaskBodySchema = z.object({
   title: z.string().max(CALENDAR_TASK_TITLE_MAX).optional(),
@@ -234,6 +257,58 @@ export const calendarUpdateTaskBodySchema = z.object({
   subtasks: z.array(calendarTaskStepSchema).max(CALENDAR_TASK_STEPS_MAX).optional(),
   dueAt: isoDate.nullable().optional(),
   done: z.boolean().optional(),
+  status: calendarTaskStatusSchema.optional(),
+  priority: calendarTaskPrioritySchema.nullable().optional(),
+});
+
+const activityRecordSchema = z.object({
+  kind: z.enum(["company", "person", "deal"]),
+  id,
+  name: z.string().nullable(),
+});
+
+/**
+ * One thing that happened to a task, oldest first in a list: a field changed (`from` and `to`
+ * hold its values before and after) or a comment. Its making is not an item: the task's
+ * `createdAt` and `createdByMemberId` say it.
+ */
+export const calendarTaskActivitySchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("status"),
+    from: calendarTaskStatusSchema,
+    to: calendarTaskStatusSchema,
+  }),
+  z.object({
+    kind: z.literal("priority"),
+    from: calendarTaskPrioritySchema.nullable(),
+    to: calendarTaskPrioritySchema.nullable(),
+  }),
+  z.object({ kind: z.literal("assignee"), from: id.nullable(), to: id.nullable() }),
+  z.object({ kind: z.literal("due"), from: isoDate.nullable(), to: isoDate.nullable() }),
+  z.object({
+    kind: z.literal("record"),
+    from: activityRecordSchema.nullable(),
+    to: activityRecordSchema.nullable(),
+  }),
+  z.object({ kind: z.literal("comment"), body: z.string() }),
+]);
+
+export const calendarTaskActivityItemSchema = z.intersection(
+  z.object({ id, actorMemberId: id.nullable(), at: isoDate }),
+  calendarTaskActivitySchema,
+);
+
+/** `GET /tasks/:id/activity`: the latest items, oldest first. */
+export const calendarTaskActivityResponseSchema = z.object({
+  items: z.array(calendarTaskActivityItemSchema),
+});
+
+/** `POST /tasks/:id/comments`. */
+export const calendarTaskCommentBodySchema = z.object({
+  body: z.string().max(CALENDAR_TASK_COMMENT_MAX),
+});
+export const calendarTaskCommentResponseSchema = z.object({
+  item: calendarTaskActivityItemSchema,
 });
 
 export const calendarTaskResponseSchema = z.object({ task: calendarTaskSchema });
@@ -244,6 +319,12 @@ export const calendarTaskListResponseSchema = z.object({
 
 export type CalendarTask = z.infer<typeof calendarTaskSchema>;
 export type CalendarTaskStep = z.infer<typeof calendarTaskStepSchema>;
+export type CalendarTaskStatus = z.infer<typeof calendarTaskStatusSchema>;
+export type CalendarTaskPriority = z.infer<typeof calendarTaskPrioritySchema>;
+export type CalendarTaskActivity = z.infer<typeof calendarTaskActivitySchema>;
+export type CalendarTaskActivityItem = z.infer<typeof calendarTaskActivityItemSchema>;
+export type CalendarTaskActivityResponse = z.infer<typeof calendarTaskActivityResponseSchema>;
+export type CalendarTaskCommentResponse = z.infer<typeof calendarTaskCommentResponseSchema>;
 export type CalendarTasksQuery = z.infer<typeof calendarTasksQuerySchema>;
 export type CalendarCreateTaskBody = z.infer<typeof calendarCreateTaskBodySchema>;
 export type CalendarUpdateTaskBody = z.infer<typeof calendarUpdateTaskBodySchema>;

@@ -2,11 +2,17 @@ import {
   CALENDAR_TASK_BODY_MAX,
   CALENDAR_TASK_STEPS_MAX,
   CALENDAR_TASK_TITLE_MAX,
+  type CalendarTaskPriority,
+  type CalendarTaskStatus,
 } from "@omni/contracts";
 import { and, asc, desc, eq, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { loadMemberRow } from "../roles.ts";
 import { calendarTasks } from "../schema/calendar.ts";
 import { NOT_FOUND, type Ex } from "./core.ts";
+import { logTaskChanges } from "./task-activity.ts";
+
+export type TaskStatus = CalendarTaskStatus;
+export type TaskPriority = CalendarTaskPriority;
 
 /** A step of a task's checklist. */
 export interface TaskStep {
@@ -35,6 +41,9 @@ export interface CalendarTask {
   dueAt: Date | null;
   completedAt: Date | null;
   completedByMemberId: string | null;
+  /** Always agrees with `completedAt`: `done` or `cancelled` only while it is set. */
+  status: TaskStatus;
+  priority: TaskPriority | null;
   assigneeMemberId: string | null;
   /** Null while it is private. */
   record: TaskRecord | null;
@@ -66,6 +75,8 @@ const columns = {
   dueAt: calendarTasks.dueAt,
   completedAt: calendarTasks.completedAt,
   completedByMemberId: calendarTasks.completedByMemberId,
+  status: calendarTasks.status,
+  priority: calendarTasks.priority,
   assigneeMemberId: calendarTasks.assigneeMemberId,
   recordKind: calendarTasks.recordKind,
   recordId: calendarTasks.recordId,
@@ -83,11 +94,23 @@ type Row = { [K in keyof typeof columns]: (typeof columns)[K]["_"]["data"] | nul
   updatedAt: Date;
 };
 
+const isClosed = (status: TaskStatus) => status === "done" || status === "cancelled";
+
+/**
+ * The status a task reads: the one it keeps, unless that disagrees with `completed_at` (none
+ * kept, or an older Worker completed or reopened it), when it is `done` or `todo`.
+ */
+export function statusOf(status: TaskStatus | null, completedAt: Date | null) {
+  const closed = completedAt !== null;
+  if (status && isClosed(status) === closed) return status;
+  return closed ? "done" : "todo";
+}
+
 function toTask(row: Row) {
   const { recordKind, recordId, ...rest } = row;
   const record: TaskRecord | null =
     recordKind && recordId ? { kind: recordKind, id: recordId } : null;
-  return { ...rest, record } as CalendarTask;
+  return { ...rest, status: statusOf(row.status, row.completedAt), record } as CalendarTask;
 }
 
 export const cleanTitle = (title: string) => {
@@ -221,6 +244,7 @@ export interface OwnTaskInput {
   body?: string | null;
   subtasks?: TaskStep[];
   dueAt?: Date | null;
+  priority?: TaskPriority | null;
 }
 
 /**
@@ -248,6 +272,8 @@ export async function createOwnTask(tx: Ex, member: TaskMember, input: OwnTaskIn
       body: cleanBody(input.body),
       subtasks: cleanSteps(input.subtasks ?? []),
       dueAt: input.dueAt ?? null,
+      status: "todo",
+      priority: input.priority ?? null,
       createdByMemberId: member.id,
     })
     .returning({ id: calendarTasks.id });
@@ -262,26 +288,39 @@ export interface OwnTaskPatch {
   subtasks?: TaskStep[];
   dueAt?: Date | null;
   done?: boolean;
+  /** Moves it; `done` or `cancelled` close it. Wins over `done`. */
+  status?: TaskStatus;
+  priority?: TaskPriority | null;
 }
 
 type TaskSet = Partial<typeof calendarTasks.$inferInsert>;
 
+function nextStatus(current: TaskStatus, change: { done?: boolean; status?: TaskStatus }) {
+  if (change.status) return change.status;
+  if (change.done === undefined || change.done === isClosed(current)) return current;
+  return change.done ? "done" : "todo";
+}
+
 /**
- * When the task was completed and by whom once `done` is applied by `memberId`: completing a done
- * task, or reopening an open one, keeps what it has (a completer who left stays unknown), and an
- * absent `done` changes nothing. The calendar's and the CRM's writes both go through it.
+ * Where the task stands, and when it was closed and by whom, once `change` is applied by
+ * `memberId`: closing a closed task, or reopening an open one, keeps when and by whom (a completer
+ * who left stays unknown), and an empty change changes nothing. The calendar's and the CRM's
+ * writes both go through it.
  */
 export function completionAfter(
-  current: Pick<CalendarTask, "completedAt" | "completedByMemberId">,
-  done: boolean | undefined,
+  current: Pick<CalendarTask, "status" | "completedAt" | "completedByMemberId">,
+  change: { done?: boolean; status?: TaskStatus },
   memberId: string,
 ) {
-  if (done === undefined || done === Boolean(current.completedAt)) {
-    return { completedAt: current.completedAt, completedByMemberId: current.completedByMemberId };
-  }
-  return done
-    ? { completedAt: new Date(), completedByMemberId: memberId }
-    : { completedAt: null, completedByMemberId: null };
+  const status = nextStatus(current.status, change);
+  const kept = {
+    completedAt: current.completedAt,
+    completedByMemberId: current.completedByMemberId,
+  };
+  if (isClosed(status) === Boolean(current.completedAt)) return { status, ...kept };
+  return isClosed(status)
+    ? { status, completedAt: new Date(), completedByMemberId: memberId }
+    : { status, completedAt: null, completedByMemberId: null };
 }
 
 function setFor(memberId: string, current: CalendarTask, patch: OwnTaskPatch, title?: string) {
@@ -290,8 +329,10 @@ function setFor(memberId: string, current: CalendarTask, patch: OwnTaskPatch, ti
   if (patch.body !== undefined) set.body = cleanBody(patch.body);
   if (patch.subtasks !== undefined) set.subtasks = cleanSteps(patch.subtasks);
   if (patch.dueAt !== undefined) set.dueAt = patch.dueAt;
-  const completion = completionAfter(current, patch.done, memberId);
-  if (completion.completedAt !== current.completedAt) Object.assign(set, completion);
+  if (patch.priority !== undefined) set.priority = patch.priority;
+  const after = completionAfter(current, patch, memberId);
+  if (after.status !== current.status) set.status = after.status;
+  if (after.completedAt !== current.completedAt) Object.assign(set, after);
   return set;
 }
 
@@ -318,7 +359,9 @@ export async function changeTask(
       .set(set)
       .where(and(eq(calendarTasks.orgId, orgId), eq(calendarTasks.id, id)));
   }
-  return { status: "ok" as const, task: (await readTask(tx, orgId, id))! };
+  const task = (await readTask(tx, orgId, id))!;
+  await logTaskChanges(tx, memberId, current, task);
+  return { status: "ok" as const, task };
 }
 
 export async function updateOwnTask(

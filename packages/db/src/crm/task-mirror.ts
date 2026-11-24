@@ -5,6 +5,7 @@ import {
   putTask,
   taskVersions,
   type CalendarTask,
+  type PutTask,
   type TaskMirror,
   type TaskRecord,
 } from "../calendar.ts";
@@ -37,7 +38,7 @@ async function calendarRowOf(ex: Ex, row: CrmTaskRow) {
   const ownerMemberId = record
     ? row.createdByMemberId
     : (row.assigneeMemberId ?? row.createdByMemberId ?? (await workspaceOwner(ex, row.orgId)));
-  const task: CalendarTask = {
+  const task: PutTask = {
     id: row.id,
     orgId: row.orgId,
     ownerMemberId,

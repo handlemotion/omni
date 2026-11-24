@@ -50,7 +50,14 @@ export function Subtasks(props: {
   };
   return (
     <section aria-label="Subtasks" className="flex flex-col gap-0.5">
-      <h3 className="flex h-7 items-center text-sm text-muted-foreground">Subtasks</h3>
+      <h3 className="flex h-7 items-center justify-between text-sm font-medium text-foreground">
+        Subtasks
+        {steps.length > 0 && (
+          <span className="font-normal text-muted-foreground tabular-nums">
+            {steps.filter((step) => step.done).length}/{steps.length}
+          </span>
+        )}
+      </h3>
       {steps.map((step) => (
         <SubtaskRow
           key={step.id}

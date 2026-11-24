@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { SenderAvatar } from "@/components/avatar/sender-avatar";
 import { MemberAvatar } from "./member-avatar.tsx";
-import { Textarea } from "@/components/ui/textarea";
 import {
   useCreateNote,
   useCrmCompany,
@@ -32,6 +31,7 @@ import {
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import type { CrmTimelineItem } from "@/lib/crm.ts";
+import { NoteBox } from "./note-box.tsx";
 import { crmErrorToast } from "./crm-errors.ts";
 import { MeetingLine } from "./record-meetings.tsx";
 import { copyText } from "@/hooks/use-clipboard.ts";
@@ -443,34 +443,14 @@ function NoteComposer({ kind, id }: { kind: CrmRecordKind; id: string }) {
     });
   };
   return (
-    <form
-      className="flex cursor-text flex-col gap-2 rounded-xl border bg-background px-3 pt-2.5 pb-2.5"
-      onMouseDown={(event) => {
-        if ((event.target as HTMLElement).closest("textarea, button")) return;
-        event.preventDefault();
-        event.currentTarget.querySelector("textarea")?.focus();
-      }}
-      onSubmit={(event) => {
-        event.preventDefault();
-        submit();
-      }}
-    >
-      <Textarea
-        plain
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        aria-label="Note"
-        maxLength={20_000}
-        placeholder="Write a note…"
-        className="field-sizing-content max-h-60 min-h-6 resize-none py-0 sm:py-0"
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submit();
-        }}
-      />
-      <Button type="submit" size="sm" className="self-end" isDisabled={!body.trim()}>
-        Add note
-      </Button>
-    </form>
+    <NoteBox
+      value={body}
+      onChange={setBody}
+      onSubmit={submit}
+      label="Note"
+      placeholder="Write a note…"
+      submitLabel="Add note"
+    />
   );
 }
 

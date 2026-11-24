@@ -1,8 +1,6 @@
-import { dayOf, dueAtOf, onRecord, type CrmTask } from "@omni/client";
+import type { CrmTask } from "@omni/client";
 import { useState } from "react";
-import { IconX } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
-import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
+import { IconDescription } from "@/components/icons/central";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,11 +15,17 @@ import { stableId } from "@/lib/crm-pending.ts";
 import { taskRecord, updateTaskMutation, type TaskChange } from "@/lib/crm-tasks.ts";
 import { keys } from "@/lib/query-keys.ts";
 import { crmErrorToast } from "@/components/crm/crm-errors.ts";
-import { DayValue, FieldRow, LinkValue, PlainValue } from "@/components/crm/record-fields.tsx";
-import { AssigneePicker, RecordPicker, useMemberNames } from "@/components/crm/task-dialog.tsx";
-import { CHECK_CELL, Subtasks } from "@/components/crm/task-subtasks.tsx";
+import { Subtasks } from "@/components/crm/task-subtasks.tsx";
 import { TaskMeeting } from "@/components/meetings/event-recording.tsx";
-import { DAY_YEAR } from "@/lib/dates.ts";
+import type { TaskSource } from "@/lib/task-activity.ts";
+import { TaskActivity } from "./task-activity.tsx";
+import {
+  AssigneeField,
+  DueField,
+  PriorityField,
+  RecordField,
+  StatusField,
+} from "./task-fields.tsx";
 
 const TITLE_MAX = 500;
 const BODY_MAX = 20_000;
@@ -112,36 +116,40 @@ export function useDeleteThisTask(id: string, onDeleted: () => void) {
   };
 }
 
-/** The task's check, then its title, which saves when it loses focus. */
+/** The task's title, which saves when it loses focus. */
 export function TaskHeading(props: { task: CrmTask; onSave: (change: TaskChange) => void }) {
   const { task, onSave } = props;
-  return (
-    <div className="flex min-w-0 flex-1 items-center">
-      <div className={CHECK_CELL}>
-        <CheckboxField
-          aria-label={task.completedAt ? "Reopen" : "Complete"}
-          isSelected={!!task.completedAt}
-          onChange={(done) => onSave({ done })}
-        >
-          <Checkbox />
-        </CheckboxField>
-      </div>
-      <TitleField key={stableId(task.id)} task={task} onSave={(title) => onSave({ title })} />
-    </div>
-  );
+  return <TitleField key={stableId(task.id)} task={task} onSave={(title) => onSave({ title })} />;
 }
 
-/** Under the heading, as an issue reads: the description, then the subtasks. */
-export function TaskContent(props: {
+/** Under the title, as an issue reads: the description. */
+export function TaskDescription(props: {
   task: CrmTask;
   onSave: (change: TaskChange, settled?: () => void) => void;
 }) {
   const { task, onSave } = props;
   return (
-    <div className="flex flex-col gap-5">
+    <section aria-label="Description" className="flex flex-col gap-1">
+      <h3 className="flex h-6 items-center gap-1.5 text-sm text-muted-foreground">
+        <IconDescription aria-hidden className="size-3.5" />
+        Description
+      </h3>
       <BodyField key={stableId(task.id)} task={task} onSave={(body) => onSave({ body })} />
-      <Subtasks task={task} onSave={onSave} />
-    </div>
+    </section>
+  );
+}
+
+/** After the details: the subtasks, then what happened to the task. */
+export function TaskFollowUp(props: {
+  task: CrmTask;
+  source: TaskSource;
+  onSave: (change: TaskChange, settled?: () => void) => void;
+}) {
+  return (
+    <>
+      <Subtasks task={props.task} onSave={props.onSave} />
+      <TaskActivity task={props.task} source={props.source} />
+    </>
   );
 }
 
@@ -178,12 +186,12 @@ function TitleField(props: { task: CrmTask; onSave: (title: string) => void }) {
       maxLength={TITLE_MAX}
       value={draft}
       onChange={setDraft}
-      className="min-w-0 flex-1"
+      className="-mx-1.5 min-w-0"
     >
       <Input
         plain
         autoComplete="off"
-        className="h-9 w-full rounded-md px-1.5 text-md hover:bg-hover focus:bg-hover"
+        className="h-9 w-full rounded-md px-1.5 text-lg font-medium hover:bg-hover focus:bg-hover"
         onFocus={onFocus}
         onBlur={commit}
         onKeyDown={(event) =>
@@ -216,8 +224,8 @@ function BodyField(props: { task: CrmTask; onSave: (body: string | null) => void
 }
 
 /**
- * When, on what and who: the task's fields, one per row. A private task has no assignee; where
- * the workspace has the CRM it can be added to a record.
+ * Where it stands, who has it, when and on what: the task's fields, one per row. A private task
+ * has no assignee; where the workspace has the CRM it can be added to a record.
  */
 export function TaskDetails(props: {
   task: CrmTask;
@@ -226,69 +234,15 @@ export function TaskDetails(props: {
   canLink?: boolean;
 }) {
   const { task, onSave } = props;
-  const names = useMemberNames();
-  const record = taskRecord(task);
-  const nameOf = (id: string | null) => names.find((m) => m.id === id)?.name ?? null;
+  const linkable = !!taskRecord(task) || !props.isPrivate || props.canLink;
   return (
-    <>
-      <PlainValue label="Status">
-        {task.completedAt ? `Done ${DAY_YEAR.format(new Date(task.completedAt))}` : "Open"}
-      </PlainValue>
-      <DayValue
-        label="Due"
-        value={dayOf(task.dueAt) || null}
-        onSave={(day) => onSave({ dueAt: dueAtOf(day ?? "") })}
-      />
-      {record ? (
-        <LinkValue
-          label="Record"
-          to={record}
-          action={
-            <Button
-              size="sq-xs"
-              intent="plain"
-              aria-label="Remove from record"
-              onPress={() => onSave({ companyId: null, personId: null, dealId: null })}
-            >
-              <IconX />
-            </Button>
-          }
-        />
-      ) : props.isPrivate && !props.canLink ? null : (
-        <FieldRow label={props.isPrivate ? "Add to CRM" : "Record"}>
-          <div className="w-full">
-            <RecordPicker
-              label={false}
-              value={null}
-              onChange={(picked) => {
-                if (!picked) return;
-                onSave({
-                  companyId: null,
-                  personId: null,
-                  dealId: null,
-                  ...onRecord(picked.kind, picked.id),
-                });
-              }}
-            />
-          </div>
-        </FieldRow>
-      )}
-      {!props.isPrivate && (
-        <FieldRow label="Assignee">
-          <div className="w-full">
-            <AssigneePicker
-              inline
-              value={task.assigneeMemberId}
-              onChange={(assigneeMemberId) =>
-                assigneeMemberId !== task.assigneeMemberId && onSave({ assigneeMemberId })
-              }
-            />
-          </div>
-        </FieldRow>
-      )}
+    <section aria-label="Details" className="flex flex-col gap-0.5">
+      <StatusField task={task} onSave={onSave} />
+      {!props.isPrivate && <AssigneeField task={task} onSave={onSave} />}
+      <DueField task={task} onSave={onSave} />
+      <PriorityField task={task} onSave={onSave} />
+      {linkable && <RecordField task={task} onSave={onSave} isPrivate={props.isPrivate} />}
       <TaskMeeting taskId={task.id} />
-      <PlainValue label="Created by">{nameOf(task.createdByMemberId)}</PlainValue>
-      <PlainValue label="Created">{DAY_YEAR.format(new Date(task.createdAt))}</PlainValue>
-    </>
+    </section>
   );
 }

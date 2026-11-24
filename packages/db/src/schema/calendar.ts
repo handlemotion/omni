@@ -4,6 +4,8 @@ import {
   CALENDAR_EVENT_SOURCES,
   CALENDAR_EVENT_STATUSES,
   CALENDAR_RESPONSES,
+  CALENDAR_TASK_PRIORITIES,
+  CALENDAR_TASK_STATUSES,
 } from "@omni/contracts";
 import {
   boolean,
@@ -251,6 +253,9 @@ export const calendarTaskRecordKind = pgEnum("calendar_task_record_kind", [
   "deal",
 ]);
 
+export const calendarTaskStatus = pgEnum("calendar_task_status", CALENDAR_TASK_STATUSES);
+export const calendarTaskPriority = pgEnum("calendar_task_priority", CALENDAR_TASK_PRIORITIES);
+
 /**
  * A to-do (`docs/spec/calendar.md`, "Tasks"). Private to its owner while it is on no record; on a
  * CRM record it is the workspace's, seen by whoever can open that record, and assignable. The
@@ -276,6 +281,12 @@ export const calendarTasks = pgTable(
     completedByMemberId: text("completed_by_member_id").references(() => members.id, {
       onDelete: "set null",
     }),
+    /**
+     * Null on a row a Worker older than it wrote. `completed_at` stays the truth for open or
+     * closed: a status that disagrees with it reads `todo` (open) or `done` (closed).
+     */
+    status: calendarTaskStatus("status"),
+    priority: calendarTaskPriority("priority"),
     assigneeMemberId: text("assignee_member_id").references(() => members.id, {
       onDelete: "set null",
     }),
@@ -305,6 +316,40 @@ export const calendarTasks = pgTable(
       .where(sql`${t.completedAt} is null and ${t.recordKind} is not null`),
     index("calendar_tasks_completed_by_member_id_idx").on(t.completedByMemberId),
     index("calendar_tasks_created_by_member_id_idx").on(t.createdByMemberId),
+  ],
+);
+
+export const calendarTaskActivityKind = pgEnum("calendar_task_activity_kind", [
+  "status",
+  "priority",
+  "assignee",
+  "due",
+  "record",
+  "comment",
+]);
+
+/**
+ * What happened to a task, one row each: a field changed by someone (`change` holds its value
+ * before and after) or a comment (`body`). Goes with its task.
+ */
+export const calendarTaskActivity = pgTable(
+  "calendar_task_activity",
+  {
+    id: id(),
+    orgId: orgId(),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => calendarTasks.id, { onDelete: "cascade" }),
+    actorMemberId: text("actor_member_id").references(() => members.id, { onDelete: "set null" }),
+    kind: calendarTaskActivityKind("kind").notNull(),
+    change: jsonb("change").$type<{ from: unknown; to: unknown }>(),
+    body: text("body"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("calendar_task_activity_task_idx").on(t.taskId, t.createdAt, t.id),
+    index("calendar_task_activity_actor_member_id_idx").on(t.actorMemberId),
+    index("calendar_task_activity_org_id_idx").on(t.orgId),
   ],
 );
 

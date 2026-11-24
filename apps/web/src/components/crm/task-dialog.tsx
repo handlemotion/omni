@@ -97,6 +97,8 @@ export function RecordPicker(props: {
   value: PickedRecord | null;
   onChange: (record: PickedRecord | null) => void;
   label?: boolean;
+  autoFocus?: boolean;
+  onBlur?: () => void;
 }) {
   const [text, setText] = useState(props.value?.name ?? "");
   const q = useDebouncedValue(text.trim(), 200);
@@ -128,7 +130,7 @@ export function RecordPicker(props: {
       aria-label="Record"
     >
       {props.label !== false && <Label>Record</Label>}
-      <ComboBoxInput />
+      <ComboBoxInput autoFocus={props.autoFocus} onBlur={props.onBlur} />
       <ComboBoxContent items={items}>
         {(item) => (
           <ComboBoxItem id={item.key} textValue={item.name}>

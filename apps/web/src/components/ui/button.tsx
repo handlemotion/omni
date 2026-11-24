@@ -43,11 +43,22 @@ export const buttonStyles = tv({
       /** The window's close control on Windows: red under the pointer, with a white glyph. */
       "caption-close":
         "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-caption-close)] in-data-inactive:[--btn-foreground:var(--color-muted-foreground)] hover:[--btn-foreground:var(--color-white)] active:[--btn-foreground:var(--color-white)]",
+      /** A set value in a details list (a task's status, its record): a thin border, no depth. */
+      property:
+        "border-border [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-hover)]",
+      /** A details list's value with no border (an assignee, a date), or the muted ask for an unset one. */
+      "property-plain":
+        "border-transparent [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-hover)] data-empty:[--btn-foreground:var(--color-muted-foreground)]",
       plain:
         "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:transparent]",
     },
     size: {
       sm: ["h-7 gap-x-1.5 px-2 text-sm", "*:[svg]:size-3.5", "*:data-[slot=loader]:size-3.5"],
+      /** A value in a details list: a compact chip, its icon or avatar leading. */
+      property: [
+        "h-6 max-w-full min-w-0 gap-x-1.5 px-1.5 text-sm",
+        "*:[svg]:size-3.5 *:data-[slot=loader]:size-3.5 *:data-[slot=avatar]:[--avatar-size:--spacing(4)]",
+      ],
       md: ["h-8 gap-x-2.5 px-2.5 text-sm", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       lg: ["h-10 gap-x-2.5 px-3 text-sm", "*:[svg]:size-4.5", "*:data-[slot=loader]:size-4.5"],
       "sq-2xs": [
@@ -81,6 +92,7 @@ export const buttonStyles = tv({
   compoundVariants: [
     { size: "inset", isCircle: false, class: "rounded-sm" },
     { size: "sq-2xs", isCircle: false, class: "rounded-sm" },
+    { size: "property", isCircle: false, class: "rounded-md" },
     {
       size: "caption",
       class: "rounded-none motion-safe:[&:active]:not-aria-[haspopup]:scale-100",

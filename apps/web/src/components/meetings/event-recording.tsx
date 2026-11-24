@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { FieldRow } from "@/components/crm/record-fields.tsx";
+import { PropertyRow } from "@/components/tasks/task-fields.tsx";
 import { IconMicrophone, IconNote } from "@/components/icons/central";
 import { useOptionalStorageHref } from "@/components/storage/file-list";
 import { Button, buttonStyles } from "@/components/ui/button";
@@ -100,8 +100,8 @@ export function TaskMeeting({ taskId }: { taskId: string }) {
   const { href } = useWorkspacePaths();
   if (!data) return null;
   return (
-    <FieldRow label="Meeting">
-      <span className="flex min-w-0 flex-1 items-center px-2">
+    <PropertyRow label="Meeting">
+      <span className="flex min-w-0 flex-1 items-center px-1.5">
         <Link
           href={href(meetingPath(data.meeting.id))}
           className="truncate text-sm text-foreground underline-offset-2 hover:underline"
@@ -109,6 +109,6 @@ export function TaskMeeting({ taskId }: { taskId: string }) {
           {data.meeting.title ?? "Untitled meeting"}
         </Link>
       </span>
-    </FieldRow>
+    </PropertyRow>
   );
 }

@@ -1,12 +1,16 @@
 import {
   calendarCreateTaskBodySchema,
+  calendarTaskCommentBodySchema,
   calendarTasksQuerySchema,
   calendarUpdateTaskBodySchema,
+  type CalendarTaskActivityItem,
+  type CalendarTaskActivityResponse,
+  type CalendarTaskCommentResponse,
   type CalendarTask as WireTask,
   type CalendarTaskListResponse,
   type CalendarTaskResponse,
 } from "@omni/contracts";
-import type { CalendarTask } from "@omni/db";
+import type { CalendarTask, TaskActivityItem } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
@@ -27,6 +31,8 @@ export const wireTask = (task: CalendarTask) =>
     ownerMemberId: task.ownerMemberId,
     assigneeMemberId: task.assigneeMemberId,
     record: task.record,
+    status: task.status,
+    priority: task.priority,
     dueAt: isoOrNull(task.dueAt),
     completedAt: isoOrNull(task.completedAt),
     completedByMemberId: task.completedByMemberId,
@@ -34,6 +40,20 @@ export const wireTask = (task: CalendarTask) =>
     createdAt: iso(task.createdAt),
     updatedAt: iso(task.updatedAt),
   }) satisfies WireTask;
+
+/** An activity item as the API sends it: its times as ISO strings. */
+export function wireTaskActivity(item: TaskActivityItem) {
+  const base = { id: item.id, actorMemberId: item.actorMemberId, at: iso(item.at) };
+  const wire: CalendarTaskActivityItem =
+    item.kind === "due"
+      ? { ...base, kind: "due", from: isoOrNull(item.from), to: isoOrNull(item.to) }
+      : { ...base, ...item, at: base.at };
+  return wire;
+}
+
+/** A comment with no text. */
+export const emptyComment = (c: Context<AppEnv>) =>
+  c.json(errorBody(c, "bad_request", "a comment needs text", { param: "body" }), 400);
 
 const taskCursor = z.object({ at: z.iso.datetime().nullable(), id: z.string().min(1) });
 
@@ -102,6 +122,8 @@ export const tasks = new Hono<AppEnv>()
       subtasks: body.subtasks,
       dueAt: dateOrNull(body.dueAt),
       done: body.done,
+      status: body.status,
+      priority: body.priority,
     });
     if (changed.status !== "ok") return refusedTask(c, changed);
     return c.json({ task: wireTask(changed.task) } satisfies CalendarTaskResponse);
@@ -111,4 +133,19 @@ export const tasks = new Hono<AppEnv>()
     const deleted = await memberCalendar(c).deleteTask(c.req.param("id"));
     if (deleted.status !== "ok") return refusedTask(c, deleted);
     return c.body(null, 204);
+  })
+
+  .get("/tasks/:id/activity", async (c) => {
+    const found = await memberCalendar(c).taskActivity(c.req.param("id"));
+    if (found.status !== "ok") return refusedTask(c, found);
+    return c.json({
+      items: found.items.map(wireTaskActivity),
+    } satisfies CalendarTaskActivityResponse);
+  })
+
+  .post("/tasks/:id/comments", zValidator("json", calendarTaskCommentBodySchema), async (c) => {
+    const made = await memberCalendar(c).commentOnTask(c.req.param("id"), c.req.valid("json").body);
+    if (made.status === "empty_comment") return emptyComment(c);
+    if (made.status !== "ok") return refusedTask(c, made);
+    return c.json({ item: wireTaskActivity(made.item) } satisfies CalendarTaskCommentResponse, 201);
   });

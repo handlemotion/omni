@@ -319,8 +319,9 @@ One list, newest first, of four kinds of item:
   it is on, unless the page is that record's, which it starts on and can change. A task made in
   the CRM is always on a record.
 - The task panel is the calendar's, the same beside the CRM's lists and beside the calendar.
-- Writes publish `crm.changed` with kind `task`, plus the record's kind. Tasks write no timeline
-  events yet. Not yet: reminders, recurring tasks, several records per task, MCP tools.
+- Writes publish `crm.changed` with kind `task`, plus the record's kind; so does a comment. A
+  task keeps its own activity (`calendar.md`, Tasks) and writes nothing to the record's
+  timeline. Not yet: reminders, recurring tasks, several records per task, MCP tools.
 
 ## Records parity
 
