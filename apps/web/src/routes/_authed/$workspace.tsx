@@ -13,7 +13,6 @@ import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { SettingsNav } from "../../components/settings/settings-nav.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { DriveDragProvider } from "../../components/storage/drive-drag.tsx";
-import { TitleBar } from "../../components/shell/title-bar.tsx";
 import { TalkArrival } from "../../components/talk/talk-arrival.tsx";
 import { TalkWindow } from "../../components/talk/talk-window.tsx";
 import { useTalkNotifications } from "../../components/talk/use-talk-notifications.ts";
@@ -37,7 +36,6 @@ import { usePreloadScreens } from "../../hooks/use-preload-screens.ts";
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
 import { useThreadInItsWorkspace, useWarmWorkspaces } from "../../hooks/use-workspaces.ts";
 import { billingQuery } from "../../lib/billing.ts";
-import { desktop } from "../../lib/desktop.ts";
 import { currentWorkspaceId } from "../../lib/current-workspace.ts";
 import { requireMember, requireUser } from "../../lib/guards.ts";
 import { allMailboxesQuery, countsQuery, mailboxesQuery } from "../../lib/mail-queries.ts";
@@ -126,9 +124,7 @@ function Shell() {
             {settings ? <SettingsNav /> : <AppSidebar />}
             <NotificationsPanel />
             <CommandMenu />
-            <SidebarInset
-              className={`min-w-0 md:border-s md:border-sidebar-border ${desktop.isDesktop ? "md:mt-12 md:border-t" : ""}`}
-            >
+            <SidebarInset className="min-w-0 md:peer-data-[title-row=full]:mt-12">
               <SidebarResizeGrip />
               <ModuleBoundary>
                 <Outlet />
@@ -136,7 +132,6 @@ function Shell() {
             </SidebarInset>
           </DriveDragProvider>
         </ListSweepProvider>
-        <TitleBar />
         <TalkWindow />
         <TalkArrival meId={member.id} />
         <KeyboardShortcuts />

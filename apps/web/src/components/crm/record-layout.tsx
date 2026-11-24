@@ -1,5 +1,4 @@
 import { ApiError } from "@omni/client";
-import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { useSearch } from "@tanstack/react-router";
 import { useRef, useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -44,7 +43,6 @@ export function RecordLayout(props: {
   details: ReactNode;
   tabs: RecordTab[];
 }) {
-  usePageTitle(props.name);
   const aside = useRef<HTMLElement>(null);
   const details = useStoredWidth("omni:crm-details-width", 0, DETAILS_MIN, DETAILS_MAX);
   const [resizing, setResizing] = useState(false);

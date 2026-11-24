@@ -241,7 +241,7 @@ function Conversation(props: { person: TalkPerson; pinned: boolean }) {
 }
 
 function useAnchor(memberId: string | null, width: number) {
-  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const [at, setAt] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   useLayoutEffect(() => {
     if (!memberId) return;
     const place = () => {
@@ -255,7 +255,12 @@ function useAnchor(memberId: string | null, width: number) {
         Math.max(centre - width + CORNER, GUTTER),
         window.innerWidth - width - GUTTER,
       );
-      setAt({ top: (box?.bottom ?? 42) + BELOW, left });
+      const above = !!box && box.top > window.innerHeight / 2;
+      setAt(
+        above
+          ? { bottom: window.innerHeight - box.top + BELOW, left }
+          : { top: (box?.bottom ?? 42) + BELOW, left },
+      );
     };
     place();
     window.addEventListener("resize", place);
@@ -289,14 +294,15 @@ export function TalkWindow() {
   return (
     <section
       aria-label={person ? `Conversation with ${person.name}` : "Everyone"}
-      style={{ top: at.top, left: at.left, width }}
+      style={{ top: at.top, bottom: at.bottom, left: at.left, width }}
       onPointerEnter={talkWindow.stay}
       onPointerLeave={talkWindow.leave}
       onPointerDownCapture={talkWindow.pin}
       onFocusCapture={talkWindow.pin}
       className={cn(
         "group/talk fixed z-40 flex max-h-[calc(100svh-4rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-overlay",
-        "origin-top animate-in fade-in zoom-in-95 duration-150 ease-out",
+        at.bottom === undefined ? "origin-top" : "origin-bottom",
+        "animate-in fade-in zoom-in-95 duration-150 ease-out",
         "transition-[left] duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none",
       )}
     >

@@ -68,11 +68,11 @@
   --sidebar: var(--shell);
   /* The window around the white page (top rail, icon rail, sidebar): hover fills on it use
      `secondary`. */
-  --shell: #f7f7f3;
+  --shell: #fafaf8;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);
-  --sidebar-accent: #ededea; /* The current item on the shell's warm grey. */
+  --sidebar-accent: #f0f0ed; /* The current item on the shell's warm grey. */
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);

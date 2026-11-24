@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   useCallback,
@@ -149,7 +148,6 @@ export function FolderView(props: {
 
   const docs = useDocs(source, open);
   const node = open.node;
-  useOpenFileTitle(shell ? (node ?? comments.node) : undefined);
   const { page, phone, hideFolder, split } = useLayout(node, docs.wide, !!comments.node);
   const preview = useStoredWidth(
     "omni:file-preview-width",
@@ -301,12 +299,6 @@ export function FolderView(props: {
       />
     </div>
   );
-}
-
-function useOpenFileTitle(node: StorageNode | undefined) {
-  const { file, comments } = useSearch({ strict: false }) as { file?: string; comments?: string };
-  const inUrl = node && (node.id === file || node.id === comments);
-  usePageTitle(inUrl ? node.name : undefined, 1);
 }
 
 function useLayout(node: StorageNode | undefined, wide: boolean, commenting: boolean) {

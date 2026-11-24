@@ -15,14 +15,7 @@ import {
   IconMeetingsMark,
 } from "@/components/icons/module-marks";
 import { SearchButton } from "@/components/search/search-trigger";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarItem,
-  SidebarTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import { IconSidebar } from "@/components/icons/sidebar";
+import { Sidebar, SidebarContent, SidebarItem, useSidebar } from "@/components/ui/sidebar";
 import { PresenceStack } from "@/components/talk/presence-stack";
 import { desktop } from "@/lib/desktop.ts";
 import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
@@ -40,6 +33,7 @@ import {
   type ModuleId,
 } from "./module-switcher";
 import { NotificationsButton } from "./notifications";
+import { SidebarToggle, TitleRow } from "./title-bar";
 import { UpdateTile } from "./update-row";
 
 const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
@@ -61,51 +55,65 @@ const PATHS: Record<ModuleId, string> = {
 };
 
 /**
- * The shell's left side, on the shell's grey beside the white page: the icon rail (the modules,
- * Search, and settings at its foot) and, when open, the sidebar with the module's own pages and
- * the workspace switcher at its foot. In a browser, with no top rail, the icon rail also holds the
- * sidebar toggle and notifications, and who is online sits beside the workspace switcher.
+ * The shell's left side, on the shell's fill beside the white page. In the desktop app the title
+ * row (traffic lights, sidebar toggle, arrows) sits over it; a browser has none, and the sidebar
+ * toggle heads the icon rail instead. Below: the icon rail (the modules, settings at its foot) and,
+ * when open, the sidebar: the module's name with notifications and Search, its pages, and the
+ * workspace switcher with who is online at its foot.
  */
 export function RailSidebar({ title, children }: { title?: string; children: ReactNode }) {
   const { open } = useSidebar();
-  const web = !desktop.isDesktop;
+  const app = desktop.isDesktop;
   return (
-    <div className={cn("peer flex shrink-0", !web && "mt-12")}>
-      <div className="flex w-13 shrink-0 flex-col items-center gap-1 bg-shell py-3 **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]!">
-        {web && <SidebarToggle />}
-        <ModuleTabs />
-        <SearchButton />
-        {web && <NotificationsButton />}
-        <div className="mt-auto flex flex-col items-center gap-2">
-          <UpdateTile className="size-8 rounded-lg px-0" />
-          <SettingsButton />
-        </div>
-      </div>
-      {open && (
-        <Sidebar collapsible="none" closeButton={false} data-state="expanded" className="bg-shell">
-          <SidebarContent className="gap-3 p-3 *:shrink-0">
-            {title && <div className="-mb-2 flex h-7 items-center px-2 text-md">{title}</div>}
-            {children}
-            <div className="mt-auto">
-              <WorkspaceSwitcher foot end={web ? <PresenceStack /> : undefined} />
+    <div
+      data-title-row={app ? (open ? "side" : "full") : undefined}
+      className={cn("peer flex shrink-0 flex-col", app && !open && "pt-12")}
+    >
+      {app && <TitleRow full={!open} />}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex w-13 shrink-0 flex-col items-center gap-1 border-e border-sidebar-border bg-shell py-3 **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]!">
+          {!app && (
+            <div className="mb-2">
+              <SidebarToggle placement="right" />
             </div>
-          </SidebarContent>
-        </Sidebar>
-      )}
+          )}
+          <ModuleTabs />
+          <div className="mt-auto flex flex-col items-center gap-2">
+            <UpdateTile className="size-8 rounded-lg px-0" />
+            <SettingsButton />
+          </div>
+        </div>
+        {open && (
+          <Sidebar
+            collapsible="none"
+            closeButton={false}
+            data-state="expanded"
+            className="border-e border-sidebar-border bg-shell **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]!"
+          >
+            <SidebarContent className="gap-3 p-3 *:shrink-0">
+              <SidebarHeader title={title} />
+              {children}
+              <div className="mt-auto">
+                <WorkspaceSwitcher foot end={<PresenceStack />} />
+              </div>
+            </SidebarContent>
+          </Sidebar>
+        )}
+      </div>
     </div>
   );
 }
 
-function SidebarToggle() {
-  const { open } = useSidebar();
-  const label = open ? "Close sidebar" : "Open sidebar";
+function SidebarHeader({ title }: { title?: string }) {
+  const modules = useModules();
+  const module = usePressedModule();
+  const name = title ?? modules.find((m) => m.id === module)?.label;
   return (
-    <TooltipTrigger delay={400}>
-      <SidebarTrigger intent="ghost" size="sq-sm" aria-label={label} className="mb-2">
-        <IconSidebar />
-      </SidebarTrigger>
-      <Tooltip placement="right">{label}</Tooltip>
-    </TooltipTrigger>
+    <div className="flex h-8 items-center gap-0.5 ps-2">
+      <h2 className="min-w-0 flex-1 truncate text-md font-semibold">{name}</h2>
+      <NotificationsButton />
+      <SearchButton />
+    </div>
   );
 }
 
@@ -174,7 +182,7 @@ function ModuleTabs() {
         }
         event.preventDefault();
         event.stopPropagation();
-        if (picked.id === shown) return;
+        if (!inSettings && picked.id === shown) return;
         if (performance.now() - pressedAt.current > SWITCH_MS)
           pressedAt.current = performance.now();
         press(picked.id);

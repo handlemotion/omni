@@ -80,13 +80,13 @@ type View = "all" | "unread";
 /** The panel, at the window's right edge under its button. Mount once in the shell. */
 export function NotificationsPanel() {
   const open = useNotificationsPanel();
-  const { isMobile } = useSidebar();
+  const { isMobile, open: sidebarOpen } = useSidebar();
   const { unread } = useNotifications();
   const markRead = useMarkNotificationsRead();
   const openSettings = useOpenSettings();
   const [view, setView] = useState<View>("all");
   const panel = useRef<HTMLElement>(null);
-  const underTopRail = desktop.isDesktop && !isMobile;
+  const underTopRail = desktop.isDesktop && !isMobile && !sidebarOpen;
   const listed = useWhenIdle(open);
 
   useEffect(() => {
