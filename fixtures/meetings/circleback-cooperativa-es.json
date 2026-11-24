@@ -1,0 +1,59 @@
+{
+  "id": "cbTest0Cooperativa01",
+  "name": "Cooperativa : Café de altura",
+  "createdAt": "2026-11-19T17:27:34.826Z",
+  "duration": 312.5,
+  "url": null,
+  "recordingUrl": null,
+  "tags": [],
+  "icalUid": null,
+  "attendees": [
+    { "name": "Lucía Romero", "email": "lucia@fundacion.test" },
+    { "name": "Participant 3", "email": null }
+  ],
+  "notes": "#### Resumen\n* La fundación entrevistó a la cooperativa para documentar su alianza con la cadena de restaurantes\n* La cooperativa vende cerca del **80%** de su café a un solo cliente\n\n#### Financiamiento\n* El cliente financia el acopio con una compra anticipada sin intereses\n* La cooperativa no consiguió crédito bancario por no tener garantías\n\n#### Certificaciones\n* Dejaron la certificación orgánica porque costaba casi **$200,000** al año",
+  "actionItems": [
+    {
+      "id": 101,
+      "title": "Compartir los resultados del estudio con la cooperativa",
+      "description": "Volver con ellos para mostrarles lo que salga del estudio.",
+      "assignee": { "name": "Lucía Romero", "email": "lucia@fundacion.test" },
+      "status": "PENDING"
+    },
+    {
+      "id": 102,
+      "title": "Enviar el cuestionario",
+      "description": "",
+      "assignee": null,
+      "status": "DONE"
+    }
+  ],
+  "transcript": [
+    {
+      "speaker": "Lucía Romero",
+      "text": "Gracias por recibirnos, queremos documentar la alianza.",
+      "timestamp": 1.5
+    },
+    {
+      "speaker": "Participant 3",
+      "text": "Con gusto. Vendemos casi todo el café a un solo cliente.",
+      "timestamp": 6.2
+    },
+    {
+      "speaker": "Lucía Romero",
+      "text": "¿Cómo financian el acopio de la cosecha?",
+      "timestamp": 61.0
+    },
+    {
+      "speaker": "Participant 3",
+      "text": "El cliente nos hace una compra anticipada sin intereses, porque el banco no nos dio crédito sin garantías.",
+      "timestamp": 64.8
+    },
+    { "speaker": "Lucía Romero", "text": "¿Y la certificación orgánica?", "timestamp": 190.0 },
+    {
+      "speaker": "Participant 3",
+      "text": "La dejamos, la certificación orgánica costaba casi doscientos mil al año.",
+      "timestamp": 193.4
+    }
+  ]
+}

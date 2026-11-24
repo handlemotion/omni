@@ -11,6 +11,7 @@ import {
   type MeetingsOnQuery,
 } from "./meetings/crm.ts";
 import { findMeetings, type MeetingsFilter } from "./meetings/find.ts";
+import { importMeeting, type ImportMeeting } from "./meetings/import.ts";
 import { claimDocLease, claimNotesDoc, docTarget, releaseDocLease } from "./meetings/doc.ts";
 import * as chunks from "./meetings/chunks.ts";
 import * as pipeline from "./meetings/pipeline.ts";
@@ -46,6 +47,7 @@ export { ASK_TRANSCRIPTS as MEETINGS_ASK_TRANSCRIPTS, type AskSource } from "./m
 export { MEETINGS_PAGE_MAX, type MeetingView } from "./meetings/read.ts";
 export type { MeetingRecord, MeetingRecordKind, MeetingsOnQuery } from "./meetings/crm.ts";
 export type { MeetingsFilter } from "./meetings/find.ts";
+export type { ImportMeeting } from "./meetings/import.ts";
 export type { MeetingChange, StartMeeting } from "./meetings/write.ts";
 export { recurrenceKey, type MeetingEventChoice, type StartRecording } from "./meetings/bind.ts";
 export { RECORDING_STALE_MS, type Chunk as MeetingChunk } from "./meetings/chunks.ts";
@@ -99,6 +101,8 @@ export function memberMeetings(db: Db, memberId: string) {
         return me ? startMeeting(tx, me, resolved.start) : ({ status: "not_found" } as const);
       });
     },
+    import: (input: ImportMeeting) =>
+      db.transaction(async (tx) => importMeeting(tx, await memberActor(tx, memberId), input)),
     change: async (meetingId: string, change: MeetingChange) =>
       changeMeeting(db, await actor(), meetingId, change),
     grant: async (meetingId: string, address: string, role: "viewer" | "editor") =>

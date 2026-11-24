@@ -155,3 +155,57 @@ export type MeetingChunksResponse = z.infer<typeof meetingChunksResponseSchema>;
 export type ChangeMeetingBody = z.infer<typeof changeMeetingBodySchema>;
 export type AskMeetingsBody = z.infer<typeof askMeetingsBodySchema>;
 export type MeetingsChangedEvent = z.infer<typeof meetingsChangedEventSchema>;
+
+/** The most transcript lines one imported meeting may have: a long day of short turns. */
+export const MEETINGS_IMPORT_MAX_TURNS = 50_000;
+
+const circlebackPerson = z.object({
+  name: z.string().max(300).nullish(),
+  email: z.string().max(320).nullish(),
+});
+
+/**
+ * `POST /api/meetings/import`: a meeting another notetaker recorded, in the shape Circleback's
+ * webhook and API send (`docs/spec/meetings.md`, "Importing"). Importing the same `id` twice
+ * answers the meeting the first import made and changes nothing.
+ */
+export const importMeetingBodySchema = z.object({
+  source: z.literal("circleback").default("circleback"),
+  id: z.string().min(1).max(200),
+  name: z.string().max(300).nullish(),
+  createdAt: z.iso.datetime({ offset: true }),
+  /** Seconds. */
+  duration: z
+    .number()
+    .min(0)
+    .max(48 * 3600)
+    .nullish(),
+  icalUid: z.string().max(1000).nullish(),
+  attendees: z.array(circlebackPerson).max(500).default([]),
+  /** Markdown, `####` sections of bullets; the first section is the summary. */
+  notes: z.string().max(200_000).nullish(),
+  actionItems: z
+    .array(
+      z.object({
+        title: z.string().max(500),
+        description: z.string().max(5000).nullish(),
+        assignee: circlebackPerson.nullish(),
+        status: z.string().max(40).nullish(),
+      }),
+    )
+    .max(500)
+    .default([]),
+  transcript: z
+    .array(
+      z.object({
+        speaker: z.string().max(300).nullish(),
+        text: z.string().max(20_000),
+        /** Seconds from the start. */
+        timestamp: z.number().min(0),
+      }),
+    )
+    .max(MEETINGS_IMPORT_MAX_TURNS)
+    .default([]),
+});
+
+export type ImportMeetingBody = z.infer<typeof importMeetingBodySchema>;
