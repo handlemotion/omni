@@ -86,13 +86,14 @@ const mailboxOf = (search: object) => (search as { mailbox?: string }).mailbox;
 
 export function AppSidebar() {
   const mailbox = useSearch({ strict: false, select: mailboxOf });
-  const { isMobile } = useSidebar();
+  const { isMobile, open } = useSidebar();
+  const rail = !isMobile && !open;
   const pages = {
     mail: <MailNav mailbox={mailbox} />,
     files: <StorageNav mailbox={mailbox} />,
     crm: <CrmNav mailbox={mailbox} />,
-    calendar: <CalendarNav />,
-    meetings: <MeetingsNav />,
+    calendar: rail ? null : <CalendarNav />,
+    meetings: rail ? null : <MeetingsNav />,
   };
   if (!isMobile) {
     return (

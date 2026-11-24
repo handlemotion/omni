@@ -346,7 +346,7 @@ export function WorkspaceSwitcher({
 }: {
   end?: ReactNode;
   workspacesOnly?: boolean;
-  /** At the sidebar's foot: the trigger fills the row and the menu opens above it. */
+  /** At the sidebar's foot: the menu opens above the row. */
   foot?: boolean;
   /** A chevron after the name, as the title bar draws it. */
   chevron?: boolean;
@@ -382,12 +382,12 @@ export function WorkspaceSwitcher({
       <MenuTrigger>
         <SidebarItemTrigger
           aria-label={`Switch workspace, currently ${label(active)}`}
-          className={workspacesOnly || foot ? "min-w-0 flex-1" : "w-auto max-w-full shrink pe-2.25"}
+          className={workspacesOnly ? undefined : "w-auto max-w-full shrink pe-2.25"}
         >
           <TriggerMark workspace={active} busy={openWorkspace.isPending || pending} />
           <span className="min-w-0 truncate">{label(active)}</span>
           {chevron && <IconChevronDown className="size-3.5 shrink-0 text-muted-foreground" />}
-          {(workspacesOnly || foot) && (
+          {workspacesOnly && (
             <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
           )}
         </SidebarItemTrigger>

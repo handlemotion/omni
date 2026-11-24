@@ -64,15 +64,16 @@
   --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
-  /* The sidebar sits on the shell's warm grey, beside the white page. */
-  --sidebar: var(--shell);
-  /* The window around the white page (top rail, icon rail, sidebar): hover fills on it use
-     `secondary`. */
-  --shell: #fafaf8;
+  /* A grey fill a hair under the page's white (a step subtler than `surface`), so the sidebar
+     reads apart from the content beside its hairline border. */
+  --sidebar: #fefefe;
+  /* The top rail over the white sidebar and page, in the calendar's weekend grey made opaque:
+     hover fills on it use `secondary`. */
+  --shell: color-mix(in oklab, var(--foreground) 1.5%, var(--background));
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);
-  --sidebar-accent: #f0f0ed; /* The current item on the shell's warm grey. */
+  --sidebar-accent: var(--accent);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);

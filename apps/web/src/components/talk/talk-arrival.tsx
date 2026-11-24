@@ -11,8 +11,7 @@ interface Arrival {
   memberId: string;
   preview: string;
   messageId: string;
-  top?: number;
-  bottom?: number;
+  top: number;
   right: number;
 }
 
@@ -23,9 +22,7 @@ function placeUnder(memberId: string) {
   const box = face?.getBoundingClientRect();
   if (!box) return null;
   const centre = box.left + box.width / 2;
-  const right = Math.max(window.innerWidth - centre - TIP, GUTTER);
-  if (box.top > window.innerHeight / 2) return { bottom: window.innerHeight - box.top + 8, right };
-  return { top: box.bottom + 8, right };
+  return { top: box.bottom + 8, right: Math.max(window.innerWidth - centre - TIP, GUTTER) };
 }
 
 /**
@@ -59,7 +56,6 @@ export function TalkArrival(props: { meId: string }) {
   );
   useEffect(() => () => clearTimeout(timer.current), []);
   if (!arrival || open) return null;
-  const above = arrival.bottom !== undefined;
   return (
     <button
       key={arrival.messageId}
@@ -72,13 +68,13 @@ export function TalkArrival(props: { meId: string }) {
         setArrival(null);
         talkWindow.open(arrival.memberId);
       }}
-      style={{ top: arrival.top, bottom: arrival.bottom, right: arrival.right, maxWidth: WIDTH }}
-      className={`fixed z-40 ${above ? "origin-bottom-right slide-in-from-bottom-1" : "origin-top-right slide-in-from-top-1"} cursor-pointer rounded-xl bg-primary px-3 py-1.5 text-start text-sm/5 text-primary-foreground shadow-overlay outline-hidden animate-in fade-in zoom-in-90 duration-200 ease-out focus-visible:ring-2 focus-visible:ring-ring motion-reduce:animate-none`}
+      style={{ top: arrival.top, right: arrival.right, maxWidth: WIDTH }}
+      className="fixed z-40 origin-top-right cursor-pointer rounded-xl bg-primary px-3 py-1.5 text-start text-sm/5 text-primary-foreground shadow-overlay outline-hidden animate-in fade-in zoom-in-90 slide-in-from-top-1 duration-200 ease-out focus-visible:ring-2 focus-visible:ring-ring motion-reduce:animate-none"
     >
       <span
         aria-hidden
         style={{ right: TIP - 5 }}
-        className={`absolute ${above ? "-bottom-1" : "-top-1"} size-2.5 rotate-45 rounded-[2px] bg-primary`}
+        className="absolute -top-1 size-2.5 rotate-45 rounded-[2px] bg-primary"
       />
       <span className="line-clamp-2 break-words">{arrival.preview}</span>
     </button>

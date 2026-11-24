@@ -1,10 +1,10 @@
 import { useLocation, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useRef, type ComponentType, type ReactNode } from "react";
+import { useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
   IconConnections,
+  IconLogOut,
   IconSettings,
-  IconSettingsFilled,
   IconUserRound,
 } from "@/components/icons/central";
 import {
@@ -15,9 +15,16 @@ import {
   IconMeetingsMark,
 } from "@/components/icons/module-marks";
 import { SearchButton } from "@/components/search/search-trigger";
-import { Sidebar, SidebarContent, SidebarItem, useSidebar } from "@/components/ui/sidebar";
-import { PresenceStack } from "@/components/talk/presence-stack";
-import { desktop } from "@/lib/desktop.ts";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarItem,
+  SidebarItemTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { Avatar } from "@/components/ui/avatar";
+import { useMember, useSignOut } from "@/hooks/use-session.ts";
 import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { isSettingsPath, useOpenSettings } from "@/hooks/use-settings.ts";
@@ -32,8 +39,6 @@ import {
   WorkspaceSwitcher,
   type ModuleId,
 } from "./module-switcher";
-import { NotificationsButton } from "./notifications";
-import { SidebarToggle, TitleRow } from "./title-bar";
 import { UpdateTile } from "./update-row";
 
 const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
@@ -55,66 +60,50 @@ const PATHS: Record<ModuleId, string> = {
 };
 
 /**
- * The shell's left side, on the shell's fill beside the white page. In the desktop app the title
- * row (traffic lights, sidebar toggle, arrows) sits over it; a browser has none, and the sidebar
- * toggle heads the icon rail instead. Below: the icon rail (the modules, settings at its foot) and,
- * when open, the sidebar: the module's name with notifications and Search, its pages, and the
- * workspace switcher with who is online at its foot.
+ * The white island's left part, floating on the shell's grey under the top rail: the rail of
+ * modules (with Search, and your picture at its foot for settings) and, when open, the sidebar:
+ * the module's name (Calendar goes without, its month is the title), its own pages, and the
+ * workspace switcher at its foot.
  */
 export function RailSidebar({ title, children }: { title?: string; children: ReactNode }) {
   const { open } = useSidebar();
-  const app = desktop.isDesktop;
   return (
-    <div
-      data-title-row={app ? (open ? "side" : "full") : undefined}
-      className={cn("peer flex shrink-0 flex-col", app && !open && "pt-12")}
-    >
-      {app && <TitleRow full={!open} />}
-      <div className="flex min-h-0 flex-1">
-        <div className="flex w-13 shrink-0 flex-col items-center gap-1 border-e border-sidebar-border bg-shell py-3 **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]!">
-          {!app && (
-            <div className="mb-2">
-              <SidebarToggle placement="right" />
-            </div>
-          )}
-          <ModuleTabs />
-          <div className="mt-auto flex flex-col items-center gap-2">
-            <UpdateTile className="size-8 rounded-lg px-0" />
-            <SettingsButton />
-          </div>
+    <div className="peer mt-12 flex shrink-0 overflow-hidden rounded-s-xl border-y border-s border-sidebar-border bg-background">
+      <div className="flex w-13 shrink-0 flex-col items-center gap-1 border-e border-sidebar-border py-3">
+        <ModuleTabs />
+        <SearchButton />
+        <div className="mt-auto flex flex-col items-center gap-2">
+          <UpdateTile className="size-8 rounded-lg px-0" />
+          <SettingsButton />
         </div>
-        {open && (
-          <Sidebar
-            collapsible="none"
-            closeButton={false}
-            data-state="expanded"
-            className="border-e border-sidebar-border bg-shell **:[--btn-overlay:var(--color-secondary)]! **:aria-expanded:[--btn-bg:var(--color-secondary)]!"
-          >
-            <SidebarContent className="gap-3 p-3 *:shrink-0">
-              <SidebarHeader title={title} />
-              {children}
-              <div className="mt-auto">
-                <WorkspaceSwitcher foot end={<PresenceStack />} />
-              </div>
-            </SidebarContent>
-          </Sidebar>
-        )}
       </div>
+      {open && (
+        <Sidebar
+          collapsible="none"
+          closeButton={false}
+          data-state="expanded"
+          className="h-auto border-e border-sidebar-border bg-background"
+        >
+          <SidebarContent className="gap-3 p-3 *:shrink-0">
+            <SidebarTitle title={title} />
+            {children}
+            <div className="mt-auto">
+              <WorkspaceSwitcher workspacesOnly foot />
+            </div>
+          </SidebarContent>
+        </Sidebar>
+      )}
     </div>
   );
 }
 
-function SidebarHeader({ title }: { title?: string }) {
+function SidebarTitle({ title }: { title?: string }) {
   const modules = useModules();
   const module = usePressedModule();
-  const name = title ?? modules.find((m) => m.id === module)?.label;
-  return (
-    <div className="flex h-8 items-center gap-0.5 ps-2">
-      <h2 className="min-w-0 flex-1 truncate text-md font-semibold">{name}</h2>
-      <NotificationsButton />
-      <SearchButton />
-    </div>
-  );
+  const name =
+    title ?? (module === "calendar" ? undefined : modules.find((m) => m.id === module)?.label);
+  if (!name) return null;
+  return <h2 className="-mb-1 flex h-7 items-center px-2 text-md">{name}</h2>;
 }
 
 function ModuleTabs() {
@@ -216,33 +205,58 @@ function ModuleTabs() {
 }
 
 function SettingsButton() {
+  const { user } = useMember();
   const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
   const openSettings = useOpenSettings();
-  const menu = contextMenuProps(
-    () =>
-      [
-        { icon: IconUserRound, label: "Account settings", onAction: () => openSettings("profile") },
-        {
-          icon: IconSettings,
-          label: "Workspace settings",
-          onAction: () => openSettings("general"),
-        },
-        { icon: IconConnections, label: "Connections", onAction: () => openSettings("accounts") },
-      ] satisfies ContextMenuEntry[],
-  );
+  const signOut = useSignOut();
   return (
-    <div {...menu} className="flex">
-      <TooltipTrigger>
-        <SidebarItem
-          aria-label="Settings"
-          isCurrent={inSettings}
-          onPress={() => openSettings("general")}
-          className="size-8 justify-center rounded-lg px-0"
+    <MenuTrigger>
+      <SidebarItemTrigger
+        aria-label="Settings"
+        className={cn(
+          "size-8 justify-center rounded-full px-0",
+          inSettings && "[--btn-bg:var(--sidebar-accent)]",
+        )}
+      >
+        <Avatar
+          src={user.image ?? null}
+          initials={(user.name || user.email).slice(0, 1).toUpperCase()}
+          alt=""
+          className="bg-secondary text-muted-foreground outline-0"
+          style={{ "--avatar-size": "24px" } as CSSProperties}
+        />
+      </SidebarItemTrigger>
+      <Menu placement="top start" popover={{ offset: 6, className: "w-56" }}>
+        <MenuItem
+          id="account"
+          textValue="Account settings"
+          onAction={() => openSettings("profile")}
         >
-          {inSettings ? <IconSettingsFilled /> : <IconSettings />}
-        </SidebarItem>
-        <Tooltip placement="right">Settings</Tooltip>
-      </TooltipTrigger>
-    </div>
+          <IconUserRound data-slot="icon" />
+          <MenuLabel>Account settings</MenuLabel>
+        </MenuItem>
+        <MenuItem
+          id="workspace"
+          textValue="Workspace settings"
+          onAction={() => openSettings("general")}
+        >
+          <IconSettings data-slot="icon" />
+          <MenuLabel>Workspace settings</MenuLabel>
+        </MenuItem>
+        <MenuItem
+          id="connections"
+          textValue="Connections"
+          onAction={() => openSettings("accounts")}
+        >
+          <IconConnections data-slot="icon" />
+          <MenuLabel>Connections</MenuLabel>
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem id="log-out" textValue="Log out" onAction={() => signOut.mutate()}>
+          <IconLogOut data-slot="icon" />
+          <MenuLabel>Log out</MenuLabel>
+        </MenuItem>
+      </Menu>
+    </MenuTrigger>
   );
 }
