@@ -320,7 +320,7 @@ test("a task dragged onto Today is due today, and onto No due date has no due da
   await context.close();
 });
 
-test("New › Task starts on the record whose page it is, and from the task list asks for the record first", async () => {
+test("New task on a record's Tasks tab starts on that record, and New › Task on the task list asks for the record first", async () => {
   const origin = String(worker.url);
   const org = await createOrg(db, "create-task");
   await db.insert(schema.orgSetup).values({ orgId: org.id, step: "complete" });
@@ -351,9 +351,9 @@ test("New › Task starts on the record whose page it is, and from the task list
   };
 
   await page.goto(new URL(`/${org.slug}/crm/deals/${deal.id}`, origin).toString());
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Task" }).click();
-  await page.getByRole("dialog", { name: "New task" }).getByText("Rooftop shoot").waitFor();
+  await page.getByRole("tab", { name: "Tasks" }).click();
+  await page.getByRole("button", { name: "New task" }).click();
+  await page.getByRole("dialog", { name: "New task" }).waitFor();
   await create("Scout the roof");
 
   await page.goto(new URL(`/${org.slug}/crm/tasks`, origin).toString());
