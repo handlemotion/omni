@@ -7,10 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { IconPauseFilled, IconPlayFilled } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
-import { Slider, SliderTrack } from "@/components/ui/slider";
-import { meetingAudioUrl, meetingClock } from "@/lib/meetings.ts";
+import { meetingAudioUrl } from "@/lib/meetings.ts";
 
 interface Player {
   timeMs: number;
@@ -84,38 +81,3 @@ export function MeetingAudio(props: {
 }
 
 export const usePlayer = () => useContext(PlayerContext);
-
-/** Play, the scrubber, and where in the meeting it is. */
-export function PlayerRow() {
-  const player = usePlayer();
-  const max = Math.max(player.durationMs, 1);
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
-      <Button
-        intent="secondary"
-        size="sq-xs"
-        aria-label={player.playing ? "Pause" : "Play"}
-        onPress={player.toggle}
-      >
-        {player.playing ? <IconPauseFilled /> : <IconPlayFilled />}
-      </Button>
-      <span className="w-10 shrink-0 text-xs text-muted-foreground tabular-nums">
-        {meetingClock(player.timeMs)}
-      </span>
-      <Slider
-        aria-label="Position"
-        minValue={0}
-        maxValue={max}
-        step={1000}
-        value={Math.min(player.timeMs, max)}
-        onChange={(value) => player.seek(Array.isArray(value) ? (value[0] ?? 0) : value)}
-        className="min-w-0 flex-1"
-      >
-        <SliderTrack />
-      </Slider>
-      <span className="w-10 shrink-0 text-end text-xs text-muted-foreground tabular-nums">
-        {meetingClock(player.durationMs)}
-      </span>
-    </div>
-  );
-}

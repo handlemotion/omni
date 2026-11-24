@@ -3,12 +3,15 @@
 //! and stop. It is the bundled `pill.html`, which hears `recording-changed` and calls the
 //! recorder's pause, resume and stop. It has no close button: it goes when the recording does.
 
+use tauri::utils::config::WindowEffectsConfig;
+use tauri::window::{Effect, EffectState};
 use tauri::{AppHandle, LogicalPosition, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 const LABEL: &str = "pill";
-const WIDTH: f64 = 196.0;
-const HEIGHT: f64 = 40.0;
-const TOP: f64 = 12.0;
+const WIDTH: f64 = 200.0;
+const HEIGHT: f64 = 44.0;
+/// Room under the pill, over the Dock's edge.
+const BOTTOM: f64 = 24.0;
 
 pub fn show<R: Runtime>(app: &AppHandle<R>) {
     let window = match app.get_webview_window(LABEL) {
@@ -19,6 +22,15 @@ pub fn show<R: Runtime>(app: &AppHandle<R>) {
                 .inner_size(WIDTH, HEIGHT)
                 .resizable(false)
                 .decorations(false)
+                .transparent(true)
+                .shadow(false)
+                .effects(WindowEffectsConfig {
+                    effects: vec![Effect::HudWindow, Effect::Acrylic],
+                    state: Some(EffectState::Active),
+                    radius: Some(HEIGHT / 2.0),
+                    color: None,
+                    interactive: false,
+                })
                 .always_on_top(true)
                 .visible_on_all_workspaces(true)
                 .skip_taskbar(true)
@@ -34,14 +46,14 @@ pub fn show<R: Runtime>(app: &AppHandle<R>) {
             }
         }
     };
-    // Top centre of the screen the person is on.
+    // Bottom centre of the screen the person is on.
     if let Ok(Some(monitor)) = window.current_monitor() {
         let scale = monitor.scale_factor();
         let size = monitor.size().to_logical::<f64>(scale);
         let origin = monitor.position().to_logical::<f64>(scale);
         let _ = window.set_position(LogicalPosition::new(
             origin.x + (size.width - WIDTH) / 2.0,
-            origin.y + TOP,
+            origin.y + size.height - HEIGHT - BOTTOM,
         ));
     }
     let _ = window.show();

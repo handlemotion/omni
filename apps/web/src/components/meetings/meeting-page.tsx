@@ -2,7 +2,7 @@ import { ApiError } from "@omni/client";
 import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { MeetingRecord } from "./meeting-record.tsx";
 import { useState, type ComponentType, type ReactNode } from "react";
-import { Skeleton } from "skullet/react";
+import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import {
   IconArrowRotateClockwise,
@@ -22,9 +22,7 @@ import {
 } from "@/components/icons/central";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { appToast } from "@/components/ui/toast";
@@ -34,7 +32,8 @@ import { groupKind, meetingClock, meetingGroupPath, type Meeting } from "@/lib/m
 import { Link } from "@/components/ui/link";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { ActionItem } from "./meeting-actions.tsx";
-import { MeetingAudio, PlayerRow, usePlayer } from "./meeting-player.tsx";
+import { Card, DetailRow, RecordingCard, SpeakersCard } from "./meeting-aside.tsx";
+import { MeetingAudio, usePlayer } from "./meeting-player.tsx";
 import { ShareMeetingDialog } from "./meeting-share.tsx";
 import { MeetingTranscript } from "./meeting-transcript.tsx";
 
@@ -74,37 +73,45 @@ export function MeetingPage({ id }: { id: string }) {
     >
       <MeetingAudio id={id} hasAudio={m.hasAudio} durationMs={m.durationMs}>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <article className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 pt-10 pb-16">
-            <header className="flex flex-col gap-3">
-              <h1 className="text-2xl text-foreground">{m.title ?? "Untitled meeting"}</h1>
-              <MetaRow meeting={data} />
-            </header>
-            <Properties
-              meeting={data}
-              onShare={editor ? () => setSharing(true) : undefined}
-              canEdit={editor}
-            />
+          <header className="flex max-w-3xl flex-col gap-3 px-10 pt-6 pb-6">
+            <h1 className="text-2xl text-foreground">{m.title ?? "Untitled meeting"}</h1>
+            <MetaRow meeting={data} />
             <Progress meeting={data} />
-            <Tabs className="w-full">
-              <TabList
-                aria-label="Meeting"
-                className="sticky top-0 z-10 bg-background pt-1.5 [--tab-list-pb:--spacing(1.5)]"
-              >
-                <Tab id="summary">Summary</Tab>
-                <Tab id="transcript">Transcript</Tab>
-              </TabList>
-              <TabPanel id="summary" className="flex flex-col gap-8 pt-6">
-                <Summary meeting={data} canDecide={editor} />
-              </TabPanel>
-              <TabPanel id="transcript" className="flex flex-col pt-6">
-                {m.status === "ready" ? (
-                  <MeetingTranscript meeting={data} canRename={editor} />
-                ) : (
-                  <Quiet>–</Quiet>
-                )}
-              </TabPanel>
-            </Tabs>
-          </article>
+          </header>
+          <Tabs className="w-full">
+            <TabList
+              aria-label="Meeting"
+              className="sticky top-0 z-10 bg-background px-10 pt-1.5 [--tab-list-pb:--spacing(1.5)]"
+            >
+              <Tab id="summary">Summary</Tab>
+              <Tab id="transcript">Transcript</Tab>
+            </TabList>
+            <div className="flex flex-col gap-8 px-10 pt-4 pb-16 lg:flex-row lg:items-start">
+              <div className="flex max-w-3xl min-w-0 flex-1 flex-col">
+                <TabPanel id="summary" className="flex flex-col gap-8">
+                  <Summary meeting={data} canDecide={editor} />
+                </TabPanel>
+                <TabPanel id="transcript" className="flex flex-col">
+                  {m.status === "ready" ? (
+                    <MeetingTranscript meeting={data} canRename={editor} />
+                  ) : (
+                    <Quiet>–</Quiet>
+                  )}
+                </TabPanel>
+              </div>
+              <aside className="flex w-full flex-col gap-4 lg:sticky lg:top-16 lg:max-w-lg lg:min-w-80 lg:flex-1">
+                <RecordingCard meeting={data} />
+                <SpeakersCard meeting={data} />
+                <Card>
+                  <Properties
+                    meeting={data}
+                    onShare={editor ? () => setSharing(true) : undefined}
+                    canEdit={editor}
+                  />
+                </Card>
+              </aside>
+            </div>
+          </Tabs>
         </div>
       </MeetingAudio>
       {sharing && <ShareMeetingDialog meeting={data} onClose={() => setSharing(false)} />}
@@ -118,7 +125,8 @@ function GroupCrumb({ meeting }: { meeting: Meeting }) {
   const label =
     groupKind(key) === "domain"
       ? key.slice("domain:".length)
-      : (meeting.meeting.title ?? "Meetings");
+      : (meeting.meeting.title ?? "Untitled meeting");
+  if (groupKind(key) === "meeting") return <h1 className="truncate text-md">{label}</h1>;
   return (
     <Link
       href={href(meetingGroupPath(key))}
@@ -181,73 +189,44 @@ function Properties(props: {
   onShare: (() => void) | undefined;
   canEdit: boolean;
 }) {
-  const player = usePlayer();
   const names = new Map(props.meeting.attendees.map((a) => [a.address, a.name]));
   const people = (props.meeting.sharing?.grants ?? []).map((g) => ({
     address: g.address,
     name: names.get(g.address) ?? null,
   }));
   const workspace = props.meeting.sharing?.access === "workspace";
+  const who = [
+    ...(workspace ? ["Workspace"] : []),
+    ...people.map((p) => (p.name ?? p.address).split(/[ @]/)[0]),
+  ].join(", ");
   return (
-    <dl className="grid grid-cols-[6rem_1fr] items-center gap-x-4 gap-y-3 text-sm">
-      {player.hasAudio && (
-        <Property label="Audio">
-          <PlayerRow />
-        </Property>
-      )}
+    <div className="flex flex-col gap-3">
       {props.meeting.sharing && (
-        <Property label="Shared with">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="flex -space-x-1">
-              {people.slice(0, 5).map((person) => (
-                <Avatar
-                  key={person.address}
-                  size="xs"
-                  initials={initial(person.name ?? person.address)}
-                  className="ring-2 ring-background"
-                  title={person.name ?? person.address}
-                />
-              ))}
-            </div>
-            <span className="truncate text-muted-foreground">
-              {[
-                ...(workspace ? ["Everyone in the workspace"] : []),
-                ...people.map((p) => (p.name ?? p.address).split(" ")[0]),
-              ].join(", ")}
-            </span>
-            {props.onShare && (
-              <Button intent="plain" size="sm" onPress={props.onShare} className="ms-auto">
-                Manage
-              </Button>
+        <DetailRow label="Shared with">
+          <Button
+            intent="property"
+            size="property"
+            isDisabled={!props.onShare}
+            onPress={props.onShare}
+            aria-label={`Shared with ${who}`}
+          >
+            {people[0] ? (
+              <Avatar size="xs" initials={initial(people[0].name ?? people[0].address)} />
+            ) : (
+              <IconPeople />
             )}
-          </div>
-        </Property>
+            <span className="truncate">{who}</span>
+          </Button>
+        </DetailRow>
       )}
       <MeetingRecord meeting={props.meeting} canEdit={props.canEdit} />
-    </dl>
-  );
-}
-
-function Property(props: { label: string; children: ReactNode }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{props.label}</dt>
-      <dd className="flex min-h-8 min-w-0 items-center">{props.children}</dd>
-    </>
+    </div>
   );
 }
 
 function Progress({ meeting }: { meeting: Meeting }) {
   const { retry } = useMeetingWrites();
   const m = meeting.meeting;
-  if (WORKING[m.status]) {
-    return (
-      <div className="flex items-center gap-3 rounded-xl border bg-surface px-4 py-3.5">
-        <Loader className="size-4 text-muted-foreground" />
-        <span className="text-sm">{WORKING[m.status]}</span>
-      </div>
-    );
-  }
   if (m.status !== "failed") return null;
   return (
     <div className="flex items-center gap-3 rounded-xl border bg-surface px-4 py-3.5">
@@ -294,6 +273,8 @@ function Summary({ meeting, canDecide }: { meeting: Meeting; canDecide: boolean 
   const notes = meeting.notes;
   const { copy, copied } = useClipboard();
   const player = usePlayer();
+  const working = WORKING[meeting.meeting.status];
+  if (working) return <SummaryBones label={working} />;
   if (!notes?.summary && !meeting.actions.length) return <Quiet>–</Quiet>;
   const text = [
     notes?.summary,
@@ -315,15 +296,6 @@ function Summary({ meeting, canDecide }: { meeting: Meeting; canDecide: boolean 
           }
         >
           <p className="text-sm/6 text-foreground">{notes.summary}</p>
-          {notes.topics.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {notes.topics.map((topic) => (
-                <Badge key={topic} intent="secondary">
-                  {topic}
-                </Badge>
-              ))}
-            </div>
-          )}
         </Block>
       )}
       {meeting.actions.length > 0 && (
@@ -363,6 +335,29 @@ function Summary({ meeting, canDecide }: { meeting: Meeting; canDecide: boolean 
         </Block>
       )}
     </>
+  );
+}
+
+function SummaryBones({ label }: { label: string }) {
+  const lines = (widths: string[]) => (
+    <div className="flex flex-col gap-2.5 py-1">
+      {widths.map((width) => (
+        <SkeletonBox key={width} width={width} height={10} />
+      ))}
+    </div>
+  );
+  return (
+    <div role="status" aria-label={label} className="flex flex-col gap-8">
+      <Block icon={IconSparkle} title="Overview">
+        {lines(["100%", "94%", "62%"])}
+      </Block>
+      <Block icon={IconChecklist} title="Action items">
+        {lines(["70%", "56%", "64%"])}
+      </Block>
+      <Block icon={IconList} title="Highlights">
+        {lines(["80%", "68%", "74%"])}
+      </Block>
+    </div>
   );
 }
 

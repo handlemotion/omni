@@ -32,6 +32,7 @@ export const meetingKeys = {
   list: (group: string) => [...meetingKeys.all(), "list", group] as const,
   meeting: (id: string) => [...meetingKeys.all(), "meeting", id] as const,
   transcript: (id: string) => [...meetingKeys.all(), "transcript", id] as const,
+  waveform: (id: string) => [...meetingKeys.all(), "waveform", id] as const,
   event: (uid: string, recurrenceId: string | null) =>
     [...meetingKeys.all(), "event", uid, recurrenceId] as const,
   task: (taskId: string) => [...meetingKeys.all(), "task", taskId] as const,
@@ -155,6 +156,40 @@ export const taskMeetingQuery = (taskId: string) =>
 export const meetingAudioUrl = (id: string) =>
   withWorkspace(api.meetings[":id"].audio.$url({ param: { id } }).toString());
 
+const WAVEFORM_BARS = 96;
+
+async function waveformPeaks(url: string, signal: AbortSignal) {
+  const response = await fetch(url, { credentials: "include", signal });
+  if (!response.ok) throw new Error(`audio ${response.status}`);
+  const context = new OfflineAudioContext(1, 1, 48_000);
+  const audio = await context.decodeAudioData(await response.arrayBuffer());
+  const channels = Array.from({ length: audio.numberOfChannels }, (_, i) =>
+    audio.getChannelData(i),
+  );
+  const step = Math.max(1, Math.floor(audio.length / WAVEFORM_BARS));
+  const peaks: number[] = [];
+  for (let bar = 0; bar < WAVEFORM_BARS; bar++) {
+    let peak = 0;
+    for (const data of channels) {
+      for (let i = bar * step; i < Math.min((bar + 1) * step, data.length); i += 16) {
+        peak = Math.max(peak, Math.abs(data[i] ?? 0));
+      }
+    }
+    peaks.push(peak);
+  }
+  const top = Math.max(...peaks, 0.0001);
+  return peaks.map((p) => p / top);
+}
+
+/** A meeting's recording as `WAVEFORM_BARS` peaks from 0 to 1, decoded in the page. */
+export const meetingWaveformQuery = (id: string) =>
+  queryOptions({
+    queryKey: meetingKeys.waveform(id),
+    queryFn: ({ signal }) => waveformPeaks(meetingAudioUrl(id), signal),
+    staleTime: Infinity,
+    retry: false,
+  });
+
 /** Every meetings read is stale after a write or a `meetings.changed`. */
 export const meetingsChanged = (client: QueryClient) =>
   client.invalidateQueries({ queryKey: meetingKeys.all() });
@@ -246,3 +281,7 @@ export function meetingClock(ms: number) {
 
 export const meetingPath = (id: string) => `/meetings/${encodeURIComponent(id)}`;
 export const meetingGroupPath = (key: string) => `/meetings/g/${encodeURIComponent(key)}`;
+
+/** Where a group's sidebar row goes: a meeting on its own opens itself, a series or a client its page. */
+export const groupTarget = (key: string) =>
+  groupKind(key) === "meeting" ? meetingPath(key.slice("meeting:".length)) : meetingGroupPath(key);

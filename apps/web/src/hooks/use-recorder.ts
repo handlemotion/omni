@@ -33,10 +33,15 @@ export interface RecorderState {
   offline: boolean;
 }
 
-interface Recorder extends RecorderState {
+export interface Recorder extends RecorderState {
   start(): Promise<void>;
   stop(): Promise<void>;
   level(): number;
+}
+
+/** A recorder with its consent question: `ask` asks it, then starts. */
+export interface AskingRecorder extends Recorder {
+  ask(): void;
 }
 
 const IDLE: RecorderState = {
@@ -47,9 +52,9 @@ const IDLE: RecorderState = {
   offline: false,
 };
 
-export const RecorderContext = createContext<Recorder | null>(null);
+export const RecorderContext = createContext<AskingRecorder | null>(null);
 
-/** The browser recorder, from `RecorderProvider`; null outside it. */
+/** The recorder (the browser's or the desktop app's), from `RecorderProvider`; null outside it. */
 export const useRecorder = () => useContext(RecorderContext);
 
 const transport = () =>
