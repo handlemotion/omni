@@ -340,11 +340,14 @@ export function WorkspaceSwitcher({
   end,
   workspacesOnly = false,
   chevron = false,
+  foot = false,
   onChoose,
   pending = false,
 }: {
   end?: ReactNode;
   workspacesOnly?: boolean;
+  /** At the sidebar's foot: the menu opens above the row. */
+  foot?: boolean;
   /** A chevron after the name, as the title bar draws it. */
   chevron?: boolean;
   onChoose?: (workspace: Workspace) => void;
@@ -389,7 +392,7 @@ export function WorkspaceSwitcher({
           )}
         </SidebarItemTrigger>
         <Menu
-          placement="bottom start"
+          placement={foot ? "top start" : "bottom start"}
           popover={{
             anchor: rowBox,
             offset: workspacesOnly ? 2 : 4,

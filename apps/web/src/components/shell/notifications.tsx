@@ -112,9 +112,7 @@ export function NotificationsPanel() {
 
   return (
     <div
-      className={`pointer-events-none fixed bottom-0 end-0 z-30 flex justify-end overflow-hidden ${
-        isMobile ? "start-0 top-0" : "start-0 top-12"
-      }`}
+      className={`pointer-events-none fixed bottom-0 end-0 z-30 flex justify-end overflow-hidden ${"start-0 top-0"}`}
     >
       <aside
         ref={panel}
@@ -122,7 +120,7 @@ export function NotificationsPanel() {
         aria-label="Notifications"
         tabIndex={-1}
         inert={!open}
-        className={`pointer-events-auto flex h-full w-108 max-w-full flex-col border-s ${isMobile ? "" : "border-t"} bg-background shadow-overlay outline-hidden transition-[translate,opacity,visibility] duration-200 ease-out motion-reduce:transition-[opacity,visibility] ${
+        className={`pointer-events-auto flex h-full w-108 max-w-full flex-col border-s  bg-background shadow-overlay outline-hidden transition-[translate,opacity,visibility] duration-200 ease-out motion-reduce:transition-[opacity,visibility] ${
           open
             ? "visible translate-x-0 opacity-100"
             : "invisible translate-x-full opacity-0 motion-reduce:translate-x-0"

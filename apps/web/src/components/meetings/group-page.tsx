@@ -1,6 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { StorageFrame } from "@/components/storage/storage-frame";
@@ -14,7 +13,6 @@ export function GroupPage({ groupKey }: { groupKey: string }) {
   const page = useMeetingGroup(groupKey);
   const list = useMeetingList(groupKey);
   const title = list.data ? groupTitle({ groupKey, lastTitle: list.data[0]?.title ?? null }) : null;
-  usePageTitle(title ?? undefined);
   return (
     <StorageFrame title={<h1 className="truncate text-md">{title}</h1>}>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">

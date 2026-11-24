@@ -1,4 +1,5 @@
 import type { Conversation as HelpdeskState, Message, Thread } from "@omni/client";
+import { PresenceStack } from "@/components/talk/presence-stack";
 import type { FetchStatus } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -26,7 +27,6 @@ import { OfflineState } from "@/components/errors/error-screen";
 import { useRetryNow } from "@/hooks/use-connectivity.ts";
 import { useConversation } from "@/hooks/use-conversation.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
-import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { useAllMailboxes, useThread } from "@/hooks/use-mail.ts";
 import { useFollowMerge } from "@/hooks/use-realtime.ts";
 import {
@@ -60,7 +60,6 @@ export function Conversation({ threadId }: { threadId: string }) {
   const { thread, pending, error, fetchStatus } = useThread(threadId);
   useMarkReadOnOpen(thread);
   usePrefetchNeighbours(threadId, !!thread);
-  usePageTitle(threadSubject(thread));
   const shared = useAllMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.kind === "shared";
   const { data: helpdesk } = useConversation(threadId, { enabled: shared });
   const navigate = useNavigate();
@@ -367,6 +366,7 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
         <MiddleTruncate text={subject || "(no subject)"} />
       </Heading>
       <div className="flex shrink-0 items-center gap-1.5">
+        <PresenceStack />
         <PageBarActions>
           <TriageActions thread={thread} />
           <Action label={fullScreen ? "Side by side" : "Full screen"} onPress={toggleFullScreen}>

@@ -67,9 +67,8 @@
   /* A grey fill a hair under the page's white (a step subtler than `surface`), so the sidebar
      reads apart from the content beside its hairline border. */
   --sidebar: #fefefe;
-  /* The window around the content card (title bar and module rail): hover fills on it use
-     `secondary`. */
-  --shell: #f5f5f5;
+  /* The window behind the sidebar and the page: white, like them. */
+  --shell: var(--background);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);

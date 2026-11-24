@@ -1,13 +1,7 @@
-import { useLocation, useSearch } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
-import {
-  IconCircleCheckFilled,
-  IconConnections,
-  IconSettings,
-  IconSettingsFilled,
-  IconUserRound,
-} from "@/components/icons/central";
+import { type ComponentType, type ReactNode } from "react";
+import { IconChevronDown, IconCircleCheckFilled } from "@/components/icons/central";
 import {
   IconCalendarMark,
   IconCrmMark,
@@ -16,29 +10,20 @@ import {
   IconMeetingsMark,
 } from "@/components/icons/module-marks";
 import { SearchButton } from "@/components/search/search-trigger";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarItem,
-  SidebarItemTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
-import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { isSettingsPath, useOpenSettings } from "@/hooks/use-settings.ts";
-import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
+import { Sidebar, SidebarContent, SidebarItemTrigger } from "@/components/ui/sidebar";
+import { isSettingsPath } from "@/hooks/use-settings.ts";
+import { desktop } from "@/lib/desktop.ts";
 import {
-  useModules,
-  useCurrentModule,
   useModulePress,
-  warmModule,
-  usePressedModule,
+  useModules,
   useOpenModule,
+  usePressedModule,
   WorkspaceSwitcher,
   type ModuleId,
 } from "./module-switcher";
-import { UpdateRow, UpdateTile } from "./update-row";
+import { NotificationsButton } from "./notifications";
+import { UpdateRow } from "./update-row";
 
 const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   mail: IconMailMark,
@@ -48,200 +33,93 @@ const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   meetings: IconMeetingsMark,
 };
 
-const SWITCH_MS = 180;
-
-const PATHS: Record<ModuleId, string> = {
-  mail: "mail/inbox",
-  files: "files",
-  crm: "crm/companies",
-  calendar: "calendar",
-  meetings: "meetings",
-};
-
 /**
- * The sidebar, the white island's left part under the top rail: the modules as tabs (the one on
- * screen with its name) with Search at the row's end, then the module's own pages, and settings at
- * its foot. Closed, it is a rail of icons: the module on screen (its menu switches module), Search,
- * the module's pages where they fit as icons, and settings.
+ * The sidebar, white beside the white page and always open. Its top row, in line with the page's
+ * own header, holds the module switcher and, opposite it, notifications and Search; in the desktop
+ * app the traffic lights sit at its start and the switcher is centred between them and the icons.
+ * Then the module's own pages, and the workspace switcher at its foot, whose menu also holds
+ * settings and Log out.
  */
-export function RailSidebar({ title, children }: { title?: string; children: ReactNode }) {
-  const { open } = useSidebar();
+export function RailSidebar({ children }: { children: ReactNode }) {
+  const app = desktop.isDesktop;
   return (
     <Sidebar
       collapsible="none"
       closeButton={false}
-      data-state={open ? "expanded" : "collapsed"}
-      className={cn(
-        "peer mt-12 shrink-0 rounded-tl-2xl border-s border-t border-e border-sidebar-border bg-background",
-        !open && "w-14",
-      )}
+      data-state="expanded"
+      className="peer h-auto shrink-0 border-e border-sidebar-border bg-background"
     >
-      <SidebarContent className="gap-3 p-3 *:shrink-0">
-        {open && <WorkspaceSwitcher workspacesOnly />}
-        <div className="mb-0.5">
-          {open ? (
-            <ModuleTabs />
-          ) : (
-            <div className="flex flex-col items-center gap-1">
-              <ModuleMenu />
-              <SearchButton />
-            </div>
-          )}
-        </div>
-        {title && open && <div className="-mb-2 flex h-7 items-center px-2 text-md">{title}</div>}
-        {open
-          ? children
-          : !title && <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">{children}</div>}
+      <SidebarContent className="gap-3 px-3 pt-0 pb-3 *:shrink-0">
+        {app ? (
+          <div
+            className={cn(
+              "-mb-3 flex h-12 items-center gap-1",
+              desktop.platform === "mac" ? "-ms-3 ps-[76px]" : "",
+            )}
+          >
+            <span className="flex min-w-0 flex-1 justify-center">
+              <ModuleSwitch />
+            </span>
+            <TopActions />
+          </div>
+        ) : (
+          <div className="-mb-3 flex h-12 items-center gap-1">
+            <ModuleSwitch large />
+            <span className="ms-auto">
+              <TopActions />
+            </span>
+          </div>
+        )}
+        {children}
         <div className="mt-auto flex flex-col gap-2">
-          {open ? <UpdateRow /> : <UpdateTile className="size-8 rounded-lg px-0" />}
-          <SettingsButton />
+          <UpdateRow />
+          <WorkspaceSwitcher foot />
         </div>
       </SidebarContent>
     </Sidebar>
   );
 }
 
-function ModuleTabs() {
-  const modules = useModules();
-  const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
-  const module = usePressedModule();
-  const shown = useCurrentModule();
-  const current = inSettings ? null : module;
-  const workspace = useWorkspaceSlug();
-  const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  const keep = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
-  const openModule = useOpenModule();
-  const press = useModulePress();
-  const pressedAt = useRef(0);
-  const menu = contextMenuProps((target) => {
-    const picked = modules.find(
-      (m) => m.id === target.closest("[data-module-tab]")?.getAttribute("data-module-tab"),
-    );
-    if (!picked) return null;
-    return [
-      {
-        icon: MARKS[picked.id],
-        label: `Open ${picked.label}`,
-        onAction: () => void openModule(picked.id),
-      },
-    ] satisfies ContextMenuEntry[];
-  }, "Module actions");
-
+function TopActions() {
   return (
-    <div className="flex items-center gap-1">
-      <nav
-        {...menu}
-        aria-label="Modules"
-        className="flex min-w-0 flex-1 items-center gap-1"
-        style={{ "--switch-ms": `${SWITCH_MS}ms` } as CSSProperties}
-        onPointerOver={(event) => {
-          const id = (event.target as Element)
-            .closest("[data-module-tab]")
-            ?.getAttribute("data-module-tab");
-          const picked = modules.find((m) => m.id === id);
-          if (picked) warmModule(picked.id);
-        }}
-        onPointerDownCapture={(event) => {
-          const id = (event.target as Element)
-            .closest("[data-module-tab]")
-            ?.getAttribute("data-module-tab");
-          const picked = modules.find((m) => m.id === id);
-          if (
-            picked &&
-            picked.id !== current &&
-            event.button === 0 &&
-            !event.metaKey &&
-            !event.ctrlKey &&
-            !event.shiftKey
-          ) {
-            pressedAt.current = performance.now();
-            press(picked.id);
-          }
-        }}
-        onClickCapture={(event) => {
-          const id = (event.target as Element)
-            .closest("[data-module-tab]")
-            ?.getAttribute("data-module-tab");
-          const picked = modules.find((m) => m.id === id);
-          if (!picked || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) {
-            return;
-          }
-          event.preventDefault();
-          event.stopPropagation();
-          if (picked.id === shown) return;
-          if (performance.now() - pressedAt.current > SWITCH_MS)
-            pressedAt.current = performance.now();
-          press(picked.id);
-          const left = SWITCH_MS - (performance.now() - pressedAt.current);
-          window.setTimeout(() => void openModule(picked.id), Math.max(0, left));
-        }}
-      >
-        {modules.map((module) => {
-          const isCurrent = module.id === current;
-          const Mark = MARKS[module.id];
-          return (
-            <TooltipTrigger key={module.id} isDisabled={isCurrent}>
-              <SidebarItem
-                data-module-tab={module.id}
-                href={`/${encodeURIComponent(workspace)}/${PATHS[module.id]}${keep}`}
-                isCurrent={isCurrent}
-                aria-label={module.label}
-                className={cn(
-                  "h-7.5 w-auto shrink-0 gap-0 rounded-lg px-1.5 *:[svg]:size-4.5",
-                  !isCurrent && "hover:bg-secondary",
-                )}
-              >
-                <Mark />
-                <span
-                  aria-hidden
-                  className={cn(
-                    "grid transition-[grid-template-columns] duration-(--switch-ms) ease-(--ease-out) motion-reduce:transition-none",
-                    isCurrent ? "grid-cols-[1fr]" : "grid-cols-[0fr]",
-                  )}
-                >
-                  <span className="min-w-0 overflow-hidden">
-                    <span className="block ps-1.5 whitespace-nowrap">{module.label}</span>
-                  </span>
-                </span>
-              </SidebarItem>
-              <Tooltip>{module.label}</Tooltip>
-            </TooltipTrigger>
-          );
-        })}
-      </nav>
+    <span className="flex items-center gap-0.5">
+      <NotificationsButton />
       <SearchButton />
-    </div>
+    </span>
   );
 }
 
-function ModuleMenu() {
+function ModuleSwitch({ large = false }: { large?: boolean }) {
   const modules = useModules();
+  const pressed = usePressedModule();
   const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
-  const module = usePressedModule();
-  const current = inSettings ? null : module;
+  const current = inSettings ? null : pressed;
   const openModule = useOpenModule();
   const press = useModulePress();
-  const Mark = MARKS[current ?? module];
+  const module = modules.find((m) => m.id === pressed);
+  const Mark = MARKS[pressed];
+  const name = inSettings ? "Settings" : (module?.label ?? "");
   return (
     <MenuTrigger>
       <SidebarItemTrigger
-        aria-label={`Switch module, currently ${modules.find((m) => m.id === module)?.label ?? ""}`}
+        aria-label={`Switch module, currently ${name}`}
         className={cn(
-          "size-7.5 justify-center px-0 *:[svg]:size-4.5",
-          current && "[--btn-bg:var(--sidebar-accent)]",
+          "w-auto max-w-full shrink",
+          large ? "h-9 gap-2.5 px-1.5 *:[svg]:size-6" : "h-8 gap-2 px-2 *:[svg]:size-4.5",
         )}
       >
         <Mark />
+        <span className={cn("min-w-0 truncate", large ? "text-lg" : "text-md")}>{name}</span>
+        <IconChevronDown className="-ms-0.5 size-3.5! shrink-0 text-muted-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
       </SidebarItemTrigger>
-      <Menu placement="right top" popover={{ offset: 8, className: "w-48" }}>
+      <Menu placement="bottom" popover={{ offset: 4, className: "w-60" }}>
         {modules.map((m) => {
           const ItemMark = MARKS[m.id];
           return (
             <MenuItem
               key={m.id}
-              id={m.id}
+              id={`module-${m.id}`}
               textValue={m.label}
-              className="pe-2"
               onAction={() => {
                 if (m.id === current) return;
                 press(m.id);
@@ -249,12 +127,7 @@ function ModuleMenu() {
               }}
             >
               <ItemMark data-slot="icon" className="size-4.5" />
-              <MenuLabel className="col-[2/-1] flex min-w-0 items-center justify-between gap-3">
-                <span className="truncate">{m.label}</span>
-                {m.id === current && (
-                  <IconCircleCheckFilled className="size-4 shrink-0 text-primary" />
-                )}
-              </MenuLabel>
+              <Checked name={m.label} current={m.id === current} />
             </MenuItem>
           );
         })}
@@ -263,34 +136,11 @@ function ModuleMenu() {
   );
 }
 
-function SettingsButton() {
-  const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
-  const openSettings = useOpenSettings();
-  const menu = contextMenuProps(
-    () =>
-      [
-        { icon: IconUserRound, label: "Account settings", onAction: () => openSettings("profile") },
-        {
-          icon: IconSettings,
-          label: "Workspace settings",
-          onAction: () => openSettings("general"),
-        },
-        { icon: IconConnections, label: "Connections", onAction: () => openSettings("accounts") },
-      ] satisfies ContextMenuEntry[],
-  );
+function Checked({ name, current }: { name: string; current: boolean }) {
   return (
-    <div {...menu} className="flex">
-      <TooltipTrigger>
-        <SidebarItem
-          aria-label="Settings"
-          isCurrent={inSettings}
-          onPress={() => openSettings("general")}
-          className="size-7 w-7 justify-center rounded-lg px-0"
-        >
-          {inSettings ? <IconSettingsFilled /> : <IconSettings />}
-        </SidebarItem>
-        <Tooltip>Settings</Tooltip>
-      </TooltipTrigger>
-    </div>
+    <MenuLabel className="col-[2/-1] flex min-w-0 items-center justify-between gap-3">
+      <span className="truncate">{name}</span>
+      {current && <IconCircleCheckFilled className="size-4 shrink-0 text-primary" />}
+    </MenuLabel>
   );
 }

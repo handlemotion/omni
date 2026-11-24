@@ -79,7 +79,7 @@ async function openInbox(slug: string, also?: { name: string; slug: string }) {
 
 const SHOTS = process.env.SHELL_SHOTS;
 
-test("the top rail switches modules from the sidebar, opens search, and shows notifications at its right edge", async () => {
+test("the icon rail switches modules, opens search, and shows notifications at the window's right edge", async () => {
   const page = await openInbox("title-bar");
   expect(await page.getByRole("button", { name: "Previous page" }).count()).toBe(0);
   const modules = page.getByRole("navigation", { name: "Modules" });
@@ -100,30 +100,6 @@ test("the top rail switches modules from the sidebar, opens search, and shows no
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/panel.png` });
 });
 
-test("a page tab keeps its workspace while another tab moves to a second one", async () => {
-  const page = await openInbox("tabs-a", { name: "Bravo", slug: "tabs-b" });
-  const tabs = page.getByRole("tablist", { name: "Open pages" }).getByRole("tab");
-  await page.getByRole("button", { name: "New tab" }).click();
-  await expect.poll(() => tabs.count()).toBe(2);
-
-  await page.getByRole("button", { name: /^Switch workspace/ }).click();
-  await page.getByRole("menuitem", { name: "Bravo" }).click();
-  await page.waitForURL((url) => new URL(url).pathname.startsWith("/tabs-b/"));
-
-  await tabs.first().dispatchEvent("pointerdown", { button: 0 });
-  await page.waitForURL((url) => new URL(url).pathname.startsWith("/tabs-a/"));
-  await expect.poll(() => tabs.last().getAttribute("aria-label")).toBe("Inbox, Bravo");
-  expect(await tabs.first().getAttribute("aria-label")).toBe("Inbox");
-});
-
-async function freePort() {
-  const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address() as AddressInfo;
-  await new Promise((resolve) => server.close(resolve));
-  return port;
-}
-
 test("on a phone, where the title bar is hidden, the mail list header still opens search", async () => {
   const page = await openInbox("title-bar-phone");
   await page.setViewportSize({ width: 390, height: 800 });
@@ -133,3 +109,11 @@ test("on a phone, where the title bar is hidden, the mail list header still open
   await search.click();
   await page.getByRole("dialog", { name: "Search and commands" }).waitFor();
 });
+
+async function freePort() {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  await new Promise((resolve) => server.close(resolve));
+  return port;
+}

@@ -43,7 +43,7 @@ export function SettingsNav() {
       <Group label="Workspace" pages={shownWorkspace} switcher={<SettingsWorkspaceSwitcher />} />
     </>
   );
-  if (!isMobile) return <RailSidebar title="Settings">{items}</RailSidebar>;
+  if (!isMobile) return <RailSidebar>{items}</RailSidebar>;
   return (
     <Sidebar closeButton={false}>
       <SidebarContent className="*:shrink-0">
