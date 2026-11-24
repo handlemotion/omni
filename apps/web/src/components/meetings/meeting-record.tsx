@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { crmErrorToast } from "@/components/crm/crm-errors.ts";
 import { RecordPicker } from "@/components/crm/task-dialog.tsx";
 import { useState } from "react";
+import { DetailRow } from "./meeting-aside.tsx";
 import {
   IconBuildings,
   IconHandshake,
@@ -9,7 +10,6 @@ import {
   IconUserRound,
   IconX,
 } from "@/components/icons/central";
-import { PropertyRow } from "@/components/tasks/task-fields.tsx";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { useAttendeesInCrm } from "@/hooks/use-calendar.ts";
@@ -34,9 +34,9 @@ export function MeetingRecord(props: { meeting: Meeting; canEdit: boolean }) {
   const hasCrm = useHasCrm();
   if (!hasCrm) return null;
   return (
-    <PropertyRow label="Linked to">
+    <DetailRow label="Linked to">
       <Records {...props} />
-    </PropertyRow>
+    </DetailRow>
   );
 }
 
@@ -96,6 +96,7 @@ function Records(props: { meeting: Meeting; canEdit: boolean }) {
           size="property"
           data-empty=""
           onPress={() => setPicking(true)}
+          className="-me-1.5"
         >
           <IconLink />
           <span className="truncate">Add to record</span>

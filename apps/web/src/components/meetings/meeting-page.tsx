@@ -1,7 +1,6 @@
 import { ApiError } from "@omni/client";
 import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { MeetingRecord } from "./meeting-record.tsx";
-import { PropertyRow } from "@/components/tasks/task-fields.tsx";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -34,7 +33,7 @@ import { groupKind, meetingClock, meetingGroupPath, type Meeting } from "@/lib/m
 import { Link } from "@/components/ui/link";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { ActionItem } from "./meeting-actions.tsx";
-import { Card, RecordingCard } from "./meeting-aside.tsx";
+import { Card, DetailRow, RecordingCard } from "./meeting-aside.tsx";
 import { MeetingAudio, usePlayer } from "./meeting-player.tsx";
 import { ShareMeetingDialog } from "./meeting-share.tsx";
 import { MeetingTranscript } from "./meeting-transcript.tsx";
@@ -103,7 +102,7 @@ export function MeetingPage({ id }: { id: string }) {
               </div>
               <aside className="flex w-full flex-col gap-4 lg:sticky lg:top-16 lg:max-w-lg lg:min-w-80 lg:flex-1">
                 <RecordingCard meeting={data} />
-                <Card className="pt-3 pb-2">
+                <Card>
                   <Properties
                     meeting={data}
                     onShare={editor ? () => setSharing(true) : undefined}
@@ -201,9 +200,9 @@ function Properties(props: {
     ...people.map((p) => (p.name ?? p.address).split(/[ @]/)[0]),
   ].join(", ");
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-3">
       {props.meeting.sharing && (
-        <PropertyRow label="Shared with">
+        <DetailRow label="Shared with">
           <Button
             intent="property"
             size="property"
@@ -218,7 +217,7 @@ function Properties(props: {
             )}
             <span className="truncate">{who}</span>
           </Button>
-        </PropertyRow>
+        </DetailRow>
       )}
       <MeetingRecord meeting={props.meeting} canEdit={props.canEdit} />
     </div>

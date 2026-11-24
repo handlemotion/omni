@@ -1,14 +1,9 @@
 import type { ReactNode } from "react";
-import {
-  IconFastForward5s,
-  IconPauseFilled,
-  IconPlayFilled,
-  IconRewind5s,
-} from "@/components/icons/central";
+import { IconPauseFilled, IconPlayFilled } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Slider, SliderTrack } from "@/components/ui/slider";
-import { useMeetingTranscript } from "@/hooks/use-meetings.ts";
+import { useMeetingTranscript, useMeetingWaveform } from "@/hooks/use-meetings.ts";
 import { meetingClock, type Meeting } from "@/lib/meetings.ts";
 import { usePlayer } from "./meeting-player.tsx";
 import { initial, meetingSpeakers, talkLength, UNKNOWN, type Speaker } from "./meeting-speakers.ts";
@@ -30,6 +25,16 @@ export function Card(props: { title?: string; className?: string; children: Reac
   );
 }
 
+/** A label and its value in a panel card, the value against the card's right edge. */
+export function DetailRow(props: { label: string; children: ReactNode }) {
+  return (
+    <div className="group/property flex h-6 items-center gap-3">
+      <span className="shrink-0 text-sm text-muted-foreground">{props.label}</span>
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1">{props.children}</div>
+    </div>
+  );
+}
+
 export function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
   return (
     <Avatar
@@ -40,8 +45,7 @@ export function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
   );
 }
 
-const RATES = [1, 1.25, 1.5, 2];
-const SKIP_MS = 5000;
+const BARS = 96;
 
 interface Turn {
   seq: number;
@@ -76,9 +80,41 @@ function Track(props: {
   );
 }
 
+function Waveform(props: { id: string; totalMs: number }) {
+  const player = usePlayer();
+  const wave = useMeetingWaveform(props.id);
+  const at = player.timeMs / props.totalMs;
+  const bars = wave.data ?? Array.from({ length: BARS }, () => 0.08);
+  return (
+    <div className="relative h-10 w-full rounded-md has-focus-visible:ring-2 has-focus-visible:ring-ring">
+      <div aria-hidden className="flex size-full items-center gap-px">
+        {bars.map((height, i) => (
+          <span
+            // oxlint-disable-next-line react/no-array-index-key -- bars are positions, not items
+            key={i}
+            className={`min-w-0 flex-1 rounded-full ${i / bars.length < at ? "bg-foreground" : "bg-muted-foreground/30"}`}
+            style={{ height: `${Math.max(6, height * 100)}%` }}
+          />
+        ))}
+      </div>
+      <Slider
+        aria-label="Position"
+        minValue={0}
+        maxValue={props.totalMs}
+        step={1000}
+        value={Math.min(player.timeMs, props.totalMs)}
+        onChange={(value) => player.seek(Array.isArray(value) ? (value[0] ?? 0) : value)}
+        className="absolute! inset-0 opacity-0"
+      >
+        <SliderTrack className="h-full! cursor-pointer" />
+      </Slider>
+    </div>
+  );
+}
+
 /**
- * The recording, one card: every turn on one track to seek in, the controls, then each speaker's
- * own track with their share of the talking.
+ * The recording, one card: its sound to seek in (the video's place, once meetings have video),
+ * then each speaker's own track with their share of the talking.
  */
 export function RecordingCard({ meeting }: { meeting: Meeting }) {
   const player = usePlayer();
@@ -93,71 +129,26 @@ export function RecordingCard({ meeting }: { meeting: Meeting }) {
     label: s.speaker ?? "",
     fill: (speakers.get(s.speaker ?? "") ?? UNKNOWN).fill,
   }));
-  const nextRate = RATES[(RATES.indexOf(player.rate) + 1) % RATES.length] ?? 1;
   return (
     <Card>
       <div className="flex flex-col gap-2">
-        <div className="relative py-1">
-          <Track turns={turns} totalMs={totalMs} atMs={player.timeMs} className="h-2" />
-          <Slider
-            aria-label="Position"
-            minValue={0}
-            maxValue={totalMs}
-            step={1000}
-            value={Math.min(player.timeMs, totalMs)}
-            onChange={(value) => player.seek(Array.isArray(value) ? (value[0] ?? 0) : value)}
-            className="absolute! inset-0 opacity-0"
-          >
-            <SliderTrack className="h-full! cursor-pointer" />
-          </Slider>
-        </div>
-        <div className="flex justify-between text-xs leading-3 text-muted-foreground tabular-nums">
-          <span>{meetingClock(player.timeMs)}</span>
-          <span>−{meetingClock(Math.max(0, totalMs - player.timeMs))}</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center">
-        <Button
-          intent="plain"
-          size="sm"
-          aria-label={`Speed ${player.rate}×, change to ${nextRate}×`}
-          onPress={() => player.setRate(nextRate)}
-          className="-ms-2 justify-self-start text-sm tabular-nums"
-        >
-          {player.rate}×
-        </Button>
-        <div className="flex items-center gap-2">
+        <Waveform id={meeting.meeting.id} totalMs={totalMs} />
+        <div className="flex h-5 items-center gap-1.5 text-xs leading-3 text-muted-foreground tabular-nums">
           <Button
             intent="plain"
-            size="sq-md"
-            isCircle
-            aria-label="Back 5 seconds"
-            onPress={() => player.seek(Math.max(0, player.timeMs - SKIP_MS))}
-          >
-            <IconRewind5s />
-          </Button>
-          <Button
-            intent="primary"
-            size="sq-lg"
-            isCircle
+            size="sq-2xs"
             aria-label={player.playing ? "Pause" : "Play"}
             onPress={player.toggle}
+            className="-ms-1 *:[svg]:size-3"
           >
             {player.playing ? <IconPauseFilled /> : <IconPlayFilled />}
           </Button>
-          <Button
-            intent="plain"
-            size="sq-md"
-            isCircle
-            aria-label="Forward 5 seconds"
-            onPress={() => player.seek(Math.min(totalMs, player.timeMs + SKIP_MS))}
-          >
-            <IconFastForward5s />
-          </Button>
+          <span>{meetingClock(player.timeMs)}</span>
+          <span className="ms-auto">{meetingClock(totalMs)}</span>
         </div>
       </div>
       {meeting.talk.length > 0 && (
-        <ul className="mt-1 flex flex-col gap-4 border-t pt-4">
+        <ul className="flex flex-col gap-4 border-t pt-4">
           {meeting.talk.map((t) => {
             const speaker = speakers.get(t.label) ?? UNKNOWN;
             const own = turns.filter((turn) => turn.label === t.label);
