@@ -8,6 +8,11 @@ export const authEnvSchema = z
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.url(),
     AUTH_TRUSTED_ORIGINS: commaList,
+    /**
+     * More public origins the same Worker answers on (e.g. a second domain where the first is
+     * blocked). A request on one gets that origin for its links, callbacks and passkeys.
+     */
+    AUTH_ALIAS_ORIGINS: commaList.pipe(z.array(z.url({ protocol: /^https?$/ }))),
     AUTH_PASSKEY_RP_ID: optionalText,
     APP_NAME: optionalText,
     WEB_APP_URL: optionalText.pipe(z.url().optional()),
@@ -44,7 +49,8 @@ export const authEnvSchema = z
   .transform((env) => ({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
-    trustedOrigins: env.AUTH_TRUSTED_ORIGINS,
+    trustedOrigins: [...env.AUTH_TRUSTED_ORIGINS, ...aliasOrigins(env.AUTH_ALIAS_ORIGINS)],
+    aliasOrigins: aliasOrigins(env.AUTH_ALIAS_ORIGINS),
     passkeyRpId: env.AUTH_PASSKEY_RP_ID,
     appName: env.APP_NAME ?? "Omni",
     webAppURL: env.WEB_APP_URL ?? env.BETTER_AUTH_URL,
@@ -68,6 +74,27 @@ export const authEnvSchema = z
   }));
 
 export type AuthConfig = z.output<typeof authEnvSchema>;
+
+function aliasOrigins(urls: string[]) {
+  return urls.map((url) => new URL(url).origin);
+}
+
+/**
+ * `auth` as a request to `requestUrl` sees it: on an alias origin (`AUTH_ALIAS_ORIGINS`), the
+ * origin it came in on stands in for BETTER_AUTH_URL (and for WEB_APP_URL when that is the same
+ * origin), and passkeys use its host, so the whole app works there without touching the first.
+ */
+export function authForOrigin(auth: AuthConfig, requestUrl: string) {
+  const origin = new URL(requestUrl).origin;
+  if (!auth.aliasOrigins.includes(origin)) return auth satisfies AuthConfig;
+  const sameWebApp = new URL(auth.webAppURL).origin === new URL(auth.baseURL).origin;
+  return {
+    ...auth,
+    baseURL: origin,
+    webAppURL: sameWebApp ? origin : auth.webAppURL,
+    passkeyRpId: new URL(origin).hostname,
+  } satisfies AuthConfig;
+}
 
 /** Validates auth config from the environment at startup; throws listing every bad variable. */
 export function parseAuthEnv(env: Record<string, unknown>) {

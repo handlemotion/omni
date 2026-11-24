@@ -11,6 +11,10 @@ BETTER_AUTH_URL=http://localhost:8787
 # Comma-separated web/app origins allowed to call auth endpoints. `omni://` lets the iOS and
 # desktop apps finish a magic-link sign-in (the link ends on that scheme).
 AUTH_TRUSTED_ORIGINS=http://localhost:5173,omni://
+# Optional. More public origins this Worker answers on (e.g. https://second.example, a custom
+# domain on the same Worker). A request on one uses it in place of BETTER_AUTH_URL for links,
+# OAuth callbacks and passkeys (whose RP ID becomes its host), and it is a trusted origin.
+AUTH_ALIAS_ORIGINS=
 # Optional. WebAuthn relying party ID; defaults to the BETTER_AUTH_URL host.
 AUTH_PASSKEY_RP_ID=
 # Optional. Name shown in passkey prompts and magic-link mail. Defaults to "Omni".

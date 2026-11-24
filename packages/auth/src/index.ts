@@ -53,6 +53,7 @@ import { uuidv7 } from "uuidv7";
 
 export {
   authEnvSchema,
+  authForOrigin,
   parseAuthEnv,
   type AuthConfig,
   type BillingConfig,

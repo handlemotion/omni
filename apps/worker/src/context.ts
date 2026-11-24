@@ -1,4 +1,10 @@
-import { createAuth, usesOAuthProvider, type Auth, type ModuleLifecycle } from "@omni/auth";
+import {
+  authForOrigin,
+  createAuth,
+  usesOAuthProvider,
+  type Auth,
+  type ModuleLifecycle,
+} from "@omni/auth";
 import { WORKSPACE_HEADER, WORKSPACE_PARAM } from "@omni/contracts/headers";
 import {
   ensurePersonalSpace,
@@ -71,7 +77,8 @@ const leavesRealtime = (env: Env) =>
 
 /** Per-request config, database (`openDb`) and Better Auth, closed after the response. */
 export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
-  const config = loadConfig(c.env);
+  const base = loadConfig(c.env);
+  const config = { ...base, auth: authForOrigin(base.auth, c.req.url) };
   const { db, close } = openDb(c.env, 5);
   c.set("config", config);
   c.set("db", db);

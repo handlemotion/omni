@@ -16,6 +16,7 @@ interface __BaseEnv_Env {
   BETTER_AUTH_URL: string;
   AUTH_TRUSTED_ORIGINS: string;
   AUTH_PASSKEY_RP_ID: string;
+  AUTH_ALIAS_ORIGINS: string;
   APP_NAME: string;
   WEB_APP_URL: string;
   SIGN_UP: string;
@@ -80,6 +81,7 @@ declare namespace NodeJS {
       | "BETTER_AUTH_URL"
       | "AUTH_TRUSTED_ORIGINS"
       | "AUTH_PASSKEY_RP_ID"
+      | "AUTH_ALIAS_ORIGINS"
       | "APP_NAME"
       | "WEB_APP_URL"
       | "SIGN_UP"
