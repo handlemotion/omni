@@ -12,13 +12,21 @@ import { cancelUploads } from "./storage-uploads.ts";
 /** What Better Auth's client methods return. */
 interface AuthResult<T> {
   data: T | null;
-  error: { status: number; message?: string | undefined; statusText?: string } | null;
+  error: {
+    status: number;
+    code?: string | undefined;
+    message?: string | undefined;
+    statusText?: string;
+  } | null;
 }
 
 /** Unwraps a Better Auth client call, throwing `ApiError` on failure. */
 export async function authCall<T>(request: Promise<AuthResult<T>>) {
   const { data, error } = await request;
-  if (error) throw new ApiError(error.status, error.message || error.statusText || "auth error");
+  if (error) {
+    const message = error.message || error.statusText || "auth error";
+    throw new ApiError(error.status, message, error.code ? { code: error.code } : {});
+  }
   return data as T;
 }
 
@@ -118,6 +126,32 @@ export async function signInWithEmailOtp(
 ) {
   await authCall(auth.signIn.emailOtp({ email, otp }));
   await resetSession(client, router);
+}
+
+/** Better Auth refuses a sensitive change (adding a passkey) on a session older than a day. */
+export function needsFreshSession(error: unknown) {
+  return error instanceof ApiError && error.code === "SESSION_NOT_FRESH";
+}
+
+/**
+ * Proves it is still you with an emailed code, without leaving the page: the code signs this
+ * browser in again as the same user, which makes the session fresh. The old session is then
+ * revoked so the device list keeps one entry, and the workspace it had stays active.
+ */
+export async function confirmIdentityWithEmailOtp(client: QueryClient, email: string, otp: string) {
+  const before = client.getQueryData<Session | null>(keys.session())?.session;
+  await authCall(auth.signIn.emailOtp({ email, otp }));
+  if (before?.activeOrganizationId) {
+    await authCall(
+      auth.organization.setActive({ organizationId: before.activeOrganizationId }),
+    ).catch(() => undefined);
+  }
+  if (before) await authCall(auth.revokeSession({ token: before.token })).catch(() => undefined);
+  await Promise.all([
+    client.invalidateQueries({ queryKey: keys.session() }),
+    client.invalidateQueries({ queryKey: keys.sessions() }),
+    client.invalidateQueries({ queryKey: keys.deviceSessions() }),
+  ]);
 }
 
 const SIGN_IN_REDIRECT = "omni.sign-in-redirect";
