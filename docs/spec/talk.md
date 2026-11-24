@@ -5,7 +5,7 @@ Nov 22, 2026 · Draft · Extends `docs/spec/modules.md` ("What is shared") and `
 
 ## Summary
 
-The title bar shows the teammates who have Omni open right now, as a small stack of their
+The title bar shows the teammates who have Wok open right now, as a small stack of their
 pictures. Clicking one opens a compact conversation with them that floats over whatever module
 you are in: quick notes, and above all files dropped straight to that person. It is light
 communication between teammates, not a chat product: no channels, no groups, no calls.
@@ -45,7 +45,7 @@ and rules (`docs/spec/modules.md`), because it owns tables and reads Storage thr
   them. A note that arrives while no Talk window is open floats in as a bare blue bubble with its
   text under the sender's face (or `+n`), its tail pointing at them, for 5 seconds (resting on it
   keeps it); pressing it opens the thread. A note that arrives while its window is not open (or
-  Omni is in the background) also shows a
+  Wok is in the background) also shows a
   system notification, when desktop notifications are on for this device, and opens the window
   when clicked. Opening the window reads the conversation.
 

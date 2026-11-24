@@ -14,7 +14,7 @@ import type { TalkPerson } from "@/lib/talk.ts";
 import { talkWindow } from "@/lib/talk-window.ts";
 
 /**
- * A teammate's note that arrives while its window is closed, or Omni is in the background, shows
+ * A teammate's note that arrives while its window is closed, or Wok is in the background, shows
  * a system notification (when they are on for this device). Clicking it goes back to the
  * workspace it came from, if you have moved on, and opens the window there.
  */
@@ -34,7 +34,7 @@ export function useTalkNotifications(meId: string) {
         const people = client.getQueryData<TalkPerson[]>(keys.talkPeople());
         const from = people?.find((p) => p.memberId === event.fromMemberId);
         showNotification(
-          { tag: `talk:${event.messageId}`, title: from?.name ?? "Omni", body: event.preview },
+          { tag: `talk:${event.messageId}`, title: from?.name ?? "Wok", body: event.preview },
           () => {
             const slug = latest.current?.find((w) => w.id === orgId)?.slug;
             if (orgId !== currentWorkspaceId() && slug) {

@@ -41,9 +41,13 @@ export function meetingUrl(config: Config, slug: string, meetingId: string) {
 const linkText = (text: string) => text.replace(/[[\]\\]/g, (ch) => `\\${ch}`);
 const day = (date: Date) => date.toISOString().slice(0, 10);
 
-/** True when the doc already holds this meeting's block: a line of Omni's that links to it. */
+const BYLINE_NAMES = ["Wok", "Omni"];
+
+/** True when the doc already holds this meeting's block: a byline line that links to it. */
 export function holdsBlock(markdown: string, url: string) {
-  return markdown.split("\n").some((line) => line.includes(`](${url})`) && line.includes("Omni"));
+  return markdown
+    .split("\n")
+    .some((line) => line.includes(`](${url})`) && BYLINE_NAMES.some((name) => line.includes(name)));
 }
 
 function byline(target: Target, url: string) {
@@ -68,7 +72,7 @@ export function notesBlock(
   actions: Array<{ kind: string; payload: Record<string, unknown> }>,
   url: string,
 ) {
-  const lines = [`_Written by Omni from the recording of ${byline(target, url)}._`, ""];
+  const lines = [`_Written by Wok from the recording of ${byline(target, url)}._`, ""];
   if (notes.summary) lines.push("### Summary", "", notes.summary, "");
   if (notes.highlights.length) {
     lines.push("### Highlights", "");

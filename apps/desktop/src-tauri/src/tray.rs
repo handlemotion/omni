@@ -1,9 +1,9 @@
 //! The menu bar / tray icon and the app menu (docs/spec/desktop.md, "Stays running").
 //!
-//! Tray: Open Omni, Record Now (Stop Recording while one runs), Change Server…, Check for
+//! Tray: Open Wok, Record Now (Stop Recording while one runs), Change Server…, Check for
 //! Updates…, Quit. Sync's entries (Open Drive folder, its status, Pause
 //! sync) join here once the File Provider layer has commands behind them. On macOS the app menu
-//! also gets "Change Server…" and "Check for Updates…", after "About Omni".
+//! also gets "Change Server…" and "Check for Updates…", after "About Wok".
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -28,16 +28,16 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     let menu = Menu::with_items(
         app,
         &[
-            &MenuItem::with_id(app, OPEN, "Open Omni", true, None::<&str>)?,
+            &MenuItem::with_id(app, OPEN, "Open Wok", true, None::<&str>)?,
             &record,
             &MenuItem::with_id(app, CHANGE_SERVER, "Change Server…", true, None::<&str>)?,
             &MenuItem::with_id(app, CHECK_UPDATES, CHECK_UPDATES_LABEL, true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, QUIT, "Quit Omni", true, None::<&str>)?,
+            &MenuItem::with_id(app, QUIT, "Quit Wok", true, None::<&str>)?,
         ],
     )?;
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("Omni")
+        .tooltip("Wok")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {

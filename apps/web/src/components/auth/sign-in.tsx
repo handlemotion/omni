@@ -53,7 +53,7 @@ export function SignIn({ redirect, callback }: { redirect?: string; callback?: s
         <div className="flex w-full max-w-88 flex-col gap-10">
           <div className="flex flex-col items-center gap-6">
             <IconOmniGlobe size={32} className="text-brand-cream" />
-            <Heading className="text-xl">Sign in to Omni</Heading>
+            <Heading className="text-xl">Sign in to Wok</Heading>
           </div>
 
           <div className="flex flex-col gap-6">

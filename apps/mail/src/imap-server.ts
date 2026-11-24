@@ -11,7 +11,7 @@ export interface Capabilities {
   /**
    * The server speaks Gmail's IMAP extension (`X-GM-EXT-1`): system folders only, All Mail is the
    * archive, X-GM-THRID threads. A protocol signal, separate from the mailbox's stored provider
-   * (`providerTraits`), which says what Omni promises the person.
+   * (`providerTraits`), which says what Wok promises the person.
    */
   gmail: boolean;
   /** Every capability the server advertised, logged on connect to show what a host supports. */

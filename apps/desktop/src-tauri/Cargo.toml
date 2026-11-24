@@ -1,7 +1,7 @@
 [package]
 name = "omni-desktop"
 version = "0.0.0"
-description = "Omni Desktop: the Omni web app in a native window"
+description = "Wok Desktop: the Wok web app in a native window"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true

@@ -31,7 +31,7 @@ async function checkoutEffect(db: Db, object: StripeObject, ourId: string | unde
   if (object.mode !== "subscription" || typeof object.subscription !== "string") {
     return { ignored: "not a subscription checkout" } satisfies Effect;
   }
-  if (!referencedOrg(object) || !ourId) return { ignored: "checkout not started by Omni" };
+  if (!referencedOrg(object) || !ourId) return { ignored: "checkout not started by Wok" };
   if (!(await storedSubscriptions(db, { id: ourId })).length) {
     return { ignored: "no pending subscription for the checkout" };
   }
@@ -67,7 +67,7 @@ const updatedEffect: (event: SubscriptionEvent) => Promise<Effect> = async (even
     return { ignored: "several subscriptions for the customer, none active" };
   }
   if (ofCustomer.length || event.belongsHere) return { stripeSubscriptionId: id, status };
-  return { ignored: "subscription Omni does not hold" };
+  return { ignored: "subscription Wok does not hold" };
 };
 
 const deletedEffect: (event: SubscriptionEvent) => Promise<Effect> = async (event) => {
@@ -75,7 +75,7 @@ const deletedEffect: (event: SubscriptionEvent) => Promise<Effect> = async (even
   if ((await storedSubscriptions(db, { stripeSubscriptionId: id })).length || event.belongsHere) {
     return { stripeSubscriptionId: id, status };
   }
-  return { ignored: "subscription Omni does not hold" };
+  return { ignored: "subscription Wok does not hold" };
 };
 
 const subscriptionEffects = {

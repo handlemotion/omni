@@ -1,4 +1,4 @@
-# Omni sheets: Drive's own spreadsheets
+# Wok sheets: Drive's own spreadsheets
 
 Nov 22, 2026 · Draft for review · Extends `docs/spec/docs.md` and `docs/spec/mcp.md` ("Docs");
 builds on the live layer of #705 (snaps), #706 (versions by editing session) and #707
@@ -6,9 +6,9 @@ builds on the live layer of #705 (snaps), #706 (versions by editing session) and
 
 ## Summary
 
-A sheet is Omni's second file type: a grid of tabs, rows and columns that a team edits together,
+A sheet is Wok's second file type: a grid of tabs, rows and columns that a team edits together,
 live, the way they edit a doc. It has its own type, a name with no extension, a page editor, and
-leaves Omni through Export (Excel, CSV), not Download. Agents create and edit it with cell and
+leaves Wok through Export (Excel, CSV), not Download. Agents create and edit it with cell and
 range edits that merge into what people are typing, as `drive_edit_doc` does for docs.
 
 A sheet is one canonical file. Its history is the file's history (one version per editing
@@ -26,11 +26,11 @@ leave a second file behind.
 
 ## The type
 
-- An Omni sheet is a Drive file whose type is `text/vnd.omni.sheet` (`SHEET_TYPE`, `isOmniSheet`
+- A Wok sheet is a Drive file whose type is `text/vnd.omni.sheet` (`SHEET_TYPE`, `isOmniSheet`
   in a new `@omni/sheets`), the type `docs.md` already reserved. Names carry no extension.
 - No migration. The type is a string on the node, as the doc type is.
-- `.xlsx` and `.csv` files people upload keep their name, type and Download. **Convert to Omni
-  sheet**, from their ⋯ menu, turns one into a sheet on request, as Convert to Omni doc does:
+- `.xlsx` and `.csv` files people upload keep their name, type and Download. **Convert to Wok
+  sheet**, from their ⋯ menu, turns one into a sheet on request, as Convert to Wok doc does:
   the converted body is saved as the file's next version with the sheet type, the original stays
   in Versions, and the extension leaves its name. Nothing converts on its own.
 
@@ -57,7 +57,7 @@ The file's body is **JSON Lines**: one header line, then one line per row, in or
   stored as is in a text column; the editor shows it as typed.
 - **Why JSON Lines.** It is text, so the reasons docs stay Markdown hold: the bucket is the truth
   and Postgres an index rebuilt from it; text extraction, `drive_fetch`, versions, desktop sync
-  and a self-hoster's `cat` read it with no Yjs and no Omni code. One row per line keeps a diff
+  and a self-hoster's `cat` read it with no Yjs and no Wok code. One row per line keeps a diff
   between versions readable. CSV was rejected because it holds one tab and no ids, types,
   formulas or views; a Yjs update because only Yjs can read it and the file would stop being
   something the bucket can rebuild from; `.xlsx` because it is a zip the Worker would have to
@@ -65,7 +65,7 @@ The file's body is **JSON Lines**: one header line, then one line per row, in or
 - **Search.** A `sheet` reader in `apps/worker/src/storage/extract.ts`, matched by type before
   the `text/` fallback, writes what the `xlsx` reader writes: `--- Sheet: Leads ---` and each row
   as tab-separated displayed values (formula cells by `v`). `drive_search` finds a sheet by what
-  is in its cells, and an Omni sheet and an uploaded `.xlsx` read alike.
+  is in its cells, and a Wok sheet and an uploaded `.xlsx` read alike.
 
 ## The live document
 
@@ -211,7 +211,7 @@ All in the browser, as docs' exports are: SheetJS (`xlsx`, already in `apps/web`
 
 - **New sheet** in Drive makes `Untitled`, one tab, 100 placeholder rows and 26 columns shown, none
   stored until written (Empty rows, above).
-- **Convert to Omni sheet** from an `.xlsx`: every tab, values, formulas (translated to ours),
+- **Convert to Wok sheet** from an `.xlsx`: every tab, values, formulas (translated to ours),
   column widths, frozen panes, number formats. Styling, charts, pivots, comments, macros and
   data validation are dropped; a formula using a function we do not have keeps its cached value
   as a plain value. From a `.csv`: one tab, RFC 4180, a first row that looks like a header is
@@ -243,7 +243,7 @@ Behavior only; the screens follow `DESIGN.md` and the Figma pass (Rodrigo).
 Scope `drive:write`, audited as `mcp.drive_sheet`, under the `actions` rate limit, refused in an
 unpaid workspace, like the doc tools.
 
-- **Read.** `drive_fetch` on an Omni sheet renders it for an agent from the sheet itself (from
+- **Read.** `drive_fetch` on a Wok sheet renders it for an agent from the sheet itself (from
   the live document when it holds unsaved typing, `unsaved_edits: true`, as #707 does for docs):
   each tab as rows of tab-separated values led by the row number and a header line of column
   letters, then its formulas, one line per run of the same relative formula
@@ -313,8 +313,8 @@ A file past the limits is refused as a sheet (`too_large`) and stays what it was
 
 ## Desktop
 
-The File Provider shows an Omni sheet as `<name>.omnisheet`, read-only (the provider marks it so,
-as it does a locked file), and opening it opens the sheet in Omni. Editing its JSON from Finder
+The File Provider shows a Wok sheet as `<name>.omnisheet`, read-only (the provider marks it so,
+as it does a locked file), and opening it opens the sheet in Wok. Editing its JSON from Finder
 would bypass validation and formulas. Next, as for docs: Export from the desktop.
 
 ## Not in this change

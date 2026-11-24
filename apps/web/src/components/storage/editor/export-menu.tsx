@@ -5,7 +5,7 @@ import { useExportDoc, type DocExportAction } from "@/hooks/use-export-doc.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { storageErrorToast } from "../storage-errors.ts";
 
-/** One way a doc leaves Omni, as a menu row. */
+/** One way a doc leaves Wok, as a menu row. */
 export interface DocExportItem {
   format: DocExportAction;
   label: string;

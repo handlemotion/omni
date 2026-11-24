@@ -21,7 +21,7 @@ const TOP_HEADERS = new Set([
 ]);
 const MAX_TOP_HEADER = 16 * 1024;
 
-/** Only the top-level headers Omni reads, for a message whose MIME structure broke the parser. */
+/** Only the top-level headers Wok reads, for a message whose MIME structure broke the parser. */
 export const topHeaders: (source: string | Buffer) => Buffer = (source) => {
   const bytes = typeof source === "string" ? Buffer.from(source) : source;
   const ends = [bytes.indexOf("\r\n\r\n"), bytes.indexOf("\n\n")].filter((i) => i !== -1);

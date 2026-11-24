@@ -20,7 +20,7 @@ export const colors = {
   primaryForeground: "#ffffff",
   /** A logo's tile, as `--logo-tile`. */
   logoTile: "#ffffff",
-  /** `--brand-cream`: the Omni globe mark without a tile, as on the web sign-in page. */
+  /** `--brand-cream`: the Wok globe mark without a tile, as on the web sign-in page. */
   brandCream: "#dcc7a8",
   /** `primary` at 12% on white, as `--primary-subtle` mixes it. */
   primarySubtle: "#e4eefc",

@@ -62,7 +62,7 @@ const outputSchema = z.object({
 
 const REFUSED: Record<string, string> = {
   forbidden: "The person may not change files there.",
-  locked: "That canvas is locked. Someone unlocks it in Omni first.",
+  locked: "That canvas is locked. Someone unlocks it in Wok first.",
   not_found: "No canvas with that id you can change. Ids come from `drive_search` or `drive_list`.",
   not_a_canvas: "That file is not a canvas. Use `drive_edit_doc` for docs.",
   too_large: "That canvas is too large to change here.",
@@ -74,7 +74,7 @@ const REFUSED: Record<string, string> = {
 };
 
 const refusal = (reason: string) =>
-  toolError(REFUSED[reason] ?? "Omni could not write the canvas this time. Try again in a moment.");
+  toolError(REFUSED[reason] ?? "Wok could not write the canvas this time. Try again in a moment.");
 
 /** Which tiles' files the person can open, by id: their names and urls, for the outline. */
 export async function tilesFor(context: ToolContext, drive: StorageContext, scene: Scene) {
@@ -228,7 +228,7 @@ export function registerDriveCanvas(server: McpServer, context: ToolContext) {
     {
       title: "Make a canvas",
       description:
-        "Make a new canvas in Drive: a board of sticky notes, shapes, text, frames, connectors and tiles of other Drive files, which people edit together in Omni. In a folder, or at the top of a teamspace. Build its content with `ops`. Returns the canvas's `url`, the id of each `ref`, the outline of what was made and any boxes that overlap.",
+        "Make a new canvas in Drive: a board of sticky notes, shapes, text, frames, connectors and tiles of other Drive files, which people edit together in Wok. In a folder, or at the top of a teamspace. Build its content with `ops`. Returns the canvas's `url`, the id of each `ref`, the outline of what was made and any boxes that overlap.",
       inputSchema: createInput,
       outputSchema,
       annotations: ANNOTATIONS,

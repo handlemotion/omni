@@ -27,8 +27,8 @@ import { mailboxes } from "./mail/mailboxes.ts";
 
 /**
  * The calendar's tables (`docs/spec/calendar.md`, "Data model"). Events from invitations are an
- * index of mail and converge on a re-sync; events made in Omni are the truth, like CRM rows.
- * An event comes from an invitation in mail, from Omni, or from a connected Google account's own
+ * index of mail and converge on a re-sync; events made in Wok are the truth, like CRM rows.
+ * An event comes from an invitation in mail, from Wok, or from a connected Google account's own
  * calendar ("Google calendars").
  */
 export const calendarEventSource = pgEnum("calendar_event_source", CALENDAR_EVENT_SOURCES);
@@ -45,9 +45,9 @@ export const calendarPartOutcome = pgEnum("calendar_part_outcome", [
 
 /**
  * An inbox's calendars. Every inbox has its own (`google_id` null), made the first time it is
- * needed, which mail's invitations and Omni's events land on and which shows a Gmail account's
+ * needed, which mail's invitations and Wok's events land on and which shows a Gmail account's
  * primary Google calendar. A Gmail inbox also has one per other calendar in its Google calendar
- * list, read only in Omni ("Google calendars"). Who sees a calendar is who sees the inbox.
+ * list, read only in Wok ("Google calendars"). Who sees a calendar is who sees the inbox.
  */
 export const calendarCalendars = pgTable(
   "calendar_calendars",
@@ -176,7 +176,7 @@ export const calendarAttendees = pgTable(
 );
 
 /**
- * Each attendee's own answer to an event (`REPLY`, or an answer given in Omni), kept apart from
+ * Each attendee's own answer to an event (`REPLY`, or an answer given in Wok), kept apart from
  * the event so it is not lost when it arrives first: a version of the event takes, per attendee,
  * whichever is later, its own `PARTSTAT` or this. Mail applied in any order converges.
  */

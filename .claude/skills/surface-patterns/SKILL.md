@@ -1,6 +1,6 @@
 ---
 name: surface-patterns
-description: Omni's recipes for a module's surfaces in apps/web: a list of rows, a grid of cards, a section with its own layout, a sidebar tree, a detail panel beside a list, a page header. Use when building or restyling any of them, or when a screen feels cramped, uneven or busy.
+description: Wok's recipes for a module's surfaces in apps/web: a list of rows, a grid of cards, a section with its own layout, a sidebar tree, a detail panel beside a list, a page header. Use when building or restyling any of them, or when a screen feels cramped, uneven or busy.
 ---
 
 # Surface patterns

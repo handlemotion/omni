@@ -42,7 +42,7 @@ export const onboardingExit: (
 
 /**
  * Every onboarding step, in one flat order that Back and Continue walk one step at a time: the
- * workspace's name, its domain (and where its mail stays: Google, or Omni), the domain's DNS
+ * workspace's name, its domain (and where its mail stays: Google, or Wok), the domain's DNS
  * records, its inboxes (Google accounts, or mailboxes on the domain), teammates (skippable), and
  * the plan, only where billing is on. A company's mail needs its domain first:
  * an account lands where its address belongs. The plan comes last, so setup finishes
@@ -81,7 +81,7 @@ export const recordPasses = (
   r: Pick<OnboardingDomain["records"][number], "verified" | "diagnostic">,
 ) => (r.diagnostic ? r.diagnostic.status === "ok" : r.verified);
 
-/** Omni's ownership record and the provider's ownership records all pass. */
+/** Wok's ownership record and the provider's ownership records all pass. */
 export function ownershipReady(domain: OnboardingDomain) {
   return (
     challengePasses(domain) &&
@@ -157,7 +157,7 @@ export async function createWorkspace(client: QueryClient, router: Reloadable, n
 const challengeKey = (domainId: string) => `omni.challenge.${domainId}`;
 
 /**
- * Whether Omni's ownership record is in DNS with the current value. What the domain's nameservers
+ * Whether Wok's ownership record is in DNS with the current value. What the domain's nameservers
  * answered at the last check wins over the claim's flag: right after a new value is made the claim
  * still reads verified, but DNS holds the old value until it is replaced.
  */

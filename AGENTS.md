@@ -1,6 +1,6 @@
-# Omni agent rules
+# Wok agent rules
 
-Omni is one AI-first inbox, plus Drive and a CRM, over mail hosted at Purelymail (or any
+Wok is one AI-first inbox, plus Drive and a CRM, over mail hosted at Purelymail (or any
 IMAP/SMTP host). The product spec is `docs/spec/`: read the part you touch before you design, and
 when a change departs from it, update the spec in the same PR. The code is the record; git
 history has the why.

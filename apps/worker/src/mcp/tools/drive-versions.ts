@@ -196,10 +196,10 @@ async function versionsOf(context: ToolContext, input: z.infer<typeof inputSchem
     textOf(bucket, now.r2Key, now.file.size, max),
   ]);
   if (raw === null || after === null) {
-    return toolError("That file is not text Omni can compare. Open it with its `url`.");
+    return toolError("That file is not text Wok can compare. Open it with its `url`.");
   }
   const compared = sheet ? compareSheets(raw, after) : compareText(raw, after);
-  if (!compared) return toolError("That version is not a sheet Omni can read.");
+  if (!compared) return toolError("That version is not a sheet Wok can read.");
   const { text: before, diff, tooLarge } = compared;
   const half = Math.floor(input.max_chars / 2);
   const shownDiff = cut(diff, half);

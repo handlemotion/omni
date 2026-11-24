@@ -212,7 +212,7 @@ test("a mailbox login can't point at the mail service's own network, and a refus
     });
   const refused = (host: string) => ({
     status: 422,
-    body: { error: `${host} isn't a public mail server Omni can connect to` },
+    body: { error: `${host} isn't a public mail server Wok can connect to` },
   });
 
   for (const host of ["127.0.0.1", "::1", "169.254.169.254", "10.0.0.1", "::ffff:127.0.0.1"]) {

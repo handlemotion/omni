@@ -1,11 +1,11 @@
 ---
 name: design-balance
-description: Optical balance for Omni's UI, measured in ink. Use for any UI change in apps/web (building, restyling or reviewing a screen, menu, row, avatar or control), and whenever spacing, alignment or detail feels cramped, uneven or busy.
+description: Optical balance for Wok's UI, measured in ink. Use for any UI change in apps/web (building, restyling or reviewing a screen, menu, row, avatar or control), and whenever spacing, alignment or detail feels cramped, uneven or busy.
 ---
 
 # Design balance
 
-Omni's UI is quiet, spacious and minimal. Balance is decided in **ink** (the pixels a person
+Wok's UI is quiet, spacious and minimal. Balance is decided in **ink** (the pixels a person
 sees), never in element boxes: a text line box carries invisible slack, an icon glyph carries air
 inside its box, and 12px between boxes is not 12px between what the eye reads. This skill is the
 loop and the rules for getting it right. `DESIGN.md` (repo root) still decides the look: Figma,

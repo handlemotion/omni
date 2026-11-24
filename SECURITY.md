@@ -1,6 +1,6 @@
 # Security policy
 
-Omni holds a password for every mailbox it connects to, so a security bug can expose someone's
+Wok holds a password for every mailbox it connects to, so a security bug can expose someone's
 email. We take reports seriously and thank everyone who sends one.
 
 ## Reporting a vulnerability
@@ -15,7 +15,7 @@ agree a disclosure date with you once a fix is ready. We credit reporters in the
 you ask us not to.
 
 Test only against your own self-hosted instance or the local stack (`pnpm stack:up`). Do not
-access other people's mail or data, degrade hosted Omni, or run automated scans against it.
+access other people's mail or data, degrade hosted Wok, or run automated scans against it.
 
 ## Scope
 
@@ -39,5 +39,5 @@ headers without a demonstrated impact, and denial of service by volume.
 
 ## Supported versions
 
-Security fixes land on `main` and ship from there; hosted Omni runs `main`. If you self-host, run
+Security fixes land on `main` and ship from there; hosted Wok runs `main`. If you self-host, run
 the latest `main`. The desktop and iOS apps get fixes in their latest release only.

@@ -43,7 +43,7 @@ plist="$appex/Contents/Info.plist"
 pb() { /usr/libexec/PlistBuddy -c "$1" "$plist" >/dev/null; }
 pb "Add :CFBundleIdentifier string $ext_id"
 pb "Add :CFBundleName string OmniFileProvider"
-pb "Add :CFBundleDisplayName string Omni"
+pb "Add :CFBundleDisplayName string Wok"
 pb "Add :CFBundleExecutable string OmniFileProvider"
 pb "Add :CFBundlePackageType string XPC!"
 pb "Add :CFBundleInfoDictionaryVersion string 6.0"

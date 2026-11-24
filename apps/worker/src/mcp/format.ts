@@ -6,7 +6,7 @@ export const personSchema = z.object({ name: z.string().nullable(), address: z.s
 export const threadSummarySchema = z.object({
   id: z.string(),
   subject: z.string(),
-  url: z.string().describe("Open the thread in Omni. Cite it when you answer."),
+  url: z.string().describe("Open the thread in Wok. Cite it when you answer."),
   mailbox: z.string().describe("The inbox address it is in."),
   from: personSchema.nullable().describe("Who wrote the latest message."),
   participants: z.array(personSchema).describe("Everyone who wrote in the thread, first to last."),

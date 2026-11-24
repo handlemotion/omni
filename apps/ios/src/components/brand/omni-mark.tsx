@@ -4,7 +4,7 @@ import { colors } from "@/theme/tokens.ts";
 const BLUE = "#0e2896";
 const CREAM = "#f2e4c8";
 
-/** Omni's mark, the ceramic globe, flat: the web's `IconOmniMark` at its 28pt size. */
+/** Wok's mark, the ceramic globe, flat: the web's `IconOmniMark` at its 28pt size. */
 export function OmniMark({ size = 28 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 28 28" accessible={false}>
@@ -18,7 +18,7 @@ export function OmniMark({ size = 28 }: { size?: number }) {
   );
 }
 
-/** The globe from the Omni mark alone, no backdrop tile: the web's `IconOmniGlobe`. */
+/** The globe from the Wok mark alone, no backdrop tile: the web's `IconOmniGlobe`. */
 export function OmniGlobe({
   size = 44,
   color = colors.brandCream,

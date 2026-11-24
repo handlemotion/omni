@@ -56,7 +56,7 @@ export const workspaceInvitations = new Hono<AppEnv>()
     }
     if (await readableOnlyInOmni(db, body.email)) {
       throw new HTTPException(422, {
-        message: `Omni hosts ${body.email}, so they couldn't open the invitation: invite the email they use today`,
+        message: `Wok hosts ${body.email}, so they couldn't open the invitation: invite the email they use today`,
       });
     }
     const teamIds: string[] = [];

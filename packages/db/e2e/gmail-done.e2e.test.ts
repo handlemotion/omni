@@ -85,7 +85,7 @@ const inbox = async () =>
   (await forMember(db, member.id).listThreads({ view: "inbox" })).map((t) => t.id);
 const SEEN = ["\\Seen"];
 
-test("mail read in Gmail is Done in Omni, and marking it unread there reopens it", async () => {
+test("mail read in Gmail is Done in Wok, and marking it unread there reopens it", async () => {
   const { deliver, flag } = await account("ana@gmail-done.test", "gmail");
   const at = new Date("2026-11-01T09:00:00Z");
   const { threadId, uid } = await deliver(null, at, []);
@@ -101,7 +101,7 @@ test("mail read in Gmail is Done in Omni, and marking it unread there reopens it
   expect(await inbox()).toContain(threadId);
 });
 
-test("opening a thread in Omni stays in Omni: a sync does not undo it, new unread mail does", async () => {
+test("opening a thread in Wok stays in Wok: a sync does not undo it, new unread mail does", async () => {
   const { deliver, flag } = await account("bea@gmail-done.test", "gmail");
   const first = await deliver(null, new Date("2026-11-01T09:00:00Z"), []);
   await forMember(db, member.id).setThreadState(first.threadId, { read: true });
@@ -152,7 +152,7 @@ test("the copies Done marks read stop at the done watermark: a reply indexed aft
   expect(newest?.targets.map((t) => t.uids)).toEqual([[late.uid]]);
 });
 
-test("a copy found again after a folder reset is not new mail: a thread opened in Omni stays read", async () => {
+test("a copy found again after a folder reset is not new mail: a thread opened in Wok stays read", async () => {
   const { mailbox, deliver } = await account("fay@gmail-done.test", "gmail");
   const { threadId, uid } = await deliver(null, new Date("2026-11-01T09:00:00Z"), []);
   await forMember(db, member.id).setThreadState(threadId, { read: true });

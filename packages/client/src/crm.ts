@@ -160,6 +160,6 @@ export function contractDates(contract: CrmContract) {
   return dates.length ? dates.join(" ") : null;
 }
 
-/** Signed outside Omni and still without its signed copy, or about to be. */
+/** Signed outside Wok and still without its signed copy, or about to be. */
 export const takesSignedCopy = (contract: CrmContract) =>
   !contract.signedNodeId && !(contract.status === "sent" && contract.signing);

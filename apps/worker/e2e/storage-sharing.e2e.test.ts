@@ -67,7 +67,7 @@ test("a grant on a folder opens a file two levels down for that address only, by
   expect(shareId).toMatch(/^[A-Za-z0-9_-]{22}$/);
   const [mail, ...more] = await shareMail(guestEmail);
   expect(more).toEqual([]);
-  expect(mail!.subject).toBe(`${owner.email} shared "Top" with you on Omni`);
+  expect(mail!.subject).toBe(`${owner.email} shared "Top" with you on Wok`);
   expect(mail!.text).toContain(`${WEB_ORIGIN}/s/${shareId}\n`);
   expect(await share(owner, top.id, guestEmail, "editor")).toBe(shareId);
   expect(await share(owner, top.id, guestEmail, "viewer")).toBe(shareId);

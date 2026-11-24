@@ -17,8 +17,8 @@ AUTH_TRUSTED_ORIGINS=http://localhost:5173,omni://
 AUTH_ALIAS_ORIGINS=
 # Optional. WebAuthn relying party ID; defaults to the BETTER_AUTH_URL host.
 AUTH_PASSKEY_RP_ID=
-# Optional. Name shown in passkey prompts and magic-link mail. Defaults to "Omni".
-APP_NAME=Omni
+# Optional. Name shown in passkey prompts and magic-link mail. Defaults to "Wok".
+APP_NAME=Wok
 # Optional. Web app origin; invitation emails link to <WEB_APP_URL>/invite/<id>. Defaults to
 # BETTER_AUTH_URL (the Worker serves the web app on the same origin). Locally, Vite's origin.
 WEB_APP_URL=http://localhost:5173

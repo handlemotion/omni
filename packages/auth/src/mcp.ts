@@ -29,7 +29,7 @@ export const MEETINGS_READ_SCOPE = "meetings:read";
 export const MEETINGS_WRITE_SCOPE = "meetings:write";
 
 /**
- * Sync Storage with the desktop app's Finder folder. Only the first-party Omni
+ * Sync Storage with the desktop app's Finder folder. Only the first-party Wok
  * Desktop client holds it: it is not among the scopes a registered agent may ask for.
  */
 export const STORAGE_SYNC_SCOPE = "storage:sync";
@@ -105,7 +105,7 @@ export function mcpPlugins(env: McpAuthEnv) {
       resources: [
         {
           identifier: storageSyncResource(env.baseURL),
-          name: "Omni Desktop sync",
+          name: "Wok Desktop sync",
           allowedScopes: [STORAGE_SYNC_SCOPE],
         },
       ],

@@ -38,7 +38,7 @@ const keyring = parseKeyring(env.MAIL_CREDENTIALS_KEY);
 const { db, close } = createDb(env.DATABASE_URL, { onnotice: () => {} });
 try {
   const org = await createOrgWithOwner(db, {
-    name: "Omni Dev",
+    name: "Wok Dev",
     slug: "omni-dev",
     ownerEmail: OWNER,
     ownerName: "Dev",

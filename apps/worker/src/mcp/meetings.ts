@@ -119,7 +119,7 @@ export const groupSchema = z.object({
     .describe(
       "`series`: the meetings of one recurring event. `client`: meetings with one outside company, by its domain. `meeting`: a meeting on its own.",
     ),
-  url: z.string().describe("Open the group's page in Omni."),
+  url: z.string().describe("Open the group's page in Wok."),
 });
 
 export const group = (webAppURL: string, workspace: MeetingsWorkspace, groupKey: string) => ({

@@ -110,7 +110,7 @@ export const crmContractStatusSchema = z.enum(CRM_CONTRACT_STATUSES);
 
 const day = z.iso.date();
 
-/** One signer of a contract sent from Omni. `viewedAt` is when they first opened it. */
+/** One signer of a contract sent from Wok. `viewedAt` is when they first opened it. */
 export const crmContractSignerSchema = z.object({
   email: z.string(),
   name: z.string(),
@@ -145,14 +145,14 @@ export const crmContractSchema = z.object({
   createdByMemberId: id.nullable(),
   createdAt: isoDate,
   updatedAt: isoDate,
-  /** The signed copy: sealed by Omni with its certificate, or uploaded when signed elsewhere. */
+  /** The signed copy: sealed by Wok with its certificate, or uploaded when signed elsewhere. */
   signedNodeId: id.nullable().optional(),
   /** Who signed, entered by hand when it was signed elsewhere (`POST /contracts/:id/signed-copy`). */
   signedBy: z
     .array(z.object({ name: z.string(), email: z.string().nullable() }))
     .nullable()
     .optional(),
-  /** Where it is with its signers when it went out from Omni; null when sent by hand. */
+  /** Where it is with its signers when it went out from Wok; null when sent by hand. */
   signing: crmContractSigningSchema.nullable().optional(),
   /**
    * Members it involves: teammates working it, or the freelancer it is with. A freelancer sees
@@ -386,10 +386,10 @@ export const crmUpdateContractBodySchema = z.object({
 });
 
 /**
- * `POST /contracts/:id/signed-copy`: signed outside Omni (a client's portal, paper, another
+ * `POST /contracts/:id/signed-copy`: signed outside Wok (a client's portal, paper, another
  * service). The executed PDF becomes the signed copy, locked, with who signed and when; a draft or
  * a contract sent by hand becomes `signed`, and one marked signed without its copy takes it. A
- * contract out for signature from Omni answers `signature_open`; one with its copy, `contract_signed`.
+ * contract out for signature from Wok answers `signature_open`; one with its copy, `contract_signed`.
  */
 export const crmSignedCopyBodySchema = z.object({
   /** The executed copy: a PDF in the workspace's drives, uploaded or already there. */

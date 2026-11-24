@@ -1,4 +1,4 @@
-/** How the mailbox logs in: on a host Omni operates (`purelymail`), or an existing IMAP login. */
+/** How the mailbox logs in: on a host Wok operates (`purelymail`), or an existing IMAP login. */
 export type MailboxLoginProvider = "purelymail" | "imap";
 
 export interface MailboxProvisionFacts {

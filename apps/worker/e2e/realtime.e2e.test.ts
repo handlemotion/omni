@@ -251,7 +251,7 @@ test("a thread read or archived in another mail app refreshes open apps without 
   anaSocket.socket.close();
 });
 
-test("a thread archived or trashed in Omni refreshes teammates' open apps", async () => {
+test("a thread archived or trashed in Wok refreshes teammates' open apps", async () => {
   const { db } = database;
   const org = await createOrg(db, "shelf");
   await createMailbox(db, org.id, SYSTEM_MAIL_FROM);

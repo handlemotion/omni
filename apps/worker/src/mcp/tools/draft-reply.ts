@@ -82,7 +82,7 @@ export function registerDraftReply(server: McpServer, context: ToolContext) {
     {
       title: "Draft a reply",
       description:
-        "Write a reply on a thread as a draft in Omni. It is never sent: the person reviews, edits and sends it from the thread at `url`, so tell them it is there. Recipients follow the usual reply rules (reply_all copies everyone else).",
+        "Write a reply on a thread as a draft in Wok. It is never sent: the person reviews, edits and sends it from the thread at `url`, so tell them it is there. Recipients follow the usual reply rules (reply_all copies everyone else).",
       inputSchema,
       outputSchema,
       annotations: {

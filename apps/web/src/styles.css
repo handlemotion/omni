@@ -30,7 +30,7 @@
   /* What dims the app under a dialog: flat black, no blur (transitive's scrim). */
   --scrim: oklch(0 0 0 / 7%);
   --primary-foreground: #ffffff;
-  /* The ivory of the sign-in tiles, deepened a step so the Omni globe holds on white. */
+  /* The ivory of the sign-in tiles, deepened a step so the Wok globe holds on white. */
   --brand-cream: #dcc7a8;
 
   /* Tactility (`.claude/skills/tactile-design`): depth and press, layered on the Figma look

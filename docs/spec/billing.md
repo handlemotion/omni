@@ -4,8 +4,8 @@ Nov 22, 2026 · Agreed · Replaces the one flat plan in `docs/spec/v1.md` ("Sinc
 
 ## Summary
 
-Omni is billed per workspace, never per member, the way Google Workspace and Skiff were meant to
-feel for a small team: one modest price, no bill that grows with every hire. Omni is paid only:
+Wok is billed per workspace, never per member, the way Google Workspace and Skiff were meant to
+feel for a small team: one modest price, no bill that grows with every hire. Wok is paid only:
 anyone who wants it free hosts it themselves (billing is off unless Stripe is configured). A
 workspace gets one free week to try it, then pays. Two plans are size bands, **Team** and
 **Business**, and every limit is a hard cap, so a bill is the plan's price and nothing more,
@@ -68,7 +68,7 @@ limits.
 ## Where each limit is enforced
 
 One decision, `planOf` in `@omni/db`: a subscription in good standing (`active`, `trialing`,
-`past_due`) gives its plan, a paid one Omni cannot name is Team (the first plan), anything else is
+`past_due`) gives its plan, a paid one Wok cannot name is Team (the first plan), anything else is
 no plan. The Worker's `entitlements` adds the usage month and read-only; `requireCap` /
 `capRefusal`, `gateMeter` / `requireMeter` / `hasAllowance` and `requireWritableWorkspace` are the
 guards. Each cap is counted in one place, `capUsage`.
@@ -114,7 +114,7 @@ limit.
 
 ## One kind of workspace
 
-A Personal space is the workspace Omni makes for a person (Just me, mail on an address no company
+A Personal space is the workspace Wok makes for a person (Just me, mail on an address no company
 claims, a Drive item shared with them). It is a workspace like any other: it takes invitations,
 teams, shared inboxes, a CRM, Talk and a Shared drive, and an owner may delete it. It has a plan,
 caps and meters, and without a trial or a plan it is read-only. Someone who was only shared a

@@ -80,7 +80,7 @@ export default function SignIn() {
         <View style={styles.hero}>
           <OmniGlobe size={40} />
           <Text size="title" weight="medium" accessibilityRole="header" style={styles.center}>
-            {step === "code" ? "Enter code" : "Sign in to Omni"}
+            {step === "code" ? "Enter code" : "Sign in to Wok"}
           </Text>
           {step === "code" ? (
             <Text size="subhead" tone="mutedForeground" style={styles.center}>

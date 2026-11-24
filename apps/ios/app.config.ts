@@ -7,10 +7,10 @@ const linkHost = process.env.OMNI_IOS_LINK_HOST;
 const easProjectId = process.env.OMNI_IOS_EAS_PROJECT_ID;
 const updateChannel = process.env.OMNI_IOS_UPDATE_CHANNEL || "production";
 
-const MICROPHONE_USE = "Omni listens while you dictate a search.";
+const MICROPHONE_USE = "Wok listens while you dictate a search.";
 
 const config: ExpoConfig = {
-  name: process.env.OMNI_IOS_NAME || "Omni",
+  name: process.env.OMNI_IOS_NAME || "Wok",
   slug: process.env.OMNI_IOS_SLUG || "omni",
   version: process.env.OMNI_IOS_VERSION || pkg.version,
   icon: "./assets/icon.png",
@@ -47,7 +47,7 @@ const config: ExpoConfig = {
       "expo-speech-recognition",
       {
         microphonePermission: MICROPHONE_USE,
-        speechRecognitionPermission: "Omni turns what you dictate into search text.",
+        speechRecognitionPermission: "Wok turns what you dictate into search text.",
       },
     ],
     [

@@ -10,7 +10,7 @@ import { storeWorkspaceId } from "./workspace-id.ts";
 
 /**
  * Starts Google or Apple OAuth directly through Better Auth's Expo client: opens the provider's
- * consent screen in `ASWebAuthenticationSession` (never Omni's web login page), returns to
+ * consent screen in `ASWebAuthenticationSession` (never Wok's web login page), returns to
  * `omni://`, stores the session cookie in SecureStore, and notifies `useSession`.
  */
 export async function signInWithSocial(provider: "google" | "apple") {

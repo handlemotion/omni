@@ -183,7 +183,7 @@ test("a reload mid-recording, with chunks still on the computer, finishes the me
   await expect.poll(() => keptOnComputer(page)).toBe(0);
 });
 
-test("a second Omni tab leaves a recording that is still going alone", async () => {
+test("a second Wok tab leaves a recording that is still going alone", async () => {
   const { page, member } = await signedIn();
   await record(page);
   await expect.poll(() => meetingOf(member.id)).toBeTruthy();

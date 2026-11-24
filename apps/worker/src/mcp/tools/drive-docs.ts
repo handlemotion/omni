@@ -56,9 +56,9 @@ const outputSchema = z.object({ doc: itemSchema });
 
 const REFUSED: Record<string, string> = {
   forbidden: "The person may not change files there.",
-  locked: "That doc is locked. Someone unlocks it in Omni first.",
+  locked: "That doc is locked. Someone unlocks it in Wok first.",
   not_found: "No doc with that id you can change. Ids come from `drive_search` or `drive_list`.",
-  not_a_doc: "That file is not a doc. Only Omni docs and Markdown files (.md) are docs.",
+  not_a_doc: "That file is not a doc. Only Wok docs and Markdown files (.md) are docs.",
   too_large: "That doc is too large to change here.",
   too_large_after: "That change would make the doc larger than 1 MB. Nothing was changed.",
   full: "The workspace's storage is full.",
@@ -68,7 +68,7 @@ const REFUSED: Record<string, string> = {
 };
 
 const refusal = (reason: string) =>
-  toolError(REFUSED[reason] ?? "Omni could not write the doc this time. Try again in a moment.");
+  toolError(REFUSED[reason] ?? "Wok could not write the doc this time. Try again in a moment.");
 
 const audit = (context: ToolContext, writer: Writer, subject: string, kind: string) =>
   recordMcpWrite(context, writer, "mcp.drive_doc", subject, { kind });
@@ -143,7 +143,7 @@ export function registerDriveDocs(server: McpServer, context: ToolContext) {
     {
       title: "Write a doc",
       description:
-        "Write a new doc in Drive from Markdown: in a folder, or at the top of a teamspace. It opens in Omni as a page anyone with access can edit together. Returns the doc with its `url` to cite.",
+        "Write a new doc in Drive from Markdown: in a folder, or at the top of a teamspace. It opens in Wok as a page anyone with access can edit together. Returns the doc with its `url` to cite.",
       inputSchema: createInput,
       outputSchema,
       annotations: ANNOTATIONS,
@@ -155,7 +155,7 @@ export function registerDriveDocs(server: McpServer, context: ToolContext) {
     {
       title: "Edit a doc",
       description:
-        "Change a doc (an Omni doc, or a Markdown file) in Drive. Read it first with `drive_fetch`, then give `edits`: each `find` quotes Markdown that occurs exactly once and becomes `replace`. Edits apply to the doc as it is right now, including what people are typing in it, and appear live for anyone who has it open; earlier versions stay in its history. `markdown` replaces the whole doc instead.",
+        "Change a doc (a Wok doc, or a Markdown file) in Drive. Read it first with `drive_fetch`, then give `edits`: each `find` quotes Markdown that occurs exactly once and becomes `replace`. Edits apply to the doc as it is right now, including what people are typing in it, and appear live for anyone who has it open; earlier versions stay in its history. `markdown` replaces the whole doc instead.",
       inputSchema: editInput,
       outputSchema,
       annotations: ANNOTATIONS,

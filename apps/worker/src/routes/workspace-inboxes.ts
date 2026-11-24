@@ -27,7 +27,7 @@ function answerOrphan(result: OrphanResult) {
 }
 
 /**
- * Removes a mailbox from the workspace, whatever its provider: Omni stops syncing it and forgets
+ * Removes a mailbox from the workspace, whatever its provider: Wok stops syncing it and forgets
  * its login; the mail stays at the host. Refused (409) when it is someone's only inbox. Retrying
  * one already gone answers 204.
  */

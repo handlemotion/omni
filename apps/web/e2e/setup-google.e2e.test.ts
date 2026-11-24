@@ -100,11 +100,11 @@ test("setup walks one step list: the domain first, Back one step at a time, the 
   await page.getByRole("button", { name: "Back" }).click();
   await heading(page, "Your company's domain");
   await page.getByRole("button", { name: "Back" }).click();
-  await heading(page, "Welcome to Omni");
+  await heading(page, "Welcome to Wok");
   expect(new URL(page.url()).host).toBe(new URL(String(worker.url)).host);
 });
 
-test("a domain claimed for Omni can be switched to Google from the domain step", async () => {
+test("a domain claimed for Wok can be switched to Google from the domain step", async () => {
   const name = `Duo ${Date.now()}`;
   const page = await signedIn(`duo-${Date.now()}@gmail.test`, "/onboarding");
   await page.getByLabel("Workspace name").fill(name);

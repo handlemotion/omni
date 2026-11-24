@@ -29,7 +29,7 @@ let syncLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "omni-sync", cat
 /// The one domain: "Omni" in Finder's sidebar, a folder per synced workspace inside.
 enum Omni {
     static var domain: NSFileProviderDomain {
-        NSFileProviderDomain(identifier: NSFileProviderDomainIdentifier("omni"), displayName: "Omni")
+        NSFileProviderDomain(identifier: NSFileProviderDomainIdentifier("omni"), displayName: "Wok")
     }
 }
 
@@ -55,7 +55,7 @@ func print<T: Encodable>(json value: T) throws {
 }
 
 func manager() throws -> NSFileProviderManager {
-    guard let manager = NSFileProviderManager(for: Omni.domain) else { throw Failure("the Omni domain is not registered") }
+    guard let manager = NSFileProviderManager(for: Omni.domain) else { throw Failure("the Wok domain is not registered") }
     return manager
 }
 
@@ -112,7 +112,7 @@ func run(_ arguments: [String]) async throws {
         try next.write(to: container)
         if try await !registered() {
             try await NSFileProviderManager.add(Omni.domain)
-            syncLog.notice("added the Omni domain")
+            syncLog.notice("added the Wok domain")
         }
         try await signal()
         try print(json: DesktopWorkspaceSync(orgId: orgId, state: state(of: orgId, settings: next)))

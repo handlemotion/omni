@@ -69,7 +69,7 @@ export function SelectionBar(props: {
           isPending={convert.isPending}
           onPress={() => void convert.run(selection.nodes).then(selection.clear)}
         >
-          Convert to Omni doc
+          Convert to Wok doc
         </Button>
       )}
       {trashable && (

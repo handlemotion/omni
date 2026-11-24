@@ -74,7 +74,7 @@ describe("diagnose: records that already exist", () => {
       CNAME: { status: "nodata" },
     });
     expect(verdict).toMatchObject({ status: "mx_elsewhere", found: ["10 smtp.google.com"] });
-    expect(verdict.message).toContain("new mail arrives in Omni");
+    expect(verdict.message).toContain("new mail arrives in Wok");
   });
 
   test("our MX alongside others still splits mail", () => {

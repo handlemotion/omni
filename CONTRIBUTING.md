@@ -1,6 +1,6 @@
-# Contributing to Omni
+# Contributing to Wok
 
-Thanks for helping. Omni is one AI-first inbox, plus Drive and a CRM, over any IMAP/SMTP mail
+Thanks for helping. Wok is one AI-first inbox, plus Drive and a CRM, over any IMAP/SMTP mail
 host. This file is the short version; [`AGENTS.md`](AGENTS.md) holds the full rules (written for
 coding agents, and they apply to people too), and [`docs/spec/`](docs/spec/) is the product spec.
 
@@ -16,7 +16,7 @@ pnpm dev:stack    # migrates, seeds, and serves the app at http://localhost:5173
 
 Sign in as `dev@example.com`. Without the Doppler CLI, `dev:stack` writes each unit's env file
 from its `.env.example` (`.dev.vars.example` for the Worker) with fresh local secrets. Edit those
-files to turn on optional features such as AI triage (`ANTHROPIC_API_KEY`). To run Omni for real,
+files to turn on optional features such as AI triage (`ANTHROPIC_API_KEY`). To run Wok for real,
 see [`docs/self-hosting.md`](docs/self-hosting.md).
 
 ## Before you open a pull request
@@ -47,5 +47,5 @@ Never report a vulnerability in a public issue or pull request. See [`SECURITY.m
 
 ## License
 
-Omni is under the [GNU AGPL v3.0](LICENSE). By contributing, you agree that your contribution is
+Wok is under the [GNU AGPL v3.0](LICENSE). By contributing, you agree that your contribution is
 licensed under the same terms.

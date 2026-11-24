@@ -535,7 +535,7 @@ export function SecurityPage() {
         isOpen={dialog?.kind === "sign-out-device"}
         onOpenChange={(open) => !open && close()}
         title="Sign out of this device?"
-        description={`${dialog?.kind === "sign-out-device" ? dialog.name : "That device"} will need to sign in again to open Omni.`}
+        description={`${dialog?.kind === "sign-out-device" ? dialog.name : "That device"} will need to sign in again to open Wok.`}
         action="Sign out"
         saving={revokeSession.isPending}
         onConfirm={() =>

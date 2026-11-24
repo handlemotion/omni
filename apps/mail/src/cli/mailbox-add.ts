@@ -121,7 +121,7 @@ if (values["create-app-password"]) {
   if (!config.data.PURELYMAIL_API_TOKEN) fail("--create-app-password needs PURELYMAIL_API_TOKEN");
   pass = await createPurelymailClient(config.data.PURELYMAIL_API_TOKEN).createAppPassword(
     values.user ?? address,
-    "Omni",
+    "Wok",
   );
 } else {
   pass = await readStdin();

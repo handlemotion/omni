@@ -16,7 +16,7 @@ export function UpdateRow() {
       intent="notice"
       size="md"
       className="w-full justify-start px-2"
-      aria-label={`Restart to update to Omni ${version}`}
+      aria-label={`Restart to update to Wok ${version}`}
       onPress={desktop.update.install}
     >
       <IconArrowRotateClockwise data-slot="icon" />
@@ -34,7 +34,7 @@ export function UpdateTile({ className }: { className: string }) {
     <TooltipTrigger>
       <Button
         intent="notice"
-        aria-label={`Restart to update to Omni ${version}`}
+        aria-label={`Restart to update to Wok ${version}`}
         className={className}
         onPress={desktop.update.install}
       >

@@ -9,7 +9,7 @@
 //! sidebar offers a restart; `update_install` restarts now, window shown. "Check for Updates…" in
 //! the tray and app menu checks at once and says when there is nothing new.
 //!
-//! The manifest lives on the chosen Omni server, so a self-hosted build updates from its own
+//! The manifest lives on the chosen Wok server, so a self-hosted build updates from its own
 //! server; a build may name another feed. Each system has its own: macOS reads
 //! `/desktop/latest.json` (the path installed Macs already ask for), Windows
 //! `/desktop/windows/latest.json`, so the two release jobs publish apart and neither can offer
@@ -137,7 +137,7 @@ async fn download<R: Runtime>(app: &AppHandle<R>) -> Result<Checked, String> {
         .await
         .map_err(|e| e.to_string())?;
     eprintln!(
-        "update {} downloaded; it installs when Omni quits",
+        "update {} downloaded; it installs when Wok quits",
         update.version
     );
     let version = update.version.clone();
@@ -154,18 +154,18 @@ async fn download<R: Runtime>(app: &AppHandle<R>) -> Result<Checked, String> {
 /// check failed.
 pub fn check_now<R: Runtime>(app: &AppHandle<R>) {
     if app.try_state::<Pending>().is_none() {
-        notify(app, "Updates are off in this build of Omni");
+        notify(app, "Updates are off in this build of Wok");
         return;
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         match check(&app).await {
             Ok(Checked::Ready) => crate::window::show(&app),
-            Ok(Checked::UpToDate) => notify(&app, "Omni is up to date"),
-            Ok(Checked::Busy) => notify(&app, "Omni is already checking for updates"),
+            Ok(Checked::UpToDate) => notify(&app, "Wok is up to date"),
+            Ok(Checked::Busy) => notify(&app, "Wok is already checking for updates"),
             Err(error) => {
                 eprintln!("update check failed: {error}");
-                notify(&app, "Omni couldn’t check for updates");
+                notify(&app, "Wok couldn’t check for updates");
             }
         }
     });

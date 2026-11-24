@@ -167,7 +167,7 @@ test("a contract marked signed by hand takes its signed copy later and keeps its
   expect(await statusEvents(org.id)).toHaveLength(1);
 });
 
-test("a signed copy is refused while the contract is out from Omni, from the future, when not a PDF, or outside Shared, and nothing changes", async () => {
+test("a signed copy is refused while the contract is out from Wok, from the future, when not a PDF, or outside Shared, and nothing changes", async () => {
   const { ana, dealId, folderId, contractId, signedCopy } = await dealWithDraft();
   const copy = await signedCopy();
 

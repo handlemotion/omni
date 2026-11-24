@@ -37,7 +37,7 @@ describe.runIf(requested)("Stripe test mode", () => {
     lookupKey: string,
     interval: "month" | "year",
     amount: number,
-    productName = "Omni Team (e2e)",
+    productName = "Wok Team (e2e)",
   ) {
     const found = await stripe.prices.list({ lookup_keys: [lookupKey], limit: 1 });
     if (found.data[0]) return found.data[0].id;
@@ -82,13 +82,8 @@ describe.runIf(requested)("Stripe test mode", () => {
       monthly:
         process.env.STRIPE_PRICE_MONTHLY || (await price("omni-e2e-monthly", "month", 1_900)),
       yearly: process.env.STRIPE_PRICE_YEARLY || (await price("omni-e2e-yearly", "year", 19_000)),
-      business: await price("omni-e2e-business-monthly", "month", 6_000, "Omni Business (e2e)"),
-      businessYearly: await price(
-        "omni-e2e-business-yearly",
-        "year",
-        60_000,
-        "Omni Business (e2e)",
-      ),
+      business: await price("omni-e2e-business-monthly", "month", 6_000, "Wok Business (e2e)"),
+      businessYearly: await price("omni-e2e-business-yearly", "year", 60_000, "Wok Business (e2e)"),
     };
     database = await createTestDatabase();
     mailService = await startMailServiceEndpoint();

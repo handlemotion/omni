@@ -35,7 +35,7 @@ export const contractSchema = z
     expires_on: z.iso.date().nullable().optional(),
   })
   .describe(
-    "Add a draft contract on a company or deal, or change a contract's title, document or dates. Sending it for signature, voiding and marking it signed stay with a person in Omni.",
+    "Add a draft contract on a company or deal, or change a contract's title, document or dates. Sending it for signature, voiding and marking it signed stay with a person in Wok.",
   );
 
 type FilesInput = z.infer<typeof filesSchema>;

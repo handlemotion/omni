@@ -314,11 +314,11 @@ export const crmContracts = pgTable(
       onDelete: "set null",
     }),
     signedAt: timestamptz("signed_at"),
-    /** The Storage signature request it was sent with from Omni (ADR 0037); null when sent by hand. */
+    /** The Storage signature request it was sent with from Wok (ADR 0037); null when sent by hand. */
     signatureRequestId: text("signature_request_id"),
     /** The sealed copy Storage wrote beside the document once everyone signed. */
     signedNodeId: folderRef("signed_node_id"),
-    /** Who signed, entered by hand when the contract was signed outside Omni. */
+    /** Who signed, entered by hand when the contract was signed outside Wok. */
     signedBy: jsonb("signed_by").$type<{ name: string; email: string | null }[]>(),
     effectiveOn: date("effective_on", { mode: "string" }),
     expiresOn: date("expires_on", { mode: "string" }),

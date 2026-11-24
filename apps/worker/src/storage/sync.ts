@@ -44,7 +44,7 @@ function unauthorized(c: Context<AppEnv>, description: string) {
 
 const requireSyncToken = createMiddleware<AppEnv>(async (c, next) => {
   const token = /^Bearer (\S+)$/i.exec(c.req.header("authorization") ?? "")?.[1];
-  if (!token) return unauthorized(c, "sign in to Omni first");
+  if (!token) return unauthorized(c, "sign in to Wok first");
   const { auth, db, config } = c.var;
   const payload = await verifyAccessToken(
     token,
@@ -118,12 +118,12 @@ export const storageSync = new Hono<AppEnv>()
     const resource = storageSyncResource(config.auth.baseURL);
     await ensureFirstPartyOAuthClient(db, {
       clientId: DESKTOP_CLIENT_ID,
-      name: "Omni Desktop",
+      name: "Wok Desktop",
       redirectUri: DESKTOP_REDIRECT_URI,
       scopes: ["offline_access", STORAGE_SYNC_SCOPE],
       resource: {
         identifier: resource,
-        name: "Omni Desktop sync",
+        name: "Wok Desktop sync",
         allowedScopes: [STORAGE_SYNC_SCOPE],
       },
     });

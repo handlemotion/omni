@@ -51,17 +51,17 @@ const accessSchema = z
   .array(
     z.object({
       email: z.string(),
-      name: z.string().nullable().describe("Once the address belongs to an Omni account."),
+      name: z.string().nullable().describe("Once the address belongs to a Wok account."),
       scope: z
         .enum(CRM_PROJECT_SCOPES)
         .describe(
-          "freelancer: works on the project in Omni. client: reviews deliverables on the portal.",
+          "freelancer: works on the project in Wok. client: reviews deliverables on the portal.",
         ),
       added_at: z.string(),
     }),
   )
   .describe(
-    "People outside the team who reach this project, oldest first. Adding or removing them stays with a person in Omni.",
+    "People outside the team who reach this project, oldest first. Adding or removing them stays with a person in Wok.",
   );
 
 const noteSchema = z.object({

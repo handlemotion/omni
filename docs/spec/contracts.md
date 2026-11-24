@@ -1,30 +1,30 @@
-# Omni contracts: Drive's own contracts
+# Wok contracts: Drive's own contracts
 
 Nov 22, 2026 · Draft for review · Extends `docs/spec/docs.md` and `docs/spec/crm.md` ("Store the
-contract", "Sign the contract in Omni"); builds on versions by editing session (#706), agent
+contract", "Sign the contract in Wok"); builds on versions by editing session (#706), agent
 versions and `drive_versions` (#707), and Storage's signing
 
 ## Summary
 
-A contract becomes an Omni file type of its own, as docs are and sheets and canvases will be. It
+A contract becomes a Wok file type of its own, as docs are and sheets and canvases will be. It
 lives in Drive, is written in the doc editor, and adds what a contract needs and a doc does not:
 named drafts you can compare, a record of who wrote each passage (a person or an agent), and
 sending for signature from the file itself.
 
 The CRM stops owning the document. A deal's contract record references a contract that lives in
-Drive, wherever it is: an Omni contract, or any PDF or Word file the team already has. Picking
+Drive, wherever it is: a Wok contract, or any PDF or Word file the team already has. Picking
 one never forces an upload or a copy.
 
 Two words, used the same way throughout:
 
-- **Omni contract:** the Drive file, type `text/vnd.omni.contract`.
+- **Wok contract:** the Drive file, type `text/vnd.omni.contract`.
 - **Contract record:** the CRM's row (`crm_contracts`) on a deal or a company. It references one
   Drive file as its document and keeps the CRM's own facts: the record it is on, the people it
   involves, its dates and its place on the timeline.
 
 ## What it is, and what it is not
 
-| An Omni contract is                                          | It is not                                                  |
+| A Wok contract is                                          | It is not                                                  |
 | ------------------------------------------------------------ | ---------------------------------------------------------- |
 | A Drive file, shared, found and moved like any other         | A CRM object: it lives in Drive and works without the CRM  |
 | A doc's body and editor, live for the whole team             | A layout tool: no page setup, fonts or fields placed on a page |
@@ -34,7 +34,7 @@ Two words, used the same way throughout:
 
 ## The type
 
-- An Omni contract is a Drive file whose type is `text/vnd.omni.contract` (`CONTRACT_TYPE` and
+- A Wok contract is a Drive file whose type is `text/vnd.omni.contract` (`CONTRACT_TYPE` and
   `isOmniContract` in `@omni/docs`, beside `DOC_TYPE`). Names carry no extension.
 - Its body is Markdown, as a doc's is, on the same Tiptap schema. Search, `drive_fetch`, the live
   document, versions, comments and text extraction read it with no new code path, and the type
@@ -42,8 +42,8 @@ Two words, used the same way throughout:
   place that opens a doc opens a contract. `isOmniDoc` stays false: the places that make a
   contract differ from a doc ask `isOmniContract`.
 - Drive shows it with a contract glyph and the badge `CONTRACT`. **New → Contract** makes
-  `Untitled contract`. **Convert to Omni contract**, from an Omni doc's or a Markdown file's ⋯
-  menu, saves its text as the next version with the contract type, as Convert to Omni doc does.
+  `Untitled contract`. **Convert to Wok contract**, from a Wok doc's or a Markdown file's ⋯
+  menu, saves its text as the next version with the contract type, as Convert to Wok doc does.
   PDFs and Word files are not converted: they are referenced as they are (below).
 - Export is a doc's (Word, PDF, Markdown). A PDF from Export is a reading copy; only Send for
   signature makes the PDF that is signed.
@@ -105,7 +105,7 @@ or someone outside the workspace editing through a link.
 ## Send for signature
 
 Sending freezes one version, renders it to a PDF, and runs Storage's signing on that PDF
-(`docs/spec/crm.md`, "Sign the contract in Omni"). Signers read and sign the PDF, never the live
+(`docs/spec/crm.md`, "Sign the contract in Wok"). Signers read and sign the PDF, never the live
 document.
 
 1. **Freeze.** Send for signature, in the contract's bar or from a deal, takes the current
@@ -138,12 +138,12 @@ document.
 A contract record references a contract in Drive. Today's picker offers the files of the
 record's own folder or an upload; it becomes three ways in:
 
-- **From Drive.** Any file in the workspace's drives the member can open: an Omni contract, a
+- **From Drive.** Any file in the workspace's drives the member can open: a Wok contract, a
   PDF, a Word file, anything. It is referenced where it lives, as "Add from Drive" links files: it
   is not moved into the deal's `Admin` folder or copied. Only a file loose in the deal's own folder
   is filed into `Admin`, as today. A file in someone's My files is refused (`documentNodeId`): it
   is not the team's. A signed copy picked this way is any PDF in the workspace's drives.
-- **New Omni contract.** Makes an Omni contract in the deal's `Admin` folder (the company's
+- **New Wok contract.** Makes a Wok contract in the deal's `Admin` folder (the company's
   folder for a company's record), named after the record's title, and opens it.
 - **Upload PDF.** Stays: the file lands in the record's folder, as now.
 
@@ -154,7 +154,7 @@ What follows from referencing in place:
 - **Freelancers.** A freelancer the contract involves gets viewer on its document and signed copy
   wherever they are, and loses it when taken off, as today.
 - **One contract, several deals.** One MSA can be the document of records on several deals.
-- **Signing an Omni contract.** A record whose document is an Omni contract sends it through the
+- **Signing a Wok contract.** A record whose document is a Wok contract sends it through the
   contract's own send (`POST /contracts/:id/send` calls it), and its `signatureRequestId` is that
   send's request. Its status follows the file: `sent` while the contract is out, `signed` with the
   sealed copy as `signedNodeId` when it completes, `draft` when voided. Every record referencing
@@ -182,7 +182,7 @@ the record's folder by name.
 
 ## Agents
 
-- `drive_create_doc` takes `kind: "contract"` and makes an Omni contract. `drive_edit_doc` edits
+- `drive_create_doc` takes `kind: "contract"` and makes a Wok contract. `drive_edit_doc` edits
   one as a doc, and the edit is attributed to the agent, for its member.
 - `drive_versions` lists named drafts with their names and compares any two.
 - `crm_write`'s `contract` takes any workspace file as its document. Agents name drafts; they
@@ -210,9 +210,9 @@ step is its own deploy, in this order; step 3 waits until step 2 is live in prod
 5. **Attribution:** the optional `by` stamp, then the authors file. Readers that do not know the
    stamp ignore it; versions without an authors file read as their writer's.
 6. **Send:** `storage_contract_sends`, the PDF render and the contract's send routes; then the
-   CRM's send delegates for Omni contracts and its minute job settles every record referencing a
+   CRM's send delegates for Wok contracts and its minute job settles every record referencing a
    completed send.
-7. **The CRM's ways in:** New Omni contract, and `document` on `CrmContract`.
+7. **The CRM's ways in:** New Wok contract, and `document` on `CrmContract`.
 
 Contract, once no client needs it: the web's folder-only select goes (From Drive covers it), and
 the Shared-only wording leaves `crm.md`. No column is dropped: PDF and Word contracts keep using
@@ -223,10 +223,10 @@ every field they use now.
 - Parallel drafts merged together, and importing a counterparty's tracked changes from Word.
 - Fields placed on the page (signature boxes, initials) and per-signer order. Signers sign the
   whole PDF, as now.
-- Templates with variables filled from the deal (`{{company.name}}`). New Omni contract starts
+- Templates with variables filled from the deal (`{{company.name}}`). New Wok contract starts
   empty; Make a copy of a past one is the template.
 - Attribution for docs (the stamp is there; the authors file and the view are not).
-- iOS and desktop: they open an Omni contract as a doc and do not send it.
+- iOS and desktop: they open a Wok contract as a doc and do not send it.
 
 ## Verify
 

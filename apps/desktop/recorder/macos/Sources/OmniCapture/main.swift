@@ -195,7 +195,7 @@ final class ProcessTap {
 
         let outputUID = try defaultOutputUID()
         let settings: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Omni Recorder",
+            kAudioAggregateDeviceNameKey: "Wok Recorder",
             kAudioAggregateDeviceUIDKey: UUID().uuidString,
             kAudioAggregateDeviceMainSubDeviceKey: outputUID,
             kAudioAggregateDeviceIsPrivateKey: true,

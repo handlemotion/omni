@@ -12,7 +12,7 @@ import { keys } from "@/lib/query-keys.ts";
 
 /**
  * A sign-in with a company's address whose person is not its member: ask to join it,
- * or use another account. The sign-in card's frame (Figma: Omni, frame "/").
+ * or use another account. The sign-in card's frame (Figma: Wok, frame "/").
  */
 export function Join() {
   const client = useQueryClient();

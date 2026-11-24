@@ -158,7 +158,7 @@ export async function firstSyncDone(db: Db, mailboxId: string) {
 }
 
 /**
- * Copies Omni-only thread state (read, deferred, done; kept nowhere else) from one
+ * Copies Wok-only thread state (read, deferred, done; kept nowhere else) from one
  * copy of a mailbox to another, for `toMemberId`. A thread matches by the provider's thread id
  * or by a message both copies hold. Merged into whatever the new copy's sync already wrote: read
  * if either says so, the later done mark, the new copy's deferral if it has one. Merging is

@@ -46,7 +46,7 @@ export function Welcome() {
 
   return (
     <EntryCard
-      title={invitations.length > 0 ? "Your invitations" : "Welcome to Omni"}
+      title={invitations.length > 0 ? "Your invitations" : "Welcome to Wok"}
       actions={
         <>
           {status.data?.canCreateOrganization && (

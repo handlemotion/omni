@@ -5,7 +5,7 @@ import type { ToolContext } from "./server.ts";
 export const itemSchema = z.object({
   id: z.string().describe("The file or folder id, for `drive_fetch` or `drive_list`."),
   title: z.string().describe("Its name."),
-  url: z.string().describe("Open it in Omni. Cite it when you answer."),
+  url: z.string().describe("Open it in Wok. Cite it when you answer."),
   kind: z.enum(["file", "folder"]),
   mime_type: z.string().nullable(),
   size: z.number().describe("Bytes; 0 for a folder."),

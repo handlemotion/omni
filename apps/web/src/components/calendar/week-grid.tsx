@@ -65,7 +65,7 @@ export interface WeekGridProps {
   onOpenTodo?: (task: Todo) => void;
 }
 
-/** Whether the member may move it: an event made in Omni that their inbox organizes. */
+/** Whether the member may move it: an event made in Wok that their inbox organizes. */
 export const ownEvent = (event: CalendarEvent) => event.source === "omni" && event.organizing;
 
 const snap = (minutes: number) => Math.round(minutes / SLOT_MINUTES) * SLOT_MINUTES;

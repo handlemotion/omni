@@ -87,7 +87,7 @@ const SAMPLE_PLAN: Billing = {
     cancelAtPeriodEnd: false,
   },
   intervals: ["month", "year"],
-  planName: "Omni Team",
+  planName: "Wok Team",
   prices: SAMPLE_PLANS[0]!.prices,
   triage: null,
 };
@@ -436,7 +436,7 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
   return (
     <SettingsSection
       title="Payment methods"
-      info="Cards are kept by Stripe. Card numbers never reach Omni."
+      info="Cards are kept by Stripe. Card numbers never reach Wok."
     >
       <Skeleton
         id="settings-billing-cards"

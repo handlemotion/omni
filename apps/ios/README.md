@@ -24,7 +24,7 @@ pnpm ios:dev --metro     # skip the native check/build, just start Metro
 pnpm ios:dev --rebuild   # force a native rebuild
 ```
 
-`scripts/dev.sh` builds a Debug development build ("Omni Dev", bundle id
+`scripts/dev.sh` builds a Debug development build ("Wok Dev", bundle id
 `app.omnidirectional.ios.dev`, set with `OMNI_IOS_DEV_BUNDLE_ID`), installs it and starts Metro;
 saving a file reloads the app. It fingerprints native inputs with `@expo/fingerprint` and caches
 build stamps per Simulator/iPhone in `~/.cache/omni-ios/`, so reruns across worktrees and on a
@@ -75,8 +75,8 @@ go through a full TestFlight build while JS/TS/UI changes ship in ~30 seconds:
 - **TestFlight (`production` channel):** every push to `main` touching `apps/ios` or its shared
   packages runs `.github/workflows/ios-update.yml` on Linux and publishes to the `production` branch.
   Testers receive the update on their next app launch.
-- **Branch previews in Omni Dev:** publish an update for any branch and open it from the
-  **Extensions** tab inside **Omni Dev** (no laptop or Wi-Fi required):
+- **Branch previews in Wok Dev:** publish an update for any branch and open it from the
+  **Extensions** tab inside **Wok Dev** (no laptop or Wi-Fi required):
 
 ```bash
 cd apps/ios

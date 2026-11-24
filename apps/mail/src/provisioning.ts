@@ -13,7 +13,7 @@ import type { Logger } from "./log.ts";
 import { checkMailHost, type MailHostPolicy, withPlaintextPolicy } from "./mail-hosts.ts";
 import { verifyImapLogin } from "./verify-login.ts";
 
-const notPublic = (host: string) => `${host} isn't a public mail server Omni can connect to`;
+const notPublic = (host: string) => `${host} isn't a public mail server Wok can connect to`;
 
 /** A refusal the Worker passes on to the member, with the status to use. */
 export class ProvisionError extends Error {

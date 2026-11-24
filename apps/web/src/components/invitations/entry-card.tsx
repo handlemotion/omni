@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 
 /**
- * The sign-in card's frame (Figma: Omni, frame "/"), as `/join` uses it: the mark and a heading
+ * The sign-in card's frame (Figma: Wok, frame "/"), as `/join` uses it: the mark and a heading
  * at the top, the actions stacked at the foot. `children` sits between them and scrolls when
  * it outgrows the card.
  */

@@ -7,7 +7,7 @@ import { identityChecks, identityOf } from "@/lib/storage-uploads.ts";
 /** The name a new doc gets; the server numbers it when the folder has one already. */
 export const NEW_DOC_NAME = "Untitled";
 
-/** Makes an empty Omni doc in `place`, and hands it to `onMade`. */
+/** Makes an empty Wok doc in `place`, and hands it to `onMade`. */
 export function useNewDoc(
   place: StoragePlace,
   shareId: string | undefined,

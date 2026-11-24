@@ -1,5 +1,5 @@
 name: Feature request
-description: Something Omni should do.
+description: Something Wok should do.
 labels: [enhancement]
 body:
   - type: textarea

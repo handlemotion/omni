@@ -141,7 +141,7 @@ type Calendar = { id: string; orgId: string };
 
 /**
  * Applies one page of Google's changes to an inbox's calendar, in one transaction, and says how
- * many changed it and which cancelled instances wait for a series it does not hold yet. An event made in Omni is Omni's and Google never changes it. For the rest,
+ * many changed it and which cancelled instances wait for a series it does not hold yet. An event made in Wok is Wok's and Google never changes it. For the rest,
  * Google and mail's invitations write the same rows by `UID`, and the higher
  * `(SEQUENCE, updated or DTSTAMP)` wins, so either order ends the same.
  */

@@ -1,4 +1,4 @@
-# Omni canvases: Drive's own boards
+# Wok canvases: Drive's own boards
 
 Nov 22, 2026 · Draft for review · Extends `docs/spec/docs.md` and `docs/spec/mcp.md` ("Docs").
 Builds on the live layer of #705 (snaps), #706 (versions by editing session) and #707 (agent
@@ -6,16 +6,16 @@ version tools).
 
 ## Summary
 
-A canvas is an Omni board: an endless surface of shapes, sticky notes, text, connectors, frames,
+A canvas is a Wok board: an endless surface of shapes, sticky notes, text, connectors, frames,
 images and other Drive files, edited live by everyone who has it open and by their agents. It is
-the second of Omni's own file types after docs, and follows their pattern: a type of its own, a
+the second of Wok's own file types after docs, and follows their pattern: a type of its own, a
 name with no extension, an editor of its own, exports to the formats other tools read
 (PNG, SVG, PDF), and one live document on the same S2 stream.
 
 Drive is meant to be one place where every kind of file lives together. A canvas helps with that
 in two ways. It holds other files (a doc, a sheet's range, a PDF's page) as live tiles. And it is
 text underneath, so search, `drive_fetch`, history, desktop sync and self-hosting treat it like
-any other Omni file.
+any other Wok file.
 
 ## Decisions
 
@@ -34,7 +34,7 @@ any other Omni file.
 
 ## The type
 
-- An Omni canvas is a Drive file whose type is `text/vnd.omni.canvas`. The type, not the name,
+- A Wok canvas is a Drive file whose type is `text/vnd.omni.canvas`. The type, not the name,
   makes it a canvas, so its name carries no extension. `isOmniCanvas(type)` answers it.
 - Its body is text (`text/`), like a doc's. Every path that reads text keeps working. Any path
   that does not know canvases sees JSON, which still means something: an older Worker indexes
@@ -161,7 +161,7 @@ whoever is editing at that moment keeps everything the change did not touch.
 
 ## History
 
-The owner's direction for Omni-editable files is one canonical document with an edit history
+The owner's direction for Wok-editable files is one canonical document with an edit history
 drawn from its change log, as in Notion's page history, not a list of file versions. A separate
 thread is specifying that history for docs (`docs/spec/docs.md`, "History", once it lands).
 Canvases take it unchanged. A canvas's change log is the same stream of records, grouped into
@@ -212,7 +212,7 @@ external, CSS and fonts excluded), Nov 22, 2026.
 | Option                | Licence                                                                                                       | Initial JS, min / gzip | Fit                                                                                                                                                                                                                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | tldraw 5.6            | tldraw licence: no production use without a licence key; the free key is non-commercial and shows a watermark | 2.1 MB / 642 KB        | Best editor of the three. But a commercial key is a paid contract, and every self-hosted install would need one of its own, so it fails "self-hostable with no new required service". Its record store is its own and would need its own sync, separate from our S2 stream. |
-| Excalidraw 0.18       | MIT                                                                                                           | 1.1 MB / 258 KB        | Free to use, but it is an app, not a library: its own UI, menus, hand-drawn look and scene arrays. Live editing would need a third-party Yjs binding that replaces arrays. Making it look like Omni means fighting it.                                                      |
+| Excalidraw 0.18       | MIT                                                                                                           | 1.1 MB / 258 KB        | Free to use, but it is an app, not a library: its own UI, menus, hand-drawn look and scene arrays. Live editing would need a third-party Yjs binding that replaces arrays. Making it look like Wok means fighting it.                                                      |
 | In-house SVG on React | Ours (AGPL, as the rest)                                                                                      | about 50 KB gzip, est. | Exactly our model, our look and our stream. We build selection, snapping, connectors and text layout ourselves. That is the cost, and v1's element set is chosen to keep it small.                                                                                          |
 
 Yjs itself (30 KB gzip) is already loaded for docs and counts toward none of them.
@@ -262,7 +262,7 @@ was when placed.
 - **Images belong to the canvas.** A pasted or dropped image is uploaded as an attached file of
   the canvas, as images pasted into a doc are today: whoever may edit the canvas may add one,
   and whoever reaches the canvas reaches its images. The upload rule in `@omni/db`
-  (`resolveUploadPlace`) extends from "a doc" to "an Omni doc or canvas". Images draw from their
+  (`resolveUploadPlace`) extends from "a doc" to "a Wok doc or canvas". Images draw from their
   Drive thumbnails at the size on screen.
 - **A trashed or deleted file** turns its tile empty. The element stays, so restoring the file
   brings the tile back.

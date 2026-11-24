@@ -33,11 +33,11 @@ fn failed(child: &mut Child) -> CaptureError {
     }
     match child.wait().ok().and_then(|status| status.code()) {
         Some(2) => CaptureError::PermissionDenied(
-            "Omni is not allowed to use the microphone (System Settings → Privacy & Security)"
+            "Wok is not allowed to use the microphone (System Settings → Privacy & Security)"
                 .into(),
         ),
         Some(3) => CaptureError::PermissionDenied(
-            "Omni is not allowed to record this Mac's sound (System Settings → Privacy & Security)"
+            "Wok is not allowed to record this Mac's sound (System Settings → Privacy & Security)"
                 .into(),
         ),
         _ => CaptureError::Failed(message.trim().to_owned()),

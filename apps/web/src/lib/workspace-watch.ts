@@ -82,7 +82,7 @@ async function announceMail(
     showNotification(
       {
         tag: `mail:${orgId}:${fresh.join(",")}`,
-        title: options.nameOf(orgId) ?? "Omni",
+        title: options.nameOf(orgId) ?? "Wok",
         body: fresh.length === 1 ? "1 new message" : `${fresh.length} new messages`,
       },
       () => options.open({ orgId }),

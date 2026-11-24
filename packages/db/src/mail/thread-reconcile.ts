@@ -21,9 +21,9 @@ import { queueThreadsChanged } from "./pending-mail-events.ts";
  * - Read, on personal mailboxes other than Google accounts: read when every copy has `\Seen`, for
  *   every member with access. Shared mailboxes keep read per person in Postgres and never look
  *   at `\Seen`.
- * - Done, on Google accounts: Gmail's read is Omni's Done. Every copy `\Seen` means
+ * - Done, on Google accounts: Gmail's read is Wok's Done. Every copy `\Seen` means
  *   done (and read, and out of Later); otherwise a done thread is back in the Inbox, unread.
- *   Omni's own read state is not derived from Gmail: only `arrivedUnseen` (the first copy of a
+ *   Wok's own read state is not derived from Gmail: only `arrivedUnseen` (the first copy of a
  *   message, which Gmail shows unread) turns a thread unread.
  *
  * `report` queues `threads.changed` for the threads whose state changed. Returns how many did.

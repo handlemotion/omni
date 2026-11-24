@@ -20,7 +20,7 @@ function LinkBar() {
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b ps-2.5 pe-2.5">
       <IconOmniMark />
-      <span className="flex-1 text-sm text-foreground">Omni</span>
+      <span className="flex-1 text-sm text-foreground">Wok</span>
       {session.data === null && (
         <Link
           href={`/login?redirect=${encodeURIComponent(here)}`}

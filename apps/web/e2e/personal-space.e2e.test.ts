@@ -88,7 +88,7 @@ async function settingsPages(page: Page) {
 test("someone in no workspace chooses Just me and lands in their Personal space's inbox", async () => {
   const email = `solo-${Date.now()}@gmail.test`;
   const page = await signedIn(email, "/", { personal: false });
-  await page.getByRole("heading", { name: "Welcome to Omni" }).waitFor({ timeout: 15_000 });
+  await page.getByRole("heading", { name: "Welcome to Wok" }).waitFor({ timeout: 15_000 });
   expect(new URL(page.url()).pathname).toBe("/welcome");
   expect(await page.getByRole("button", { name: "Create a workspace" }).count()).toBe(1);
   await page.getByRole("button", { name: "Just me" }).click();

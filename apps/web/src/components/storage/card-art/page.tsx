@@ -43,7 +43,7 @@ const OMNI_TYPE = /^text\/vnd\.omni\.(?!doc\b)/i;
 
 /**
  * Whether a card draws this file as a page: docs, code, text, CSV, and workbooks under 2 MB (read
- * whole). Omni's other types (a sheet's JSON, a canvas's) are text inside but not to read as text.
+ * whole). Wok's other types (a sheet's JSON, a canvas's) are text inside but not to read as text.
  */
 export function hasPage(node: StorageNode, type: FileType) {
   if (OMNI_TYPE.test(node.mimeType ?? "")) return false;

@@ -80,7 +80,7 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger) {
       );
       logger.info("provision.user_created", { address });
     }
-    const pass = await call(() => client.createAppPassword(address, "Omni"));
+    const pass = await call(() => client.createAppPassword(address, "Wok"));
     return { user: address, pass, ...PURELYMAIL_SERVERS };
   }
 

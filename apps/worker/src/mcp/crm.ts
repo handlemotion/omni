@@ -287,13 +287,13 @@ const REFUSALS: Record<string, string> = {
     "That contract can no longer change that way: a signed contract keeps its document and terms.",
   contract_signed:
     "That contract can no longer change that way: a signed contract keeps its document and terms.",
-  signature_open: "It is out for signature: a person voids the request in Omni before it changes.",
+  signature_open: "It is out for signature: a person voids the request in Wok before it changes.",
   invalid_action: "That change does not apply to this kind of record.",
 };
 
 /** One sentence for each refusal the CRM door can answer. */
 export function refusalText(refusal: { status: string }) {
-  return REFUSALS[refusal.status] ?? `Omni could not make that change (${refusal.status}).`;
+  return REFUSALS[refusal.status] ?? `Wok could not make that change (${refusal.status}).`;
 }
 
 /**

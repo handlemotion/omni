@@ -42,7 +42,7 @@ const inputSchema = z.object({
 const meetingSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
-  url: z.string().describe("Open the meeting in Omni. Cite it, with the moment, when you answer."),
+  url: z.string().describe("Open the meeting in Wok. Cite it, with the moment, when you answer."),
   workspace: z.string(),
   role: z
     .enum(["viewer", "editor", "owner"])

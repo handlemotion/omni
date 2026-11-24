@@ -1,4 +1,4 @@
-//! Which Omni server the window shows (docs/spec/desktop.md, "The shell"). The bundled page
+//! Which Wok server the window shows (docs/spec/desktop.md, "The shell"). The bundled page
 //! decides (stored choice, else the build's default, else the picker) and calls `open_server`;
 //! this module keeps the choice, grants that origin the remote capability and sends the window
 //! there.

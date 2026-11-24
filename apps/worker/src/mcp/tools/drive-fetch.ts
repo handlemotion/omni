@@ -53,7 +53,7 @@ const documentSchema = z.object({
       .boolean()
       .optional()
       .describe(
-        "A doc, sheet or canvas open in Omni: the text is what people see now, with changes the file has not saved yet.",
+        "A doc, sheet or canvas open in Wok: the text is what people see now, with changes the file has not saved yet.",
       ),
     layout: z
       .string()
@@ -68,11 +68,11 @@ const outputSchema = documentSchema.extend({
 });
 
 const NO_TEXT: Record<Exclude<ContextText["status"], "ok">, string> = {
-  pending: "[Omni has not read this file's text yet. It usually takes a minute; try again soon.]",
-  empty: "[No text in this file. A scanned PDF or a picture has none Omni can read yet.]",
-  unsupported: "[Omni does not read text from this kind of file. Open it with the url.]",
-  too_large: "[This file is too large for Omni to read its text. Open it with the url.]",
-  failed: "[Omni could not read this file's text. Open it with the url.]",
+  pending: "[Wok has not read this file's text yet. It usually takes a minute; try again soon.]",
+  empty: "[No text in this file. A scanned PDF or a picture has none Wok can read yet.]",
+  unsupported: "[Wok does not read text from this kind of file. Open it with the url.]",
+  too_large: "[This file is too large for Wok to read its text. Open it with the url.]",
+  failed: "[Wok could not read this file's text. Open it with the url.]",
 };
 
 function document(

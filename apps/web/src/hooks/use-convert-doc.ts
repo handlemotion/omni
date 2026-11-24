@@ -15,7 +15,7 @@ import { identityChecks, identityOf } from "@/lib/storage-uploads.ts";
 const MARKDOWN_NAME = /\.(md|markdown)$/i;
 const AT_ONCE = 4;
 
-/** Whether a file is a Markdown file that can become an Omni doc. */
+/** Whether a file is a Markdown file that can become a Wok doc. */
 export const canConvertToDoc = (node: StorageNode) =>
   node.kind === "file" &&
   !node.lockedAt &&
@@ -23,7 +23,7 @@ export const canConvertToDoc = (node: StorageNode) =>
   MARKDOWN_NAME.test(node.name);
 
 /**
- * Turns Markdown files into Omni docs: each one's text is saved as its next version with the doc
+ * Turns Markdown files into Wok docs: each one's text is saved as its next version with the doc
  * type, so the Markdown file stays in Versions, then `.md` leaves its name.
  */
 export function useConvertToDoc() {

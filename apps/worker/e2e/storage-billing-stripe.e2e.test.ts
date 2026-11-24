@@ -36,7 +36,7 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
   ) {
     const found = await stripe.prices.list({ lookup_keys: [lookupKey], limit: 1 });
     if (found.data[0]) return found.data[0].id;
-    const product = await stripe.products.create({ name: `Omni ${lookupKey}` });
+    const product = await stripe.products.create({ name: `Wok ${lookupKey}` });
     const created = await stripe.prices.create({
       product: product.id,
       currency: "usd",
@@ -52,7 +52,7 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       if (found.event_name === eventName) return found;
     }
     return stripe.billing.meters.create({
-      display_name: "Omni storage GB (e2e)",
+      display_name: "Wok storage GB (e2e)",
       event_name: eventName,
       default_aggregation: { formula: "last" },
       customer_mapping: { type: "by_id", event_payload_key: "stripe_customer_id" },
