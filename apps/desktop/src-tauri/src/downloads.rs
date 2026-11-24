@@ -12,56 +12,81 @@ use url::Url;
 
 const PARTIAL_SUFFIX: &str = ".download";
 
-/// Downloads in flight, by URL: where each is being written and the name it gets when done.
+/// A download in flight: where it is being written and the name it gets when done.
+struct Pending {
+    partial: PathBuf,
+    target: PathBuf,
+}
+
+/// Downloads in flight, one per URL, and the URLs whose repeat was refused.
+///
+/// macOS reports a finished download by its URL alone, with no path, so two downloads of one URL
+/// could not be told apart: the second finishing would rename the first's partial file. A repeat
+/// of a URL already downloading is refused instead (the first one is still coming), and the
+/// failure WebKit reports for that refusal is ignored.
 #[derive(Default)]
-pub struct Downloads(Mutex<HashMap<Url, Vec<(PathBuf, PathBuf)>>>);
+pub struct Downloads(Mutex<State>);
+
+#[derive(Default)]
+struct State {
+    pending: HashMap<Url, Pending>,
+    refused: HashMap<Url, usize>,
+}
 
 impl Downloads {
-    /// The `on_download` handler: always lets the download go ahead.
+    /// The `on_download` handler: whether WebKit may go ahead with the download.
     pub fn handle(&self, event: DownloadEvent<'_>) -> bool {
         match event {
-            DownloadEvent::Requested { url, destination } => {
-                let partial = unused(&with_suffix(destination, PARTIAL_SUFFIX));
-                let target = std::mem::replace(destination, partial.clone());
-                self.pending()
-                    .entry(url)
-                    .or_default()
-                    .push((partial, target));
+            DownloadEvent::Requested { url, destination } => self.start(url, destination),
+            DownloadEvent::Finished { url, success, .. } => {
+                self.finish(&url, success);
+                true
             }
-            DownloadEvent::Finished { url, success, .. } => self.finish(&url, success),
-            _ => {}
+            _ => true,
         }
+    }
+
+    fn start(&self, url: Url, destination: &mut PathBuf) -> bool {
+        let mut state = self.state();
+        if state.pending.contains_key(&url) {
+            *state.refused.entry(url).or_default() += 1;
+            return false;
+        }
+        let partial = unused(&with_suffix(destination, PARTIAL_SUFFIX));
+        let target = std::mem::replace(destination, partial.clone());
+        state.pending.insert(url, Pending { partial, target });
         true
     }
 
     fn finish(&self, url: &Url, success: bool) {
-        let Some((partial, target)) = self.take(url) else {
+        let Some(Pending { partial, target }) = self.take(url, success) else {
             return;
         };
         let result = if success {
             std::fs::rename(&partial, unused(&target))
         } else {
+            eprintln!("download failed: {url}");
             std::fs::remove_file(&partial)
         };
-        if !success {
-            eprintln!("download failed: {url}");
-        }
         if let Err(error) = result {
             eprintln!("download {url}: {error}");
         }
     }
 
-    fn take(&self, url: &Url) -> Option<(PathBuf, PathBuf)> {
-        let mut pending = self.pending();
-        let queue = pending.get_mut(url)?;
-        let first = (!queue.is_empty()).then(|| queue.remove(0));
-        if queue.is_empty() {
-            pending.remove(url);
+    /// The download `url`'s completion belongs to, or none when it is a refused repeat's.
+    fn take(&self, url: &Url, success: bool) -> Option<Pending> {
+        let mut state = self.state();
+        if !success && let Some(count) = state.refused.get_mut(url) {
+            *count -= 1;
+            if *count == 0 {
+                state.refused.remove(url);
+            }
+            return None;
         }
-        first
+        state.pending.remove(url)
     }
 
-    fn pending(&self) -> std::sync::MutexGuard<'_, HashMap<Url, Vec<(PathBuf, PathBuf)>>> {
+    fn state(&self) -> std::sync::MutexGuard<'_, State> {
         self.0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
