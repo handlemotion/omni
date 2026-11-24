@@ -227,7 +227,7 @@ describe("who sees a calendar", () => {
   });
 });
 
-describe("events made in Omni", () => {
+describe("events made in Wok", () => {
   async function ownCalendar(person: Person, orgId: string) {
     const address = `rodrigo-${crypto.randomUUID().slice(0, 6)}@studio.example`;
     const inbox = await createMailbox(stack.db, orgId, address, "personal");

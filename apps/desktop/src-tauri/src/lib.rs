@@ -84,7 +84,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building Omni")
+        .expect("error while building Wok")
         .run(|app, event| {
             // macOS: clicking the Dock icon with the window closed brings it back.
             #[cfg(target_os = "macos")]

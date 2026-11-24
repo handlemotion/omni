@@ -135,7 +135,7 @@ export const account = new Hono<AppEnv>()
     }
     if (result.status === "last_outside") {
       throw new HTTPException(409, {
-        message: "keep one email outside Omni: sign-in links for your Omni addresses go there",
+        message: "keep one email outside Wok: sign-in links for your Wok addresses go there",
       });
     }
     return c.json({ ok: true as const });

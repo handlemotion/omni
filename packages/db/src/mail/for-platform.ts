@@ -55,7 +55,7 @@ export function mailboxesOpenTo(db: Db, userId: string) {
     .orderBy(asc(mailboxes.kind), asc(mailboxes.address));
 }
 
-/** Which of `addresses` (lowercase) have a mailbox on Omni's own mail host. */
+/** Which of `addresses` (lowercase) have a mailbox on Wok's own mail host. */
 export async function omniHostedAddresses(db: Db, addresses: string[]) {
   if (addresses.length === 0) return new Set<string>();
   const rows = await db

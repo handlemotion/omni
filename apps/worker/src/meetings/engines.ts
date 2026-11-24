@@ -28,7 +28,7 @@ export interface Engine {
   provider: TranscribeProvider;
   submit: (audio: EngineAudio, hints: EngineHints) => Promise<Submitted>;
   poll: (jobId: string) => Promise<Polled>;
-  /** Asks the engine to forget the audio and transcript once Omni has saved them. */
+  /** Asks the engine to forget the audio and transcript once Wok has saved them. */
   forget: (jobId: string) => Promise<void>;
 }
 

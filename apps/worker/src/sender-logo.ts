@@ -111,7 +111,7 @@ async function fetchPage(target: string, options: ProxyOptions) {
       const response = await fetch(url, {
         redirect: "manual",
         signal,
-        headers: { accept: "text/html", "user-agent": "Omni-Image-Proxy/1" },
+        headers: { accept: "text/html", "user-agent": "Wok-Image-Proxy/1" },
       });
       const location = response.headers.get("location");
       if (response.status >= 300 && response.status < 400 && location) {

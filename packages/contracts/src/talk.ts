@@ -14,7 +14,7 @@ export const talkPersonSchema = z.object({
   email: z.string(),
   /** Their picture's URL, or null for initials. */
   image: z.string().nullable(),
-  /** Has Omni open in this workspace right now. */
+  /** Has Wok open in this workspace right now. */
   online: z.boolean(),
   threadId: id.nullable(),
   /** Their notes you have not read. */

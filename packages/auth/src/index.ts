@@ -166,7 +166,7 @@ const freelancerAc = defaultAc.newRole({ ...memberAc.statements });
 
 export function createAuth(env: AuthEnv) {
   return betterAuth({
-    appName: env.appName ?? "Omni",
+    appName: env.appName ?? "Wok",
     secret: env.secret,
     baseURL: env.baseURL,
     trustedOrigins: [
@@ -300,7 +300,7 @@ export function createAuth(env: AuthEnv) {
         },
       }),
       passkey({
-        rpName: env.appName ?? "Omni",
+        rpName: env.appName ?? "Wok",
         ...(env.passkeyRpId ? { rpID: env.passkeyRpId } : {}),
         schema: { passkey: { modelName: "passkeys" } },
       }),

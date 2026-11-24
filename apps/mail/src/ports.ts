@@ -52,7 +52,7 @@ export interface MailStore {
   applyFlags(mailboxId: string, folder: string, changes: FlagChange[]): Promise<void>;
   /**
    * Brings every thread with a copy in `folder` in line with the flags already stored, for state
-   * no flag change will report (a Google account's mail read before Omni followed it).
+   * no flag change will report (a Google account's mail read before Wok followed it).
    */
   reconcileFolder(mailboxId: string, folder: string): Promise<void>;
   /** Messages expunged or moved out of `folder`. */

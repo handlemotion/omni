@@ -48,7 +48,7 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     let hidden_launch = std::env::args().any(|arg| arg == HIDDEN_ARG);
     let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()));
     let window = chrome(builder)
-        .title("Omni")
+        .title("Wok")
         .inner_size(1280.0, 800.0)
         .min_inner_size(720.0, 480.0)
         .visible(relaunch.unwrap_or(!hidden_launch))

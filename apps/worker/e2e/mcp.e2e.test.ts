@@ -376,7 +376,7 @@ describe("a connected agent", () => {
     const client = await agent(token);
     const info = client.getServerVersion();
     await client.close();
-    expect(info).toMatchObject({ name: "omni", title: "Omni", websiteUrl: WEB_ORIGIN });
+    expect(info).toMatchObject({ name: "omni", title: "Wok", websiteUrl: WEB_ORIGIN });
     expect(info?.icons?.map((icon) => icon.src)).toEqual([
       `${WEB_ORIGIN}/favicon.svg`,
       `${WEB_ORIGIN}/icon-192.png`,
@@ -1044,7 +1044,7 @@ describe("changing mail", () => {
     expect(challenged(response)).toEqual(["mail:read", "mail:triage"]);
   });
 
-  test("a call to a tool Omni does not have is refused", async () => {
+  test("a call to a tool Wok does not have is refused", async () => {
     const response = await legacyCall(token, {
       jsonrpc: "2.0",
       id: 1,

@@ -224,7 +224,7 @@ test("an agent writes a sheet and edits it by cell and range, only where its per
   const doc = await stack.upload(ana.jar, { teamspaceId }, "notes.txt", new Uint8Array(3));
   expect(
     (await call(agent, "drive_edit_sheet", { id: doc.id, edits: [{ set: "A1", value: 1 }] })).error,
-  ).toContain("not an Omni sheet");
+  ).toContain("not a Wok sheet");
 
   const listed = await call(agent, "drive_versions", { id: sheet.id });
   const [first] = listed.versions as { id: string }[];

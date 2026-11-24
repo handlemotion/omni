@@ -1,4 +1,4 @@
-// `omni-sync-bench`: runs the File Provider engine's own code against a running Omni server and
+// `omni-sync-bench`: runs the File Provider engine's own code against a running Wok server and
 // prints what one scenario cost, as one line of JSON: wall time, peak memory (the process's
 // lifetime peak physical footprint, the number macOS kills extensions by) and how much it moved.
 // One scenario per process, so each peak is its own. See `bench/README.md`.

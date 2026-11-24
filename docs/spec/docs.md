@@ -1,15 +1,15 @@
-# Omni docs: Drive's own documents
+# Wok docs: Drive's own documents
 
 Nov 21, 2026 · Draft for review · Extends `docs/spec/v1.md` and `docs/spec/mcp.md` ("Docs")
 
 ## Summary
 
-A doc is an Omni document, not a Markdown file that happens to open as a page. It has its own
+A doc is a Wok document, not a Markdown file that happens to open as a page. It has its own
 type, a name with no extension, its own icon in Drive, and a page editor in the spirit of Google
-Docs, but simpler: blocks instead of rulers, indents and page setup. It leaves Omni through
+Docs, but simpler: blocks instead of rulers, indents and page setup. It leaves Wok through
 Export (Word, PDF, Markdown), not through Download.
 
-Docs are the first of Omni's own file types. Sheets and canvases follow the same pattern: a type
+Docs are the first of Wok's own file types. Sheets and canvases follow the same pattern: a type
 of their own, an editor of their own, exports to the formats other tools read.
 
 ## What changes
@@ -24,7 +24,7 @@ of their own, an editor of their own, exports to the formats other tools read.
 
 ## The type
 
-- An Omni doc is a Drive file whose type is `text/vnd.omni.doc` (`DOC_TYPE` in `@omni/docs`).
+- A Wok doc is a Drive file whose type is `text/vnd.omni.doc` (`DOC_TYPE` in `@omni/docs`).
   The type, not the name, makes it a doc, so names carry no extension.
 - Its body stays Markdown. Search, `drive_fetch`, versions, the live document, desktop sync and
   self-hosting read it as text with no new code path, and Postgres stays an index the bucket can
@@ -36,8 +36,8 @@ of their own, an editor of their own, exports to the formats other tools read.
 - A new version keeps the file's type. Saving from the editor sends the node's own type, and
   the Worker's doc writes pass the node's type through (`writeText`, `refusalFor`).
 - Expand and contract: no migration. Existing `.md` docs stay as they are and keep working.
-- **Convert to Omni doc**, from a Markdown file's ⋯ menu or a selection's bar, turns one into an
-  Omni doc on request: its text is saved as the next version with the doc type (the Markdown
+- **Convert to Wok doc**, from a Markdown file's ⋯ menu or a selection's bar, turns one into an
+  Wok doc on request: its text is saved as the next version with the doc type (the Markdown
   file stays in Versions), then `.md` leaves its name. Nothing converts on its own: some `.md`
   files are meant to stay Markdown (READMEs, notes synced from a Mac).
 
@@ -104,7 +104,7 @@ from. Versions follow editing sessions (#706):
   `@omni/db`). Versions keeps the content each session started from; the autosaves in between are
   kept as superseded (`storage_versions.superseded_at`), hidden, and purged by the daily job a day
   later (`STORAGE_SUPERSEDED_MS`). Someone else's save ends the session, and so does a save that
-  changes the file's type (Convert to Omni doc keeps the Markdown as a version).
+  changes the file's type (Convert to Wok doc keeps the Markdown as a version).
 - **Agents.** An agent's write (`drive_create_doc`, `drive_edit_doc`) is always a version of its
   own and never continues a session. It names the agent: `writtenByAgent`, the MCP client's
   registered name, beside `writtenByName`, the person it acted for. Before an agent changes a live
@@ -112,13 +112,13 @@ from. Versions follow editing sessions (#706):
   content from before its change stays restorable whoever saves next.
 - Comments and signatures keep the `contentVersion` they were made on.
 
-This is what files of every type get. Omni's own types get History on top of it (next section).
+This is what files of every type get. Wok's own types get History on top of it (next section).
 
 ## History
 
-Direction from the owner: a file Omni edits (a doc, and sheets and canvases when they land) is one
+Direction from the owner: a file Wok edits (a doc, and sheets and canvases when they land) is one
 canonical document with an edit history, as in Notion's page history, not a pile of file
-versions. Files Omni cannot edit (PDFs, images, uploads) keep Versions as above.
+versions. Files Wok cannot edit (PDFs, images, uploads) keep Versions as above.
 
 ### What people see
 
@@ -224,7 +224,7 @@ A doc's header shows Export in place of Download: one menu, in sections.
 - **Copy:** Copy as Markdown.
 
 Exports read the doc as the editor holds it now, unsaved typing included. The file's row menu
-offers Export as PDF, Word and Markdown, and no raw Download for an Omni doc (its file has no
+offers Export as PDF, Word and Markdown, and no raw Download for a Wok doc (its file has no
 extension). Everything is done in the browser; nothing new runs on the Worker.
 
 ## Shared links
@@ -249,8 +249,8 @@ versions name them. A doc inside a shared folder still saves version by version 
 
 ## Agents
 
-`drive_create_doc` writes an Omni doc: its name as given, with no `.md`. `drive_edit_doc` edits
-Omni docs and Markdown files alike and keeps each one's type. Its Markdown may hold dropdowns as
+`drive_create_doc` writes a Wok doc: its name as given, with no `.md`. `drive_edit_doc` edits
+Wok docs and Markdown files alike and keeps each one's type. Its Markdown may hold dropdowns as
 `<details>` blocks.
 
 ## Not in this change
@@ -259,8 +259,8 @@ Omni docs and Markdown files alike and keeps each one's type. Its Markdown may h
   `docs/spec/canvas.md`), each with its own type and spec.
 - Contracts (`text/vnd.omni.contract`, `docs/spec/contracts.md`): a doc's body and editor, with
   named drafts, attribution and sending for signature.
-- Desktop sync names Omni docs as Drive does, with no extension, so Finder does not know to open
-  them as Markdown. Next: the File Provider shows an Omni doc as `<name>.md` and maps that name
+- Desktop sync names Wok docs as Drive does, with no extension, so Finder does not know to open
+  them as Markdown. Next: the File Provider shows a Wok doc as `<name>.md` and maps that name
   back on rename.
 - Live co-editing for a doc opened inside a shared folder (`docs/spec/live-sharing.md`, "Not in
   this change"): there an outside editor's save is still a new version.
@@ -269,6 +269,6 @@ Omni docs and Markdown files alike and keeps each one's type. Its Markdown may h
 ## Verify
 
 - `apps/worker/e2e/drive-docs.e2e.test.ts`: an agent's doc is named without `.md`, has the doc
-  type, and keeps it after an edit; an image pasted into an Omni doc belongs to it.
+  type, and keeps it after an edit; an image pasted into a Wok doc belongs to it.
 - On the stack: a new doc is `Untitled` with the doc glyph; the toolbar adds each block; a
   dropdown survives a save and a reload; Export downloads Word, PDF and Markdown, and copies.

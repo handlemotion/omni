@@ -58,10 +58,10 @@ async function checkInput(tx: Ex, member: CrmMember, input: SignedCopyInput, now
 }
 
 /**
- * Records a contract signed outside Omni (a client's portal, paper, another e-signature
+ * Records a contract signed outside Wok (a client's portal, paper, another e-signature
  * service): its executed copy becomes the signed copy, locked, with who signed and when. A draft
  * or a contract sent by hand becomes `signed`; a contract marked signed without its copy takes
- * one. A contract out for signature from Omni refuses (`signature_open`), as does one that
+ * one. A contract out for signature from Wok refuses (`signature_open`), as does one that
  * already has its signed copy (`contract_signed`).
  */
 export const recordSignedCopy: (

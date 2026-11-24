@@ -34,7 +34,7 @@ export const contractRowSchema = z.object({
       ),
     })
     .nullable()
-    .describe("Where a contract sent from Omni is with its signers; null when not sent from Omni."),
+    .describe("Where a contract sent from Wok is with its signers; null when not sent from Wok."),
 });
 
 export const fileRowSchema = z.object({
@@ -42,7 +42,7 @@ export const fileRowSchema = z.object({
   title: z.string(),
   kind: z.enum(["file", "folder"]),
   mime_type: z.string().nullable(),
-  url: z.string().describe("Open it in Omni. Cite it."),
+  url: z.string().describe("Open it in Wok. Cite it."),
   linked_at: z.string(),
 });
 

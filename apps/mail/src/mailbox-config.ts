@@ -30,18 +30,18 @@ export type MailProvider = (typeof schema.mailboxes.$inferSelect)["provider"];
 
 /**
  * The product rules that differ by provider, in one place. These follow the stored provider (what
- * Omni promised the person); what the IMAP server can do is a separate signal, `Capabilities`
+ * Wok promised the person); what the IMAP server can do is a separate signal, `Capabilities`
  * (`X-GM-EXT-1` for Gmail's extension), and a branch picks one or the other on purpose.
  */
 export interface ProviderTraits {
   /**
-   * Gmail's read is Omni's Done: a read or unread change reaches the server only with Done, and
-   * the inbox is reconciled with stored flags after its first sync (mail read before Omni).
+   * Gmail's read is Wok's Done: a read or unread change reaches the server only with Done, and
+   * the inbox is reconciled with stored flags after its first sync (mail read before Wok).
    */
   readIsDone: boolean;
   /** Imports only the last `GMAIL_SYNC_DAYS` of mail rather than the whole history. */
   syncWindow: boolean;
-  /** Omni holds the host account: a rejected login mints a new app password, disconnect revokes it. */
+  /** Wok holds the host account: a rejected login mints a new app password, disconnect revokes it. */
   hostedLogin: boolean;
   /** A Google account, whose grant also reads its Google Calendar. */
   googleAccount: boolean;
@@ -64,7 +64,7 @@ export interface MailboxConfig {
   address: string;
   /** Shared mailboxes keep read state per person in Postgres; we never touch their `\Seen`. */
   kind: "personal" | "shared";
-  /** `gmail` for a Google account, where Gmail's read is Omni's Done. */
+  /** `gmail` for a Google account, where Gmail's read is Wok's Done. */
   provider?: MailProvider;
   /**
    * Index only mail from this date on. Each folder syncs from its oldest message dated

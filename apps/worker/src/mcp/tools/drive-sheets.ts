@@ -193,9 +193,9 @@ const outputSchema = z.object({
 
 const REFUSED: Record<string, string> = {
   forbidden: "The person may not change files there.",
-  locked: "That sheet is locked. Someone unlocks it in Omni first.",
+  locked: "That sheet is locked. Someone unlocks it in Wok first.",
   not_found: "No sheet with that id you can change. Ids come from `drive_search` or `drive_list`.",
-  not_a_sheet: "That file is not an Omni sheet. `drive_create_sheet` makes one.",
+  not_a_sheet: "That file is not a Wok sheet. `drive_create_sheet` makes one.",
   unreadable: "That sheet's file could not be read.",
   too_large: "That sheet is too large to change here.",
   too_large_merged:
@@ -207,7 +207,7 @@ const REFUSED: Record<string, string> = {
 };
 
 const refusal = (reason: string) =>
-  toolError(REFUSED[reason] ?? "Omni could not write the sheet this time. Try again in a moment.");
+  toolError(REFUSED[reason] ?? "Wok could not write the sheet this time. Try again in a moment.");
 
 const audit = (context: ToolContext, writer: Writer, subject: string, kind: string) =>
   recordMcpWrite(context, writer, "mcp.drive_sheet", subject, { kind });
@@ -302,7 +302,7 @@ export function registerDriveSheets(server: McpServer, context: ToolContext) {
     {
       title: "Write a sheet",
       description:
-        "Write a new Omni sheet in Drive: tabs of rows (or one tab from CSV), formulas as `=SUM(B2:B9)`, optional column types and frozen header rows. In a folder, or at the top of a teamspace. It opens in Omni as a grid anyone with access can edit together. Returns the sheet with its `url` to cite.",
+        "Write a new Wok sheet in Drive: tabs of rows (or one tab from CSV), formulas as `=SUM(B2:B9)`, optional column types and frozen header rows. In a folder, or at the top of a teamspace. It opens in Wok as a grid anyone with access can edit together. Returns the sheet with its `url` to cite.",
       inputSchema: createInput,
       outputSchema,
       annotations: ANNOTATIONS,
@@ -314,7 +314,7 @@ export function registerDriveSheets(server: McpServer, context: ToolContext) {
     {
       title: "Edit a sheet",
       description:
-        "Change an Omni sheet in Drive. Read it first with `drive_fetch` (rows by number, columns by letter), then give `edits` in A1: `set` a cell or range, `clear`, `append` rows, insert or delete rows and columns, a column's `type`, `fill_down`, `sort`, tabs, `freeze` and named `view`s. Pass `layout` from `drive_fetch` so the edit is refused if rows moved meanwhile. Edits apply to the sheet as it is now, including what people are typing, appear live for anyone who has it open, and answer the changed cells' values; earlier versions stay in its history.",
+        "Change a Wok sheet in Drive. Read it first with `drive_fetch` (rows by number, columns by letter), then give `edits` in A1: `set` a cell or range, `clear`, `append` rows, insert or delete rows and columns, a column's `type`, `fill_down`, `sort`, tabs, `freeze` and named `view`s. Pass `layout` from `drive_fetch` so the edit is refused if rows moved meanwhile. Edits apply to the sheet as it is now, including what people are typing, appear live for anyone who has it open, and answer the changed cells' values; earlier versions stay in its history.",
       inputSchema: editInput,
       outputSchema,
       annotations: ANNOTATIONS,

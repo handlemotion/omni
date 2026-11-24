@@ -6,7 +6,7 @@ import OmniSyncEngine
 import SystemConfiguration
 import UniformTypeIdentifiers
 
-/// The Omni File Provider: one domain, a folder per synced workspace. It
+/// The Wok File Provider: one domain, a folder per synced workspace. It
 /// answers the system's four questions (what is here, what changed, give me the bytes, here is a
 /// change) from the Storage sync API and decides nothing the server decides.
 final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
@@ -158,7 +158,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
 
     private static func item(_ identifier: NSFileProviderItemIdentifier) async throws -> Item {
         guard let id = ItemID(identifier) else { throw NSFileProviderError(.noSuchItem) }
-        if id == .root { return Item(rootNamed: "Omni") }
+        if id == .root { return Item(rootNamed: "Wok") }
         let sync = try Sync.load()
         switch id {
         case .root, .workingSet, .trash:

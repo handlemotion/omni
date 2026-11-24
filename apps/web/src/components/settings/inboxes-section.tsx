@@ -63,7 +63,7 @@ export const isGoogleAddress = (address: string, googleDomains: Set<string>) =>
 
 /**
  * Connected Google inboxes, then your sign-in addresses at Google (Gmail, or a workspace domain
- * whose mail stays at Google) as inboxes switched off, then inboxes Omni hosts for you here.
+ * whose mail stays at Google) as inboxes switched off, then inboxes Wok hosts for you here.
  */
 export function inboxRows(input: {
   google: { mailboxId: string; address: string; status: string }[];
@@ -251,7 +251,7 @@ export function InboxesSection() {
         isOpen={leaving !== null}
         onOpenChange={(open) => !open && setLeaving(null)}
         title="Turn off this inbox?"
-        description={`Omni stops syncing ${leaving?.address ?? "it"} and its threads leave Omni. Your mail stays in Gmail.`}
+        description={`Wok stops syncing ${leaving?.address ?? "it"} and its threads leave Wok. Your mail stays in Gmail.`}
         action="Turn off"
         saving={disconnect.isPending}
         onConfirm={() =>

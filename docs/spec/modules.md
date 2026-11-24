@@ -1,10 +1,10 @@
-# Omni modules: the tools a company runs on
+# Wok modules: the tools a company runs on
 
 Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md`
 
 ## Summary
 
-Omni started as one inbox. It is becoming what Skiff was for a small company: mail, files and
+Wok started as one inbox. It is becoming what Skiff was for a small company: mail, files and
 clients in one workspace, with one sign-in and one bill. Each tool is a **module**. This spec
 says how modules are built so they stay separate in code and feel like one product in use, what
 connects them, and in what order the next pieces land.

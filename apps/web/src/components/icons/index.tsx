@@ -6,7 +6,7 @@ function Icon({ src, size }: { src: string; size: number }) {
 
 export const IconOmniMark = () => <Icon src={omniMark} size={28} />;
 
-/** The globe from the Omni mark alone, no tile, in the current text colour. */
+/** The globe from the Wok mark alone, no tile, in the current text colour. */
 export function IconOmniGlobe({ size = 32, className }: { size?: number; className?: string }) {
   return (
     <svg

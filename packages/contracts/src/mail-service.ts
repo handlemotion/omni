@@ -139,7 +139,7 @@ export const messageTargetSchema = z.object({
 });
 
 /**
- * `done`: the flag carries Done to a Google account, where Gmail's read is Omni's Done. There the mail service runs only these, and drops a plain read or unread: Omni's read
+ * `done`: the flag carries Done to a Google account, where Gmail's read is Wok's Done. There the mail service runs only these, and drops a plain read or unread: Wok's read
  * state is not Gmail's, whatever a Worker from before that rule still queues.
  */
 export const flagTargetSchema = messageTargetSchema.extend({ done: z.literal(true).optional() });
@@ -480,7 +480,7 @@ export const hostedDisconnectResultSchema = mailboxResultSchema;
 export type HostedDisconnectBody = z.infer<typeof hostedDisconnectBodySchema>;
 
 /**
- * Removing any mailbox of an org from Omni, whatever its provider. Same body and
+ * Removing any mailbox of an org from Wok, whatever its provider. Same body and
  * answer as the hosted path; the Worker checks the member is an owner or admin.
  */
 export const MAILBOX_DISCONNECT_PATH = "/mailbox/disconnect";

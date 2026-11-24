@@ -59,7 +59,7 @@ const SPF = /^v=spf1(\s|$)/i;
 
 /**
  * The verdict for one expected record from the answers at its name (`queriesFor`). `matched`
- * overrides how a TXT value is compared: Omni's challenge is compared by hash, never as text.
+ * overrides how a TXT value is compared: Wok's challenge is compared by hash, never as text.
  */
 export function diagnose(
   record: ExpectedRecord,
@@ -148,7 +148,7 @@ function diagnoseMx(record: ExpectedRecord, found: string[]) {
     const result: Diagnostic = {
       status: "mx_elsewhere",
       message:
-        "Mail for this domain goes to another host today. Replace those MX records with this one: new mail arrives in Omni from then on, and mail already delivered stays where it is.",
+        "Mail for this domain goes to another host today. Replace those MX records with this one: new mail arrives in Wok from then on, and mail already delivered stays where it is.",
       found: others,
     };
     return result;

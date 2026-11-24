@@ -45,7 +45,7 @@ export interface ForwardedMessage {
   cc: { name: string | null; address: string }[];
   sentAt: Date;
   subject: string;
-  /** The message's text as Omni shows it. */
+  /** The message's text as Wok shows it. */
   text: string;
 }
 

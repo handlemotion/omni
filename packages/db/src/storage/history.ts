@@ -35,7 +35,7 @@ export async function docJournalOf(db: Db, nodeId: string) {
 }
 
 /**
- * Docs (Omni docs and Markdown files) whose content was written in the last day and moved past
+ * Docs (Wok docs and Markdown files) whose content was written in the last day and moved past
  * their journal: the minute job's work list, for saves whose own journal run did not happen.
  */
 export async function docsOwedJournal(db: Db, limit = 20) {

@@ -5,8 +5,8 @@ Nov 22, 2026 · Draft for review · Extends `docs/spec/modules.md`, `docs/spec/c
 
 ## Summary
 
-A person records a meeting from Omni: a client call on Zoom, a team kickoff on Meet, a
-conversation in a room. Nobody joins the call. When it ends, Omni has a transcript that says who
+A person records a meeting from Wok: a client call on Zoom, a team kickoff on Meet, a
+conversation in a room. Nobody joins the call. When it ends, Wok has a transcript that says who
 said what, by name, and notes written from it: a summary, the decisions, the things to do and a
 follow-up email ready to send. Meetings that belong together (every week's kickoff, every call
 with one client) read as one page with a running summary and a timeline of what was decided, like
@@ -52,7 +52,7 @@ interface, so a self-hoster can point it at any OpenAI-compatible server or Work
 
 ## What we take from Circleback, Granola and Amie
 
-| Idea                                  | Omni v1                                                        | Later                                |
+| Idea                                  | Wok v1                                                        | Later                                |
 | ------------------------------------- | -------------------------------------------------------------- | ------------------------------------ |
 | Botless capture (Granola, Amie)       | The desktop app records the mic and the computer's sound       | The iPhone records the room          |
 | Notes you type, made better (Granola) | You type in the meeting's notes doc; the AI writes around them | Templates per kind of meeting        |
@@ -90,7 +90,7 @@ attendees come from the calendar. **Record now** (the tray, or the browser with 
 is the meeting the recorder is in when there is one, and of no event otherwise.
 
 Starting asks once per recording: "Everyone in this meeting knows it is being recorded." The
-person confirms; Omni keeps who and when. Then a small floating pill stays on top of every window:
+person confirms; Wok keeps who and when. Then a small floating pill stays on top of every window:
 a red dot, the time, the microphone level, pause and stop. Stopping is instant: the pill goes and
 the file (about 14 MB an hour) goes up in the background.
 
@@ -113,7 +113,7 @@ over it.
 - **Actions**: cards the person accepts or dismisses. A **task** goes to the calendar's tasks
   (private, or on the deal when the meeting is on one; until T4, private always, see "Twined
   with the other modules"). An **email** is a draft follow-up to the
-  attendees; **Send email** opens it in Omni's composer, from the person's inbox, to send or
+  attendees; **Send email** opens it in Wok's composer, from the person's inbox, to send or
   change. Nothing is sent by the AI.
 - **Notes**: the doc, with what the person typed and the AI's notes above it.
 - **Transcript**: turns with a face, a name and a time. Pressing a name renames that speaker in
@@ -246,7 +246,7 @@ It is built so a recording is never lost:
 - **Retries.** A chunk that fails is sent again after 1 second, doubling to 1 minute, for as long
   as it takes; recording goes on meanwhile. When nothing has been acknowledged for 2 minutes the
   pill shows it is offline, with how much audio waits on the computer.
-- **Resumed after a reload.** Opening Omni again finds the recordings still in IndexedDB, asks
+- **Resumed after a reload.** Opening Wok again finds the recordings still in IndexedDB, asks
   the server which chunks it holds (`GET /:id/chunks`), sends the rest and stops the meeting
   with them. The tab's sound cannot be picked up again after the tab closed: what was recorded is
   finished as it is, and Record starts the event's next part.
@@ -314,7 +314,7 @@ ask for words with times, speakers and confidence.
 | `none`       | Nothing (the default)                                  | The module is off and its routes answer `404` |
 
 Each provider is an adapter in the Worker that submits, polls and returns the provider's JSON.
-Turning that JSON into Omni's transcript is pure code in `@omni/ai`, tested on recorded
+Turning that JSON into Wok's transcript is pure code in `@omni/ai`, tested on recorded
 responses, so changing engines changes one adapter and one normalizer.
 
 ## Speakers
@@ -347,7 +347,7 @@ without an invitation, but a voiceprint is biometric data: explicit consent unde
 ## The notes
 
 After the transcript and the speakers are saved, one structured call to Claude Haiku (the
-`AI_MODEL` the rest of Omni uses) writes the notes from the transcript, the attendees, the
+`AI_MODEL` the rest of Wok uses) writes the notes from the transcript, the attendees, the
 event's description and what the person typed during the meeting. An hour's transcript is about
 15k tokens in and 2k out; meetings over three hours are summarized in parts, then together. It
 runs under the workspace's daily AI cap like every other AI job, and in the meeting's language.
@@ -384,7 +384,7 @@ just before it saves the notes, and that job does the writing with retries of it
   yet) gets one in the recorder's private `Recordings`, named `<title> notes, <date>` (in the title, `/`, `\` and control characters become ` - `, and it keeps at most 200 characters, so Drive always takes the name), made as
   the recorder. Two runs at once each make one; only one becomes the meeting's, and the other is
   trashed.
-- **The block.** It opens with a line of Omni's that links to the meeting's page. A doc that
+- **The block.** It opens with a line of Wok's that links to the meeting's page. A doc that
   already has that line is left as it is, so a job that dies after writing, or runs twice, never
   adds a second block.
 - **Done.** `written_to_doc_at` records that the doc was handled, written or not. A doc that is
@@ -456,12 +456,12 @@ who granted, when) so the sharing panel can be the same component.
 ## Consent
 
 Recording law differs by place: in several US states (California among them) everyone in a call
-must agree to being recorded, and in the EU the GDPR asks for notice and a lawful basis. Omni
+must agree to being recorded, and in the EU the GDPR asks for notice and a lawful basis. Wok
 treats every meeting as the strictest case:
 
 - Recording starts only by a person's action, and the pill shows it while it runs.
-- Starting asks the person to confirm everyone was told; Omni keeps who and when on the meeting.
-- An event made in Omni can say in its invitation that the meeting will be transcribed.
+- Starting asks the person to confirm everyone was told; Wok keeps who and when on the meeting.
+- An event made in Wok can say in its invitation that the meeting will be transcribed.
 - The notes say at their top that they were written from a recording, of which meeting, by whom.
 - The follow-up email draft says the meeting was recorded, so the people in it hear it again.
 
@@ -550,7 +550,7 @@ takes as it is.
 - **Nothing is paid for.** No engine, no model, no meeting minutes.
 - **Not yet.** The audio (Circleback's `recordingUrl` is a signed MP4 link for 24 hours; the
   importer would upload it through Drive and name it, as a stop does); binding to the calendar by
-  `icalUid`; the notes doc, which says Omni wrote it from the recording and so is not written for
+  `icalUid`; the notes doc, which says Wok wrote it from the recording and so is not written for
   an import; Circleback's webhook straight into a workspace.
 
 ## Binding to the calendar

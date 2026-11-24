@@ -49,7 +49,7 @@ export async function calendarOf(ex: Ex, mailbox: { id: string; orgId: string })
 
 /**
  * The calendars of these inboxes that exist, own and Google's. Makes none. A Google calendar
- * (`googleId` set) is read only: nothing Omni makes lands on it.
+ * (`googleId` set) is read only: nothing Wok makes lands on it.
  */
 export async function calendarsOf(ex: Ex, mailboxes: readonly VisibleMailbox[]) {
   if (mailboxes.length === 0) return [];
@@ -76,7 +76,7 @@ export async function calendarsOf(ex: Ex, mailboxes: readonly VisibleMailbox[]) 
   });
 }
 
-/** The inboxes' own calendars that exist: the ones Omni writes to. */
+/** The inboxes' own calendars that exist: the ones Wok writes to. */
 export async function ownCalendarsOf(ex: Ex, mailboxes: readonly VisibleMailbox[]) {
   return (await calendarsOf(ex, mailboxes)).filter((c) => c.googleId === null);
 }

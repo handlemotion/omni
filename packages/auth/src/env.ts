@@ -52,7 +52,7 @@ export const authEnvSchema = z
     trustedOrigins: [...env.AUTH_TRUSTED_ORIGINS, ...aliasOrigins(env.AUTH_ALIAS_ORIGINS)],
     aliasOrigins: aliasOrigins(env.AUTH_ALIAS_ORIGINS),
     passkeyRpId: env.AUTH_PASSKEY_RP_ID,
-    appName: env.APP_NAME ?? "Omni",
+    appName: env.APP_NAME ?? "Wok",
     webAppURL: env.WEB_APP_URL ?? env.BETTER_AUTH_URL,
     google:
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET

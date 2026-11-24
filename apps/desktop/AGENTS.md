@@ -2,7 +2,7 @@
 
 Extends the root `AGENTS.md`. The design is `docs/spec/desktop.md`: read it first.
 
-- Tauri 2. The main window loads the Omni server's origin; the only bundled page is `src/` (server
+- Tauri 2. The main window loads the Wok server's origin; the only bundled page is `src/` (server
   picker, offline screen). It never calls `/api`, and no product logic lives in Rust or Swift.
 - Folders and their owners, so layers can run in parallel without touching each other's files:
 

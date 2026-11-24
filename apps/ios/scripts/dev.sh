@@ -31,11 +31,11 @@ for arg in "$@"; do
 done
 
 export OMNI_IOS_BUNDLE_ID="${OMNI_IOS_DEV_BUNDLE_ID:-app.omnidirectional.ios.dev}"
-export OMNI_IOS_NAME="${OMNI_IOS_DEV_NAME:-Omni Dev}"
+export OMNI_IOS_NAME="${OMNI_IOS_DEV_NAME:-Wok Dev}"
 # Pin the dev build version so release-please version bumps do not invalidate the native build.
 export OMNI_IOS_VERSION="${OMNI_IOS_DEV_VERSION:-0.0.0}"
 # Its own slug gives the dev launcher its own `exp+<slug>://` scheme, so iOS opens Metro's link
-# in this app and not in another Omni build that is installed too.
+# in this app and not in another Wok build that is installed too.
 export OMNI_IOS_SLUG=omni-dev
 # The API origin: the environment, else .env, else the local stack's Worker.
 if [ -z "${EXPO_PUBLIC_OMNI_API_URL:-}" ] && ! grep -qE '^EXPO_PUBLIC_OMNI_API_URL=.+' .env 2>/dev/null; then
@@ -120,7 +120,7 @@ native_hash="$(node scripts/fingerprint.mjs 2>/dev/null || cat package.json app.
 fingerprint="$native_hash-$OMNI_IOS_BUNDLE_ID-$target-${OMNI_IOS_EAS_PROJECT_ID:-}"
 
 # Keep build stamps outside the gitignored worktree `ios/` folder so switching worktrees reuses
-# the already-installed Omni Dev build instead of triggering a full native rebuild.
+# the already-installed Wok Dev build instead of triggering a full native rebuild.
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omni-ios"
 stamp=""
 installed=0

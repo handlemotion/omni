@@ -45,7 +45,7 @@ function challenge(
   return new Response(
     JSON.stringify({
       jsonrpc: "2.0",
-      error: { code: -32001, message: error?.description ?? "sign in to Omni first" },
+      error: { code: -32001, message: error?.description ?? "sign in to Wok first" },
       id: null,
     }),
     {

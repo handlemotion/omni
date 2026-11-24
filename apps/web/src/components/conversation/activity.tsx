@@ -73,10 +73,10 @@ function useDescribe(mailboxId: string) {
         if (cause === "snooze_expired") return "Back from snooze";
         if (cause === "agent_reply") return null;
         if (cause === "handoff") return null;
-        if (cause === "handoff_cancelled") return `${actor ?? "Omni"} cancelled the hand-off`;
+        if (cause === "handoff_cancelled") return `${actor ?? "Wok"} cancelled the hand-off`;
         if (data.reason === "discarded_elsewhere")
           return "Resolved: moved to Trash or Junk in another mail app";
-        const who = actor ?? "Omni";
+        const who = actor ?? "Wok";
         if (data.to === "resolved") return `${who} resolved this`;
         if (data.to === "snoozed") {
           const until = typeof data.snoozedUntil === "string" ? new Date(data.snoozedUntil) : null;
@@ -93,19 +93,19 @@ function useDescribe(mailboxId: string) {
         if (data.cause === "auto_assign")
           return `Assigned to ${people.object(data.to)} automatically`;
         if (data.cause === "first_reply") return `${people.name(data.to)} took this by replying`;
-        const who = actor ?? "Omni";
+        const who = actor ?? "Wok";
         if (!data.to) return `${who} unassigned ${people.object(data.from)}`;
         if (data.to === event.actorMemberId) return `${who} took this`;
         return `${who} assigned this to ${people.object(data.to)}`;
       }
       case "priority": {
         const to = PRIORITY[data.to as Priority] ?? String(data.to);
-        return `${data.source === "ai" || !actor ? "Omni" : actor} set priority to ${to}`;
+        return `${data.source === "ai" || !actor ? "Wok" : actor} set priority to ${to}`;
       }
       case "tag_added":
       case "tag_removed": {
         const tag = tags.find((t) => t.id === data.tagId)?.name;
-        const who = data.source === "ai" || !actor ? "Omni" : actor;
+        const who = data.source === "ai" || !actor ? "Wok" : actor;
         const verb = event.kind === "tag_added" ? "tagged this" : "removed the tag";
         return tag ? `${who} ${verb} ${tag}` : null;
       }

@@ -94,7 +94,7 @@ export function isPaid(status: string) {
 
 /**
  * The plan a workspace's current subscription gives: its plan while in good standing, a trial
- * included (a paid one Omni cannot name is Team, the first plan), else null: no plan, so the
+ * included (a paid one Wok cannot name is Team, the first plan), else null: no plan, so the
  * workspace is read-only. The one place this is decided.
  */
 export function planOf(
@@ -302,7 +302,7 @@ export async function applyStripeSubscription(
 }
 
 /**
- * Creates the row for a Stripe subscription of `orgId` that Omni never heard of, the way the
+ * Creates the row for a Stripe subscription of `orgId` that Wok never heard of, the way the
  * plugin's `customer.subscription.created` handler does. False when a row for it exists already
  * (a concurrent run, or the webhook got there first). Serialized per Stripe subscription.
  */

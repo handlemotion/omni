@@ -28,9 +28,9 @@ type DisconnectDeps = {
 type StoredMailbox = NonNullable<Awaited<ReturnType<typeof findOrgMailboxById>>>;
 
 /**
- * Removes any mailbox of the org from Omni, whatever its provider: stops it, revokes
- * what Omni holds (a hosted app password, a Google token; an IMAP login is only forgotten) and
- * deletes Omni's index of it. The mail stays wherever it lives. Idempotent.
+ * Removes any mailbox of the org from Wok, whatever its provider: stops it, revokes
+ * what Wok holds (a hosted app password, a Google token; an IMAP login is only forgotten) and
+ * deletes Wok's index of it. The mail stays wherever it lives. Idempotent.
  */
 export const disconnectMailbox: (
   deps: DisconnectDeps,
@@ -42,7 +42,7 @@ export const disconnectMailbox: (
 };
 
 /**
- * Disconnects a member's Google account: Omni stops syncing it, revokes the grant at Google and
+ * Disconnects a member's Google account: Wok stops syncing it, revokes the grant at Google and
  * deletes the mailbox with everything indexed from it (Gmail still holds the mail). Only the
  * mailbox's owner can, and a mailbox already gone answers as disconnected, so a retry is safe.
  */

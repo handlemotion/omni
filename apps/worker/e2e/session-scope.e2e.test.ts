@@ -174,7 +174,7 @@ test("a magic link to a personal address opens every workspace", async () => {
   expect(await threadOrgs(jar)).toEqual(new Set([a.spaceId]));
 });
 
-test("a sign-in code for an address Omni hosts goes to the person's outside address, still scoped", async () => {
+test("a sign-in code for an address Wok hosts goes to the person's outside address, still scoped", async () => {
   const a = await ana();
   await createMailbox(database.db, a.acme.orgId, a.work, "personal");
   const requested = await fetch(new URL("/api/auth/email-otp/send-verification-otp", worker.url), {
@@ -202,7 +202,7 @@ test("a sign-in code for an address Omni hosts goes to the person's outside addr
   expect(await threadOrgs(jar)).toEqual(new Set([a.acme.orgId]));
 });
 
-test("the last outside address can't be removed while an address Omni hosts relies on it", async () => {
+test("the last outside address can't be removed while an address Wok hosts relies on it", async () => {
   const a = await ana();
   const jar = await signedIn(a.personal);
   await createMailbox(database.db, a.acme.orgId, a.work, "personal");

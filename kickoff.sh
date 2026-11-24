@@ -1,5 +1,5 @@
 #!/bin/bash
-# Claude Code cloud environment setup script for Omni. Paste this file, unchanged, into the
+# Claude Code cloud environment setup script for Wok. Paste this file, unchanged, into the
 # environment's "Setup script" field on claude.ai (docs/operations/cloud-sessions.md). A
 # multi-repo environment's setup script instead runs every cloned repo's kickoff.sh, this one
 # included, as root from that repo's root: keep shared paths (/opt/node, /usr/local/bin)

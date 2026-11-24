@@ -71,7 +71,7 @@ export const inBackground = () =>
   desktop.isDesktop ? !document.hasFocus() : document.visibilityState !== "visible";
 
 /**
- * Whether news from workspace `orgId` should be shown now: notifications are on here, and Omni
+ * Whether news from workspace `orgId` should be shown now: notifications are on here, and Wok
  * is in the background or on screen in another workspace (nothing on screen shows it then).
  */
 export const shouldShow = (orgId: string) =>
@@ -92,7 +92,7 @@ export function claimThread(threadId: string | null, now = Date.now()) {
 /**
  * Shows one system notification. In the desktop app it is the notification plugin's, whose
  * clicks the shell reports; in a browser, the Notification API's. `tag` keeps two tabs showing
- * the same news to one notification. A click brings Omni forward and runs `open`.
+ * the same news to one notification. A click brings Wok forward and runs `open`.
  */
 export function showNotification(
   notice: { tag: string; title: string; body: string },
@@ -109,7 +109,7 @@ export function showNotification(
 
 /**
  * Remembers which notifications of workspace `orgId` it has seen, and shows the new unread ones.
- * The first list only sets the baseline, so opening Omni never replays old ones.
+ * The first list only sets the baseline, so opening Wok never replays old ones.
  */
 export function createNotifier(orgId: string, open: (notice: Notice) => void) {
   let seen: Set<string> | null = null;

@@ -15,7 +15,7 @@ pub fn show<R: Runtime>(app: &AppHandle<R>) {
         Some(window) => window,
         None => {
             let built = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("pill.html".into()))
-                .title("Omni recording")
+                .title("Wok recording")
                 .inner_size(WIDTH, HEIGHT)
                 .resizable(false)
                 .decorations(false)

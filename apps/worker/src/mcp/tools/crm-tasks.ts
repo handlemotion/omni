@@ -93,7 +93,7 @@ async function list(context: ToolContext, input: Input) {
   for (const workspace of reach.workspaces) {
     if (input.cursor !== undefined && !pages[workspace.orgId]) continue;
     const found = await listIn(context, workspace, input, pages[workspace.orgId]);
-    if ("error" in found) return toolError(found.error ?? "Omni could not list tasks.");
+    if ("error" in found) return toolError(found.error ?? "Wok could not list tasks.");
     tasks.push(...found.tasks);
     if (found.next) next[workspace.orgId] = found.next;
   }

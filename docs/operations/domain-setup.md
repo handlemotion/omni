@@ -31,7 +31,7 @@ lists the records with their checks; the manual path below is the same work by h
 4. Check from outside: `dig +short MX <domain>`, `dig +short TXT <domain>`,
    `dig +short CNAME purelymail1._domainkey.<domain>`.
 5. Create users (one per person, one per shared inbox such as `hello@`) and one **app password**
-   per user for Omni. Add each to Omni with `pnpm --filter @omni/mail mailbox:add`.
+   per user for Wok. Add each to Wok with `pnpm --filter @omni/mail mailbox:add`.
 6. Send a test to and from the new address; check the received message's headers for
    `dkim=pass`, `spf=pass`, `dmarc=pass`.
 

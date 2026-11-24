@@ -96,7 +96,7 @@ export const fetchImage: (
       response = await fetch(url, {
         redirect: "manual",
         signal,
-        headers: { accept: [...IMAGE_TYPES].join(", "), "user-agent": "Omni-Image-Proxy/1" },
+        headers: { accept: [...IMAGE_TYPES].join(", "), "user-agent": "Wok-Image-Proxy/1" },
       });
     } catch (error) {
       return signal.aborted

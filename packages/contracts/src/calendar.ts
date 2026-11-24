@@ -56,7 +56,7 @@ export const calendarEventSchema = z.object({
   /** The instance's original start, for an instance of a series. */
   recurrenceId: isoDate.nullable(),
   recurring: z.boolean(),
-  /** `invite` came by mail; `omni` was made in Omni and may be changed by its organizer. */
+  /** `invite` came by mail; `omni` was made in Wok and may be changed by its organizer. */
   source: z.enum(CALENDAR_EVENT_SOURCES),
   status: z.enum(CALENDAR_EVENT_STATUSES),
   busy: z.boolean(),

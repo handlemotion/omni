@@ -169,7 +169,7 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
   expect(boInvites.status).toBe(403);
 });
 
-test("an invitation to an address Omni hosts is refused, since nobody could open it", async () => {
+test("an invitation to an address Wok hosts is refused, since nobody could open it", async () => {
   const owner = await stack.workspaceWithDomain();
   const domain = `hosted-${tag()}.test`;
   await stack.database.db
@@ -204,5 +204,5 @@ test("hosting the only address someone signs in with is refused until they add a
     localPart: local,
   });
   expect(issued.status).toBe(409);
-  expect(issued.body.error).toContain("outside Omni");
+  expect(issued.body.error).toContain("outside Wok");
 });

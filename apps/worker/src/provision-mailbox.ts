@@ -130,8 +130,8 @@ export async function provisionMailbox(
     throw new HTTPException(409, {
       message:
         address === user.email.toLowerCase()
-          ? `add a sign-in email outside Omni first: once Omni hosts ${address}, its sign-in links go there`
-          : `${address} signs someone in who has no other email; they need to add one outside Omni first`,
+          ? `add a sign-in email outside Wok first: once Wok hosts ${address}, its sign-in links go there`
+          : `${address} signs someone in who has no other email; they need to add one outside Wok first`,
     });
   }
   return callMailService(

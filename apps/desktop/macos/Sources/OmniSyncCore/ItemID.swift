@@ -9,7 +9,7 @@ public enum ItemID: Hashable, Sendable {
     case root
     /// The working set: the only enumerator that reports changes.
     case workingSet
-    /// The system's trash. Omni items never go there (delete is Trash on the server).
+    /// The system's trash. Wok items never go there (delete is Trash on the server).
     case trash
     /// `ws:<orgId>`, a workspace's folder.
     case workspace(orgId: String)

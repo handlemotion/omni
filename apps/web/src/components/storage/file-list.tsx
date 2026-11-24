@@ -215,7 +215,7 @@ export function useRowMenu(canTrash: (node: StorageNode) => boolean) {
           ? [
               {
                 icon: IconNewDoc,
-                label: "Convert to Omni doc",
+                label: "Convert to Wok doc",
                 onAction: () => void convert([node]),
               },
             ]

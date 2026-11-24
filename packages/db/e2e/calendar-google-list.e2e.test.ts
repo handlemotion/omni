@@ -105,7 +105,7 @@ describe("a Gmail inbox's Google calendar list", () => {
     expect(await door.calendars()).toHaveLength(4);
   });
 
-  test("a colour the member picked wins over Google's, and a calendar renamed or recoloured in Google changes in Omni and says so", async () => {
+  test("a colour the member picked wins over Google's, and a calendar renamed or recoloured in Google changes in Wok and says so", async () => {
     const { box, door } = await gmailInbox("list-rename");
     await saveGoogleCalendarList(db, box, listed());
     const team = await calendarIdOf(box.id, TEAM);
@@ -176,7 +176,7 @@ describe("a Gmail inbox's Google calendar list", () => {
     );
   });
 
-  test("nothing Omni makes lands on a Google calendar", async () => {
+  test("nothing Wok makes lands on a Google calendar", async () => {
     const { box, own, door } = await gmailInbox("list-readonly");
     await saveGoogleCalendarList(db, box, listed());
     const team = await calendarIdOf(box.id, TEAM);

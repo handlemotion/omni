@@ -34,7 +34,7 @@ export default function SignedInLayout() {
     if (!workspaces.isError) return null;
     return (
       <Screen>
-        <EmptyState icon={IconCircleAlert} title="Omni didn't load">
+        <EmptyState icon={IconCircleAlert} title="Wok didn't load">
           <Button intent="plain" label="Try again" onPress={() => void workspaces.refetch()} />
         </EmptyState>
       </Screen>

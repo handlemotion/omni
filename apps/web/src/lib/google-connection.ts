@@ -53,7 +53,7 @@ export const readGoogleOutcome: (search: string) => GoogleOutcome | null = (sear
 export function googleErrorText(reason: string) {
   switch (reason) {
     case "denied":
-      return "Google wasn't given access. Try again and allow Omni to read and send mail.";
+      return "Google wasn't given access. Try again and allow Wok to read and send mail.";
     case "in_use":
       return "That Google account is already connected to another workspace, or its address belongs to a workspace you're not in.";
     case "expired":

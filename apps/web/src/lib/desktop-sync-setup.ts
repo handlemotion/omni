@@ -2,7 +2,7 @@ import type { DesktopSyncStatus } from "@omni/client";
 
 /**
  * Drive sync's first run on a Mac: the app turns sync on for every workspace once,
- * so the Omni folder appears without a trip to Settings → Drive.
+ * so the Wok folder appears without a trip to Settings → Drive.
  *
  * `fresh`: never run on this computer. `signing-in`: the first workspace was switched on, which
  * sends the window to the sync sign-in when there is no grant yet; on return the rest follow.

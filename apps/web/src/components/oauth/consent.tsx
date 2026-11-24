@@ -72,7 +72,7 @@ export function Consent({ clientId, scope }: { clientId: string; scope: string }
       <div className="flex w-95 flex-col gap-8 pb-12">
         <div className="flex flex-col items-center gap-1 text-center">
           <Heading className="font-semibold">{name} access request</Heading>
-          <Text>{name} is requesting access to your Omni workspace</Text>
+          <Text>{name} is requesting access to your Wok workspace</Text>
         </div>
 
         <div className="flex flex-col gap-5">

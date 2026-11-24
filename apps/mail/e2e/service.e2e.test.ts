@@ -788,12 +788,12 @@ describe("a Google account's first sync", () => {
 });
 
 describe("a Google account's read state is Done", () => {
-  it("makes mail read in Gmail Done, reopens it when marked unread there, and marks read what Omni marks done", async () => {
+  it("makes mail read in Gmail Done, reopens it when marked unread there, and marks read what Wok marks done", async () => {
     const seeded = await seedConnectable();
     const { box, ownerId } = seeded;
     await startMailService();
     await connected(box.id);
-    await deliver(box.address, "read before Omni followed Gmail");
+    await deliver(box.address, "read before Wok followed Gmail");
     const [row] = await waitFor(async () => {
       const rows = await stored(db, box.id, "INBOX");
       return rows.length > 0 && rows;

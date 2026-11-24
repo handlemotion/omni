@@ -33,7 +33,7 @@ export const mailDomains = pgTable(
     verifiedAt: timestamptz("verified_at"),
     checkedAt: timestamptz("checked_at"),
     /**
-     * When a check last found Omni's challenge gone from DNS. Set: sending from the
+     * When a check last found Wok's challenge gone from DNS. Set: sending from the
      * domain pauses; the lock stays. Cleared when the challenge verifies again.
      */
     dnsLostAt: timestamptz("dns_lost_at"),

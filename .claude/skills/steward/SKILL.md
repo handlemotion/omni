@@ -5,7 +5,7 @@ description: How to handle review findings and CI on a pull request you own or w
 
 # Steward
 
-Conventions for driving a pull request to mergeable in Omni. They override the default pacing an
+Conventions for driving a pull request to mergeable in Wok. They override the default pacing an
 agent harness gives for PR activity.
 
 ## Review findings: fix and push now

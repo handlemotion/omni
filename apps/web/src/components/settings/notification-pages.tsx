@@ -9,7 +9,7 @@ import { SettingsToggleRow } from "./kit/settings-toggle-row";
 
 const DESCRIPTIONS = {
   unsupported: "This browser can't show notifications.",
-  blocked: "Blocked for Omni in this browser's site settings.",
+  blocked: "Blocked for Wok in this browser's site settings.",
   on: "When you're assigned or mentioned, a teammate writes on your conversations, a customer replies, a conversation is due, or someone joins.",
   off: "When you're assigned or mentioned, a teammate writes on your conversations, a customer replies, a conversation is due, or someone joins.",
 } as const;
@@ -21,7 +21,7 @@ export function NotificationsPage() {
     <SettingsSections>
       <SettingsSection
         title="This device"
-        info="Shown while Omni is in the background. Other devices keep their own choice."
+        info="Shown while Wok is in the background. Other devices keep their own choice."
       >
         <SettingsGroup>
           <SettingsToggleRow

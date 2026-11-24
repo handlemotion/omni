@@ -1,10 +1,10 @@
-# Omni Calendar: meetings beside the mail they came in
+# Wok Calendar: meetings beside the mail they came in
 
 Nov 22, 2026 · Draft for review · Extends `docs/spec/v1.md` and `docs/spec/modules.md`
 
 ## Summary
 
-Omni gets a calendar in the spirit of Cron (now Notion Calendar) and Amie: a fast week view you
+Wok gets a calendar in the spirit of Cron (now Notion Calendar) and Amie: a fast week view you
 drive from the keyboard, several calendars laid over each other, and availability you can send
 someone. It is small on purpose. What makes it worth having beside Google Calendar is where it
 sits: next to the mail, the clients and the files a meeting is about.
@@ -13,11 +13,11 @@ sits: next to the mail, the clients and the files a meeting is about.
   from the thread.
 - A meeting shows who is in it as CRM people, companies and deals, and the thread it came from.
   A deal shows its past and upcoming meetings.
-- A meeting's notes are an Omni doc in Drive, one per meeting for the whole workspace.
+- A meeting's notes are a Wok doc in Drive, one per meeting for the whole workspace.
 - Agents read the calendar and propose times.
 
 The first version needs no new service, no new credential and no new variable. Events come from
-the invitations the mail service already stores (iCalendar over email, iMIP), and invitations Omni
+the invitations the mail service already stores (iCalendar over email, iMIP), and invitations Wok
 sends go out through the mail outbox. A connected Gmail account also shows its Google calendars
 (its own, shared ones, subscribed ones such as holidays), read through Google's Calendar API with
 the account's existing connection. CalDAV and
@@ -31,7 +31,7 @@ Microsoft calendars come later, behind the mailbox's provider. Meeting recording
 - Every calendar a person can see, overlaid, each with its own color and a toggle.
 - Invitations from any calendar app (Google, Outlook, Apple, Fastmail, Zoho, Proton) show on the
   calendar and inline in the thread, with an answer that reaches the organizer's calendar.
-- Events made in Omni invite people on any calendar app, by mail.
+- Events made in Wok invite people on any calendar app, by mail.
 - A link and a block of text that share free time, never what fills the rest.
 - Booking links: a public page where a visitor picks a free slot and books a meeting.
 - A meeting's people are CRM records; a deal lists its meetings; notes are a Drive doc.
@@ -41,9 +41,9 @@ Microsoft calendars come later, behind the mailbox's provider. Meeting recording
 **Non-goals for this version** (each is additive later)
 
 - Two-way sync with the host's own calendar (CalDAV), Google Calendar or Microsoft 365. A Gmail
-  account's Google calendars are read only: events made there show in Omni, events made in Omni
+  account's Google calendars are read only: events made there show in Wok, events made in Wok
   are not written to it.
-- Repeating events made in Omni. Repeating invitations from elsewhere are shown in full.
+- Repeating events made in Wok. Repeating invitations from elsewhere are shown in full.
 - Reminders and notifications before a meeting, tasks on the calendar, travel time.
 - Rooms and resources, delegated calendars, a teammate's calendar beyond the inboxes you share.
 - Meeting recording and transcription (`docs/spec/meetings.md`).
@@ -59,7 +59,7 @@ Microsoft calendars come later, behind the mailbox's provider. Meeting recording
 | Join from the event       | The video link pulled from the invitation, one key to join      | Joining from a notification                        |
 | Meeting context           | People as CRM records, the email thread, the notes doc          | The last threads with each person                  |
 | Time zones                | The viewer's own; the event keeps its zone                      | A second zone in the gutter                        |
-| Notes (Amie)              | One Omni doc per meeting in Drive                               | A template per kind of meeting                     |
+| Notes (Amie)              | One Wok doc per meeting in Drive                               | A template per kind of meeting                     |
 | Recording (Amie, Granola) | Its own module, `docs/spec/meetings.md`                         | A live transcript, the iPhone                      |
 
 No feature sprawl: no month view in v1 (Cron shipped without one for a year), no tasks on the
@@ -67,13 +67,13 @@ calendar, no scheduling AI beyond the agent tools.
 
 ## Where events come from
 
-Omni runs on IMAP/SMTP at Purelymail or any host, and only `apps/mail` speaks to the host. Four
+Wok runs on IMAP/SMTP at Purelymail or any host, and only `apps/mail` speaks to the host. Four
 sources were weighed.
 
 | Source                             | What it gives                                                    | Cost to us                                                                             | When  |
 | ---------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----- |
 | **Invitations in mail (iMIP)**     | Every meeting someone invites an inbox to, from any calendar app | None new. The mail service already stores each `text/calendar` part                    | v1    |
-| **Events made in Omni**            | Your own events, and invitations you send                        | Postgres rows; invitations go out through the existing outbox                          | v1    |
+| **Events made in Wok**            | Your own events, and invitations you send                        | Postgres rows; invitations go out through the existing outbox                          | v1    |
 | CalDAV on the mail host            | The host's own calendars, synced both ways with Apple Calendar   | A DAV client in `apps/mail`, per-host quirks; Purelymail implements the basic RFC only | Later |
 | Google Calendar API                | Every calendar of a connected Gmail account, read only           | Two more OAuth scopes (`calendar.events.readonly`, `calendar.calendarlist.readonly`, both sensitive) on the Gmail connection | Now   |
 | Microsoft calendar API             | Full calendars of connected accounts                             | A Microsoft connection mail lacks                                                      | Later |
@@ -87,7 +87,7 @@ door. It works on every IMAP host, needs no password the mail service does not a
 keeps v1's rule: Postgres is an index the host can rebuild. Wipe the calendar's tables and the next
 sweep derives the same events from the same messages.
 
-The meetings that matter to Omni are the ones with other people in them: a client call, a deal's
+The meetings that matter to Wok are the ones with other people in them: a client call, a deal's
 kickoff. Those are exactly the ones that travel by mail.
 
 **What v1 does not see.** An event someone puts straight into Google Calendar or Apple Calendar
@@ -122,15 +122,15 @@ the account's primary calendar; `all` both, so it shows every calendar; `off` ne
 self-hoster whose Google app is not verified for them).
 
 - **A mailbox owns several calendars.** A Gmail inbox's own calendar, where its invitations land
-  and Omni makes its events, shows the account's primary Google calendar. Every other calendar in
+  and Wok makes its events, shows the account's primary Google calendar. Every other calendar in
   the account's calendar list (a shared team calendar, "Holidays in Mexico", a calendar someone
   shared with it) is a calendar of the same inbox, with Google's id for it (`google_id`), its name
   (the one the account gave it, else Google's) and Google's colour as the default each member's
   own colour replaces. Who sees one is who sees the inbox, and each member toggles it on its own.
-  It is read only in Omni: nothing Omni makes lands on it, and its events are Google's.
+  It is read only in Wok: nothing Wok makes lands on it, and its events are Google's.
 - **The list.** Each pass of an inbox's own calendar first reads the account's calendar list,
   `POST /google/calendar/list` on the mail service (signed like every Worker → mail service call),
-  which pages through `calendarList.list` to the end (at most 500, only the fields Omni reads) or
+  which pages through `calendarList.list` to the end (at most 500, only the fields Wok reads) or
   says `no_access`. A calendar the list gains is added and synced in the same run; one renamed or
   recoloured in Google follows; one the list no longer has is retired with its events and each
   member's prefs. A list the mail service cannot read (no scope, an error) changes nothing: the
@@ -139,7 +139,7 @@ self-hoster whose Google app is not verified for them).
   `POST /google/calendar/events` (signed like every Worker → mail service call) returns one page
   of `events.list` on the calendar it names, `primary` when it names none (`showDeleted`,
   `singleEvents=false`, 250 events, only the fields
-  Omni reads), or `reset` (Google forgot the sync token, 410) or `no_access` (`no_scope`,
+  Wok reads), or `reset` (Google forgot the sync token, 410) or `no_access` (`no_scope`,
   `api_disabled`, `revoked`, `not_gmail`). The calendar module drives the sync and writes the rows.
 - **When.** Every calendar keeps its own place in Google (`calendar_google_sync`, one row per
   calendar). The calendar's minute job claims up to 20 due Gmail calendars,
@@ -156,15 +156,15 @@ self-hoster whose Google app is not verified for them).
 - **One row per meeting on a calendar.** An invitation in mail and the same meeting in the
   primary Google calendar land on one row,
   by `UID`; the higher `(SEQUENCE, updated or DTSTAMP)` wins, so either order ends the same. An
-  event made in Omni is Omni's and Google never changes it. An event first seen in Google has
-  `source = 'google'` and is read only in Omni, like an invitation; its row keeps Google's id
+  event made in Wok is Wok's and Google never changes it. An event first seen in Google has
+  `source = 'google'` and is read only in Wok, like an invitation; its row keeps Google's id
   (`google_id`), because a deleted event comes back from Google as its id alone. The same meeting
   on two Google calendars is one row on each, as Google shows it on each: deleting it from one
   leaves the other.
 - **Deleting.** A cancelled item cancels the row with its Google id (a series with all its
   instances) and stamps its `dtstamp` with when that was applied, so an invitation of the same
   `SEQUENCE` that mail delivers later is older and cannot bring it back (a higher one can, as in
-  Gmail); a cancelled instance Omni has no row for becomes a cancelled instance row, so
+  Gmail); a cancelled instance Wok has no row for becomes a cancelled instance row, so
   expanding the series skips it. Google lists events in no set order, so a cancelled instance can
   come before its series: it waits (`calendar_google_sync.waiting`) and is applied once the series
   is in, and what still waits when the pass ends had no series. A full pass that finishes deletes
@@ -184,14 +184,14 @@ self-hoster whose Google app is not verified for them).
   `tentative`, `cancelled`), whether it counts as busy, the organizer, the attendees with their
   answers, and the iCalendar identity it was sent with (`UID`, `SEQUENCE`, `DTSTAMP`, and
   `RECURRENCE-ID` for one changed instance of a repeating event). It comes from an invitation
-  (`source = 'invite'`), was made in Omni (`'omni'`), or was first seen in one of a Gmail
+  (`source = 'invite'`), was made in Wok (`'omni'`), or was first seen in one of a Gmail
   account's Google calendars (`'google'`).
 - **Attendee.** An address, a name, a role (`chair`, `required`, `optional`, `none`) and an
   answer (`needs_action`, `accepted`, `declined`, `tentative`). The inbox's own address among them
   is "me": its answer is the calendar's answer.
 - **Availability link.** A person's link that shows free and busy for the next days over the
   calendars they chose, in a time zone and working hours they set. It can be turned off.
-- **Notes.** At most one Omni doc per meeting per workspace, wherever it lives in Drive.
+- **Notes.** At most one Wok doc per meeting per workspace, wherever it lives in Drive.
 
 The same meeting sent to `ana@` and `hello@` is two events, one on each calendar, as a message
 sent to both is stored once per mailbox. They share one notes doc, found by `(org, UID, instance)`.
@@ -264,7 +264,7 @@ bottom edge changes its end.
 
 **Make an event.** A title, the time, guests (addresses, suggested from CRM people and recent
 correspondents), a location or video link, a description, and the calendar it goes on, which is
-the inbox it is sent from. With guests, Omni sends each an invitation from that inbox; changing
+the inbox it is sent from. With guests, Wok sends each an invitation from that inbox; changing
 the time or the guests sends an update (`SEQUENCE` goes up); deleting it sends a cancellation.
 Answers that come back by mail update each guest's answer on the event.
 
@@ -300,7 +300,7 @@ over the next 14 days in the visitor's time zone, and nothing else: no title, pe
 what fills the rest. Slots follow one another from the day's opening and start at least four
 hours from now. Busy is every calendar the owner can open, hidden ones included, by the same rule
 as the availability link. A visitor picks a slot and gives a name, an email and a note; the
-booking is an event made in Omni on the link's calendar, organized by its inbox, with the visitor
+booking is an event made in Wok on the link's calendar, organized by its inbox, with the visitor
 as guest, so they get an invitation by mail and the owner sees it on their week at once. Bookings
 for one owner run one at a time and each checks its slot is still free, so two visitors never
 get the same time (`409 SLOT_TAKEN`). A link answers `404` once deleted, once its owner can no
@@ -381,7 +381,7 @@ sees nothing they could not open on its own.
 | Calendar → Mail   | Invitations, updates and answers go out as mail                     | A `send` action in the outbox with a `calendar` part (see "Sending")                                                                                |
 | Calendar → CRM    | An event lists its attendees as CRM people, companies and deals     | The app calls `GET /api/crm/lookup?address=` with the attendees, as the conversation sidebar does                                                   |
 | CRM → Calendar    | A person, company or deal shows its past and upcoming meetings      | Calendar's door gains `meetingsWith`, read through `forUser`, as mail's `threadsWith` is                                                            |
-| Calendar → Drive  | "Notes" opens the meeting's Omni doc, made the first time           | Storage's door makes the doc; the deal's teamspace when the meeting is on one deal, else My files                                                   |
+| Calendar → Drive  | "Notes" opens the meeting's Wok doc, made the first time           | Storage's door makes the doc; the deal's teamspace when the meeting is on one deal, else My files                                                   |
 | Calendar → agents | `calendar_events` and `calendar_find_times`                         | MCP tools through the calendar's door, scope `calendar:read`                                                                                        |
 | CRM → Calendar    | A record's tasks; tasks put on, moved between and taken off records | The CRM checks the member may open the record, then reads and writes the tasks through the calendar's surface (`tasksOn`, `linkTask`, `unlinkTask`) |
 
@@ -412,7 +412,7 @@ sees nothing they could not open on its own.
 
 ## Sending
 
-Omni sends calendar mail through the mail outbox, as every other send.
+Wok sends calendar mail through the mail outbox, as every other send.
 
 - `sendPayloadSchema` gains an optional `calendar: { method: "REQUEST" | "REPLY" | "CANCEL",
 ics }`. The mail service hands it to MailComposer's `icalEvent`, which writes the
@@ -420,7 +420,7 @@ ics }`. The mail service hands it to MailComposer's `icalEvent`, which writes th
   recognizes. The text and HTML bodies say the same thing in words.
 - **Expand step.** A mail service from before the field drops it and sends the words alone: the
   organizer reads "Accepted: Kickoff" but their calendar does not update. It is a window of
-  minutes on each deploy, Omni's own state is right in both cases, and no new action kind is
+  minutes on each deploy, Wok's own state is right in both cases, and no new action kind is
   needed (an unknown kind would fail the action instead).
 - A reply goes from the inbox the invitation reached, to the organizer, in the invitation's
   thread (`In-Reply-To`), with only the inbox's own attendee line in it.
@@ -469,7 +469,7 @@ recorded (`calendar_parts`) with what it did, so applying one twice changes noth
 7. Every change announces `calendar.changed` to the sockets of the inbox's members.
 
 Our own sends land in Sent with their `text/calendar` part, so the sweep reads them too: events
-made in Omni with guests, and our replies, can be rebuilt from mail. An event with no guests sends
+made in Wok with guests, and our replies, can be rebuilt from mail. An event with no guests sends
 nothing and lives in Postgres alone, like a CRM record, under the same backups.
 
 ## Data model
@@ -509,7 +509,7 @@ days, errors as `{ error, code }`.
 | `GET /calendars` · `PATCH /calendars/:id`                              | The calendars the member can see, with their inbox, name (null for an inbox's own), whether read only, color (theirs, else Google's) and whether shown. Set color, hidden. |
 | `GET /events?from=&to=&calendar=`                                      | Events and expanded instances overlapping the window (at most 62 days), across shown calendars.                                                          |
 | `GET /events/:id`                                                      | One event with its attendees, its thread when the member can open it, and its notes doc id.                                                              |
-| `POST /events` · `PATCH /events/:id` · `DELETE`                        | Make, change, delete an event made in Omni on a calendar of an inbox the member may send from. Sends invitations, updates and cancellations.             |
+| `POST /events` · `PATCH /events/:id` · `DELETE`                        | Make, change, delete an event made in Wok on a calendar of an inbox the member may send from. Sends invitations, updates and cancellations.             |
 | `POST /events/:id/answer`                                              | `{ response: accepted \| declined \| tentative }`. Sends the reply.                                                                                      |
 | `GET /invites?thread=`                                                 | The invitations in a thread the member can open, with their event and the member's answer.                                                               |
 | `GET /free-busy?from=&to=&addresses=`                                  | Busy blocks for the member's own calendars and for teammates' inboxes the member can see.                                                                |
@@ -535,9 +535,9 @@ Two read tools on the MCP server, scope `calendar:read`, through the same door:
 | Tool                  | Does                                                                                                                                                                                                                                         |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `calendar_events`     | Events in a window (default the next 7 days, at most 62), optionally by words in the title or an attendee. Each with its people, answer, video link, thread id for `fetch`, and `url`.                                                       |
-| `calendar_find_times` | Free slots of a given length in a window for the person and any teammates whose inboxes they can see, inside working hours in a time zone it is given (Omni keeps none per person). Returns up to 10, soonest first, as text ready to paste. |
+| `calendar_find_times` | Free slots of a given length in a window for the person and any teammates whose inboxes they can see, inside working hours in a time zone it is given (Wok keeps none per person). Returns up to 10, soonest first, as text ready to paste. |
 
-Agents never send: making events, answering and cancelling reach people outside Omni, so they stay
+Agents never send: making events, answering and cancelling reach people outside Wok, so they stay
 with a person in the app, as sending does for mail. Event titles and descriptions come from
 other people's invitations; the server's instructions keep telling agents to treat them as data.
 

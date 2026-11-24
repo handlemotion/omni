@@ -114,7 +114,7 @@ function RemoveInboxDialog(props: { inbox: OrgMailbox | undefined; onClose: () =
       isOpen={!!props.inbox}
       onOpenChange={(open) => !open && props.onClose()}
       title={`Remove ${shown?.address ?? "inbox"}?`}
-      description="Omni stops syncing it. Its mail stays with your mail host."
+      description="Wok stops syncing it. Its mail stays with your mail host."
       action="Remove inbox"
       saving={remove.isPending}
       onConfirm={() =>

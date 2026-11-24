@@ -1,5 +1,5 @@
 #!/bin/bash
-# SessionStart hook: brings up Omni's local stack in Claude Code cloud sessions. A no-op anywhere
+# SessionStart hook: brings up Wok's local stack in Claude Code cloud sessions. A no-op anywhere
 # else (Claude Code sets CLAUDE_CODE_REMOTE=true only in cloud sessions).
 #
 # Machine tools come from kickoff.sh (the environment's cached setup script). Each

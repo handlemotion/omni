@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Omni records your side of a meeting when you press Record.</string>
+  <string>Wok records your side of a meeting when you press Record.</string>
   <key>NSAudioCaptureUsageDescription</key>
-  <string>Omni records the meeting's sound when you press Record.</string>
+  <string>Wok records the meeting's sound when you press Record.</string>
 </dict>
 </plist>

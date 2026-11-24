@@ -63,7 +63,7 @@ fn offer<R: Runtime>(app: &AppHandle<R>, offered: &mut HashSet<Key>) {
         let shown = app
             .notification()
             .builder()
-            .title("Omni")
+            .title("Wok")
             .body(format!("Record {title}?"))
             .show();
         if let Err(error) = shown {

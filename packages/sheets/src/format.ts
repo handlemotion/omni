@@ -169,7 +169,7 @@ function cleanTab(raw: unknown) {
 export function parseSheet(text: string) {
   const lines = text.split("\n").filter((line) => line.trim());
   const head = JSON.parse(lines[0] ?? "null") as { omni?: string; v?: number; tabs?: unknown[] };
-  if (head?.omni !== "sheet" || head.v !== 1) fail("not an Omni sheet");
+  if (head?.omni !== "sheet" || head.v !== 1) fail("not a Wok sheet");
   const tabs = (head.tabs ?? []).map(cleanTab);
   const byId = new Map(tabs.map((tab) => [tab.id, tab]));
   if (byId.size !== tabs.length) fail("two tabs share an id");

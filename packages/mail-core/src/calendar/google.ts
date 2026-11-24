@@ -186,7 +186,7 @@ function cancellationOf(item: Json, googleId: string, calendarZone: string | nul
 
 /**
  * Reads one `events.list` item. `calendarZone` is the list's own `timeZone`, for an event that
- * names none. Null for an item that is not an event Omni shows (a working location) or that
+ * names none. Null for an item that is not an event Wok shows (a working location) or that
  * lacks what an event needs: Google's answers are untrusted input like mail.
  */
 export function readGoogleEvent(item: unknown, calendarZone: string | null = null) {

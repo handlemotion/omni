@@ -1,4 +1,4 @@
-# Self-hosting Omni
+# Self-hosting Wok
 
 Status: draft. Each unit adds its required services, bindings, and variables here as it lands.
 
@@ -31,7 +31,7 @@ another project name: `docker rm -f` it and run `pnpm stack:up` again. A missing
 
 ## Database
 
-Omni needs Postgres 16 or newer (the local stack runs 18). Migrations are plain SQL in
+Wok needs Postgres 16 or newer (the local stack runs 18). Migrations are plain SQL in
 `packages/db/migrations`, applied in order by drizzle-kit:
 
 ```bash
@@ -54,7 +54,7 @@ Filled in per unit: see each unit's `.env.example`.
 | `AUTH_TRUSTED_ORIGINS`        | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth; `omni://` for iOS and desktop. |
 | `AUTH_ALIAS_ORIGINS`          | Worker (auth)                   | no       | Comma-separated extra public origins (custom domains on the Worker); see below.      |
 | `AUTH_PASSKEY_RP_ID`          | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.                   |
-| `APP_NAME`                    | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                                        |
+| `APP_NAME`                    | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Wok`.                                         |
 | `GOOGLE_CLIENT_ID`            | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on Google sign-in and Gmail connect.              |
 | `GOOGLE_CLIENT_SECRET`        | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.                            |
 | `APPLE_CLIENT_ID`             | Worker (auth)                   | no       | With `APPLE_CLIENT_SECRET`, turns on Sign in with Apple.                             |
@@ -168,7 +168,7 @@ What the Domain and Mailboxes steps do depends on the mail service:
 - **With `PURELYMAIL_API_TOKEN`:** the domain is added to that Purelymail account, and the app
   lists the DNS records to add (ownership TXT, MX, SPF, three DKIM CNAMEs, DMARC), each marked
   verified or waiting, with a re-check. Purelymail accepts the domain once the ownership record is
-  in DNS. Each mailbox becomes a Purelymail user with an Omni app password. Omni never keeps the
+  in DNS. Each mailbox becomes a Purelymail user with a Wok app password. Wok never keeps the
   user's real password: it is random and thrown away, and the person sets their own in
   Purelymail if they want another mail app.
 - **Without it:** the domain stays where it is. The app asks for the IMAP and SMTP servers
@@ -245,13 +245,13 @@ and remove its members through `PUT`/`DELETE /api/mailboxes/<id>/members/<member
 #### Connecting a Gmail account
 
 Optional. A person's own Gmail connects over IMAP and SMTP with OAuth (XOAUTH2); Gmail has no app
-password flow Omni uses. In the Google Cloud console, on the OAuth client the Worker signs in with
+password flow Wok uses. In the Google Cloud console, on the OAuth client the Worker signs in with
 (or a new "Web application" client): add the scope `https://mail.google.com/` to the consent
 screen, add the people who will connect as test users while the app is unverified (Google caps
 an unverified app with this restricted scope at 100 users; going past that needs Google's
 verification and a CASA assessment), and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on
 the mail service. Only the mail service exchanges codes and holds the tokens: the refresh token is
-encrypted with `MAIL_CREDENTIALS_KEY` like an app password. A person who revokes Omni's access in
+encrypted with `MAIL_CREDENTIALS_KEY` like an app password. A person who revokes Wok's access in
 their Google account sees the mailbox in `error` until they connect it again.
 
 The same connection shows the account's Google calendars beside its inbox's, read only. For
@@ -355,7 +355,7 @@ to `.dev.vars`.
 | `AUTH_TRUSTED_ORIGINS`         | var    | no       | Comma-separated web/app origins. Include `omni://` to let the iOS and desktop apps sign in (their magic links end on that scheme).                                                                                                                                                                                                                                              |
 | `AUTH_ALIAS_ORIGINS`           | var    | no       | Comma-separated extra public origins, each a custom domain on this Worker. A request on one uses it in place of `BETTER_AUTH_URL` (and of `WEB_APP_URL` when that is the same origin) for links, OAuth callbacks and passkeys, whose RP ID becomes its host; it is also a trusted origin. Add `<alias>/api/auth/callback/google` to the Google client for Google sign-in there. |
 | `AUTH_PASSKEY_RP_ID`           | var    | no       | WebAuthn relying party ID.                                                                                                                                                                                                                                                                                                                                                      |
-| `APP_NAME`                     | var    | no       | Defaults to `Omni`.                                                                                                                                                                                                                                                                                                                                                             |
+| `APP_NAME`                     | var    | no       | Defaults to `Wok`.                                                                                                                                                                                                                                                                                                                                                              |
 | `WEB_APP_URL`                  | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                                                                                                                                                                                                                           |
 | `GOOGLE_CLIENT_ID`             | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                                                                                                                                                                                                                      |
 | `GOOGLE_CLIENT_SECRET`         | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                                                                                                                                                                                                                      |
@@ -493,7 +493,7 @@ which Cloudflare sets and clients cannot.
 #### Billing (optional)
 
 Off unless `STRIPE_SECRET_KEY` is set. With it off there is no plan, no limit and no read-only
-state: every workspace works as it always has. Hosted Omni turns it on; most self-hosters never
+state: every workspace works as it always has. Hosted Wok turns it on; most self-hosters never
 need to.
 
 When on, a workspace gets one free trial (a week by default, no card, once per workspace and once
@@ -530,7 +530,7 @@ Setup in Stripe:
 2. Add a webhook endpoint at `<BETTER_AUTH_URL>/api/auth/stripe/webhook` for
    `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`
    and `customer.subscription.deleted`; its signing secret is `STRIPE_WEBHOOK_SECRET`. Set the
-   endpoint's API version to `2025-03-31` or later (the Stripe SDK Omni uses pins
+   endpoint's API version to `2025-03-31` or later (the Stripe SDK Wok uses pins
    `2026-08-26.dahlia`): the billing period is read from each subscription item's
    `current_period_start` / `current_period_end`, which older versions do not send, and the
    plan's period dates would be stored as invalid dates.
@@ -557,9 +557,9 @@ In Stripe:
 2. Create a product (say "Extra storage") with a recurring **monthly**, **usage-based** price on
    that meter, per unit (one unit is one GB). Its id is `STRIPE_PRICE_STORAGE`. It must be
    monthly: it is added to monthly subscriptions, and a subscription's prices share one interval.
-3. Nothing else: Omni adds the price to a workspace's subscription the first time it stores more
+3. Nothing else: Wok adds the price to a workspace's subscription the first time it stores more
    than the allowance, and reports once a day (the `47 3 * * *` cron). While a subscription has
-   that item, Stripe's customer portal lets its owner cancel but not change the plan; Omni takes
+   that item, Stripe's customer portal lets its owner cancel but not change the plan; Wok takes
    the item off again a week into a billing period that stays under the allowance.
 
 Locally, no webhook endpoint is registered in Stripe: the Stripe CLI forwards your sandbox's
@@ -586,7 +586,7 @@ and a Permissions-Policy that turns off unused browser features (passkeys stay o
 app's files get them from `apps/web/public/_headers`, which Cloudflare applies to static assets,
 with a CSP that loads scripts, frames and connections only from your own origin. Worker answers
 get them from `apps/worker/src/security-headers.ts`, with a deny-all CSP unless the route sets
-its own (message HTML is sandboxed with scripts off). Serve Omni over HTTPS only: HSTS makes
+its own (message HTML is sandboxed with scripts off). Serve Wok over HTTPS only: HSTS makes
 browsers refuse plain http on that host for two years.
 
 The mail service reports new and changed mail with a signed `POST /internal/mail-events`

@@ -6,9 +6,9 @@ export interface GoogleCalendarEntry {
   googleId: string;
   /** The account's own name for it, else the calendar's. */
   name: string | null;
-  /** Google's colour for it, `#rrggbb` in lower case; null when Google gave none Omni can show. */
+  /** Google's colour for it, `#rrggbb` in lower case; null when Google gave none Wok can show. */
   color: string | null;
-  /** The account's own calendar: Omni shows it on the inbox's own calendar. */
+  /** The account's own calendar: Wok shows it on the inbox's own calendar. */
   primary: boolean;
 }
 

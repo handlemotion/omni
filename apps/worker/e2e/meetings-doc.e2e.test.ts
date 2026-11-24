@@ -57,7 +57,7 @@ test("the notes go into one new doc in Recordings, however often the steps run a
     .where(eq(schema.storageNodes.id, docId));
   expect(doc).toMatchObject({ parentId: folderId, mimeType: DOC_TYPE });
   const first = await text(dana, docId);
-  expect(first).toContain("Written by Omni from the recording of [Entregas sitio web](");
+  expect(first).toContain("Written by Wok from the recording of [Entregas sitio web](");
   expect(first).toContain(`/meetings/${meetingId})`);
   expect(first).toMatch(/acceso al servidor/i);
   expect(first).toContain("- [ ] Gestionar el acceso al servidor");
@@ -91,7 +91,7 @@ test("the notes go into one new doc in Recordings, however often the steps run a
   );
 
   const after = await text(dana, docId);
-  expect(after.split("Written by Omni").length - 1).toBe(1);
+  expect(after.split("Written by Wok").length - 1).toBe(1);
   const docs = await m.stack.db
     .select({ id: schema.storageNodes.id })
     .from(schema.storageNodes)

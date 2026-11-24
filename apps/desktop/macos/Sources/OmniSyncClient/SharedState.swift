@@ -35,7 +35,7 @@ public struct SharedIdentity: Sendable {
 /// the extension: which server, and which workspaces are switched on. Workspace names come from
 /// `/sync/drives`, so a rename on the server reaches Finder without the app.
 public struct SyncSettings: Codable, Equatable, Sendable {
-    /// The Omni server's origin, as the person chose it.
+    /// The Wok server's origin, as the person chose it.
     public var origin: URL
     /// Workspaces with sync on, by org id.
     public var workspaces: [String]

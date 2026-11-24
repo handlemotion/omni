@@ -46,9 +46,9 @@ export interface CrmContract {
    */
   documentNodeId: string | null;
   signedAt: Date | null;
-  /** The Storage signature request it went out with from Omni; null when sent by hand. */
+  /** The Storage signature request it went out with from Wok; null when sent by hand. */
   signatureRequestId: string | null;
-  /** The signed copy: sealed by Omni with its certificate, or uploaded when signed elsewhere. */
+  /** The signed copy: sealed by Wok with its certificate, or uploaded when signed elsewhere. */
   signedNodeId: string | null;
   /** Who signed, entered by hand when it was signed elsewhere; null otherwise. */
   signedBy: ContractSignedBy[] | null;
@@ -63,7 +63,7 @@ export interface CrmContract {
   memberIds: string[];
 }
 
-/** One signer of a contract signed outside Omni, as a member entered them. */
+/** One signer of a contract signed outside Wok, as a member entered them. */
 export interface ContractSignedBy {
   name: string;
   email: string | null;
@@ -72,7 +72,7 @@ export interface ContractSignedBy {
 /** A contract row, before its signing progress is read from Storage. */
 export type CrmContractRow = Omit<CrmContract, "signing" | "memberIds">;
 
-/** Out for signature from Omni: void the request instead of changing it by hand. */
+/** Out for signature from Wok: void the request instead of changing it by hand. */
 export type SignatureOpen = { status: "signature_open" };
 
 export interface ContractInput {

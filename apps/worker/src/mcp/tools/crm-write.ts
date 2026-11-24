@@ -83,7 +83,7 @@ function run(context: ToolContext, workspace: CrmWorkspace, input: Input) {
 const REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const CLAIM = "mcp.crm_write.key";
 const UNSETTLED =
-  "A write with this `idempotency_key` is still running, or stopped before Omni knew whether it landed. Check with `crm_search` before trying again with a new key.";
+  "A write with this `idempotency_key` is still running, or stopped before Wok knew whether it landed. Check with `crm_search` before trying again with a new key.";
 
 async function claimOf(context: ToolContext, workspace: CrmWorkspace, key: string) {
   const [row] = await context.db

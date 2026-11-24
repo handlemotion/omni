@@ -1,6 +1,6 @@
 # Claude Code cloud sessions
 
-Cloud sessions (claude.ai/code) run Omni with the full local stack: Postgres, GreenMail and the
+Cloud sessions (claude.ai/code) run Wok with the full local stack: Postgres, GreenMail and the
 S3 gateway from `compose.yml`, the database migrated, and Doppler `dev` secrets in the usual local
 env files. Two files do the work:
 

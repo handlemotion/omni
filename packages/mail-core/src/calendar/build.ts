@@ -1,7 +1,7 @@
 import ICAL from "ical.js";
 import type { AttendeeResponse, AttendeeRole, CalendarPerson, EventStatus } from "./parse.ts";
 
-/** What Omni sends: an invitation or its update, an answer, or a cancellation (RFC 6047). */
+/** What Wok sends: an invitation or its update, an answer, or a cancellation (RFC 6047). */
 export type OutgoingMethod = "REQUEST" | "REPLY" | "CANCEL";
 
 export interface OutgoingAttendee extends CalendarPerson {
@@ -85,7 +85,7 @@ export function buildCalendar(
   options: { replying?: string } = {},
 ) {
   const calendar = new ICAL.Component(["vcalendar", [], []]);
-  calendar.addPropertyWithValue("prodid", "-//Omni//Calendar//EN");
+  calendar.addPropertyWithValue("prodid", "-//Wok//Calendar//EN");
   calendar.addPropertyWithValue("version", "2.0");
   calendar.addPropertyWithValue("calscale", "GREGORIAN");
   calendar.addPropertyWithValue("method", method);

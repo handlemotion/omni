@@ -4,7 +4,7 @@ import { linkSegments } from "./links.ts";
 const links = (text: string) => linkSegments(text).filter((s) => s.href);
 
 describe("linkSegments", () => {
-  it("links the sign-in URL in Omni's own magic-link email, query string intact", () => {
+  it("links the sign-in URL in Wok's own magic-link email, query string intact", () => {
     const url =
       "https://omnidirectional.app/api/auth/magic-link/verify?token=abc&callbackURL=omni%3A%2F%2Fauth%3Fstate%3D1";
     const text = `Open this link to sign in to Omnidirectional:\n\n${url}\n\nIf you did not ask for it, ignore this email.`;

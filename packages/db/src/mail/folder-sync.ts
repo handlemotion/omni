@@ -268,7 +268,7 @@ export async function removeLocations(
 
 /**
  * Reconciles every thread with a copy in this folder. A Google account's INBOX gets this on each
- * connect, so mail read in Gmail before Omni followed its read state is Done here too.
+ * connect, so mail read in Gmail before Wok followed its read state is Done here too.
  */
 export function reconcileFolder(db: Db, input: { mailboxId: string; path: string }) {
   return db.transaction((tx) =>

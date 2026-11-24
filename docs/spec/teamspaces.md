@@ -62,7 +62,7 @@ with them by address beside them, so Shared with me and the sidebar's Upload row
 The `personal` and `shared` drives are gone from the product (Nov 23, 2026; no data in them was
 kept):
 
-- Nothing in Omni puts a file in Shared, and nothing but Talk and Meetings puts one in My files.
+- Nothing in Wok puts a file in Shared, and nothing but Talk and Meetings puts one in My files.
 - No sidebar, listing, search, Recents, Trash, Shared with me, sync drive list or agent tool shows
   either. `/files/my` and `/files/shared` open Drive; a link to a folder inside them still opens.
 - A member's My files stays, unseen, as their **hidden store**: Talk drops

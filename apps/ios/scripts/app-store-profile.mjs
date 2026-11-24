@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { api } from "./asc.mjs";
 const { OMNI_IOS_BUNDLE_ID: BUNDLE, CERT_SERIAL: SERIAL, PROFILES_DIR: OUT_DIR } = process.env;
-const NAME = "Omni App Store";
+const NAME = "Wok App Store";
 const bundle = (await api(`/v1/bundleIds?filter[identifier]=${BUNDLE}`)).data.find(
   (b) => b.attributes.identifier === BUNDLE,
 );

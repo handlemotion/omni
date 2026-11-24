@@ -15,7 +15,7 @@ export interface ReconcileResult {
   checked: number;
   /** Rows updated (or linked to their Stripe subscription) because they had drifted. */
   changed: number;
-  /** Rows created for Stripe subscriptions Omni never heard of. */
+  /** Rows created for Stripe subscriptions Wok never heard of. */
   created: number;
   /** Workspaces or subscriptions that could not be read or written; the next run retries. */
   errors: number;

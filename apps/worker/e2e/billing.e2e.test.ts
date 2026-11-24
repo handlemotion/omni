@@ -206,7 +206,7 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
   );
 });
 
-test("an event whose write did not land is retried, not acknowledged; one Omni ignores is", async () => {
+test("an event whose write did not land is retried, not acknowledged; one Wok ignores is", async () => {
   const { org, customer } = await workspace();
   const t0 = new Date(Date.now() - 60_000);
   const sub = subscriptionObject({

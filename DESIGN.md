@@ -1,19 +1,19 @@
-# Omni design
+# Wok design
 
 Read this before you design or build any UI. It says where the design system lives and how to use
 it. It holds no values: colors, sizes, and radii live in code, so they cannot drift from here.
 
 ## Sources of truth
 
-| What               | Where                                                                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| The designs        | Figma, file [Omni](https://www.figma.com/design/TdBkazABvzieUn4TYp5wQk/Omni). Implement from it; when code and Figma disagree, ask. |
-| Tokens             | `apps/web/src/styles.css`. Raw values in `:root`, exposed to Tailwind as semantic classes in `@theme inline`.                       |
-| Primitives         | `apps/web/src/components/ui/`: Intent UI components (React Aria + Tailwind), adapted to our tokens. Added with the shadcn CLI.      |
-| Icons              | `apps/web/src/components/icons/`: the app's own marks (sign-in arrow, dashed log out, the rail's module marks), nothing else.       |
-| Icon set           | Central Icons (round outlined, radius 3, stroke 1.5), minimal glyphs: `@/components/icons/central`, `Icon<Name>`.                   |
-| Feature components | `apps/web/src/components/<feature>/` (for example `auth/`): compositions of primitives. Routes render these and stay thin.          |
-| Registry config    | `apps/web/components.json`. Add a primitive with `npx shadcn@latest add @intentui/<name>` from `apps/web`.                          |
+| What               | Where                                                                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| The designs        | Figma, file [Wok](https://www.figma.com/design/TdBkazABvzieUn4TYp5wQk/Wok). Implement from it; when code and Figma disagree, ask. |
+| Tokens             | `apps/web/src/styles.css`. Raw values in `:root`, exposed to Tailwind as semantic classes in `@theme inline`.                     |
+| Primitives         | `apps/web/src/components/ui/`: Intent UI components (React Aria + Tailwind), adapted to our tokens. Added with the shadcn CLI.    |
+| Icons              | `apps/web/src/components/icons/`: the app's own marks (sign-in arrow, dashed log out, the rail's module marks), nothing else.     |
+| Icon set           | Central Icons (round outlined, radius 3, stroke 1.5), minimal glyphs: `@/components/icons/central`, `Icon<Name>`.                 |
+| Feature components | `apps/web/src/components/<feature>/` (for example `auth/`): compositions of primitives. Routes render these and stay thin.        |
+| Registry config    | `apps/web/components.json`. Add a primitive with `npx shadcn@latest add @intentui/<name>` from `apps/web`.                        |
 
 ## Rules
 

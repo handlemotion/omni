@@ -1,4 +1,4 @@
-# Omni CRM: the client layer
+# Wok CRM: the client layer
 
 Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md` and `docs/spec/modules.md`
 
@@ -6,7 +6,7 @@ Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md` and `docs/spec/mod
 
 Every company workspace gets a CRM: the companies it works with, the people there, and the
 deals with them. It is small on purpose. What makes it worth using is where it sits: on the
-mail and the files the workspace already has in Omni.
+mail and the files the workspace already has in Wok.
 
 The web and desktop apps name the module **Clients** (founder's call, Nov 22, 2026): in the module
 rail, the sidebar, the command menu and the agent consent screen. Code, routes, the API and
@@ -50,7 +50,7 @@ scopes keep `crm`.
 | Files on records                  | The record's folder in its space, plus Drive files linked in place | Previews                               |
 | An API first, and agents          | Every route typed; MCP tools                                    | Webhooks                               |
 | A flexible data model             | Fixed columns                                                   | Custom fields as definitions plus JSON |
-| Contracts and a client's own view | Stored, tracked, sent and signed in Omni                        | The client dashboard                   |
+| Contracts and a client's own view | Stored, tracked, sent and signed in Wok                        | The client dashboard                   |
 
 ## Objects
 
@@ -78,7 +78,7 @@ Every teammate sees and edits all of it. A freelancer sees only the projects the
 
 ## How people use it
 
-**Add someone from mail.** On any conversation, one action adds the sender. Omni makes the
+**Add someone from mail.** On any conversation, one action adds the sender. Wok makes the
 person, and their company from the domain unless it is gmail.com or the like. If the address
 is already a person, nothing is duplicated. The conversation now shows who they are, their
 company and their open deals, to every teammate who opens it.
@@ -117,11 +117,11 @@ enters the day it was signed and who signed (names, addresses optional; the deal
 suggested). The contract becomes `signed` with that copy as `signedNodeId` and the signers as
 `signedBy`, the draft stays as its document, and both files are locked: they cannot be renamed,
 moved or deleted by anyone but an owner or admin unlocking them first. A contract marked signed
-without its copy takes one later and keeps its date. A contract out for signature from Omni
+without its copy takes one later and keeps its date. A contract out for signature from Wok
 refuses one (void it first), and so does one that already has its signed copy. From there it is
 tracked like any signed contract, through expiry.
 
-**Sign the contract in Omni.** A draft whose file is a PDF is sent for signature from the deal:
+**Sign the contract in Wok.** A draft whose file is a PDF is sent for signature from the deal:
 the member names the signers (the deal's people are suggested), and the contract goes out
 through Storage's signing. Each signer gets their own link to `/sign/:id`, which opens that
 one request as them for 30 days with no account (a signed-in person with that address opens it
@@ -133,7 +133,7 @@ CRM's minute job records the contract `signed` with that copy (`signedNodeId`). 
 back to `draft`. A signed contract with an end date shows when it ends within 30 days, and the
 daily job ends it after that date.
 
-Next, in `docs/spec/contracts.md`: the document becomes an Omni contract in Drive, with named
+Next, in `docs/spec/contracts.md`: the document becomes a Wok contract in Drive, with named
 drafts, attribution and sending from the file, and a contract record references it, or any file
 in the workspace's drives, where it lives.
 
@@ -391,7 +391,7 @@ instructions keep telling agents to treat it as data.
   `crm_write`'s `files` links Drive nodes the person can open, or unlinks them; nothing moves.
   `crm_write`'s `contract` adds a draft on a company or deal or changes its title, document
   (any file in the workspace's drives, not My files, referenced where it lives) and dates.
-  Sending for signature, voiding, and marking a contract sent or signed reach people outside Omni
+  Sending for signature, voiding, and marking a contract sent or signed reach people outside Wok
   or bind the company, so they stay with a person in the app.
 - Paging: an empty `query` or any filter makes `crm_search` list records by name, and
   `next_cursor` (opaque: where each kind stopped in each workspace) pages through the rest with
@@ -405,7 +405,7 @@ instructions keep telling agents to treat it as data.
   with an `mcp.crm_write.key` audit row (subject: the key); when the write lands the row keeps
   its answer, and when it is refused the claim is dropped. The same member sending the key
   again within 24 hours gets the answer back with `replayed: true` and nothing is written. A
-  claim with no answer (a write still running, or one that stopped before Omni knew whether it
+  claim with no answer (a write still running, or one that stopped before Wok knew whether it
   landed) is refused with a tool error telling the agent to check with `crm_search` first, so a
   retry never writes twice. Two concurrent first sends can both claim; agents send one at a time.
 - Plans: a deal's `crm_fetch` carries its `plan` (milestones in order, deliverables with their

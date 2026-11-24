@@ -6,7 +6,7 @@ import {
 } from "../storage.ts";
 import type { Ex } from "./core.ts";
 
-/** One signer's progress on a contract sent from Omni. */
+/** One signer's progress on a contract sent from Wok. */
 export interface CrmContractSigner {
   email: string;
   name: string;
@@ -15,7 +15,7 @@ export interface CrmContractSigner {
   signedAt: Date | null;
 }
 
-/** Where a contract sent from Omni is with its signers (ADR 0037), read from Storage's request. */
+/** Where a contract sent from Wok is with its signers (ADR 0037), read from Storage's request. */
 export interface CrmContractSigning {
   requestId: string;
   status: StorageSignatureStatus;
@@ -50,7 +50,7 @@ function progressOf(request: StorageSignatureRequest) {
   } satisfies CrmContractSigning;
 }
 
-/** Each contract with its signing progress, or `signing: null` when it was never sent from Omni. */
+/** Each contract with its signing progress, or `signing: null` when it was never sent from Wok. */
 export async function withSigning<T extends { signatureRequestId: string | null }>(
   ex: Ex,
   orgId: string,

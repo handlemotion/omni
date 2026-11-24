@@ -1,15 +1,15 @@
-# Omni Desktop: the app in a native window, and Drive in Finder
+# Wok Desktop: the app in a native window, and Drive in Finder
 
 Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md`
 
 ## Summary
 
-Omni gets a desktop app for macOS and Windows. It is two things in one install:
+Wok gets a desktop app for macOS and Windows. It is two things in one install:
 
 1. **The app.** The web app, unchanged, in a native window: its own Dock icon, a title bar that
    holds navigation, native notifications, deep links, auto-update. Built on Tauri 2.
 2. **Drive on the computer.** Storage shows up as one folder the operating system owns,
-   `~/Library/CloudStorage/Omni` on macOS, "Omni" in Finder's sidebar, with a folder inside for
+   `~/Library/CloudStorage/Wok` on macOS, "Wok" in Finder's sidebar, with a folder inside for
    each synced workspace and files that download when opened and upload when saved. This is a macOS File Provider extension. Windows
    gets the same through the Cloud Files API, one layer later.
 
@@ -28,7 +28,7 @@ start, not a mirrored folder; avoid duplicating the web app; small navigation ch
 - Drive files in Finder behave like Dropbox's or iCloud's: on demand, status badges, "Download
   now", "Remove download", edits sync both ways, usable offline for files kept on the computer.
 - Windows from the first release of the shell; Windows file sync one layer after macOS.
-- Self-hostable: the app asks which Omni server to use. Nothing Handlemotion-specific in code:
+- Self-hostable: the app asks which Wok server to use. Nothing Handlemotion-specific in code:
   server origin, bundle identifier, team id and app group are build config.
 - Sync holds no session cookie. It has its own revocable credential, scoped to Storage.
 
@@ -58,7 +58,7 @@ Chosen by the founder for size, memory and start time. What it costs us, so the 
 
 Tauri's default is to bundle the frontend and serve it from `tauri://localhost`; loading a remote
 origin is supported and opt-in (`remote.urls` on a capability). We bundle a small local shell and
-load the Omni server's own origin in the main window. Bundling the whole web app was rejected
+load the Wok server's own origin in the main window. Bundling the whole web app was rejected
 because it is the incorrect option for this app, not because it is harder:
 
 | Needs                                              | Bundled at `tauri://localhost`                                                 | Server origin in the window |
@@ -90,7 +90,7 @@ because their state and cookies live in its cookie jar.
   the folder, its on-disk state and the Finder UI; we answer four questions: what is in this
   folder, what changed since this anchor, give me this file's bytes, here is a change the person
   made.
-- **One domain, "Omni"**, one entry in Finder's sidebar. Its root holds a folder per workspace
+- **One domain, "Wok"**, one entry in Finder's sidebar. Its root holds a folder per workspace
   the person turned sync on for, named after the workspace; each holds `My files`, `Shared` in a
   company, and a folder per teamspace the person is in (`docs/spec/teamspaces.md`), named after
   it (` (2)` when the name is taken, without case, beside the others). Those top two levels are
@@ -100,7 +100,7 @@ because their state and cookies live in its cookie jar.
   access rules are unchanged: the server decides.
 - A move between two workspaces' folders is refused, as in the app ("Not in v1");
   Finder then offers a copy, which is an upload to the other workspace.
-- Windows: one sync root, "Omni", with the same layout, through the Cloud Files API, in Rust, in
+- Windows: one sync root, "Wok", with the same layout, through the Cloud Files API, in Rust, in
   its own process. The `cloud-filter` crate is the starting point; it calls itself experimental,
   so the layer starts with a spike and falls back to the `windows` crate's raw bindings if it
   does not hold.
@@ -127,8 +127,8 @@ shape in Swift or Rust.
   (`webcredentials:<rp id>`) and the `apple-app-site-association` file the web app serves.
   Reports of it working in Tauri are mixed, so it is tried in the signing layer and the passkey
   button is hidden on macOS desktop until proven. Magic link always works.
-- **Sync** never sees the cookie. It uses the OAuth 2.1 server Omni already runs for MCP
- : a first-party public client "Omni Desktop" (PKCE, redirect `omni://oauth/callback`)
+- **Sync** never sees the cookie. It uses the OAuth 2.1 server Wok already runs for MCP
+ : a first-party public client "Wok Desktop" (PKCE, redirect `omni://oauth/callback`)
   and a new scope `storage:sync`. Turning sync on opens the authorize URL in the app window,
   where the person is already signed in. The grant covers every workspace the person belongs to
   (the provider's existing "all workspaces" reference, no `omni_workspace` claim), so one token
@@ -136,7 +136,7 @@ shape in Swift or Rust.
   app. Membership is checked on every request, so leaving a workspace ends its sync at once.
   Access and refresh tokens live
   in the macOS Keychain under an access group the app and the extension share, and in Windows
-  Credential Manager. Signing out, or revoking "Omni Desktop" in Settings, stops sync and removes
+  Credential Manager. Signing out, or revoking "Wok Desktop" in Settings, stops sync and removes
   the domain; files not yet uploaded are kept in a `Not uploaded` folder on the Desktop first.
 
 ## The sync protocol (Storage module, Worker)
@@ -245,13 +245,13 @@ after a spike. Swift side: Foundation and FileProvider only.
   a native hit test (`tauri-plugin-decorum`, after a spike). Change Server and Check for Updates
   are in the tray, as there is no app menu.
 - **Stays running.** Closing the window keeps the app in the menu bar / tray so the realtime
-  signal keeps reaching the provider. The tray menu: Open Omni, Open Drive folder, sync status,
+  signal keeps reaching the provider. The tray menu: Open Wok, Open Drive folder, sync status,
   Pause sync, Quit. Launch at login is on by default and a setting.
 - **Notifications.** `apps/web/src/lib/desktop-notifications.ts` already wraps the browser API;
   on desktop it calls the notification plugin instead. Clicking one focuses the window on that
   thread. The Dock / taskbar badge shows the inbox count.
 - **Links.** `omni://` opens threads and files in the app (`omni://open?path=/inbox/…`). Links to
-  other origins open in the default browser. `mailto:` registers Omni as a mail handler and
+  other origins open in the default browser. `mailto:` registers Wok as a mail handler and
   opens compose (macOS and Windows both ask the person first).
 - **Updates.** The updater plugin, checked a minute after start and every 6 hours, downloaded in
   the background and installed while nobody is looking: at once if the window is closed, else
@@ -263,7 +263,7 @@ after a spike. Swift side: Foundation and FileProvider only.
   sidebar collapsed to its rail, a blue tile above Settings instead. Either restarts into the
   update with the window shown (`update_install`). "Check for Updates…" in the tray and the app
   menu checks at once: a download brings the window forward to that row, otherwise a
-  notification says Omni is up to date or that the check failed.
+  notification says Wok is up to date or that the check failed.
 
 ### Navigation changes in the web app
 
@@ -375,7 +375,7 @@ machines and reported in the PR, pass or fail per line:
 - "Remove download" frees the disk; opening the file downloads it again.
 - A workspace at its cap: the upload shows an error badge and nothing is stored; freeing space
   lets it through without touching the file.
-- Two workspaces synced: both appear under `Omni`; dragging a file from one to the other is
+- Two workspaces synced: both appear under `Wok`; dragging a file from one to the other is
   refused as a move; turning one off removes its folder locally and leaves the server untouched.
 - Sign out: the domain disappears, unsynced files are in `Not uploaded`, the token is revoked.
 - Another member's My files never appears, including after that member is removed (their files
@@ -403,10 +403,10 @@ machines and reported in the PR, pass or fail per line:
 
 - **No tabs in the title bar in this version.** They get their own short spec once the title-bar
   group exists.
-- **Bundle identifier `app.omnidirectional.desktop`, shown as "Omni".** Permanent once installed.
+- **Bundle identifier `app.omnidirectional.desktop`, shown as "Wok".** Permanent once installed.
   The extension is `app.omnidirectional.desktop.fileprovider`; the app group is
   `group.app.omnidirectional.desktop`. All three stay build config.
-- **One "Omni" folder with a folder per workspace** (decision 3), not an entry per workspace.
+- **One "Wok" folder with a folder per workspace** (decision 3), not an entry per workspace.
 - **Sync turns on for every workspace the first time the Mac app runs**, then is a
   switch per workspace in Settings → Drive.
 - The macOS layers need a Mac to build and run.

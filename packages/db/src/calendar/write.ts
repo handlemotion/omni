@@ -294,7 +294,7 @@ async function editable(tx: Ex, writer: Writer, eventId: string) {
 }
 
 /**
- * Changes an event made in Omni. A change guests see sends them an update with a higher
+ * Changes an event made in Wok. A change guests see sends them an update with a higher
  * sequence; a new time asks them again; a guest taken off is sent a cancellation.
  */
 export async function updateOwnEvent(
@@ -357,7 +357,7 @@ export async function updateOwnEvent(
   return { status: "ok" as const, eventId: row.id };
 }
 
-/** Cancels an event made in Omni: it leaves the calendar, and its guests are sent a cancellation. */
+/** Cancels an event made in Wok: it leaves the calendar, and its guests are sent a cancellation. */
 export async function deleteOwnEvent(tx: Ex, writer: Writer, eventId: string) {
   const found = await editable(tx, writer, eventId);
   if (found.status !== "ok") return found;

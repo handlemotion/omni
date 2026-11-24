@@ -63,10 +63,10 @@ test("a 6-digit email OTP sent through Email Sending signs the member in, once",
   const sent = await mailTo("ana@acme.test");
   expect(sent).toHaveLength(1);
   const [payload] = sent;
-  expect(payload!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
+  expect(payload!.from).toBe(`"Wok" <${SYSTEM_MAIL_FROM}>`);
   const otp = payload!.text.match(/\b(\d{6})\b/)?.[1];
   expect(otp).toBeDefined();
-  expect(payload!.subject).toBe(`${otp} is your Omni sign-in code`);
+  expect(payload!.subject).toBe(`${otp} is your Wok sign-in code`);
 
   const verified = await fetch(new URL("/api/auth/sign-in/email-otp", worker.url), {
     method: "POST",
@@ -129,7 +129,7 @@ test("a brand-new email with no invitation signs up by email OTP and has no work
   });
   expect(requested.status).toBe(200);
   const [mail] = await mailTo("newcomer@open.test");
-  expect(mail!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
+  expect(mail!.from).toBe(`"Wok" <${SYSTEM_MAIL_FROM}>`);
   const otp = mail!.text.match(/\b(\d{6})\b/)?.[1];
   expect(otp).toBeDefined();
 
@@ -200,7 +200,7 @@ test("invite, then a brand-new user signs in by email OTP, accepts, and is a mem
   const invitationId = await invite(owner, "New@Invite.test");
 
   const [mail] = await mailTo("new@invite.test");
-  expect(mail!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
+  expect(mail!.from).toBe(`"Wok" <${SYSTEM_MAIL_FROM}>`);
   expect(mail!.text).toContain(`${WEB_ORIGIN}/invite/${invitationId}`);
 
   const jar = new CookieJar();

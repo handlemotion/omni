@@ -45,7 +45,7 @@ describe("the file", () => {
   });
 
   test("a file that is not a sheet is refused", () => {
-    expect(() => parseSheet('{"omni":"doc"}')).toThrow("not an Omni sheet");
+    expect(() => parseSheet('{"omni":"doc"}')).toThrow("not a Wok sheet");
     expect(() => parseSheet("not json")).toThrow(SyntaxError);
   });
 

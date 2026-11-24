@@ -37,7 +37,7 @@ const ROLE_BY_SPECIAL_USE = {
   "\\Junk": "junk",
 } as const;
 
-/** The part a folder plays in Omni; `other` is a folder Omni syncs but gives no meaning. */
+/** The part a folder plays in Wok; `other` is a folder Wok syncs but gives no meaning. */
 export type ClassifiedRole =
   | (typeof ROLE_BY_SPECIAL_USE)[keyof typeof ROLE_BY_SPECIAL_USE]
   | "other";

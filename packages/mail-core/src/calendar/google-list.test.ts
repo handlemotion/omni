@@ -54,7 +54,7 @@ describe("readGoogleCalendars", () => {
     ).toEqual(["rodrigo@studio.example"]);
   });
 
-  test("a colour Omni cannot show is no colour, so the app's default stands", () => {
+  test("a colour Wok cannot show is no colour, so the app's default stands", () => {
     for (const backgroundColor of ["red", "#fff", "url(x)", 7, undefined]) {
       expect(
         readGoogleCalendar({ id: "x@group.calendar.google.com", backgroundColor })?.color,

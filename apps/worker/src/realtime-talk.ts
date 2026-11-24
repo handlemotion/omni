@@ -25,7 +25,7 @@ function tell(ctx: DurableObjectState, event: TalkEvent) {
   }
 }
 
-/** The teammates with Omni open in this workspace now. */
+/** The teammates with Wok open in this workspace now. */
 export function onlineMembers(ctx: DurableObjectState) {
   const online = new Set<string>();
   for (const socket of ctx.getWebSockets(TEAM_TAG)) {

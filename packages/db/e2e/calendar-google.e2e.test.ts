@@ -213,7 +213,7 @@ describe("a Gmail inbox's Google Calendar", () => {
     }
   });
 
-  test("an event made in Omni is Omni's: Google never changes or cancels it", async () => {
+  test("an event made in Wok is Wok's: Google never changes or cancels it", async () => {
     const { rodrigo, calendar } = await gmailInbox("google-omni");
     const made = await forMember(db, rodrigo.id).calendar.createEvent({
       calendarId: calendar.id,

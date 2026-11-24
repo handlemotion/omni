@@ -34,14 +34,14 @@ const LIMITS = {
 export const SAMPLE_PLANS: Offered[] = [
   {
     key: "team",
-    name: "Omni Team",
+    name: "Wok Team",
     intervals: ["month", "year"],
     limits: LIMITS.team,
     prices: { month: { amount: 2500, currency: "usd" }, year: { amount: 25000, currency: "usd" } },
   },
   {
     key: "business",
-    name: "Omni Business",
+    name: "Wok Business",
     intervals: ["month", "year"],
     limits: LIMITS.business,
     prices: { month: { amount: 6000, currency: "usd" }, year: { amount: 60000, currency: "usd" } },

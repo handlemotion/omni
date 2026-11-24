@@ -2,7 +2,7 @@ const REDACTED = "[redacted]";
 
 /**
  * Sentry's `dataCollection` option (SDK v11+), which collects headers, cookies, bodies, query
- * parameters, user info and AI inputs/outputs unless told not to. Every Omni SDK passes this, so
+ * parameters, user info and AI inputs/outputs unless told not to. Every Wok SDK passes this, so
  * the scrubber below is the second lock, not the only one.
  */
 export const PRIVATE_DATA_COLLECTION = {

@@ -144,7 +144,7 @@ export function parentDomains(domain: string) {
   return parents satisfies string[];
 }
 
-/** Where Omni's ownership challenge for `domain` lives: a TXT record only its DNS can publish. */
+/** Where Wok's ownership challenge for `domain` lives: a TXT record only its DNS can publish. */
 export function challengeRecordName(domain: string) {
   return `_omni-challenge.${domain}`;
 }
@@ -167,7 +167,7 @@ export function mailboxAddress(input: string, domain: string) {
 /**
  * The records Purelymail asks for, from https://purelymail.com/docs/domainDocs. `ownershipCode`
  * is the account's ownership proof value (API `getOwnershipCode`). Optional autoconfig records
- * are left out: Omni does not need them and Purelymail does not check them.
+ * are left out: Wok does not need them and Purelymail does not check them.
  */
 export function purelymailDnsRecords(domain: string, ownershipCode: string) {
   return [

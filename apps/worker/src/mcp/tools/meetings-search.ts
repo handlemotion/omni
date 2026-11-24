@@ -46,7 +46,7 @@ const outputSchema = z.object({
     z.object({
       id: z.string().describe("The meeting id, for `meetings_fetch`."),
       title: z.string().nullable(),
-      url: z.string().describe("Open the meeting in Omni. Cite it when you answer."),
+      url: z.string().describe("Open the meeting in Wok. Cite it when you answer."),
       workspace: z.string().describe("The workspace's name."),
       started_at: z.string(),
       ended_at: z.string().nullable(),

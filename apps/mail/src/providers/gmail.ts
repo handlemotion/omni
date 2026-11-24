@@ -151,7 +151,7 @@ export function createGoogleOAuth(
       });
       const granted = new Set((data.scope ?? "").split(" "));
       if (!granted.has(MAIL_SCOPE)) {
-        throw new ProvisionError(422, "Omni needs access to Gmail: allow it on Google's screen");
+        throw new ProvisionError(422, "Wok needs access to Gmail: allow it on Google's screen");
       }
       if (!data.refresh_token) {
         throw new ProvisionError(
