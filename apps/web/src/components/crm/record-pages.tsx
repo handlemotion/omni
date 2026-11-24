@@ -1,6 +1,5 @@
 import { formatMoney } from "@omni/client";
 import { useFreelancer } from "@/hooks/use-freelancer.ts";
-import { CreateMenu } from "./create-menu.tsx";
 import { useState } from "react";
 import {
   useCrmCompany,
@@ -97,12 +96,7 @@ export function PersonPage({ id }: { id: string }) {
         who={byAddress(primary)}
         subtitle={person.jobTitle ?? primary}
         badge={archived && <ArchivedBadge />}
-        actions={
-          <>
-            <CreateMenu record={{ kind: "people", id, name: person.name }} />
-            <RecordActions kind="people" id={id} name={person.name} archived={archived} />
-          </>
-        }
+        actions={<RecordActions kind="people" id={id} name={person.name} archived={archived} />}
         details={
           <>
             <DetailSection>
@@ -177,12 +171,7 @@ export function DealPage({ id }: { id: string }) {
             {archived && <ArchivedBadge />}
           </>
         }
-        actions={
-          <>
-            <CreateMenu record={{ kind: "deals", id, name: deal.name }} />
-            <RecordActions kind="deals" id={id} name={deal.name} archived={archived} />
-          </>
-        }
+        actions={<RecordActions kind="deals" id={id} name={deal.name} archived={archived} />}
         details={
           <>
             <DetailSection>

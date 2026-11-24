@@ -3,9 +3,8 @@ import { useSearch } from "@tanstack/react-router";
 import { useRef, useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
-import { StorageFrame } from "@/components/storage/storage-frame";
-import { Breadcrumbs, BreadcrumbsItem } from "@/components/ui/breadcrumbs";
-import { Button } from "@/components/ui/button";
+import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
+import { Button, PageBarActions } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
@@ -13,13 +12,7 @@ import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { CRM_LISTS } from "./crm-nav.tsx";
 import type { SenderLogoFor } from "@/lib/sender-logo";
 import { RecordMark } from "./record-list.tsx";
-import {
-  TrailCrumbs,
-  TrailProvider,
-  useRecordHref,
-  useTrailVia,
-  type TrailStep,
-} from "./record-trail.tsx";
+import { TrailProvider, useRecordHref, type TrailStep } from "./record-trail.tsx";
 
 export interface RecordTab {
   id: string;
@@ -27,7 +20,7 @@ export interface RecordTab {
   panel: ReactNode;
 }
 
-const DETAILS_THIRD = "clamp(360px, 33.333%, 560px)";
+const DETAILS_DEFAULT = "clamp(300px, 28%, 420px)";
 const DETAILS_MIN = 300;
 const DETAILS_MAX = 720;
 
@@ -57,12 +50,12 @@ export function RecordLayout(props: {
   const opening = task && props.tabs.some((tab) => tab.id === "tasks") ? "tasks" : undefined;
   return (
     <TrailProvider here={props.here}>
-      <RecordFrame list={props.list} name={props.name} actions={props.actions}>
+      <RecordFrame>
         <div
           className={`flex min-h-0 flex-1 overflow-y-auto max-lg:flex-col lg:overflow-hidden ${resizing ? "cursor-ew-resize select-none" : ""}`}
           style={
             {
-              "--details-width": details.isSet ? `${details.width}px` : DETAILS_THIRD,
+              "--details-width": details.isSet ? `${details.width}px` : DETAILS_DEFAULT,
             } as React.CSSProperties
           }
         >
@@ -105,16 +98,13 @@ export function RecordLayout(props: {
             />
             <main className="flex min-h-0 min-w-0 flex-1 flex-col pb-4 lg:overflow-y-auto">
               <Tabs className="w-full flex-1" defaultSelectedKey={opening}>
-                <TabList
-                  aria-label="Record"
-                  className="sticky top-0 z-10 bg-background px-5 pt-1.5 [--tab-list-pb:--spacing(1.5)]"
-                >
+                <RecordTabBar label="Record" actions={props.actions} className="ps-5 pe-2.5">
                   {props.tabs.map((tab) => (
                     <Tab key={tab.id} id={tab.id}>
                       {tab.label}
                     </Tab>
                   ))}
-                </TabList>
+                </RecordTabBar>
                 {props.tabs.map((tab) => (
                   <TabPanel key={tab.id} id={tab.id} className="flex flex-1 flex-col px-5 pt-2">
                     {tab.panel}
@@ -129,27 +119,47 @@ export function RecordLayout(props: {
   );
 }
 
-/** The header: the list it belongs to, then its name, and the page's actions. */
-export function RecordFrame(props: {
-  list: keyof typeof CRM_LISTS;
-  name: string | null;
+/** A record's tabs, and its actions at the bar's end, in place of a page header. */
+export function RecordTabBar(props: {
+  label: string;
   actions?: ReactNode;
+  className?: string;
   children: ReactNode;
 }) {
-  const steps = useTrailVia();
   return (
-    <StorageFrame
-      title={
-        <Breadcrumbs aria-label="Record" size="lg">
-          <TrailCrumbs steps={steps} fallback={props.list} />
-          {props.name !== null && <BreadcrumbsItem>{props.name}</BreadcrumbsItem>}
-        </Breadcrumbs>
-      }
-      actions={props.actions}
-      bordered
+    <div
+      className={`sticky top-0 z-10 flex items-center gap-2 border-b bg-background ${props.className ?? ""}`}
     >
+      <TabList
+        aria-label={props.label}
+        className="min-w-0 flex-1 border-b-0 pt-1.5 [--tab-list-pb:--spacing(1.5)]"
+      >
+        {props.children}
+      </TabList>
+      {props.actions && (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <PageBarActions>{props.actions}</PageBarActions>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A record's page. It has no header of its own: its actions sit at the end of its tab bar. On a
+ * phone a slim bar keeps the sidebar's toggle.
+ */
+export function RecordFrame(props: { children: ReactNode }) {
+  const phone = usePageNavShown();
+  return (
+    <section className="relative flex h-svh min-h-0 min-w-0 flex-col">
+      {phone && (
+        <header className="flex h-12 shrink-0 items-center border-b ps-2.5">
+          <PageNav />
+        </header>
+      )}
       {props.children}
-    </StorageFrame>
+    </section>
   );
 }
 
@@ -214,7 +224,7 @@ export function RecordState(props: {
 }) {
   if (props.query.isPending) {
     return (
-      <RecordFrame list={props.list} name={null}>
+      <RecordFrame>
         <Skeleton loading label="Loading" skeleton={<RecordBones />}>
           {null}
         </Skeleton>
@@ -223,7 +233,7 @@ export function RecordState(props: {
   }
   const gone = props.query.error instanceof ApiError && props.query.error.status === 404;
   return (
-    <RecordFrame list={props.list} name={null}>
+    <RecordFrame>
       <div className="flex h-full flex-col">
         {gone ? (
           <EmptyState figure="loupe" title="This record is gone" />
@@ -242,7 +252,7 @@ export function RecordState(props: {
 function RecordBones() {
   return (
     <div className="flex gap-0 max-lg:flex-col">
-      <div className="flex flex-col gap-4 px-5 py-5 lg:w-(--details-width,clamp(360px,33.333%,560px))">
+      <div className="flex flex-col gap-4 px-5 py-5 lg:w-(--details-width,clamp(300px,28%,420px))">
         <div className="flex items-center gap-3">
           <SkeletonBox width={40} height={40} radius="999px" />
           <SkeletonBox width={140} height={12} />

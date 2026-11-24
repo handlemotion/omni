@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { EmptyState } from "@/components/empty/empty-state";
-import { IconDownload, IconFolder, IconUnlink } from "@/components/icons/central";
+import { IconDownload, IconFolder, IconPlus, IconUnlink } from "@/components/icons/central";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { useCanTrash, useRowMenu, useStorageHref } from "@/components/storage/file-list.tsx";
 import { FolderView, type FolderDialog } from "@/components/storage/folder-view.tsx";
@@ -67,7 +67,8 @@ export function RecordFiles(props: RecordProps) {
   const [adding, setAdding] = useState(false);
   const addFromDrive = (
     <Button intent="outline" size="sm" onPress={() => setAdding(true)}>
-      Add from Drive
+      <IconPlus />
+      Add
     </Button>
   );
   const linked = useMemo(
@@ -75,7 +76,7 @@ export function RecordFiles(props: RecordProps) {
     [links.data],
   );
   return (
-    <div className="-mx-5 -mb-4 flex h-[calc(100svh-7.5rem)] min-h-96 flex-col">
+    <div className="-mx-5 -mt-0.5 -mb-4 flex h-[calc(100svh-7.25rem)] min-h-96 flex-col">
       {props.folderId ? (
         <RecordFolder {...props} folderId={props.folderId} links={links} actions={addFromDrive} />
       ) : (
@@ -180,18 +181,21 @@ function RecordFolder(
   return (
     <FolderView
       sidebar={false}
+      bar="bottom"
       actions={props.actions}
-      title={(leaf) => (
-        <Breadcrumbs aria-label="Folder" className="min-w-0">
-          <BreadcrumbsItem onPress={() => nav.folder(undefined)}>Files</BreadcrumbsItem>
-          {below.map((entry) => (
-            <BreadcrumbsItem key={entry.id} onPress={() => nav.folder(entry.id)}>
-              {entry.name}
-            </BreadcrumbsItem>
-          ))}
-          {leaf !== undefined && <BreadcrumbsItem>{leaf}</BreadcrumbsItem>}
-        </Breadcrumbs>
-      )}
+      title={(leaf) =>
+        below.length === 0 && leaf === undefined ? null : (
+          <Breadcrumbs aria-label="Folder" className="min-w-0">
+            <BreadcrumbsItem onPress={() => nav.folder(undefined)}>Files</BreadcrumbsItem>
+            {below.map((entry) => (
+              <BreadcrumbsItem key={entry.id} onPress={() => nav.folder(entry.id)}>
+                {entry.name}
+              </BreadcrumbsItem>
+            ))}
+            {leaf !== undefined && <BreadcrumbsItem>{leaf}</BreadcrumbsItem>}
+          </Breadcrumbs>
+        )
+      }
       source={{
         label: below.at(-1)?.name ?? props.name,
         place: { parentId: top ? props.folderId : sub },

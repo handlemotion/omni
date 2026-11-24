@@ -2,17 +2,23 @@ import { GridLayout, Size, type GridLayoutOptions } from "react-aria-components/
 import type { LayoutInfo } from "react-aria-components/Virtualizer";
 
 const CARD = 140;
+/** A narrower card for a folder shown in a pane (a CRM record's Files tab): about six a row. */
+export const COMPACT_CARD = 104;
 const GAP_X = 12;
 const GAP_Y = 16;
 const INSET_START = 14;
 const INSET_END = 4;
 const GUESS_EXTRA = 48;
 
-export const CARDS_LAYOUT: GridLayoutOptions = {
-  minItemSize: new Size(CARD, CARD + GUESS_EXTRA),
-  minSpace: new Size(GAP_X, GAP_Y),
-  loaderHeight: 0,
-};
+export const cardsLayout = (card = CARD) =>
+  ({
+    minItemSize: new Size(card, card + GUESS_EXTRA),
+    minSpace: new Size(GAP_X, GAP_Y),
+    loaderHeight: 0,
+  }) satisfies GridLayoutOptions;
+
+export const CARDS_LAYOUT = cardsLayout();
+export const COMPACT_CARDS_LAYOUT = cardsLayout(COMPACT_CARD);
 
 /**
  * Every card is as tall as it is wide plus the same caption (`file-card.tsx`), so only the
@@ -33,9 +39,10 @@ export class CardsLayout<T> extends GridLayout<T> {
 
   override update(context: Parameters<GridLayout<T>["update"]>[0]) {
     super.update(context);
+    const card = context.layoutOptions?.minItemSize?.width ?? CARD;
     const full = this.virtualizer?.size.width ?? 0;
     const inner = full - INSET_START - INSET_END;
-    const columns = Math.max(1, Math.floor((inner + GAP_X) / (CARD + GAP_X)));
+    const columns = Math.max(1, Math.floor((inner + GAP_X) / (card + GAP_X)));
     const width = Math.max(0, (inner - GAP_X * (columns - 1)) / columns);
     this.width = width;
     const height = width + (this.extra ?? GUESS_EXTRA);

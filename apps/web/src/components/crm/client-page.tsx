@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useClipboard } from "@/hooks/use-clipboard.ts";
 import { Link } from "@/components/ui/link";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
+import { Tab, TabPanel, Tabs } from "@/components/ui/tabs";
 import {
   useCrmCompany,
   useCrmDefaultCurrency,
@@ -15,7 +15,6 @@ import {
 } from "@/hooks/use-crm.ts";
 import { lastContactedAt, valueCurrency } from "@/lib/crm.ts";
 import { Contracts } from "./contracts.tsx";
-import { CreateMenu } from "./create-menu.tsx";
 import { crmErrorToast } from "./crm-errors.ts";
 import { StageBadge } from "./list-pages.tsx";
 import { OwnerValue } from "./record-pages.tsx";
@@ -24,7 +23,7 @@ import { ArchivedBadge, RecordActions } from "./record-actions.tsx";
 import { AddDomainDialog } from "./record-dialogs.tsx";
 import { PlainValue, TextValue } from "./record-fields.tsx";
 import { RecordFiles } from "./record-files.tsx";
-import { DetailSection, RecordFrame, RecordState } from "./record-layout.tsx";
+import { DetailSection, RecordFrame, RecordState, RecordTabBar } from "./record-layout.tsx";
 import { RecordMark } from "./record-list.tsx";
 import { AddButton, DomainsSection, PeopleSection } from "./record-sections.tsx";
 import { TrailProvider, useRecordHref } from "./record-trail.tsx";
@@ -59,16 +58,7 @@ export function CompanyPage({ id }: { id: string }) {
   const contacted = lastContactedAt(company);
   return (
     <TrailProvider here={{ kind: "companies", id }}>
-      <RecordFrame
-        list="companies"
-        name={company.name}
-        actions={
-          <>
-            <CreateMenu record={{ kind: "companies", id, name: company.name }} />
-            <RecordActions kind="companies" id={id} name={company.name} archived={archived} />
-          </>
-        }
-      >
+      <RecordFrame>
         <div className="flex min-h-0 flex-1 overflow-y-auto max-lg:flex-col lg:overflow-hidden">
           <main className="min-w-0 flex-1 lg:overflow-y-auto">
             <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-5 pt-8 pb-12">
@@ -84,15 +74,22 @@ export function CompanyPage({ id }: { id: string }) {
                 onAdd={() => setOpen("deal")}
               />
               <Tabs className="w-full" defaultSelectedKey={task ? "tasks" : undefined}>
-                <TabList
-                  aria-label="Client"
-                  className="sticky top-0 z-10 bg-background pt-1.5 [--tab-list-pb:--spacing(1.5)]"
+                <RecordTabBar
+                  label="Client"
+                  actions={
+                    <RecordActions
+                      kind="companies"
+                      id={id}
+                      name={company.name}
+                      archived={archived}
+                    />
+                  }
                 >
                   <Tab id="timeline">Timeline</Tab>
                   <Tab id="tasks">Tasks</Tab>
                   <Tab id="files">Files</Tab>
                   <Tab id="contracts">Contracts</Tab>
-                </TabList>
+                </RecordTabBar>
                 <TabPanel id="timeline" className="flex flex-col pt-4">
                   <Timeline kind="companies" id={id} />
                 </TabPanel>
