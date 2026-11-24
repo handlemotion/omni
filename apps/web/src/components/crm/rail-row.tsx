@@ -11,7 +11,8 @@ export interface RailPlace {
  * One row of a vertical rail, the Plan and Tasks tabs' shape: a date column on the left, a
  * spine with this row's mark on it, then the row itself. `opens` puts room above a row that
  * starts a group (a phase), with the spine carried through it. With `href` the whole row opens
- * it; the rail's other rows dim while one is hovered or `current`.
+ * it, and it alone takes the hover
+ * background while hovered or `current`.
  */
 export function RailRow(props: {
   date?: ReactNode;
@@ -31,14 +32,14 @@ export function RailRow(props: {
     <li
       {...props.menu}
       data-current={props.current || undefined}
-      className="relative grid min-w-0 grid-cols-[4rem_1.25rem_minmax(0,1fr)] gap-x-3 transition-opacity duration-150 ease-out group-has-[>li:hover]/rail:opacity-50 group-has-[>li[data-current]]/rail:opacity-50 hover:opacity-100! data-current:opacity-100! max-sm:grid-cols-[3.25rem_1.25rem_minmax(0,1fr)] max-sm:gap-x-2"
+      className="relative grid min-w-0 grid-cols-[4rem_1.25rem_minmax(0,1fr)] gap-x-3 max-sm:grid-cols-[3.25rem_1.25rem_minmax(0,1fr)] max-sm:gap-x-2"
     >
       {props.href && (
         <Link
           href={props.href}
           aria-label={props.label}
           aria-current={props.current ? "true" : undefined}
-          className="absolute inset-0 rounded-lg"
+          className="absolute inset-y-0 -inset-x-2 rounded-lg transition-colors duration-150 ease-out hover:bg-hover aria-[current]:bg-hover"
         />
       )}
       <span

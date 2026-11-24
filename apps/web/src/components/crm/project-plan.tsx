@@ -168,7 +168,7 @@ export function ProjectPlan(props: { dealId: string }) {
             </Button>
           </EmptyState>
         ) : (
-          <ol aria-label="Plan" className="group/rail -mt-2 flex flex-col">
+          <ol aria-label="Plan" className="-mt-2 flex flex-col">
             {rows.map((row, i) => {
               const place = railPlace(i, rows.length);
               switch (row.kind) {
