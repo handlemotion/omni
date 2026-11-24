@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { IconMicrophoneFilled, IconStop } from "@/components/icons/central";
+import { IconPlus, IconStop } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { DesktopRecordingRequest } from "@omni/client";
@@ -89,29 +89,23 @@ function Consent(props: { isOpen: boolean; onCancel: () => void; onConfirm: () =
   );
 }
 
-/** Record, in the Meetings sidebar; it asks once that everyone was told before it starts. */
+/** Record: a small round + at the bottom right of the Meetings module; Stop while it records. */
 export function RecordButton() {
   const recorder = useRecorder();
   if (!recorder) return null;
-  if (desktop.isDesktop && recorder.phase === "recording") {
-    return (
-      <Button intent="outline" size="sm" className="w-full" onPress={() => void recorder.stop()}>
-        <IconStop />
-        Stop
-      </Button>
-    );
-  }
+  const stopping = desktop.isDesktop && recorder.phase === "recording";
   return (
     <Button
-      intent="primary"
-      size="sm"
-      className="w-full"
-      isDisabled={recorder.phase !== "idle"}
+      intent="outline"
+      size="sq-lg"
+      isCircle
+      aria-label={stopping ? "Stop recording" : "Record"}
+      isDisabled={!stopping && recorder.phase !== "idle"}
       isPending={recorder.phase === "starting" || recorder.phase === "stopping"}
-      onPress={recorder.ask}
+      onPress={stopping ? () => void recorder.stop() : recorder.ask}
+      className="fixed end-6 bottom-6 z-30"
     >
-      <IconMicrophoneFilled />
-      Record
+      {stopping ? <IconStop /> : <IconPlus />}
     </Button>
   );
 }
