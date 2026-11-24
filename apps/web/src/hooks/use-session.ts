@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tansta
 import { useRouter } from "@tanstack/react-router";
 import {
   acceptInvitation,
+  confirmIdentityWithEmailOtp,
   deviceSessionsQuery,
   revokeDeviceSession,
   revokeOtherSessionsMutation,
@@ -39,6 +40,22 @@ export function useCurrentSession() {
   const { data } = useSuspenseQuery(sessionQuery());
   if (!data) throw new Error("useCurrentSession() used while signed out");
   return data.session;
+}
+
+/** The signed-in user; like `useCurrentSession()`, only under the signed-in routes. */
+export function useCurrentUser() {
+  const { data } = useSuspenseQuery(sessionQuery());
+  if (!data) throw new Error("useCurrentUser() used while signed out");
+  return data.user;
+}
+
+/** `mutate({ email, otp })` makes this session fresh with an emailed code, staying on the page. */
+export function useConfirmIdentity() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, otp }: { email: string; otp: string }) =>
+      confirmIdentityWithEmailOtp(client, email, otp),
+  });
 }
 
 /** `mutate({ email })` emails a 6-digit sign-in code. */

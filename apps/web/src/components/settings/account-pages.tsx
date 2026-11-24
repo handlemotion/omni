@@ -48,6 +48,8 @@ import { SettingsRow, settingsRowTextEndClassName, type SettingsRowIcon } from "
 import { SettingsRowMenu } from "./kit/settings-row-menu";
 import { SettingsConfirmDialog, SettingsRenameDialog } from "./kit/settings-stacked-dialog";
 import { DAY_YEAR } from "@/lib/dates.ts";
+import { needsFreshSession } from "@/lib/session.ts";
+import { ConfirmIdentityDialog } from "./confirm-identity-dialog";
 
 const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 
@@ -294,7 +296,31 @@ type SecurityDialog =
   | { kind: "rename-passkey"; id: string; name: string }
   | { kind: "remove-passkey"; id: string; name: string }
   | { kind: "sign-out-device"; token: string; name: string }
-  | { kind: "sign-out-others" };
+  | { kind: "sign-out-others" }
+  | { kind: "confirm-identity"; next?: "add-passkey" };
+
+const SAMPLE_DEVICES = [
+  {
+    id: "sample-current",
+    token: "sample-current",
+    userId: "",
+    userAgent: "",
+    ipAddress: "0.0.0.0",
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    expiresAt: new Date(0),
+  },
+  {
+    id: "sample-other",
+    token: "sample-other",
+    userId: "",
+    userAgent: "",
+    ipAddress: "0.0.0.0",
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    expiresAt: new Date(0),
+  },
+];
 
 export function SecurityPage() {
   const session = useCurrentSession();
@@ -307,10 +333,14 @@ export function SecurityPage() {
   const revokeOthers = useRevokeOtherSessions();
   const [dialog, setDialog] = useState<SecurityDialog | null>(null);
   const close = () => setDialog(null);
+  const staleSession = needsFreshSession(sessions.error);
   const otherDevices = sessions.data?.filter((entry) => entry.token !== session.token) ?? [];
   const addOne = () =>
     addPasskey.mutate(devicePasskeyName(), {
-      onError: (error) => appToast.error(error.message || "No passkey was added."),
+      onError: (error) =>
+        needsFreshSession(error)
+          ? setDialog({ kind: "confirm-identity", next: "add-passkey" })
+          : appToast.error(error.message || "No passkey was added."),
     });
 
   return (
@@ -392,49 +422,80 @@ export function SecurityPage() {
           )
         }
       >
-        <Skeleton id="settings-devices" data={sessions.data} sample={[]} label="Loading devices">
-          {(list) => (
-            <SettingsGroup>
-              {list.map((entry) => {
-                const current = entry.token === session.token;
-                const device = describeDevice(current ? navigator.userAgent : entry.userAgent);
-                const seen = current ? "Active now" : `Last active ${ago(entry.updatedAt)}`;
-                return (
-                  <SettingsRow
-                    key={entry.id}
-                    icon={device.icon}
-                    label={device.name}
-                    hint={current ? "this device" : undefined}
-                    description={entry.ipAddress ? `${seen} · ${entry.ipAddress}` : seen}
-                    className={current ? settingsRowTextEndClassName : undefined}
-                    control={
-                      !current && (
-                        <SettingsRowMenu
-                          label={`Actions for ${device.name}`}
-                          items={[
-                            {
-                              icon: IconCircleDashed,
-                              label: "Sign out",
-                              danger: true,
-                              onAction: () =>
-                                setDialog({
-                                  kind: "sign-out-device",
-                                  token: entry.token,
-                                  name: device.name,
-                                }),
-                            },
-                          ]}
-                        />
-                      )
-                    }
-                  />
-                );
-              })}
-            </SettingsGroup>
-          )}
+        <Skeleton
+          id="settings-devices"
+          data={sessions.isError ? [] : sessions.data}
+          sample={SAMPLE_DEVICES}
+          label="Loading devices"
+        >
+          {(list) =>
+            staleSession ? (
+              <SettingsEmptyState
+                title="Confirm it's you to see your devices"
+                action={
+                  <Button
+                    size="sm"
+                    intent="outline"
+                    onPress={() => setDialog({ kind: "confirm-identity" })}
+                  >
+                    Send a code
+                  </Button>
+                }
+              />
+            ) : list.length === 0 ? (
+              <SettingsEmptyState title="No devices" />
+            ) : (
+              <SettingsGroup>
+                {list.map((entry) => {
+                  const current = entry.token === session.token;
+                  const device = describeDevice(current ? navigator.userAgent : entry.userAgent);
+                  const seen = current ? "Active now" : `Last active ${ago(entry.updatedAt)}`;
+                  return (
+                    <SettingsRow
+                      key={entry.id}
+                      icon={device.icon}
+                      label={device.name}
+                      hint={current ? "this device" : undefined}
+                      description={entry.ipAddress ? `${seen} · ${entry.ipAddress}` : seen}
+                      className={current ? settingsRowTextEndClassName : undefined}
+                      control={
+                        !current && (
+                          <SettingsRowMenu
+                            label={`Actions for ${device.name}`}
+                            items={[
+                              {
+                                icon: IconCircleDashed,
+                                label: "Sign out",
+                                danger: true,
+                                onAction: () =>
+                                  setDialog({
+                                    kind: "sign-out-device",
+                                    token: entry.token,
+                                    name: device.name,
+                                  }),
+                              },
+                            ]}
+                          />
+                        )
+                      }
+                    />
+                  );
+                })}
+              </SettingsGroup>
+            )
+          }
         </Skeleton>
       </SettingsSection>
 
+      {dialog?.kind === "confirm-identity" && (
+        <ConfirmIdentityDialog
+          onClose={close}
+          onConfirmed={() => {
+            close();
+            if (dialog.next === "add-passkey") addOne();
+          }}
+        />
+      )}
       {dialog?.kind === "rename-passkey" && (
         <SettingsRenameDialog
           key={dialog.id}
