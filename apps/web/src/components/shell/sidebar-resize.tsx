@@ -6,6 +6,8 @@ const SIDEBAR_WIDTH = 300;
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 420;
 
+const keepOpen = () => undefined;
+
 const WidthContext = createContext<
   (ReturnType<typeof useStoredWidth> & { setResizing: (resizing: boolean) => void }) | null
 >(null);
@@ -25,6 +27,8 @@ export function ResizableSidebarProvider({
   const [resizing, setResizing] = useState(false);
   return (
     <SidebarProvider
+      isOpen
+      onOpenChange={keepOpen}
       style={
         {
           "--sidebar-width": `${sidebar.width}px`,

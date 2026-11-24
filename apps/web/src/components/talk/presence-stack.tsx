@@ -76,7 +76,7 @@ function StackFace(props: { person: TalkPerson; open: boolean }) {
         person={person}
         size={FACE}
         className={cn(
-          "bg-background transition-opacity duration-150",
+          "bg-secondary transition-opacity duration-150",
           RING,
           open && "ring-primary",
           !person.online && !open && "opacity-45 grayscale",
@@ -105,7 +105,7 @@ function Everyone(props: { more: number; open: boolean }) {
     >
       <span
         className={cn(
-          "grid size-6 place-items-center rounded-full bg-background text-xs text-muted-foreground tabular-nums",
+          "grid size-6 place-items-center rounded-full bg-secondary text-xs text-muted-foreground tabular-nums",
           RING,
           props.open && "ring-primary",
         )}
