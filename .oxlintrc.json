@@ -143,6 +143,8 @@
     "**/migrations/**",
     "pnpm-lock.yaml",
     ".claude/skills/hairline-*/**",
-    ".agents/skills/hairline-*/**"
+    ".agents/skills/hairline-*/**",
+    ".claude/skills/sticky/**",
+    ".agents/skills/sticky/**"
   ]
 }

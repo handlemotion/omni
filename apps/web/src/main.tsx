@@ -6,6 +6,7 @@ import { appToast } from "./components/ui/toast.tsx";
 import { askApi } from "./lib/connectivity.ts";
 import { routeOutsideLinks, routeTitleBarDrags } from "./lib/desktop.ts";
 import { reloadForUpdate } from "./lib/failure.ts";
+import { easeStickies } from "./lib/eased-sticky.ts";
 import { createQueryClient } from "./lib/query-client.ts";
 import { resetSession } from "./lib/session.ts";
 import { dropStartupResponses } from "./lib/startup-fetch.ts";
@@ -16,6 +17,7 @@ import "./styles.css";
 initErrorReporting();
 routeOutsideLinks();
 routeTitleBarDrags();
+easeStickies();
 
 window.addEventListener("vite:preloadError", () => {
   void askApi().then((answers) => answers && reloadForUpdate());
