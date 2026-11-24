@@ -1,7 +1,14 @@
 /* oxlint-disable typescript/no-explicit-any -- test reads of JSON answers */
 import { execFileSync, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { appendFileSync, existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -71,14 +78,21 @@ afterAll(async () => {
 function spoolThroughOmniRecord(root: string) {
   const run = (...args: string[]) => execFileSync(recorder, args, { maxBuffer: 64 * 1024 * 1024 });
   const spool: RecordingSpool = {
-    readPart: async (id, n, size) => new Uint8Array(run("part", root, id, String(n), String(size))),
-    mark: async (id, { uploadId, nodeId }) => {
+    readPart: async (id, n, size, file) =>
+      new Uint8Array(
+        run("part", root, id, String(n), String(size), ...(file === "video" ? ["--video"] : [])),
+      ),
+    mark: async (id, progress) => {
+      const flags = { uploadId: "--upload", nodeId: "--node" } as const;
+      const video = { videoUploadId: "--video-upload", videoNodeId: "--video-node" } as const;
       run(
         "mark",
         root,
         id,
-        ...(uploadId ? ["--upload", uploadId] : []),
-        ...(nodeId ? ["--node", nodeId] : []),
+        ...Object.entries({ ...flags, ...video }).flatMap(([key, flag]) => {
+          const value = progress[key as keyof typeof progress];
+          return value ? [flag, value] : [];
+        }),
       );
     },
     discard: async (id) => {
@@ -301,7 +315,7 @@ test("a large recording resumes at the part it stopped at, and a finish repeated
     ...spool,
     readPart: async (id, n, size) => {
       if (sent++ === 1) throw new Error("killed");
-      return spool.readPart(id, n, size);
+      return spool.readPart(id, n, size, "audio");
     },
   };
   await expect(
@@ -421,4 +435,71 @@ test("a crash between completing the upload and noting its file, found after the
   const stored = new Uint8Array(await (await stack.download(dana.jar, files[0].id)).arrayBuffer());
   expect(sha256(stored)).toBe(sha256(bytes));
   expect(await meetingRow(meetingId)).toMatchObject({ audioNodeId: left!.uploadId });
+});
+
+function fragmentedVideo(dir: string) {
+  const out = join(dir, "made.mp4");
+  const movflags = "+frag_keyframe+empty_moov+default_base_moof+skip_trailer";
+  const source = ["-f", "lavfi", "-i", "testsrc=size=320x180:rate=15", "-t", "4"];
+  execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    ...source,
+    "-c:v",
+    "mpeg4",
+    "-g",
+    "15",
+    "-movflags",
+    movflags,
+    out,
+  ]);
+  return readFileSync(out);
+}
+
+test("a recording's video goes up beside its audio, cut after its last whole fragment, and plays from the meeting", async () => {
+  const org = await stack.company(`rec-${randomUUID().slice(0, 8)}`);
+  const dana = await stack.member(org.id);
+  const root = mkdtempSync(join(tmpdir(), "omni-spool-"));
+  const { spool, open } = spoolThroughOmniRecord(root);
+  const started = await startMeeting(dana, null);
+  const { meetingId, folderId } = started.body;
+
+  await untilKilledAfter(
+    ["record", root, meetingId, dana.id, folderId, "--synthetic", "--title", "Week Kickoff"],
+    2500,
+  );
+  const [id] = readdirSync(root);
+  const whole = fragmentedVideo(mkdtempSync(join(tmpdir(), "omni-video-")));
+  const fragment = whole.indexOf("moof") - 4;
+  const crashedMidFragment = whole.subarray(fragment, fragment + 1000);
+  writeFileSync(join(root, id!, "video.mp4"), Buffer.concat([whole, crashedMidFragment]));
+  const [left] = open();
+  expect(left!.videoSize).toBe(whole.length);
+
+  const finished = transportCountingCalls(dana);
+  expect(await finishRecording(finished.transport, spool, left!)).toBe("finished");
+  expect(finished.calls.filter((c) => c === "POST /api/storage/uploads")).toHaveLength(2);
+  expect(open()).toEqual([]);
+
+  const files = await recordingsFiles(dana, folderId);
+  const video = files.find((f) => f.name.endsWith(".mp4"));
+  expect(video).toMatchObject({
+    name: expect.stringMatching(/^Week Kickoff .*\.mp4$/),
+    mimeType: "video/mp4",
+    size: whole.length,
+  });
+  const meeting = await meetingRow(meetingId);
+  expect(meeting).toMatchObject({ videoNodeId: video.id });
+
+  const url = new URL(`/api/meetings/${meetingId}/video`, stack.worker.url);
+  const served = await fetch(url, { headers: { cookie: dana.jar.header } });
+  expect(served.headers.get("content-type")).toBe("video/mp4");
+  const servedBytes = new Uint8Array(await served.arrayBuffer());
+  expect(sha256(servedBytes)).toBe(sha256(whole));
+  const ranged = await fetch(url, { headers: { cookie: dana.jar.header, range: "bytes=8-15" } });
+  expect(ranged.status).toBe(206);
+  expect(Buffer.from(await ranged.arrayBuffer())).toEqual(whole.subarray(8, 16));
+  const probed = join(root, "stored.mp4");
+  writeFileSync(probed, servedBytes);
+  execFileSync("ffmpeg", ["-v", "error", "-i", probed, "-f", "null", "-"]);
 });

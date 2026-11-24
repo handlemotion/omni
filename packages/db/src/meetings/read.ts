@@ -34,6 +34,7 @@ export const meetingView = (m: typeof meetingsMeetings.$inferSelect) => ({
   recordedByMemberId: m.recordedByMemberId,
   failure: m.failure,
   hasAudio: m.audioNodeId !== null,
+  hasVideo: m.videoNodeId !== null,
   notesNodeId: m.notesNodeId,
 });
 

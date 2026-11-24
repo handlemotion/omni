@@ -140,6 +140,7 @@ export const meetings = new Hono<AppEnv>()
       endedAt: new Date(),
       durationMs: body.durationMs,
       audioNodeId: body.audioNodeId ?? null,
+      videoNodeId: body.videoNodeId ?? null,
       chunkCount: body.chunks ?? null,
       micSpans: body.micSpans,
       cuts: body.cuts,
@@ -179,15 +180,8 @@ export const meetings = new Hono<AppEnv>()
     if (found.status !== "ok") return refused(c, found);
     return c.json({ segments: found.segments });
   })
-  .get("/:id/audio", async (c) => {
-    const found = await memberMeetings(c).get(c.req.param("id"));
-    if (found.status !== "ok") return refused(c, found);
-    const nodeId = (await meetingsPipeline(c.var.db).meeting(found.meeting.id))?.meeting
-      .audioNodeId;
-    const file = nodeId ? await storageWorkspaceFile(c.var.db, c.var.member.orgId, nodeId) : null;
-    if (!file) return refused(c, { status: "not_found" });
-    return meetingFile(c, file);
-  })
+  .get("/:id/audio", (c) => recording(c, "audio"))
+  .get("/:id/video", (c) => recording(c, "video"))
   .patch("/:id", zValidator("json", changeMeetingBodySchema), async (c) => {
     const changed = await memberMeetings(c).change(c.req.param("id"), c.req.valid("json"));
     if (changed.status !== "ok") return refused(c, changed);
@@ -234,13 +228,23 @@ export const meetings = new Hono<AppEnv>()
     const row = (await meetingsPipeline(c.var.db).meeting(id))?.meeting;
     await deleteMeetingObjects(c.env, c.var.member.orgId, id);
     const files = memberFiles(c);
-    for (const nodeId of [row?.audioNodeId, row?.rawNodeId]) {
+    for (const nodeId of [row?.audioNodeId, row?.videoNodeId, row?.rawNodeId]) {
       if (nodeId) await files.trash(nodeId);
     }
     const removed = await memberMeetings(c).remove(id);
     if (removed.status !== "ok") return refused(c, removed);
     return c.body(null, 204);
   });
+
+async function recording(c: Context<AppEnv>, kind: "audio" | "video") {
+  const found = await memberMeetings(c).get(c.req.param("id") ?? "");
+  if (found.status !== "ok") return refused(c, found);
+  const row = (await meetingsPipeline(c.var.db).meeting(found.meeting.id))?.meeting;
+  const nodeId = kind === "video" ? row?.videoNodeId : row?.audioNodeId;
+  const file = nodeId ? await storageWorkspaceFile(c.var.db, c.var.member.orgId, nodeId) : null;
+  if (!file) return refused(c, { status: "not_found" });
+  return meetingFile(c, file);
+}
 
 async function taskFor(c: Context<AppEnv>, actionId: string) {
   const found = await memberMeetings(c).action(actionId);
@@ -269,7 +273,7 @@ async function taskFor(c: Context<AppEnv>, actionId: string) {
 async function stopRefusal(
   c: Context<AppEnv>,
   meetingId: string,
-  body: { audioNodeId?: string; chunks?: number },
+  body: { audioNodeId?: string; videoNodeId?: string; chunks?: number },
 ) {
   if (body.chunks !== undefined) {
     const found = await memberMeetings(c).recordedChunks(meetingId, { missingBelow: body.chunks });
@@ -280,16 +284,19 @@ async function stopRefusal(
       details: { reason: "missing_chunks", missing },
     });
   }
-  const file = await memberFiles(c).file(body.audioNodeId ?? "");
-  if (
-    file.status !== "ok" ||
-    file.file.space !== "personal" ||
-    file.file.ownerMemberId !== c.var.member.id ||
-    !file.file.mimeType?.startsWith("audio/")
-  ) {
-    return refused(c, { status: "not_a_recording" });
-  }
-  return null;
+  const recorded = async (nodeId: string, kind: "audio/" | "video/") => {
+    const file = await memberFiles(c).file(nodeId);
+    return (
+      file.status === "ok" &&
+      file.file.space === "personal" &&
+      file.file.ownerMemberId === c.var.member.id &&
+      Boolean(file.file.mimeType?.startsWith(kind))
+    );
+  };
+  const ok =
+    (await recorded(body.audioNodeId ?? "", "audio/")) &&
+    (body.videoNodeId === undefined || (await recorded(body.videoNodeId, "video/")));
+  return ok ? null : refused(c, { status: "not_a_recording" });
 }
 
 async function storageIsFull(c: Context<AppEnv>) {

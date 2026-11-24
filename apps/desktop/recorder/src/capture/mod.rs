@@ -3,7 +3,8 @@
 //!
 //! - macOS: `omni-capture`, a Swift helper beside the app's executable (`recorder/macos`), which
 //!   reads the system output through a Core Audio process tap (14.4+) or ScreenCaptureKit
-//!   (13 to 14.3), and the microphone with voice processing on.
+//!   (13 to 14.3), the microphone as it is, and on 14+ the window or display the person picks,
+//!   as video.
 //! - Windows: WASAPI loopback on the default output, and the default microphone in the
 //!   communications category, which turns on the system's echo cancellation where the driver
 //!   offers it.
@@ -23,6 +24,8 @@ mod windows;
 pub enum Chunk {
     Mic(Vec<f32>),
     System(Vec<f32>),
+    /// Video bytes to append to the spool's video as they are (macOS).
+    Video(Vec<u8>),
     /// The source stopped by itself (a device went away, permission was revoked).
     Ended(String),
 }
@@ -54,7 +57,17 @@ impl std::fmt::Display for CaptureError {
 }
 
 /// A running source; dropping it stops capture.
-pub trait Capture: Send {}
+pub trait Capture: Send {
+    /// Pause and resume reach a source that keeps its own clock (the macOS helper's video),
+    /// so it leaves out the same stretch the audio does.
+    fn pause(&mut self) {}
+    fn resume(&mut self) {}
+    /// Asks the source to send what it still holds (the video's last fragment) and end. True
+    /// when its last chunks, then `Ended`, follow on the channel; dropping it kills what is left.
+    fn finish(&mut self) -> bool {
+        false
+    }
+}
 
 pub fn start(source: Source, tx: Sender<Chunk>) -> Result<Box<dyn Capture>, CaptureError> {
     match source {

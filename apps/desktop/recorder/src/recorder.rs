@@ -1,8 +1,9 @@
-//! One recording in progress: capture, side by side, mic intervals, Opus, spool. It runs on its
+//! One recording in progress: capture, side by side, mic intervals, Opus, spool, and the video
+//! the capture sends, appended as it comes. It runs on its
 //! own thread; the shell (or `omni-record`) pauses, resumes and stops it, and hears its state.
 
-use std::fs::File;
-use std::io;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Write};
 use std::path::Path;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -22,6 +23,9 @@ const NOTIFY_EVERY: Duration = Duration::from_millis(250);
 /// How often the file is forced to the disk, against a power cut (a crash loses nothing the
 /// kernel already has).
 const SYNC_EVERY: Duration = Duration::from_secs(5);
+/// How long Stop waits for the capture's last video after asking it to finish (the helper is
+/// killed after 3 seconds, so its output ends by then).
+const DRAIN_WITHIN: Duration = Duration::from_secs(4);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Wanted {
@@ -85,6 +89,7 @@ impl Recorder {
         let run = Run {
             spool,
             writer,
+            video: None,
             wanted: wanted.clone(),
             latest: latest.clone(),
             on_change,
@@ -153,6 +158,8 @@ fn rand_serial() -> u32 {
 struct Run {
     spool: Spool,
     writer: OggOpusWriter<File>,
+    /// The spool's video, opened when its first bytes arrive.
+    video: Option<File>,
     wanted: Arc<Mutex<Wanted>>,
     latest: Arc<Mutex<DesktopRecording>>,
     on_change: OnChange,
@@ -162,7 +169,7 @@ impl Run {
     fn run(
         mut self,
         rx: mpsc::Receiver<Chunk>,
-        capture: Box<dyn capture::Capture>,
+        mut capture: Box<dyn capture::Capture>,
     ) -> io::Result<DesktopRecording> {
         let mut mix = Interleaver::default();
         let mut detector = MicDetector::default();
@@ -177,6 +184,8 @@ impl Run {
                     mix.push_mic(&samples);
                 }
                 Ok(Chunk::System(samples)) if paused_at.is_none() => mix.push_system(&samples),
+                // The capture leaves paused time out of the video itself.
+                Ok(Chunk::Video(bytes)) => self.append_video(&bytes)?,
                 Ok(Chunk::Ended(_)) | Err(RecvTimeoutError::Disconnected) => break,
                 Ok(_) | Err(RecvTimeoutError::Timeout) => {}
             }
@@ -187,6 +196,7 @@ impl Run {
                     self.close_span(&mut detector)?;
                     mix.clear();
                     mic_db = -120.0;
+                    capture.pause();
                     paused_at = Some(Instant::now());
                     self.set_state(State::Paused)?;
                 }
@@ -198,6 +208,7 @@ impl Run {
                             .cuts
                             .push((self.writer.duration_ms(), dropped));
                     }
+                    capture.resume();
                     paused_at = None;
                     self.set_state(State::Recording)?;
                 }
@@ -208,12 +219,18 @@ impl Run {
             }
             if synced.elapsed() >= SYNC_EVERY {
                 self.writer.get_mut().sync_data()?;
+                if let Some(video) = &self.video {
+                    video.sync_data()?;
+                }
                 synced = Instant::now();
             }
             if notified.elapsed() >= NOTIFY_EVERY {
                 self.notify(f64::from(mic_db));
                 notified = Instant::now();
             }
+        }
+        if capture.finish() {
+            self.drain_video(&rx)?;
         }
         drop(capture);
         while let Some(frame) = mix.frame() {
@@ -223,6 +240,10 @@ impl Run {
         let duration_ms = self.writer.duration_ms();
         let file = self.writer.finish()?;
         file.sync_all()?;
+        if let Some(video) = self.video.take() {
+            video.sync_all()?;
+        }
+        self.spool.settle_video()?;
         self.spool.manifest.duration_ms = duration_ms;
         self.spool.manifest.state = State::Stopped;
         self.spool.save()?;
@@ -230,6 +251,36 @@ impl Run {
         *lock(&self.latest) = stopped.clone();
         (self.on_change)(stopped.clone());
         Ok(stopped)
+    }
+
+    /// Appends video bytes whole: a crash leaves at most one fragment cut short, which
+    /// recovery takes off.
+    fn append_video(&mut self, bytes: &[u8]) -> io::Result<()> {
+        if self.video.is_none() {
+            self.video = Some(
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(self.spool.video_path())?,
+            );
+        }
+        match self.video.as_mut() {
+            Some(video) => video.write_all(bytes),
+            None => Ok(()),
+        }
+    }
+
+    /// The video the capture still sends after Stop, until it ends.
+    fn drain_video(&mut self, rx: &mpsc::Receiver<Chunk>) -> io::Result<()> {
+        let until = Instant::now() + DRAIN_WITHIN;
+        loop {
+            let left = until.saturating_duration_since(Instant::now());
+            match rx.recv_timeout(left) {
+                Ok(Chunk::Video(bytes)) => self.append_video(&bytes)?,
+                Ok(Chunk::Mic(_) | Chunk::System(_)) => {}
+                Ok(Chunk::Ended(_)) | Err(_) => return Ok(()),
+            }
+        }
     }
 
     fn encode(&mut self, frame: &Frame, detector: &mut MicDetector) -> io::Result<()> {

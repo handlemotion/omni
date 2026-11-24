@@ -1,11 +1,19 @@
-// omni-capture: this Mac's microphone and sound, as mono 48 kHz float, on stdout.
+// omni-capture: this Mac's microphone and sound, as mono 48 kHz float, and the screen the person
+// picks, as H.264 in fragmented MP4, on stdout.
 //
-// Protocol (recorder/src/capture/pipe.rs): one "R" byte once both streams run, then chunks of a
-// tag byte ("M" mic, "S" the computer's sound), a little-endian UInt32 sample count and the
-// samples as little-endian Float32. The Rust recorder stops it by killing it.
+// Protocol (recorder/src/capture/pipe.rs): one "R" byte once both sound streams run, then chunks
+// of a tag byte ("M" mic, "S" the computer's sound), a little-endian UInt32 sample count and the
+// samples as little-endian Float32; or "V", a little-endian UInt32 byte count and that many bytes
+// of the video (its first chunk the MP4's header, then whole fragments, in order).
+//
+// stdin: "P" pauses the video, "R" resumes it; its end stops: the video's last fragment goes out,
+// then the helper exits. The recorder kills it if that takes too long.
 //
 // - The microphone through AVAudioEngine, as it is: voice processing (echo cancellation) silences
 //   both the mic and the process tap, so the call's own sound is told apart by the right channel.
+// - The screen (macOS 14+) through ScreenCaptureKit, from the system's content-sharing picker shown
+//   once the sound runs; Cancel records sound only. Its clock starts at the ready byte, the
+//   audio's zero, and leaves paused time out as the audio does.
 // - The computer's sound through a Core Audio process tap on every process (macOS 14.4+, asks
 //   for audio capture permission), else ScreenCaptureKit with audio only (13 to 14.3, asks for
 //   screen recording).
@@ -14,9 +22,11 @@
 // other failure, with the reason on stderr.
 
 import AVFoundation
+import AppKit
 import CoreAudio
 import Foundation
 import ScreenCaptureKit
+import UniformTypeIdentifiers
 
 let rate = 48_000.0
 
@@ -37,12 +47,22 @@ final class Output {
 
     func send(_ tag: Character, _ samples: [Float]) {
         guard !samples.isEmpty else { return }
-        var data = Data(capacity: 5 + samples.count * 4)
-        data.append(tag.asciiValue ?? 0)
-        var count = UInt32(samples.count).littleEndian
-        withUnsafeBytes(of: &count) { data.append(contentsOf: $0) }
         // Float32 is little-endian on both Mac architectures (arm64, x86_64).
-        samples.withUnsafeBytes { data.append(contentsOf: $0) }
+        samples.withUnsafeBytes { send(tag, count: samples.count, Data($0)) }
+    }
+
+    /// Video bytes: their count, then the bytes.
+    func send(video bytes: Data) {
+        guard !bytes.isEmpty else { return }
+        send("V", count: bytes.count, bytes)
+    }
+
+    private func send(_ tag: Character, count: Int, _ payload: Data) {
+        var data = Data(capacity: 5 + payload.count)
+        data.append(tag.asciiValue ?? 0)
+        var count = UInt32(count).littleEndian
+        withUnsafeBytes(of: &count) { data.append(contentsOf: $0) }
+        data.append(payload)
         lock.lock()
         defer { lock.unlock() }
         guard isReady else { return }
@@ -291,6 +311,193 @@ final class ScreenAudio: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 }
 
+// MARK: - The screen, macOS 14+: the picker, ScreenCaptureKit, H.264 in fragmented MP4
+
+/// The host clock, which ScreenCaptureKit stamps frames with.
+func hostNow() -> CMTime { CMClockGetTime(CMClockGetHostTimeClock()) }
+
+@available(macOS 14.0, *)
+final class Screen: NSObject, SCContentSharingPickerObserver, SCStreamOutput, SCStreamDelegate,
+    AVAssetWriterDelegate
+{
+    static let longSide = 1920.0
+    static let fps: Int32 = 15
+    static let bitRate = 1_000_000
+    /// A key frame and a fragment every this many seconds: what a crash can lose.
+    static let fragment = 2.0
+
+    private let output: Output
+    /// The audio's zero: frames are stamped from it.
+    private let zero: CMTime
+    private let queue = DispatchQueue(label: "omni-capture.screen", qos: .userInitiated)
+    private var stream: SCStream?
+    private var writer: AVAssetWriter?
+    private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var last = CMTime.invalid
+    private var pausedAt: CMTime?
+    private var pausedFor = CMTime.zero
+    private var finishing = false
+
+    init(_ output: Output, zero: CMTime) {
+        self.output = output
+        self.zero = zero
+    }
+
+    func pick() {
+        DispatchQueue.main.async {
+            let picker = SCContentSharingPicker.shared
+            var config = SCContentSharingPickerConfiguration()
+            config.allowedPickerModes = [.singleWindow, .singleDisplay]
+            config.allowsChangingSelectedContent = true
+            picker.defaultConfiguration = config
+            picker.add(self)
+            picker.isActive = true
+            picker.present()
+        }
+    }
+
+    func contentSharingPicker(_ picker: SCContentSharingPicker, didUpdateWith filter: SCContentFilter, for stream: SCStream?) {
+        queue.async { [self] in
+            if let stream = self.stream {
+                stream.updateContentFilter(filter) { _ in }
+                return
+            }
+            guard !finishing else { return }
+            start(filter)
+        }
+    }
+
+    func contentSharingPicker(_ picker: SCContentSharingPicker, didCancelFor stream: SCStream?) {
+        queue.async { [self] in
+            if self.stream == nil { picker.isActive = false }
+        }
+    }
+
+    func contentSharingPickerStartDidFailWithError(_ error: Error) {
+        FileHandle.standardError.write(Data("the screen picker failed: \(error)\n".utf8))
+    }
+
+    /// Called on `queue`.
+    private func start(_ filter: SCContentFilter) {
+        let scale = Double(filter.pointPixelScale)
+        var width = Double(filter.contentRect.width) * scale
+        var height = Double(filter.contentRect.height) * scale
+        let fit = min(1, Self.longSide / max(width, height, 1))
+        // H.264 wants even sides.
+        width = max(2, (width * fit / 2).rounded() * 2)
+        height = max(2, (height * fit / 2).rounded() * 2)
+
+        let config = SCStreamConfiguration()
+        config.width = Int(width)
+        config.height = Int(height)
+        config.minimumFrameInterval = CMTime(value: 1, timescale: Self.fps)
+        config.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+        config.scalesToFit = true
+        config.preservesAspectRatio = true
+        config.showsCursor = true
+        config.queueDepth = 6
+
+        let writer = AVAssetWriter(contentType: UTType(AVFileType.mp4.rawValue)!)
+        writer.outputFileTypeProfile = .mpeg4AppleHLS
+        writer.preferredOutputSegmentInterval = CMTime(seconds: Self.fragment, preferredTimescale: 600)
+        writer.initialSegmentStartTime = .zero
+        writer.delegate = self
+        let input = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: config.width,
+                AVVideoHeightKey: config.height,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: Self.bitRate,
+                    AVVideoMaxKeyFrameIntervalDurationKey: Self.fragment,
+                    AVVideoAllowFrameReorderingKey: false,
+                    AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+                ],
+            ])
+        input.expectsMediaDataInRealTime = true
+        writer.add(input)
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: nil)
+        guard writer.startWriting() else {
+            FileHandle.standardError.write(Data("the video could not start: \(String(describing: writer.error))\n".utf8))
+            return
+        }
+        writer.startSession(atSourceTime: .zero)
+        self.writer = writer
+        self.adaptor = adaptor
+
+        let stream = SCStream(filter: filter, configuration: config, delegate: self)
+        do {
+            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+        } catch {
+            FileHandle.standardError.write(Data("the screen could not be captured: \(error)\n".utf8))
+            return
+        }
+        self.stream = stream
+        stream.startCapture { error in
+            if let error {
+                FileHandle.standardError.write(Data("the screen could not be captured: \(error)\n".utf8))
+            }
+        }
+    }
+
+    func stream(_ stream: SCStream, didOutputSampleBuffer sample: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .screen, !finishing, pausedAt == nil, sample.isValid,
+            let info = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false)
+                as? [[SCStreamFrameInfo: Any]],
+            let raw = info.first?[.status] as? Int, SCFrameStatus(rawValue: raw) == .complete,
+            let pixels = sample.imageBuffer,
+            let adaptor, adaptor.assetWriterInput.isReadyForMoreMediaData
+        else { return }
+        // The first frame is held from the audio's zero, so a slow pick shifts nothing after it.
+        var at = CMTimeSubtract(CMTimeSubtract(sample.presentationTimeStamp, zero), pausedFor)
+        if !last.isValid {
+            at = .zero
+        } else if at <= last {
+            return
+        }
+        if adaptor.append(pixels, withPresentationTime: at) { last = at }
+    }
+
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        // The window closed or permission went: the video ends there, the sound goes on.
+        FileHandle.standardError.write(Data("screen capture stopped: \(error.localizedDescription)\n".utf8))
+    }
+
+    func assetWriter(
+        _ writer: AVAssetWriter, didOutputSegmentData segmentData: Data,
+        segmentType: AVAssetSegmentType, segmentReport: AVAssetSegmentReport?
+    ) {
+        output.send(video: segmentData)
+    }
+
+    func pause() {
+        queue.async { [self] in
+            if pausedAt == nil { pausedAt = hostNow() }
+        }
+    }
+
+    func resume() {
+        queue.async { [self] in
+            guard let since = pausedAt else { return }
+            pausedFor = CMTimeAdd(pausedFor, CMTimeSubtract(hostNow(), since))
+            pausedAt = nil
+        }
+    }
+
+    /// Writes the last fragment out, then calls `done`.
+    func finish(_ done: @escaping () -> Void) {
+        queue.async { [self] in
+            finishing = true
+            stream?.stopCapture { _ in }
+            DispatchQueue.main.async { SCContentSharingPicker.shared.isActive = false }
+            guard let writer, writer.status == .writing, last.isValid else { return done() }
+            adaptor?.assetWriterInput.markAsFinished()
+            writer.finishWriting { done() }
+        }
+    }
+}
+
 // MARK: - Main
 
 let output = Output()
@@ -325,4 +532,27 @@ if #available(macOS 14.4, *) {
 }
 
 output.ready()
-withExtendedLifetime(keep) { RunLoop.main.run() }
+
+var screen: AnyObject?
+if #available(macOS 14.0, *) {
+    let picked = Screen(output, zero: hostNow())
+    picked.pick()
+    screen = picked
+}
+
+/// Pause, resume, and the end of stdin to stop, from the recorder.
+Thread.detachNewThread {
+    let input = FileHandle.standardInput
+    while true {
+        let byte = input.readData(ofLength: 1)
+        guard let command = byte.first else { break }
+        guard #available(macOS 14.0, *), let screen = screen as? Screen else { continue }
+        if command == UInt8(ascii: "P") { screen.pause() }
+        if command == UInt8(ascii: "R") { screen.resume() }
+    }
+    guard #available(macOS 14.0, *), let screen = screen as? Screen else { exit(0) }
+    screen.finish { exit(0) }
+}
+
+NSApplication.shared.setActivationPolicy(.accessory)
+withExtendedLifetime((keep, screen)) { NSApplication.shared.run() }

@@ -37,7 +37,7 @@ export async function meetingFile(
   const object = await c.env.STORAGE_BUCKET.get(file.r2Key, range ? { range } : undefined);
   if (!object) return apiError(c, "not_found", "not found");
   const headers = new Headers({
-    "content-type": file.mimeType ?? "audio/ogg",
+    "content-type": file.mimeType ?? "application/octet-stream",
     "accept-ranges": "bytes",
     "cache-control": "private, no-store",
   });

@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::{Mutex, PoisonError};
 
 use omni_recorder::capture::{CaptureError, Source};
-use omni_recorder::spool::{self, State as SpoolState};
+use omni_recorder::spool::{self, Progress, SpoolFile, State as SpoolState};
 use omni_recorder::{NewRecording, Recorder, StartError, find, recover_left};
 use omni_sync_types::desktop_recorder::{
     Code, DesktopRecorderError, DesktopRecording, DesktopRecordingRequest,
@@ -277,7 +277,8 @@ pub async fn recording_list<R: Runtime>(
     Ok(all)
 }
 
-/// Part `partNumber` (from 1) of a stopped recording, as raw bytes for Drive's upload.
+/// Part `partNumber` (from 1) of a stopped recording's `file` (`audio`, the default, or
+/// `video`), as raw bytes for Drive's upload.
 #[tauri::command]
 pub async fn recording_part<R: Runtime>(
     app: AppHandle<R>,
@@ -285,6 +286,7 @@ pub async fn recording_part<R: Runtime>(
     id: String,
     part_number: u64,
     part_size: u64,
+    file: Option<SpoolFile>,
 ) -> Result<Response, DesktopRecorderError> {
     if state.live_id().as_ref() == Some(&id) {
         return Err(failed("the recording is still going"));
@@ -292,7 +294,9 @@ pub async fn recording_part<R: Runtime>(
     let root = root(&app)?;
     let bytes = blocking(move || {
         find(&root, &id)
-            .and_then(|spool| spool.read_part(part_number, part_size))
+            .and_then(|spool| {
+                spool.read_part(file.unwrap_or(SpoolFile::Audio), part_number, part_size)
+            })
             .map_err(failed)
     })
     .await?;
@@ -305,11 +309,19 @@ pub async fn recording_mark<R: Runtime>(
     id: String,
     upload_id: Option<String>,
     node_id: Option<String>,
+    video_upload_id: Option<String>,
+    video_node_id: Option<String>,
 ) -> Result<(), DesktopRecorderError> {
     let root = root(&app)?;
+    let progress = Progress {
+        upload_id,
+        node_id,
+        video_upload_id,
+        video_node_id,
+    };
     blocking(move || {
         find(&root, &id)
-            .and_then(|mut spool| spool.mark(upload_id, node_id))
+            .and_then(|mut spool| spool.mark(progress))
             .map_err(failed)
     })
     .await

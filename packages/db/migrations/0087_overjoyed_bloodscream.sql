@@ -1,0 +1,2 @@
+ALTER TABLE "meetings_meetings" ADD COLUMN "video_node_id" text;--> statement-breakpoint
+ALTER TABLE "meetings_meetings" ADD CONSTRAINT "meetings_meetings_video_node_id_storage_nodes_id_fk" FOREIGN KEY ("video_node_id") REFERENCES "public"."storage_nodes"("id") ON DELETE set null ON UPDATE no action;

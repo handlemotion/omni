@@ -5,8 +5,9 @@
 //! omni-record record <root> <meetingId> <memberId> <folderId> [--seconds N] [--synthetic]
 //!                    [--pause-at S --resume-at S]   # seconds from the start
 //! omni-record list <root>               # recovers what a crash left, prints them as JSON
-//! omni-record part <root> <id> <n> <partSize>   # raw bytes on stdout
+//! omni-record part <root> <id> <n> <partSize> [--video]   # raw bytes on stdout
 //! omni-record mark <root> <id> [--upload <uploadId>] [--node <nodeId>]
+//!                  [--video-upload <uploadId>] [--video-node <nodeId>]
 //! omni-record discard <root> <id>
 //! ```
 
@@ -17,6 +18,7 @@ use std::thread;
 use std::time::Duration;
 
 use omni_recorder::capture::Source;
+use omni_recorder::spool::{Progress, SpoolFile};
 use omni_recorder::{NewRecording, Recorder, find, recover_left};
 
 fn flag(args: &[String], name: &str) -> Option<String> {
@@ -93,10 +95,20 @@ fn run(args: &[String]) -> io::Result<()> {
         Some("part") => {
             let n = id(3).parse().map_err(io::Error::other)?;
             let size = id(4).parse().map_err(io::Error::other)?;
-            let part = find(root(1)?, &id(2))?.read_part(n, size)?;
+            let file = if args.iter().any(|a| a == "--video") {
+                SpoolFile::Video
+            } else {
+                SpoolFile::Audio
+            };
+            let part = find(root(1)?, &id(2))?.read_part(file, n, size)?;
             io::stdout().lock().write_all(&part)
         }
-        Some("mark") => find(root(1)?, &id(2))?.mark(flag(args, "--upload"), flag(args, "--node")),
+        Some("mark") => find(root(1)?, &id(2))?.mark(Progress {
+            upload_id: flag(args, "--upload"),
+            node_id: flag(args, "--node"),
+            video_upload_id: flag(args, "--video-upload"),
+            video_node_id: flag(args, "--video-node"),
+        }),
         Some("discard") => find(root(1)?, &id(2))?.remove(),
         _ => Err(io::Error::other(
             "usage: omni-record record|list|part|mark|discard …",

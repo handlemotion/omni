@@ -1,6 +1,7 @@
 //! The meeting recorder (docs/spec/meetings.md, "Capture"): two channels (mic left, the
 //! computer's sound right), Opus in Ogg at 32 kbit/s, written to a spool that a crash cannot
-//! lose, with the intervals when the person at this computer spoke.
+//! lose, with the intervals when the person at this computer spoke; on macOS, the window or
+//! display the person picks as video beside it, on the same clock.
 //!
 //! Capture and the spool live here; the page uploads the spool through Drive and tells the
 //! server (`finishRecording` in `@omni/client`), because the page holds the session.
@@ -12,6 +13,7 @@ pub mod mix;
 pub mod ogg;
 pub mod recorder;
 pub mod spool;
+pub mod video;
 
 use std::io;
 use std::path::Path;

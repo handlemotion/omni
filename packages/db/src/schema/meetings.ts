@@ -71,6 +71,8 @@ export const meetingsMeetings = pgTable(
     status: meetingsStatus("status").notNull().default("recording"),
     language: text("language"),
     audioNodeId: text("audio_node_id").references(() => storageNodes.id, { onDelete: "set null" }),
+    /** The desktop recorder's video beside the audio, on its clock; null without one. */
+    videoNodeId: text("video_node_id").references(() => storageNodes.id, { onDelete: "set null" }),
     rawNodeId: text("raw_node_id").references(() => storageNodes.id, { onDelete: "set null" }),
     notesNodeId: text("notes_node_id").references(() => storageNodes.id, { onDelete: "set null" }),
     failure: text("failure"),

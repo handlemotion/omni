@@ -1,6 +1,6 @@
 import { askMeetingsBodySchema, meetingsListQuerySchema } from "@omni/contracts";
 import { meetingsPipeline, storageWorkspaceFile } from "@omni/db";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { requireUser, type AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
@@ -47,13 +47,15 @@ export const meetingsShared = new Hono<AppEnv>()
     if (found.status !== "ok") return refused(c, found);
     return c.json({ segments: found.segments });
   })
-  .get("/:id/audio", async (c) => {
-    const found = await userMeetings(c).get(c.req.param("id"));
-    if (found.status !== "ok") return refused(c, found);
-    const row = (await meetingsPipeline(c.var.db).meeting(found.meeting.id))?.meeting;
-    const file = row?.audioNodeId
-      ? await storageWorkspaceFile(c.var.db, row.orgId, row.audioNodeId)
-      : null;
-    if (!file) return refused(c, { status: "not_found" });
-    return meetingFile(c, file);
-  });
+  .get("/:id/audio", (c) => recording(c, "audio"))
+  .get("/:id/video", (c) => recording(c, "video"));
+
+async function recording(c: Context<AppEnv>, kind: "audio" | "video") {
+  const found = await userMeetings(c).get(c.req.param("id") ?? "");
+  if (found.status !== "ok") return refused(c, found);
+  const row = (await meetingsPipeline(c.var.db).meeting(found.meeting.id))?.meeting;
+  const nodeId = kind === "video" ? row?.videoNodeId : row?.audioNodeId;
+  const file = row && nodeId ? await storageWorkspaceFile(c.var.db, row.orgId, nodeId) : null;
+  if (!file) return refused(c, { status: "not_found" });
+  return meetingFile(c, file);
+}

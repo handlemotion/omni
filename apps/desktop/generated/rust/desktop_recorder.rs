@@ -36,6 +36,15 @@ pub struct DesktopRecording {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upload_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_node_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_size: Option<i64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_upload_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

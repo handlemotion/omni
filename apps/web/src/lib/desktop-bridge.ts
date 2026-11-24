@@ -132,13 +132,15 @@ export const recordingSchedule = (schedule: DesktopRecordingSchedule) =>
 
 /** The shell's spool, for `finishRecording`. */
 export const recordingSpool: RecordingSpool = {
-  readPart: async (id, partNumber, partSize) =>
-    new Uint8Array(await invoke<ArrayBuffer>("recording_part", { id, partNumber, partSize })),
+  readPart: async (id, partNumber, partSize, file) =>
+    new Uint8Array(await invoke<ArrayBuffer>("recording_part", { id, partNumber, partSize, file })),
   mark: (id, progress) =>
     invoke<void>("recording_mark", {
       id,
       uploadId: progress.uploadId ?? null,
       nodeId: progress.nodeId ?? null,
+      videoUploadId: progress.videoUploadId ?? null,
+      videoNodeId: progress.videoNodeId ?? null,
     }),
   discard: (id) => invoke<void>("recording_discard", { id }),
 };

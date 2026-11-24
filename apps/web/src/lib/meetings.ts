@@ -155,6 +155,8 @@ export const taskMeetingQuery = (taskId: string) =>
 /** Where the meeting's recording plays from; the Worker checks the meeting's grants. */
 export const meetingAudioUrl = (id: string) =>
   withWorkspace(api.meetings[":id"].audio.$url({ param: { id } }).toString());
+export const meetingVideoUrl = (id: string) =>
+  withWorkspace(api.meetings[":id"].video.$url({ param: { id } }).toString());
 
 const WAVEFORM_BARS = 96;
 

@@ -22,6 +22,8 @@ export interface StoppedRecording {
   durationMs: number;
   /** The recording as one Drive file, or null when it came as chunks (`chunkCount`). */
   audioNodeId: string | null;
+  /** The video beside a file recording, when the recorder took one. */
+  videoNodeId?: string | null;
   chunkCount: number | null;
   micSpans: Array<{ startMs: number; endMs: number }> | null;
   cuts: Array<{ atMs: number; droppedMs: number }>;
@@ -46,6 +48,7 @@ export async function stopRecording(ex: Ex, meetingId: string, stop: StoppedReco
       endedAt: stop.endedAt,
       durationMs: stop.durationMs,
       audioNodeId: stop.audioNodeId,
+      videoNodeId: stop.videoNodeId ?? null,
     })
     .where(and(eq(meetingsMeetings.id, meetingId), eq(meetingsMeetings.status, "recording")))
     .returning({ id: meetingsMeetings.id });
