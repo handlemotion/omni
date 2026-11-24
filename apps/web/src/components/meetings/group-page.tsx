@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { Skeleton } from "skullet/react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -15,6 +16,7 @@ export function GroupPage({ groupKey }: { groupKey: string }) {
   const summaries = new Map(page.data?.meetings.map((m) => [m.id, m.summary]) ?? []);
   const workspace = useWorkspaceSlug();
   const title = list.data ? groupTitle({ groupKey, lastTitle: list.data[0]?.title ?? null }) : null;
+  usePageTitle(title ?? undefined);
   return (
     <StorageFrame title={<h1 className="truncate text-md">{title}</h1>}>
       <div className="min-h-0 flex-1 overflow-y-auto">

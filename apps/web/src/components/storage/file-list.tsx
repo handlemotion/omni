@@ -18,6 +18,7 @@ import {
 } from "@/components/icons/central";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { useMember } from "@/hooks/use-session.ts";
+import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { canConvertToDoc, useConvertToDoc } from "@/hooks/use-convert-doc.ts";
 import { useExportDoc } from "@/hooks/use-export-doc.ts";
 import {
@@ -86,6 +87,7 @@ export function FileList({ drive, folderId }: { drive: DriveRoot; folderId?: str
   const path = list.folder?.path ?? [];
   const folderHref = useMemo(() => (node: StorageNode) => href(driveOf(node), node.id), [href]);
   const label = useDriveLabel(drive);
+  usePageTitle(folderId ? path.at(-1)?.name : label || undefined);
   return (
     <FolderView
       title={(leaf) => (

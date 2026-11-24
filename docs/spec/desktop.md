@@ -282,7 +282,9 @@ primitives, and add no text.
     the right edge under the rail. The whole row is a drag region except its controls. The
     traffic lights' red button and the toggle centre on the sidebar's first icon.
   - **Page tabs** span every workspace the person is in: each tab shows its module's mark and
-    the page's name, and a tab of another workspace than the one on screen ends with that
+    the page's name (the folder or space open, the file open over it, the thread's subject, the
+    record or meeting; kept with the tabs so a tab not shown since a reload keeps it), and a
+    tab of another workspace than the one on screen ends with that
     workspace's mark; showing it switches workspace. Tabs are kept in the browser (up to ten),
     ⌘-click or a middle click opens a link in a background tab, and a tab's close button takes
     its mark's place on hover. Search opens from the sidebar (and `/`, `⌘K`).
