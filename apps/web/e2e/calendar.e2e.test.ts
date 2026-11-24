@@ -1550,6 +1550,7 @@ test("a private to-do is put on a deal from Add to CRM in its panel, and then sh
   const panel = page.getByRole("region", { name: "Task" });
   await panel.getByText("Add to CRM").waitFor();
   expect(await panel.getByText("Assignee").count()).toBe(0);
+  await panel.getByRole("button", { name: "Add to record" }).click();
   await panel.getByRole("combobox").fill("Roof");
   await page.getByRole("option", { name: "Rooftop shoot" }).click();
   await expect
@@ -1603,7 +1604,7 @@ test("a Personal space keeps its to-dos beside the calendar, and can add them to
     .getByRole("link", { name: "Renew the passport" })
     .waitFor();
   const panel = page.getByRole("region", { name: "Task" });
-  await panel.getByText("Due").waitFor();
+  await panel.getByText("Due date", { exact: true }).waitFor();
   await panel.getByText("Add to CRM").waitFor();
   expect(await panel.getByText("Add to CRM").count()).toBe(1);
 });

@@ -320,9 +320,10 @@ becomes its owner.
   assigned to them, CRM or not, in every workspace, a Personal space included, with or without
   the CRM. The CRM shows the tasks on records the person can open: a record's Tasks tab, and the
   task list (`/crm/tasks`), which lists linked tasks only. A private task never shows in the CRM.
-- **One panel.** The same task panel opens beside the calendar and beside the CRM's lists: the
-  title and its check, the description, the subtasks, then the fields: due, and for a task on a
-  record, the record (a link to it) and the assignee. A private task's panel has a "Add to CRM"
+- **One panel.** The same task panel opens beside the calendar and beside the CRM's lists, laid
+  out as an issue: the title, the description, then the fields (status, the assignee for a task
+  on a record, due date, priority, the record as a link), the subtasks with how many are done,
+  and its activity. A private task's panel has a "Add to CRM"
   field that picks a record (only when the workspace has the CRM); a linked one can be moved to
   another record or taken off it.
 - **Who may change a task.** A private task: its owner. A linked one: anyone who can open its
@@ -330,6 +331,18 @@ becomes its owner.
 - **Leaving.** A member removed from a workspace takes their private tasks with them (deleted).
   Their linked tasks stay on their records, unassigned and owned by nobody, as the CRM's are today.
 - **Deleting a record** deletes the tasks on it, as today.
+- **Status and priority.** A task is `backlog`, `todo`, `in_progress`, `done` or `cancelled`
+  (`calendar_tasks.status`), and `urgent`, `high`, `medium`, `low` or none (`priority`). `done`
+  and `cancelled` close it: `completed_at` stays the truth for open or closed, and a status that
+  disagrees with it (a row an older Worker wrote) reads `todo` while open and `done` while
+  closed. `PATCH { status }` moves it and wins over `done`; `done` alone closes to `done` and
+  reopens to `todo`. The copy job from `crm_tasks` leaves both alone.
+- **Activity.** `calendar_task_activity` keeps who changed a task's status, priority, assignee,
+  due date or record, with the value before and after (a record with its name as it was). Its
+  making is not a row: the task's creator and `created_at` say it. A change made through either
+  door writes it in the same transaction. `GET /tasks/:id/activity` (the latest 200, oldest
+  first) is on the calendar's door for one's own tasks and on the CRM's for tasks on records the
+  member can open. Tasks take no comments.
 
 ### The move from `crm_tasks`
 

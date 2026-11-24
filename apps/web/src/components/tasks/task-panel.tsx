@@ -3,17 +3,28 @@ import { useRouter, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
-import { IconTrash, IconX } from "@/components/icons/central";
+import {
+  IconChevronDoubleRight,
+  IconCircle,
+  IconCircleCheck,
+  IconEllipsis,
+  IconTrash,
+  IconX,
+} from "@/components/icons/central";
 import { Button, PageBarActions } from "@/components/ui/button";
+import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { useCalendarTask } from "@/hooks/use-calendar-tasks.ts";
 import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useCrmTask } from "@/hooks/use-crm-tasks.ts";
 import type { CalendarTask } from "@/lib/calendar-tasks.ts";
 import type { TaskChange } from "@/lib/crm-tasks.ts";
+import type { TaskSource } from "@/lib/task-activity.ts";
+import { isClosed, statusOf } from "@/lib/task-status.ts";
 import {
   asPanelTask,
-  TaskContent,
+  TaskDescription,
   TaskDetails,
+  TaskFollowUp,
   TaskHeading,
   useDeleteCalendarThisTask,
   useDeleteThisTask,
@@ -100,6 +111,7 @@ function OwnTask(props: { task: CalendarTask; onClose: () => void; canLink: bool
   return (
     <TaskBody
       task={task}
+      source="calendar"
       save={save}
       remove={remove}
       onClose={props.onClose}
@@ -118,7 +130,7 @@ function Unloaded(props: {
   const { query } = props;
   return (
     <>
-      <PanelHeader title={null} onClose={props.onClose} inPlace={props.inPlace} />
+      <PanelHeader onClose={props.onClose} inPlace={props.inPlace} />
       {query.isPending ? (
         <Skeleton loading label="Loading task" skeleton={<PanelBones />}>
           {null}
@@ -165,6 +177,7 @@ function LoadedTask(props: { task: CrmTask; onClose: () => void; inPlace?: boole
   return (
     <TaskBody
       task={task}
+      source="crm"
       save={save}
       remove={remove}
       onClose={props.onClose}
@@ -176,6 +189,7 @@ function LoadedTask(props: { task: CrmTask; onClose: () => void; inPlace?: boole
 
 function TaskBody(props: {
   task: CrmTask;
+  source: TaskSource;
   save: (change: TaskChange, settled?: () => void) => void;
   remove: { isPending: boolean; run: () => void };
   onClose: () => void;
@@ -183,51 +197,62 @@ function TaskBody(props: {
   details: React.ReactNode;
 }) {
   const { task, save, remove } = props;
+  const closed = isClosed(statusOf(task));
   return (
     <>
-      <PanelHeader
-        title={<TaskHeading task={task} onSave={save} />}
-        onClose={props.onClose}
-        inPlace={props.inPlace}
-      >
-        <Button
-          intent="plain"
-          size="sq-sm"
-          aria-label="Delete task"
-          isPending={remove.isPending}
-          onPress={remove.run}
-        >
-          <IconTrash />
-        </Button>
+      <PanelHeader onClose={props.onClose} inPlace={props.inPlace}>
+        <MenuTrigger>
+          <Button intent="outline" size="sq-sm" aria-label="More" isPending={remove.isPending}>
+            <IconEllipsis />
+          </Button>
+          <Menu placement="bottom end" aria-label="Task">
+            <MenuItem
+              id="done"
+              textValue={closed ? "Reopen" : "Mark as done"}
+              onAction={() =>
+                save(closed ? { status: "todo", done: false } : { status: "done", done: true })
+              }
+            >
+              {closed ? <IconCircle /> : <IconCircleCheck />}
+              <MenuLabel>{closed ? "Reopen" : "Mark as done"}</MenuLabel>
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem id="delete" textValue="Delete task" intent="danger" onAction={remove.run}>
+              <IconTrash />
+              <MenuLabel>Delete task</MenuLabel>
+            </MenuItem>
+          </Menu>
+        </MenuTrigger>
       </PanelHeader>
       <div
-        className={`flex min-h-0 flex-1 flex-col gap-6 ${props.inPlace ? "py-2" : "overflow-y-auto px-5 py-4"}`}
+        className={`flex min-h-0 flex-1 flex-col gap-7 ${props.inPlace ? "pt-1 pb-4" : "overflow-y-auto px-6 pt-1 pb-6"}`}
       >
-        <TaskContent task={task} onSave={save} />
-        <div className={`flex flex-col gap-0.5 ${props.inPlace ? "" : "-mx-5 border-t px-5 pt-4"}`}>
-          {props.details}
+        <div className="flex flex-col gap-3">
+          <TaskHeading task={task} onSave={save} />
+          <TaskDescription task={task} onSave={save} />
         </div>
+        {props.details}
+        <TaskFollowUp task={task} source={props.source} onSave={save} />
       </div>
     </>
   );
 }
 
 function PanelHeader(props: {
-  title: React.ReactNode;
   onClose: () => void;
   inPlace?: boolean;
   children?: React.ReactNode;
 }) {
   return (
     <div
-      className={`flex shrink-0 items-center gap-1.5 ${props.inPlace ? "-mt-2 -me-1.5 h-10" : "h-12 border-b ps-5 pe-2.5"}`}
+      className={`flex shrink-0 items-center gap-1.5 ${props.inPlace ? "-mt-2 h-10" : "h-12 px-4"}`}
     >
-      <div className="flex min-w-0 flex-1 items-center">{props.title}</div>
       <PageBarActions>
-        {props.children}
         <Button intent="outline" size="sq-sm" aria-label="Close task" onPress={props.onClose}>
-          <IconX />
+          {props.inPlace ? <IconX /> : <IconChevronDoubleRight />}
         </Button>
+        <span className="flex-1" />
+        {props.children}
       </PageBarActions>
     </div>
   );

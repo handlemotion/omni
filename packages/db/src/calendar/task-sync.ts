@@ -6,11 +6,18 @@ import type { Ex } from "./core.ts";
 import type { CalendarTask } from "./tasks.ts";
 
 /**
+ * A task to write whole. `crm_tasks` keeps no status or priority, so its copy job leaves them out
+ * and the calendar keeps the ones it has.
+ */
+export type PutTask = Omit<CalendarTask, "status" | "priority"> &
+  Partial<Pick<CalendarTask, "status" | "priority">>;
+
+/**
  * Writes the task as given, made or replaced by id, and keeps its `updated_at`, so a copy of a
  * row reads the same from both tables: the CRM's dual-write and its copy job hand it over whole.
  * A linked task keeps the owner it has. A private one with no owner to give it is skipped.
  */
-export async function putTask(tx: Ex, row: CalendarTask) {
+export async function putTask(tx: Ex, row: PutTask) {
   if (!row.record && !row.ownerMemberId) return { status: "skipped" as const };
   const values = {
     id: row.id,
@@ -22,6 +29,8 @@ export async function putTask(tx: Ex, row: CalendarTask) {
     dueAt: row.dueAt,
     completedAt: row.completedAt,
     completedByMemberId: row.completedByMemberId,
+    ...(row.status === undefined ? {} : { status: row.status }),
+    ...(row.priority === undefined ? {} : { priority: row.priority }),
     assigneeMemberId: row.record ? row.assigneeMemberId : row.ownerMemberId,
     recordKind: row.record?.kind ?? null,
     recordId: row.record?.id ?? null,

@@ -158,3 +158,7 @@ export { IconAlignmentLeft as IconOutline } from "central-icons-outlined/IconAli
 export { IconCalenderToday as IconCalendarDay } from "central-icons-outlined/IconCalenderToday";
 export { IconCalenderNextWeek as IconCalendarWeek } from "central-icons-outlined/IconCalenderNextWeek";
 export { IconCalendarDays as IconCalendarMonth } from "central-icons-outlined/IconCalendarDays";
+export { IconCircleHalfFill as IconCircleHalf } from "central-icons-outlined/IconCircleHalfFill";
+export { IconChevronDoubleRight } from "central-icons-outlined/IconChevronDoubleRight";
+export { IconAlignmentLeft as IconDescription } from "central-icons-outlined/IconAlignmentLeft";
+export { IconMinusMedium as IconMinus } from "central-icons-outlined/IconMinusMedium";

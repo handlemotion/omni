@@ -1,4 +1,5 @@
 import {
+  type CalendarTaskActivityResponse,
   crmCreateTaskBodySchema,
   crmRecordKeyOf,
   type CrmRecordIds,
@@ -15,6 +16,7 @@ import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 import { announce, memberCrm, refused, wireTask } from "./http.ts";
 import { decodeCursor, encodeCursor } from "../cursor.ts";
+import { wireTaskActivity } from "../calendar/tasks.ts";
 
 const taskCursor = z.object({ at: z.iso.datetime().nullable(), id: z.string().min(1) });
 
@@ -90,6 +92,8 @@ export const tasks = new Hono<AppEnv>()
       body: body.body,
       assigneeMemberId: body.assigneeMemberId,
       dueAt: dateOrNull(body.dueAt),
+      status: body.status,
+      priority: body.priority,
       record: recordOf(body),
     });
     if (made.status !== "ok") return refused(c, made);
@@ -114,6 +118,8 @@ export const tasks = new Hono<AppEnv>()
       assigneeMemberId: body.assigneeMemberId,
       dueAt: dateOrNull(body.dueAt),
       done: body.done,
+      status: body.status,
+      priority: body.priority,
       record: recordOf(body),
     };
     const changed = await crm.updateTask(c.req.param("id"), patch);
@@ -127,4 +133,12 @@ export const tasks = new Hono<AppEnv>()
     if (deleted.status !== "ok") return refused(c, deleted);
     await announceTask(c, deleted.task);
     return c.body(null, 204);
+  })
+
+  .get("/tasks/:id/activity", async (c) => {
+    const found = await memberCrm(c).taskActivity(c.req.param("id"));
+    if (found.status !== "ok") return refused(c, found);
+    return c.json({
+      items: found.items.map(wireTaskActivity),
+    } satisfies CalendarTaskActivityResponse);
   });

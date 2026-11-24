@@ -10,6 +10,7 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import { holdQueries, lastWrite, restoreQueries } from "./cache.ts";
 import { currentId, pendingFailed, pendingMade, settledId } from "./crm-pending.ts";
+import { closureAfter } from "./task-status.ts";
 import { keys } from "./query-keys.ts";
 
 type Tasks = Api["calendar"]["tasks"];
@@ -153,6 +154,8 @@ export const createCalendarTaskMutation = (client: QueryClient, self: string) =>
         ownerMemberId: self,
         assigneeMemberId: self,
         record: null,
+        status: "todo",
+        priority: null,
         dueAt: input.dueAt ?? null,
         completedAt: null,
         completedByMemberId: null,
@@ -192,7 +195,7 @@ export const updateCalendarTaskMutation = (client: QueryClient, self: string) =>
       if (linked) await call(api.crm.tasks[":id"].$patch({ param, json }));
       else await call(api.calendar.tasks[":id"].$patch({ param, json }));
     },
-    onMutate: async ({ id, done, linked: _linked, ...change }) => {
+    onMutate: async ({ id, done, status, linked: _linked, ...change }) => {
       const snapshot = await hold(client);
       const defined = Object.fromEntries(
         Object.entries(change).filter(([, value]) => value !== undefined),
@@ -200,12 +203,7 @@ export const updateCalendarTaskMutation = (client: QueryClient, self: string) =>
       patchTask(client, currentId(id), (task) => ({
         ...task,
         ...defined,
-        ...(done === undefined
-          ? {}
-          : {
-              completedAt: done ? (task.completedAt ?? new Date().toISOString()) : null,
-              completedByMemberId: done ? (task.completedByMemberId ?? self) : null,
-            }),
+        ...closureAfter(task, { done, status }, self),
       }));
       return { snapshot };
     },

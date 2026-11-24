@@ -32,6 +32,7 @@ import {
   type TaskQuery,
 } from "./calendar/tasks.ts";
 import { releaseMemberTasks } from "./calendar/task-sync.ts";
+import { readTaskActivity } from "./calendar/task-activity.ts";
 import {
   createBookingLink,
   deleteBookingLink,
@@ -177,6 +178,12 @@ export function memberCalendar(db: Db, memberId: string, mirror?: TaskMirror) {
       ),
     deleteTask: (id: string) =>
       asTaskMember(db, memberId, (m) => db.transaction((tx) => deleteOwnTask(tx, m, id, mirror))),
+    taskActivity: (id: string) =>
+      asTaskMember(db, memberId, async (m) => {
+        const own = await ownTask(db, m, id);
+        if (own.status !== "ok") return own;
+        return { status: "ok" as const, items: await readTaskActivity(db, m.orgId, id) };
+      }),
   };
 }
 
@@ -207,6 +214,7 @@ export {
   cleanTitle as cleanTaskTitle,
   completionAfter,
   lockTask,
+  statusOf as taskStatusOf,
   readTask as calendarTask,
   removeTask,
   type CalendarTask,
@@ -215,18 +223,28 @@ export {
   type OwnTaskPatch,
   type TaskCursor,
   type TaskMirror,
+  type TaskPriority,
   type TaskQuery,
   type TaskRecord,
   type TaskRecordKind,
+  type TaskStatus,
   type TaskStep,
 } from "./calendar/tasks.ts";
+export {
+  logTaskChanges,
+  readTaskActivity,
+  type ActivityRecord,
+  type RecordNames,
+  type TaskActivity,
+  type TaskActivityItem,
+} from "./calendar/task-activity.ts";
 export {
   countLinkedTasks,
   dropTasksOn,
   linkedTasks,
   type LinkedTaskFilter,
 } from "./calendar/linked-tasks.ts";
-export { isSoleOwner, putTask, taskVersions } from "./calendar/task-sync.ts";
+export { isSoleOwner, putTask, taskVersions, type PutTask } from "./calendar/task-sync.ts";
 
 /** A member is leaving: their private tasks go, their linked ones stay unassigned. */
 export const releaseCalendarTasks = (db: Db, input: { orgId: string; memberId: string }) =>

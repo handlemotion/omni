@@ -3,6 +3,8 @@ import {
   CALENDAR_TASK_BODY_MAX,
   CALENDAR_TASK_STEPS_MAX,
   CALENDAR_TASK_TITLE_MAX,
+  calendarTaskPrioritySchema,
+  calendarTaskStatusSchema,
   calendarTaskStepSchema,
 } from "./calendar.ts";
 import { crmRecordsNamed, type CrmRecordIds } from "./crm-records.ts";
@@ -35,9 +37,13 @@ export const crmTaskSchema = z.object({
   /** Who it is private to once taken off its record. Absent from a Worker older than this field. */
   ownerMemberId: id.nullable().optional(),
   assigneeMemberId: id.nullable(),
+  /** Absent from a Worker older than this field. */
+  status: calendarTaskStatusSchema.optional(),
+  /** Absent from a Worker older than this field. */
+  priority: calendarTaskPrioritySchema.nullable().optional(),
   /** A moment: a client picking a day sends the end of that day in its time zone. */
   dueAt: isoDate.nullable(),
-  /** Set while it is done. */
+  /** Set while it is done or cancelled. */
   completedAt: isoDate.nullable(),
   completedByMemberId: id.nullable(),
   createdByMemberId: id.nullable(),
@@ -86,12 +92,16 @@ export const crmCreateTaskBodySchema = z
     body: z.string().max(CALENDAR_TASK_BODY_MAX).nullable().optional(),
     assigneeMemberId: id.nullable().optional(),
     dueAt: isoDate.nullable().optional(),
+    /** Absent: `todo`. Only an open status. */
+    status: calendarTaskStatusSchema.exclude(["done", "cancelled"]).optional(),
+    priority: calendarTaskPrioritySchema.nullable().optional(),
     ...onRecord,
   })
   .refine(oneRecordAtMost, ONE_RECORD);
 
 /**
- * `PATCH /tasks/:id`: only the fields it names. `done` completes or reopens it. Naming any of
+ * `PATCH /tasks/:id`: only the fields it names. `done` completes or reopens it; `status` moves it
+ * (`done` or `cancelled` close it) and wins over `done`. Naming any of
  * `companyId`, `personId` and `dealId` moves it to that record; all three null take it off.
  */
 export const crmUpdateTaskBodySchema = z
@@ -103,6 +113,8 @@ export const crmUpdateTaskBodySchema = z
     assigneeMemberId: id.nullable().optional(),
     dueAt: isoDate.nullable().optional(),
     done: z.boolean().optional(),
+    status: calendarTaskStatusSchema.optional(),
+    priority: calendarTaskPrioritySchema.nullable().optional(),
     ...onRecord,
   })
   .refine(oneRecordAtMost, ONE_RECORD);

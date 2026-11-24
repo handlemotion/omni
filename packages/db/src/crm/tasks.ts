@@ -9,12 +9,16 @@ import {
   countLinkedTasks,
   linkedTasks,
   lockTask,
+  logTaskChanges,
   putTask,
+  readTaskActivity,
   removeTask,
   type CalendarTask,
   type LinkedTaskFilter,
   type TaskCursor,
+  type TaskPriority,
   type TaskRecord,
+  type TaskStatus,
   type TaskStep,
 } from "../calendar.ts";
 import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople } from "../schema/crm.ts";
@@ -44,6 +48,8 @@ export interface CrmTask {
   recordDomain: string | null;
   ownerMemberId: string | null;
   assigneeMemberId: string | null;
+  status: TaskStatus;
+  priority: TaskPriority | null;
   dueAt: Date | null;
   completedAt: Date | null;
   completedByMemberId: string | null;
@@ -75,6 +81,9 @@ export interface TaskInput {
   /** Absent: the creator. Null: unassigned. Someone else only on a task on a record. */
   assigneeMemberId?: string | null;
   dueAt?: Date | null;
+  /** Absent: `todo`. */
+  status?: Exclude<TaskStatus, "done" | "cancelled">;
+  priority?: TaskPriority | null;
   /** Absent or null: a private task, the creator's. */
   record?: CrmRecordRef | null;
 }
@@ -87,6 +96,9 @@ export interface TaskPatch {
   assigneeMemberId?: string | null;
   dueAt?: Date | null;
   done?: boolean;
+  /** Moves it; `done` or `cancelled` close it. Wins over `done`. */
+  status?: TaskStatus;
+  priority?: TaskPriority | null;
   /** Moves the task to this record; null takes it off its record, back to being private. */
   record?: CrmRecordRef | null;
 }
@@ -160,6 +172,8 @@ function viewOf(task: CalendarTask, names: Map<string, { name: string; domain: s
     recordDomain: named?.domain ?? null,
     ownerMemberId: task.ownerMemberId,
     assigneeMemberId: task.assigneeMemberId,
+    status: task.status,
+    priority: task.priority,
     dueAt: task.dueAt,
     completedAt: task.completedAt,
     completedByMemberId: task.completedByMemberId,
@@ -251,11 +265,21 @@ async function refusedAssignee(
     : ({ status: "invalid_assignee" } as const);
 }
 
-async function save(tx: Ex, member: CrmMember, row: CalendarTask) {
+async function save(tx: Ex, member: CrmMember, row: CalendarTask, before?: CalendarTask) {
   await putTask(tx, row);
   const task = (await calendarTask(tx, member.orgId, row.id))!;
   if (task.record) await writeCrmTask(tx, task);
   else await dropCrmTask(tx, member.orgId, task.id);
+  if (before) {
+    const names = await namesOf(tx, member.orgId, [before, task]);
+    await logTaskChanges(
+      tx,
+      member.id,
+      before,
+      task,
+      (record) => names.get(`${record.kind}:${record.id}`)?.name ?? null,
+    );
+  }
   return task;
 }
 
@@ -286,6 +310,8 @@ export const createTask: (
     dueAt: input.dueAt ?? null,
     completedAt: null,
     completedByMemberId: null,
+    status: input.status ?? "todo",
+    priority: input.priority ?? null,
     assigneeMemberId: assignee,
     record,
     createdByMemberId: member.id,
@@ -309,7 +335,8 @@ function nextRow(member: CrmMember, current: CalendarTask, patch: TaskPatch, tit
     body: patch.body === undefined ? current.body : cleanTaskBody(patch.body),
     subtasks: patch.subtasks === undefined ? current.subtasks : cleanTaskSteps(patch.subtasks),
     dueAt: patch.dueAt === undefined ? current.dueAt : patch.dueAt,
-    ...completionAfter(current, patch.done, member.id),
+    priority: patch.priority === undefined ? current.priority : patch.priority,
+    ...completionAfter(current, patch, member.id),
     assigneeMemberId:
       patch.assigneeMemberId === undefined
         ? record
@@ -345,9 +372,16 @@ export const updateTask: (
     assigning &&
     (await refusedAssignee(tx, member, row.assigneeMemberId, row.ownerMemberId, row.record));
   if (refused) return refused;
-  const task = await save(tx, member, row);
+  const task = await save(tx, member, row, current);
   return { status: "ok", task: (await viewsOf(tx, member.orgId, [task]))[0]! };
 };
+
+/** The activity of a task the member can see, oldest first. */
+export async function taskActivity(ex: Ex, member: CrmMember, id: string) {
+  const task = await calendarTask(ex, member.orgId, id);
+  if (!task || !(await reaches(ex, member, task))) return NOT_FOUND;
+  return { status: "ok" as const, items: await readTaskActivity(ex, member.orgId, id) };
+}
 
 export const deleteTask: (
   tx: Ex,

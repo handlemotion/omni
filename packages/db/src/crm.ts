@@ -130,6 +130,7 @@ import {
   deleteTask,
   getTask,
   listTasks,
+  taskActivity,
   updateTask,
   type ListTasksInput,
   type TaskInput,
@@ -440,6 +441,8 @@ export function memberCrm(db: Db, memberId: string) {
       writeAsMember(door, (m, tx) => updateTask(tx, m, id, patch), taskChangeOnProject(id, patch)),
     deleteTask: (id: string) =>
       writeAsMember(door, (m, tx) => deleteTask(tx, m, id), taskOnProject(id)),
+    taskActivity: (id: string) =>
+      asMember(door, (m, ex) => taskActivity(ex, m, id), taskOnProject(id)),
 
     plan: (dealId: string) => asMember(door, (m, ex) => getPlan(ex, m, dealId), onProject(dealId)),
     createMilestone: (dealId: string, input: MilestoneInput) =>
