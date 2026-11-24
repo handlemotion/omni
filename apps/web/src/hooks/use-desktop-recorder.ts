@@ -72,26 +72,54 @@ async function openMeeting(event: Event | null) {
 
 const live = (r: DesktopRecording) => r.state !== "stopped";
 
+const RETRY_FIRST_MS = 2_000;
+const RETRY_MAX_MS = 5 * 60_000;
+
+function waitOrOnline(ms: number) {
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      window.removeEventListener("online", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    window.addEventListener("online", done);
+  });
+}
+
 function useFinisher(memberId: string, b: Bridge | null) {
   const client = useQueryClient();
   const running = useRef(new Set<string>());
-  return useCallback(
+  const finish = useCallback(
     (recordings: DesktopRecording[]) => {
       if (!b) return;
       for (const recording of recordingsToFinish(recordings, memberId)) {
         if (running.current.has(recording.id)) continue;
         running.current.add(recording.id);
-        void finishRecording(transport(), b.recordingSpool, recording)
-          .then(() => client.invalidateQueries({ queryKey: meetingKeys.all() }))
-          .catch((error: unknown) => {
-            console.error("recorder: upload failed", error);
-            appToast.error("The recording could not be sent; it stays on this computer");
-          })
-          .finally(() => running.current.delete(recording.id));
+        void (async () => {
+          for (let wait = RETRY_FIRST_MS; ; wait = Math.min(wait * 2, RETRY_MAX_MS)) {
+            const current = (await b.recordingList().catch(() => [recording])).find(
+              (r) => r.id === recording.id,
+            );
+            if (!current) return;
+            try {
+              await finishRecording(transport(), b.recordingSpool, current);
+              await client.invalidateQueries({ queryKey: meetingKeys.all() });
+              return;
+            } catch (error) {
+              console.error("recorder: upload failed", error);
+              if (wait === RETRY_FIRST_MS) {
+                appToast.error("The recording could not be sent yet; it stays on this computer");
+              }
+              await waitOrOnline(wait);
+            }
+          }
+        })().finally(() => running.current.delete(recording.id));
       }
     },
     [b, client, memberId],
   );
+  return finish;
 }
 
 /**

@@ -1,10 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { IconPauseFilled, IconPlayFilled } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useMeetingTranscript } from "@/hooks/use-meetings.ts";
-import { meetingAudioUrl, meetingClock, type Meeting } from "@/lib/meetings.ts";
+import { Slider, SliderTrack } from "@/components/ui/slider";
+import { useMeetingTranscript, useMeetingWaveform } from "@/hooks/use-meetings.ts";
+import { meetingClock, type Meeting } from "@/lib/meetings.ts";
 import { usePlayer } from "./meeting-player.tsx";
 import { initial, meetingSpeakers, talkLength, UNKNOWN, type Speaker } from "./meeting-speakers.ts";
 
@@ -64,56 +64,35 @@ export function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
   );
 }
 
-async function peaks(url: string) {
-  const response = await fetch(url, { credentials: "include" });
-  if (!response.ok) throw new Error(`audio ${response.status}`);
-  const context = new OfflineAudioContext(1, 1, 48_000);
-  const audio = await context.decodeAudioData(await response.arrayBuffer());
-  const channels = Array.from({ length: audio.numberOfChannels }, (_, i) =>
-    audio.getChannelData(i),
-  );
-  const step = Math.max(1, Math.floor(audio.length / BARS));
-  const out: number[] = [];
-  for (let bar = 0; bar < BARS; bar++) {
-    let peak = 0;
-    for (const data of channels) {
-      for (let i = bar * step; i < Math.min((bar + 1) * step, data.length); i += 16) {
-        peak = Math.max(peak, Math.abs(data[i] ?? 0));
-      }
-    }
-    out.push(peak);
-  }
-  const top = Math.max(...out, 0.0001);
-  return out.map((p) => p / top);
-}
-
 function Waveform({ id }: { id: string }) {
   const player = usePlayer();
-  const wave = useQuery({
-    queryKey: ["meetings", "waveform", id],
-    queryFn: () => peaks(meetingAudioUrl(id)),
-    staleTime: Infinity,
-    retry: false,
-  });
-  const at = player.durationMs ? player.timeMs / player.durationMs : 0;
+  const wave = useMeetingWaveform(id);
+  const max = Math.max(player.durationMs, 1);
+  const at = player.timeMs / max;
   const bars = wave.data ?? Array.from({ length: BARS }, () => 0.08);
   return (
-    <div
-      aria-hidden
-      className="flex h-16 w-full cursor-pointer items-center gap-px"
-      onPointerDown={(event) => {
-        const box = event.currentTarget.getBoundingClientRect();
-        player.seek(((event.clientX - box.left) / box.width) * player.durationMs);
-      }}
-    >
-      {bars.map((height, i) => (
-        <span
-          // oxlint-disable-next-line react/no-array-index-key -- bars are positions, not items
-          key={i}
-          className={`min-w-0 flex-1 rounded-full ${i / BARS < at ? "bg-foreground" : "bg-muted-foreground/30"}`}
-          style={{ height: `${Math.max(6, height * 100)}%` }}
-        />
-      ))}
+    <div className="relative h-16 w-full rounded-md has-focus-visible:ring-2 has-focus-visible:ring-ring">
+      <div aria-hidden className="flex size-full items-center gap-px">
+        {bars.map((height, i) => (
+          <span
+            // oxlint-disable-next-line react/no-array-index-key -- bars are positions, not items
+            key={i}
+            className={`min-w-0 flex-1 rounded-full ${i / bars.length < at ? "bg-foreground" : "bg-muted-foreground/30"}`}
+            style={{ height: `${Math.max(6, height * 100)}%` }}
+          />
+        ))}
+      </div>
+      <Slider
+        aria-label="Position"
+        minValue={0}
+        maxValue={max}
+        step={1000}
+        value={Math.min(player.timeMs, max)}
+        onChange={(value) => player.seek(Array.isArray(value) ? (value[0] ?? 0) : value)}
+        className="absolute! inset-0 opacity-0"
+      >
+        <SliderTrack className="h-full! cursor-pointer" />
+      </Slider>
     </div>
   );
 }

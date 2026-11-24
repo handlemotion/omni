@@ -69,7 +69,7 @@ function GroupRow({ group }: { group: MeetingGroup }) {
   const path = groupTarget(group.groupKey);
   const kind = groupKind(group.groupKey);
   const title = groupTitle(group);
-  const many = kind !== "meeting" && group.meetings > 1;
+  const many = kind !== "meeting";
   return (
     <>
       <SidebarTreeRow
@@ -86,7 +86,7 @@ function GroupRow({ group }: { group: MeetingGroup }) {
           )
         }
         label={title}
-        detail={many ? group.meetings : undefined}
+        detail={many && group.meetings > 1 ? group.meetings : undefined}
         expand={many ? { value: open, toggle: () => setOpen(!open) } : undefined}
       />
       {open && <GroupMeetings groupKey={group.groupKey} />}
@@ -114,6 +114,18 @@ function GroupMeetings({ groupKey }: { groupKey: string }) {
           />
         );
       })}
+      {list.hasNextPage && (
+        <div style={{ paddingInlineStart: 24 }}>
+          <Button
+            intent="plain"
+            size="sm"
+            isPending={list.isFetchingNextPage}
+            onPress={() => void list.fetchNextPage()}
+          >
+            Show older
+          </Button>
+        </div>
+      )}
     </>
   );
 }
