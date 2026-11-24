@@ -40,6 +40,9 @@
     "BETTER_AUTH_URL": "http://localhost:8787",
     "AUTH_TRUSTED_ORIGINS": "http://localhost:5173",
     "AUTH_PASSKEY_RP_ID": "",
+    // More public origins (custom domains on this Worker) that stand in for BETTER_AUTH_URL on
+    // their own requests: links, OAuth callbacks and passkeys use the origin a request came in on.
+    "AUTH_ALIAS_ORIGINS": "",
     "APP_NAME": "Omni",
     // Web app origin for invitation links; empty means the same origin as BETTER_AUTH_URL.
     "WEB_APP_URL": "",
