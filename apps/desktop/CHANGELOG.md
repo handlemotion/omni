@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.0](https://github.com/handlemotion/omni/compare/desktop-v0.8.0...desktop-v0.9.0) (2026-11-24)
+
+
+### Features
+
+* **desktop:** record meetings from the Mac app, end to end ([#88](https://github.com/handlemotion/omni/issues/88)) ([7ef3742](https://github.com/handlemotion/omni/commit/7ef37420832337ef86e63873eb31a645c10dfa99))
+* **desktop:** record the meeting's screen beside its audio and play it on the meeting page ([#90](https://github.com/handlemotion/omni/issues/90)) ([becfe85](https://github.com/handlemotion/omni/commit/becfe857bab79340a41ea756952c9fd53912374b))
+* rename the product from Omni to Wok in everything people read ([#92](https://github.com/handlemotion/omni/issues/92)) ([973284a](https://github.com/handlemotion/omni/commit/973284a380d2b08d3906b15028df5a640c4424c3))
+* **web:** top rail with page tabs across workspaces, sidebar module tabs that collapse to a rail ([#82](https://github.com/handlemotion/omni/issues/82)) ([3db6979](https://github.com/handlemotion/omni/commit/3db6979a2f22692cdd25509987b5234e3715f194))
+
+
+### Fixes
+
+* **desktop:** write downloads to a .download file and rename when complete ([#79](https://github.com/handlemotion/omni/issues/79)) ([dd4c960](https://github.com/handlemotion/omni/commit/dd4c96003b211096260d8f33157e97830d786fbb))
+
 ## [0.8.0](https://github.com/wokshop/omni/compare/desktop-v0.7.0...desktop-v0.8.0) (2026-11-23)
 
 
