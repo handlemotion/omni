@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   useEffect,
   useLayoutEffect,
@@ -184,7 +185,8 @@ const subscribeSlots = (listener: () => void) => {
 /**
  * Who is online, in a page header's actions. With panes side by side (a thread open beside the
  * list) only the header mounted last, the rightmost, shows it, so the faces appear once and the
- * Talk window has one face to sit under.
+ * Talk window has one face to sit under. Not in a window narrower than a tablet, where Talk does
+ * not count you as online either (`lib/realtime.ts`).
  */
 export function PagePresence() {
   const [slot] = useState(() => Symbol("presence"));
@@ -197,5 +199,6 @@ export function PagePresence() {
     };
   }, [slot]);
   const shown = useSyncExternalStore(subscribeSlots, () => slots.at(-1) === slot);
-  return shown ? <PresenceStack /> : null;
+  const narrow = useIsMobile();
+  return shown && !narrow ? <PresenceStack /> : null;
 }

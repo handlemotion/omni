@@ -30,7 +30,7 @@ import { addMessage, fetchNewest, noteWentBy, setReactions, threadRead } from ".
 import { talkWindow } from "./talk-window.ts";
 import { inBackground } from "./desktop-notifications.ts";
 
-const TITLE_BAR_MIN = 768;
+const TALK_MIN_WIDTH = 768;
 const FLUSH_MS = 150;
 const MAX_HOLD_MS = 3_000;
 
@@ -264,7 +264,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       );
     }
   };
-  const wide = window.matchMedia(`(min-width: ${TITLE_BAR_MIN}px)`);
+  const wide = window.matchMedia(`(min-width: ${TALK_MIN_WIDTH}px)`);
   const connections = new Map([[activeOrgId, connect(activeOrgId)]]);
   sockets = connections;
   const reconnectActive = () => {
