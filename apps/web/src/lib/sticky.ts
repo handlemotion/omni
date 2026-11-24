@@ -241,7 +241,7 @@ const one = (
     const engage = flow.top - p.top - top;
     const travel = Math.max(0, floor - flow.bottom - parseFloat(s.marginBottom));
     const span = distance * view.height;
-    const lead = view.scroll + flow.top - view.top - top;
+    const lead = top > 0 ? view.scroll + flow.top - view.top - top : 0;
 
     return {
       engage,
@@ -509,5 +509,7 @@ function all(first?: string | StickyOptions, second: StickyOptions = {}) {
  * @alpacka/sticky 0.2.1 (the `sticky` skill, github.com/jesperlandberg/alpacka),
  * forked to measure against the nearest scroll container instead of the root
  * scroller only, since every signed-in screen scrolls inside its own box.
+ * A sticky flush with its scrollport's edge (`top: 0`) only eases out: landing,
+ * it would trail its line and show the content scrolling past above it.
  */
 export const sticky = Object.assign(one, { all });
