@@ -39,7 +39,6 @@ start, not a mirrored folder; avoid duplicating the web app; small navigation ch
 - Linux. Tauri builds there, and we use that to check the shell in CI, but we ship no package.
 - Mac App Store and Microsoft Store. Direct download, signed and notarized.
 - File version history, selective sync by folder, "Shared with me" in Finder, LAN sync.
-- Tabs in the title bar (see "Open questions").
 
 ## Decisions and why
 
@@ -261,7 +260,7 @@ after a spike. Swift side: Foundation and FileProvider only.
   Tauri itself.
   Once one is downloaded the shell tells the page (`update-ready`, `update_ready`), and the
   nav panel shows a blue "Restart to update" row, a nav row's height, at its foot; with the
-  sidebar closed the rail shows a blue tile above Settings instead. Either restarts into the
+  sidebar collapsed to its rail, a blue tile above Settings instead. Either restarts into the
   update with the window shown (`update_install`). "Check for Updates…" in the tray and the app
   menu checks at once: a download brings the window forward to that row, otherwise a
   notification says Omni is up to date or that the check failed.
@@ -274,22 +273,23 @@ is loaded by dynamic import, so the browser bundle does not carry it). These are
 primitives, and add no text.
 
 - **The shell** (every viewport wider than a phone, in the browser too): a grey window
-  (`--shell`) holding a white content card.
-  - A **title bar** across the top, 48px: the workspace switcher (mark, name, chevron) past the
-    traffic lights, then the sidebar toggle and back and forward arrows (disabled at either end
-    of the window's history); at the far end the teammates online (Talk), search (it opens the
-    command menu, as `/` and `⌘K` do; there is no search field in the page headers, except a
-    search icon in the mail list header on a phone, where the title bar is hidden), then
-    notifications. The whole row is a
-    drag region except its controls. Without traffic lights the workspace mark centres on the
-    module rail.
-  - A **module rail** down the left edge: Mail, Drive and (in a company) CRM as icon tiles, the
-    current one on a white tile with its filled glyph; Settings at the foot. It never moves.
-  - The **nav panel** beside it, titled with the module (or Settings), lines up with the page
-    headers. The sidebar toggle hides only the panel; while it is hidden, resting on the toggle
-    previews the panel over the page.
-  - Notifications open inside the card, under the title bar, sliding in from the right edge
-    under their button.
+  (`--shell`) with a 48px **top rail**, over one white island (both top corners rounded) that
+  holds the sidebar and the page.
+  - The top rail's left edge: back and forward (the desktop app only, past the traffic lights;
+    disabled at either end of the window's history), the sidebar toggle, then the workspace
+    switcher (mark, name, chevron). Its middle: the open **page tabs**, centred, then New tab.
+    Its right edge: the teammates online (Talk), then notifications, whose panel slides in from
+    the right edge under the rail. The whole row is a drag region except its controls. The
+    traffic lights' red button and the toggle centre on the sidebar's first icon.
+  - **Page tabs** span every workspace the person is in: each tab shows its module's mark and
+    the page's name, and a tab of another workspace than the one on screen ends with that
+    workspace's mark; showing it switches workspace. Tabs are kept in the browser (up to ten),
+    ⌘-click or a middle click opens a link in a background tab, and a tab's close button takes
+    its mark's place on hover. Search opens from the sidebar (and `/`, `⌘K`).
+  - The **sidebar** starts with the modules as tabs (the current one shows its name; the switch
+    animates and the nav slides on press) and Search, then the module's nav, and Settings at its
+    foot. The toggle collapses it to a **rail** of the same padding: the current module (its menu
+    switches module), Search, the nav as icons where it has them, Settings.
 - On a phone the sidebar is the sheet it was, with the workspace switcher in its top row and the
   module switcher at its foot.
 - `⌘[` / `⌘]` (`Alt+←` / `Alt+→` on Windows) go back and forward; `⌘,` opens Settings; `⌘N`

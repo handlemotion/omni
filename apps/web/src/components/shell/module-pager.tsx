@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { useCurrentModule, useModules, type ModuleId } from "./module-switcher";
+import { useModules, usePressedModule, useWarmModule, type ModuleId } from "./module-switcher";
 
 /**
  * The sidebar's nav, one page per module side by side on a track that slides to the shown
@@ -14,14 +14,17 @@ import { useCurrentModule, useModules, type ModuleId } from "./module-switcher";
  */
 export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
   const modules = useModules();
-  const current = useCurrentModule();
+  const current = usePressedModule();
+  const warm = useWarmModule();
   const index = Math.max(
     0,
     modules.findIndex((module) => module.id === current),
   );
   const pager = useRef<HTMLDivElement>(null);
   const [shown, setShown] = useState<ReadonlySet<ModuleId>>(() => new Set([current]));
-  if (!shown.has(current)) setShown(new Set([...shown, current]));
+  if (!shown.has(current) || (warm && !shown.has(warm))) {
+    setShown(new Set([...shown, current, ...(warm ? [warm] : [])]));
+  }
   useLayoutEffect(() => {
     pager.current
       ?.closest<HTMLElement>('[data-slot="sidebar"]')

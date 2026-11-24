@@ -52,9 +52,14 @@ afterEach(async () => {
   context = undefined;
 });
 
-async function openInbox(slug: string) {
+async function openInbox(slug: string, also?: { name: string; slug: string }) {
   const email = `ana@${slug}.test`;
   const acme = await createOrgWithOwner(db, { name: "Acme", slug, ownerEmail: email });
+  if (also) {
+    const other = await createOrgWithOwner(db, { ...also, ownerEmail: email });
+    const otherBox = await createMailbox(db, other.orgId, `ana@${also.slug}.test`, "personal");
+    await grant(db, other.orgId, otherBox.id, other.memberId);
+  }
   const box = await createMailbox(db, acme.orgId, email, "personal");
   await grant(db, acme.orgId, box.id, acme.memberId);
   const origin = String(worker.url);
@@ -67,25 +72,22 @@ async function openInbox(slug: string) {
     }),
   );
   const page = await context.newPage();
-  await page.goto(new URL("/inbox", origin).toString());
-  await page.getByRole("button", { name: "Previous page" }).waitFor();
+  await page.goto(new URL(`/${slug}/mail/inbox`, origin).toString());
+  await page.getByRole("tablist", { name: "Open pages" }).waitFor();
   return page;
 }
 
 const SHOTS = process.env.SHELL_SHOTS;
 
-test("the title bar steps back and forward, opens search, and shows notifications at its right edge", async () => {
+test("the top rail switches modules from the sidebar, opens search, and shows notifications at its right edge", async () => {
   const page = await openInbox("title-bar");
-  const previous = page.getByRole("button", { name: "Previous page" });
-  const next = page.getByRole("button", { name: "Next page" });
+  expect(await page.getByRole("button", { name: "Previous page" }).count()).toBe(0);
   const modules = page.getByRole("navigation", { name: "Modules" });
   await modules.getByRole("link", { name: "Drive" }).click();
-  await page.waitForURL((url) => place(url) === "/files");
-  await previous.click();
-  await page.waitForURL((url) => place(url).endsWith("/inbox"));
-  await next.click();
-  await page.waitForURL((url) => place(url) === "/files");
-  await expect.poll(() => next.isDisabled()).toBe(true);
+  await page.waitForURL((url) => place(url).startsWith("/files"));
+  await expect
+    .poll(() => modules.getByRole("link", { name: "Drive" }).getAttribute("aria-current"))
+    .toBe("page");
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/bar.png` });
 
   await page.getByRole("button", { name: "Search", exact: true }).click();
@@ -96,6 +98,22 @@ test("the title bar steps back and forward, opens search, and shows notification
   const panel = page.getByRole("complementary", { name: "Notifications" });
   await expect.poll(async () => Math.round((await panel.boundingBox())?.x ?? 0)).toBe(1280 - 432);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/panel.png` });
+});
+
+test("a page tab keeps its workspace while another tab moves to a second one", async () => {
+  const page = await openInbox("tabs-a", { name: "Bravo", slug: "tabs-b" });
+  const tabs = page.getByRole("tablist", { name: "Open pages" }).getByRole("tab");
+  await page.getByRole("button", { name: "New tab" }).click();
+  await expect.poll(() => tabs.count()).toBe(2);
+
+  await page.getByRole("button", { name: /^Switch workspace/ }).click();
+  await page.getByRole("menuitem", { name: "Bravo" }).click();
+  await page.waitForURL((url) => new URL(url).pathname.startsWith("/tabs-b/"));
+
+  await tabs.first().dispatchEvent("pointerdown", { button: 0 });
+  await page.waitForURL((url) => new URL(url).pathname.startsWith("/tabs-a/"));
+  await expect.poll(() => tabs.last().getAttribute("aria-label")).toBe("Inbox, Bravo");
+  expect(await tabs.first().getAttribute("aria-label")).toBe("Inbox");
 });
 
 async function freePort() {
@@ -109,7 +127,7 @@ async function freePort() {
 test("on a phone, where the title bar is hidden, the mail list header still opens search", async () => {
   const page = await openInbox("title-bar-phone");
   await page.setViewportSize({ width: 390, height: 800 });
-  await page.getByRole("button", { name: "Previous page" }).waitFor({ state: "detached" });
+  await page.getByRole("tablist", { name: "Open pages" }).waitFor({ state: "detached" });
   const search = page.getByRole("button", { name: "Search", exact: true });
   expect(await search.count()).toBe(1);
   await search.click();

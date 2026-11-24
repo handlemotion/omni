@@ -1,12 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { IconArrowRotateClockwise, IconMailOpen } from "@/components/icons/central";
+import { IconArrowRotateClockwise } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { useMarkRead } from "@/hooks/use-mail-actions.ts";
 import { keys } from "@/lib/query-keys.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
-import type { ListRow } from "./thread-list.tsx";
 
 /** An icon action in the list's header, the reader's toolbar size, with its tooltip. */
 export function HeaderAction(props: {
@@ -54,24 +52,6 @@ export function ReloadAction() {
       }}
     >
       <IconArrowRotateClockwise />
-    </HeaderAction>
-  );
-}
-
-/**
- * Marks every unread row in the list read, one at a time as `u` does. Always in the header, so
- * its actions stay put; disabled while nothing is unread.
- */
-export function MarkAllRead({ rows }: { rows: ListRow[] }) {
-  const markRead = useMarkRead();
-  const unread = rows.filter((r) => r.unread);
-  return (
-    <HeaderAction
-      label="Mark all read"
-      isDisabled={!unread.length}
-      onPress={() => unread.forEach((r) => markRead.mutate({ threadId: r.id, read: true }))}
-    >
-      <IconMailOpen />
     </HeaderAction>
   );
 }

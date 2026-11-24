@@ -1,7 +1,8 @@
 import { useLocation, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useEffect, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
+import { useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
+  IconCircleCheckFilled,
   IconConnections,
   IconSettings,
   IconSettingsFilled,
@@ -14,18 +15,28 @@ import {
   IconMailMark,
   IconMeetingsMark,
 } from "@/components/icons/module-marks";
+import { SearchButton } from "@/components/search/search-trigger";
 import {
   Sidebar,
   SidebarContent,
-  SidebarExpanded,
   SidebarItem,
+  SidebarItemTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { isSettingsPath, useOpenSettings } from "@/hooks/use-settings.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
-import { useCurrentModule, useModules, useOpenModule, type ModuleId } from "./module-switcher";
+import {
+  useModules,
+  useCurrentModule,
+  useModulePress,
+  warmModule,
+  usePressedModule,
+  useOpenModule,
+  type ModuleId,
+} from "./module-switcher";
 import { UpdateRow, UpdateTile } from "./update-row";
 
 const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
@@ -36,6 +47,8 @@ const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   meetings: IconMeetingsMark,
 };
 
+const SWITCH_MS = 180;
+
 const PATHS: Record<ModuleId, string> = {
   mail: "mail/inbox",
   files: "files",
@@ -44,127 +57,64 @@ const PATHS: Record<ModuleId, string> = {
   meetings: "meetings",
 };
 
-const PEEK_LEAVE_MS = 200;
-let peeking = false;
-let leaving = 0;
-const listeners = new Set<() => void>();
-const setPeeking = (next: boolean) => {
-  window.clearTimeout(leaving);
-  if (peeking === next) return;
-  peeking = next;
-  for (const listener of listeners) listener();
-};
-
-/** The closed sidebar's preview: shown while the pointer rests on the toggle or the panel. */
-export const railPeek = {
-  enter: () => setPeeking(true),
-  leave: () => {
-    window.clearTimeout(leaving);
-    leaving = window.setTimeout(() => setPeeking(false), PEEK_LEAVE_MS);
-  },
-  stay: () => window.clearTimeout(leaving),
-  end: () => setPeeking(false),
-};
-
-function useRailPeek() {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    () => peeking,
-  );
-}
-
-const TILE_SHAPE = "size-8 justify-center rounded-[9px] px-0 *:[svg]:size-4.5";
-const TILE = `${TILE_SHAPE} hover:bg-secondary`;
-const MODULE_TILE = "size-8 justify-center rounded-[9px] px-0 *:[svg]:size-5 hover:bg-secondary";
-
 /**
- * The modules as a column of tiles on the window's grey, each with its own coloured mark, the
- * current one on a white tile; settings at its foot. Its first tile lines up with the nav
- * panel's header row. Closing the sidebar hides the nav panel; the rail stays.
+ * The sidebar, the white island's left part under the top rail: the modules as tabs (the one on
+ * screen with its name) with Search at the row's end, then the module's own pages, and settings at
+ * its foot. Closed, it is a rail of icons: the module on screen (its menu switches module), Search,
+ * the module's pages where they fit as icons, and settings.
  */
 export function RailSidebar({ title, children }: { title?: string; children: ReactNode }) {
   const { open } = useSidebar();
-  const peek = useRailPeek() && !open;
-  useEffect(() => {
-    if (open) railPeek.end();
-  }, [open]);
-  const panel = (
-    <>
-      {title && <div className="-mb-2 flex h-11 items-center px-2 text-md">{title}</div>}
-      {children}
-      <div className="mt-auto pb-3 empty:hidden">
-        <UpdateRow />
-      </div>
-    </>
-  );
   return (
     <Sidebar
       collapsible="none"
       closeButton={false}
       data-state={open ? "expanded" : "collapsed"}
-      className={cn("peer shrink-0 bg-transparent", !open && "w-14.5")}
+      className={cn(
+        "peer mt-12 shrink-0 rounded-tl-2xl border-s border-t border-e border-sidebar-border bg-background",
+        !open && "w-14",
+      )}
     >
-      <div className="flex min-h-0 flex-1">
-        <ModuleRail />
-        {open ? (
-          <SidebarContent className={PANEL}>{panel}</SidebarContent>
-        ) : (
-          <div
-            inert={!peek}
-            aria-hidden={!peek || undefined}
-            onPointerEnter={railPeek.stay}
-            onPointerLeave={railPeek.leave}
-            className={cn(
-              "fixed start-14.5 top-12 bottom-0 z-30 flex w-[calc(var(--sidebar-width)-58px)] rounded-tl-xl shadow-overlay",
-              "transition-[translate,opacity,visibility] duration-200 ease-(--ease-out) motion-reduce:transition-[opacity,visibility]",
-              peek
-                ? "visible translate-x-0 opacity-100"
-                : "invisible -translate-x-3 opacity-0 motion-reduce:translate-x-0",
-            )}
-          >
-            <SidebarExpanded>
-              <SidebarContent className={cn(PANEL, "mt-0 w-full")}>{panel}</SidebarContent>
-            </SidebarExpanded>
-          </div>
-        )}
-      </div>
+      <SidebarContent className="gap-3 p-3 *:shrink-0">
+        <div className="mb-0.5">
+          {open ? (
+            <ModuleTabs />
+          ) : (
+            <div className="flex flex-col items-center gap-1">
+              <ModuleMenu />
+              <SearchButton />
+            </div>
+          )}
+        </div>
+        {title && open && <div className="-mb-2 flex h-7 items-center px-2 text-md">{title}</div>}
+        {open
+          ? children
+          : !title && <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">{children}</div>}
+        <div className="mt-auto flex flex-col gap-2">
+          {open ? <UpdateRow /> : <UpdateTile className="size-8 rounded-lg px-0" />}
+          <SettingsButton />
+        </div>
+      </SidebarContent>
     </Sidebar>
   );
 }
 
-const PANEL =
-  "mt-12 rounded-tl-xl border-s border-t border-e border-sidebar-border bg-background px-3 pt-0.5 *:shrink-0";
-
-function ModuleRail() {
-  const { open } = useSidebar();
+function ModuleTabs() {
   const modules = useModules();
-  const inSettings = useLocation({
-    select: (location) => isSettingsPath(location.pathname),
-  });
-  const module = useCurrentModule();
+  const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
+  const module = usePressedModule();
+  const shown = useCurrentModule();
   const current = inSettings ? null : module;
   const workspace = useWorkspaceSlug();
-  const openSettings = useOpenSettings();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   const keep = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
   const openModule = useOpenModule();
+  const press = useModulePress();
+  const pressedAt = useRef(0);
   const menu = contextMenuProps((target) => {
-    const tile = target.closest("[data-rail]")?.getAttribute("data-rail");
-    if (tile === "settings") {
-      return [
-        { icon: IconUserRound, label: "Account settings", onAction: () => openSettings("profile") },
-        {
-          icon: IconSettings,
-          label: "Workspace settings",
-          onAction: () => openSettings("general"),
-        },
-        { icon: IconConnections, label: "Connections", onAction: () => openSettings("accounts") },
-      ] satisfies ContextMenuEntry[];
-    }
-    const picked = modules.find((m) => m.id === tile);
+    const picked = modules.find(
+      (m) => m.id === target.closest("[data-module-tab]")?.getAttribute("data-module-tab"),
+    );
     if (!picked) return null;
     return [
       {
@@ -176,51 +126,169 @@ function ModuleRail() {
   }, "Module actions");
 
   return (
-    <nav
-      {...menu}
-      aria-label="Modules"
-      className="flex w-14.5 shrink-0 flex-col items-center gap-1.75 pt-[57px] pb-3.25"
-    >
-      {modules.map((module) => {
-        const isCurrent = module.id === current;
-        const Mark = MARKS[module.id];
-        return (
-          <RailTip key={module.id} label={module.label}>
-            <SidebarItem
-              data-rail={module.id}
-              href={`/${encodeURIComponent(workspace)}/${PATHS[module.id]}${keep}`}
-              isCurrent={isCurrent}
-              aria-label={module.label}
-              className={cn(MODULE_TILE, isCurrent && "bg-background hover:bg-background")}
-            >
-              <Mark />
-            </SidebarItem>
-          </RailTip>
-        );
-      })}
-      <div className="mt-auto flex flex-col items-center gap-1.75">
-        {!open && <UpdateTile className={TILE_SHAPE} />}
-        <RailTip label="Settings">
-          <SidebarItem
-            data-rail="settings"
-            aria-label="Settings"
-            isCurrent={inSettings}
-            onPress={() => openSettings("general")}
-            className={cn(TILE, inSettings && "bg-background hover:bg-background")}
-          >
-            {inSettings ? <IconSettingsFilled /> : <IconSettings />}
-          </SidebarItem>
-        </RailTip>
-      </div>
-    </nav>
+    <div className="flex items-center gap-1">
+      <nav
+        {...menu}
+        aria-label="Modules"
+        className="flex min-w-0 flex-1 items-center gap-1"
+        style={{ "--switch-ms": `${SWITCH_MS}ms` } as CSSProperties}
+        onPointerOver={(event) => {
+          const id = (event.target as Element)
+            .closest("[data-module-tab]")
+            ?.getAttribute("data-module-tab");
+          const picked = modules.find((m) => m.id === id);
+          if (picked) warmModule(picked.id);
+        }}
+        onPointerDownCapture={(event) => {
+          const id = (event.target as Element)
+            .closest("[data-module-tab]")
+            ?.getAttribute("data-module-tab");
+          const picked = modules.find((m) => m.id === id);
+          if (
+            picked &&
+            picked.id !== current &&
+            event.button === 0 &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.shiftKey
+          ) {
+            pressedAt.current = performance.now();
+            press(picked.id);
+          }
+        }}
+        onClickCapture={(event) => {
+          const id = (event.target as Element)
+            .closest("[data-module-tab]")
+            ?.getAttribute("data-module-tab");
+          const picked = modules.find((m) => m.id === id);
+          if (!picked || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          if (picked.id === shown) return;
+          if (performance.now() - pressedAt.current > SWITCH_MS)
+            pressedAt.current = performance.now();
+          press(picked.id);
+          const left = SWITCH_MS - (performance.now() - pressedAt.current);
+          window.setTimeout(() => void openModule(picked.id), Math.max(0, left));
+        }}
+      >
+        {modules.map((module) => {
+          const isCurrent = module.id === current;
+          const Mark = MARKS[module.id];
+          return (
+            <TooltipTrigger key={module.id} isDisabled={isCurrent}>
+              <SidebarItem
+                data-module-tab={module.id}
+                href={`/${encodeURIComponent(workspace)}/${PATHS[module.id]}${keep}`}
+                isCurrent={isCurrent}
+                aria-label={module.label}
+                className={cn(
+                  "h-7.5 w-auto shrink-0 gap-0 rounded-lg px-1.5 *:[svg]:size-4.5",
+                  !isCurrent && "hover:bg-secondary",
+                )}
+              >
+                <Mark />
+                <span
+                  aria-hidden
+                  className={cn(
+                    "grid transition-[grid-template-columns] duration-(--switch-ms) ease-(--ease-out) motion-reduce:transition-none",
+                    isCurrent ? "grid-cols-[1fr]" : "grid-cols-[0fr]",
+                  )}
+                >
+                  <span className="min-w-0 overflow-hidden">
+                    <span className="block ps-1.5 whitespace-nowrap">{module.label}</span>
+                  </span>
+                </span>
+              </SidebarItem>
+              <Tooltip>{module.label}</Tooltip>
+            </TooltipTrigger>
+          );
+        })}
+      </nav>
+      <SearchButton />
+    </div>
   );
 }
 
-function RailTip({ label, children }: { label: string; children: ReactNode }) {
+function ModuleMenu() {
+  const modules = useModules();
+  const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
+  const module = usePressedModule();
+  const current = inSettings ? null : module;
+  const openModule = useOpenModule();
+  const press = useModulePress();
+  const Mark = MARKS[current ?? module];
   return (
-    <TooltipTrigger>
-      {children}
-      <Tooltip placement="right">{label}</Tooltip>
-    </TooltipTrigger>
+    <MenuTrigger>
+      <SidebarItemTrigger
+        aria-label={`Switch module, currently ${modules.find((m) => m.id === module)?.label ?? ""}`}
+        className={cn(
+          "size-7.5 justify-center px-0 *:[svg]:size-4.5",
+          current && "[--btn-bg:var(--sidebar-accent)]",
+        )}
+      >
+        <Mark />
+      </SidebarItemTrigger>
+      <Menu placement="right top" popover={{ offset: 8, className: "w-48" }}>
+        {modules.map((m) => {
+          const ItemMark = MARKS[m.id];
+          return (
+            <MenuItem
+              key={m.id}
+              id={m.id}
+              textValue={m.label}
+              className="pe-2"
+              onAction={() => {
+                if (m.id === current) return;
+                press(m.id);
+                void openModule(m.id);
+              }}
+            >
+              <ItemMark data-slot="icon" className="size-4.5" />
+              <MenuLabel className="col-[2/-1] flex min-w-0 items-center justify-between gap-3">
+                <span className="truncate">{m.label}</span>
+                {m.id === current && (
+                  <IconCircleCheckFilled className="size-4 shrink-0 text-primary" />
+                )}
+              </MenuLabel>
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </MenuTrigger>
+  );
+}
+
+function SettingsButton() {
+  const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
+  const openSettings = useOpenSettings();
+  const menu = contextMenuProps(
+    () =>
+      [
+        { icon: IconUserRound, label: "Account settings", onAction: () => openSettings("profile") },
+        {
+          icon: IconSettings,
+          label: "Workspace settings",
+          onAction: () => openSettings("general"),
+        },
+        { icon: IconConnections, label: "Connections", onAction: () => openSettings("accounts") },
+      ] satisfies ContextMenuEntry[],
+  );
+  return (
+    <div {...menu} className="flex">
+      <TooltipTrigger>
+        <SidebarItem
+          aria-label="Settings"
+          isCurrent={inSettings}
+          onPress={() => openSettings("general")}
+          className="size-7 w-7 justify-center rounded-lg px-0"
+        >
+          {inSettings ? <IconSettingsFilled /> : <IconSettings />}
+        </SidebarItem>
+        <Tooltip>Settings</Tooltip>
+      </TooltipTrigger>
+    </div>
   );
 }

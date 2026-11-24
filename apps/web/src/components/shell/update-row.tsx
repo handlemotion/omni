@@ -26,7 +26,7 @@ export function UpdateRow() {
   );
 }
 
-/** The rail's mark for a downloaded update while the sidebar (and its strip) is closed. */
+/** The collapsed sidebar's mark for a downloaded update, in place of its strip. */
 export function UpdateTile({ className }: { className: string }) {
   const version = useDesktopUpdate();
   if (!version) return null;

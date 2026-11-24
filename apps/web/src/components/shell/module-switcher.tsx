@@ -1,7 +1,15 @@
 import { workspaceLabel, type Workspace } from "@omni/client";
 import { useLocation, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useMemo, useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+  type ComponentType,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   IconChevronDown,
   IconChevronLeft,
@@ -114,8 +122,58 @@ export function moduleHome(pathname: string, workspace: string) {
   return BY_ID[moduleOf(pathname)].home.replace("$workspace", encodeURIComponent(workspace));
 }
 
+let pressed: ModuleId | null = null;
+const pressListeners = new Set<() => void>();
+const setPressed = (next: ModuleId | null) => {
+  if (pressed === next) return;
+  pressed = next;
+  for (const listener of pressListeners) listener();
+};
+const subscribePressed = (listener: () => void) => {
+  pressListeners.add(listener);
+  return () => void pressListeners.delete(listener);
+};
+
+/**
+ * The module a press is opening, shown as current at once: a module's page loads its data before
+ * the URL moves, and the sidebar would otherwise wait for it. Cleared once the URL shows it.
+ */
+export function useModulePress() {
+  const shown = useLocation({ select: (location) => moduleOf(location.pathname) });
+  useEffect(() => {
+    if (shown === pressed) setPressed(null);
+  }, [shown]);
+  useEffect(() => {
+    if (!pressed) return;
+    const stale = window.setTimeout(() => setPressed(null), 5000);
+    return () => window.clearTimeout(stale);
+  });
+  return setPressed;
+}
+
 export function useCurrentModule() {
   return useLocation({ select: (location) => moduleOf(location.pathname) });
+}
+
+let warmed: ModuleId | null = null;
+const setWarmed = (next: ModuleId) => {
+  if (warmed === next) return;
+  warmed = next;
+  for (const listener of pressListeners) listener();
+};
+
+/** Marks a module about to be opened (its tab is under the pointer), so its nav mounts ahead. */
+export const warmModule = setWarmed;
+
+/** The module the pointer last rested on, for the sidebar to mount its nav before the press. */
+export function useWarmModule() {
+  return useSyncExternalStore(subscribePressed, () => warmed);
+}
+
+/** The module a press is opening, else the one on screen. */
+export function usePressedModule() {
+  const shown = useCurrentModule();
+  return useSyncExternalStore(subscribePressed, () => pressed) ?? shown;
 }
 
 function ModuleMark({ module, className }: { module: Module; className?: string }) {
@@ -134,13 +192,13 @@ function ModuleMark({ module, className }: { module: Module; className?: string 
   );
 }
 
-function WorkspaceMark({ workspace, size }: { workspace: Workspace; size: number }) {
+export function WorkspaceMark({ workspace, size }: { workspace: Workspace; size: number }) {
   return (
     <Avatar
       isSquare
       src={workspace.logo}
       initials={workspace.name.slice(0, 1).toUpperCase()}
-      className="bg-secondary text-foreground outline-0 mix-blend-multiply"
+      className="bg-muted text-foreground outline-0 mix-blend-multiply"
       style={{ "--avatar-size": `${size}px` } as CSSProperties}
     />
   );
