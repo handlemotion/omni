@@ -3,6 +3,8 @@
 //! and stop. It is the bundled `pill.html`, which hears `recording-changed` and calls the
 //! recorder's pause, resume and stop. It has no close button: it goes when the recording does.
 
+use tauri::utils::config::WindowEffectsConfig;
+use tauri::window::{Effect, EffectState};
 use tauri::{AppHandle, LogicalPosition, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 const LABEL: &str = "pill";
@@ -22,6 +24,13 @@ pub fn show<R: Runtime>(app: &AppHandle<R>) {
                 .decorations(false)
                 .transparent(true)
                 .shadow(false)
+                .effects(WindowEffectsConfig {
+                    effects: vec![Effect::HudWindow, Effect::Acrylic],
+                    state: Some(EffectState::Active),
+                    radius: Some(HEIGHT / 2.0),
+                    color: None,
+                    interactive: false,
+                })
                 .always_on_top(true)
                 .visible_on_all_workspaces(true)
                 .skip_taskbar(true)

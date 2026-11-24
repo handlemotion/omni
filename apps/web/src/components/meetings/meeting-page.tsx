@@ -2,7 +2,7 @@ import { ApiError } from "@omni/client";
 import { usePageTitle } from "@/hooks/use-page-tabs.ts";
 import { MeetingRecord } from "./meeting-record.tsx";
 import { useState, type ComponentType, type ReactNode } from "react";
-import { Skeleton } from "skullet/react";
+import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import {
   IconArrowRotateClockwise,
@@ -23,7 +23,6 @@ import {
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { appToast } from "@/components/ui/toast";
@@ -228,14 +227,6 @@ function Properties(props: {
 function Progress({ meeting }: { meeting: Meeting }) {
   const { retry } = useMeetingWrites();
   const m = meeting.meeting;
-  if (WORKING[m.status]) {
-    return (
-      <div className="flex items-center gap-3 rounded-xl border bg-surface px-4 py-3.5">
-        <Loader className="size-4 text-muted-foreground" />
-        <span className="text-sm">{WORKING[m.status]}</span>
-      </div>
-    );
-  }
   if (m.status !== "failed") return null;
   return (
     <div className="flex items-center gap-3 rounded-xl border bg-surface px-4 py-3.5">
@@ -282,6 +273,8 @@ function Summary({ meeting, canDecide }: { meeting: Meeting; canDecide: boolean 
   const notes = meeting.notes;
   const { copy, copied } = useClipboard();
   const player = usePlayer();
+  const working = WORKING[meeting.meeting.status];
+  if (working) return <SummaryBones label={working} />;
   if (!notes?.summary && !meeting.actions.length) return <Quiet>–</Quiet>;
   const text = [
     notes?.summary,
@@ -342,6 +335,29 @@ function Summary({ meeting, canDecide }: { meeting: Meeting; canDecide: boolean 
         </Block>
       )}
     </>
+  );
+}
+
+function SummaryBones({ label }: { label: string }) {
+  const lines = (widths: string[]) => (
+    <div className="flex flex-col gap-2.5 py-1">
+      {widths.map((width) => (
+        <SkeletonBox key={width} width={width} height={10} />
+      ))}
+    </div>
+  );
+  return (
+    <div role="status" aria-label={label} className="flex flex-col gap-8">
+      <Block icon={IconSparkle} title="Overview">
+        {lines(["100%", "94%", "62%"])}
+      </Block>
+      <Block icon={IconChecklist} title="Action items">
+        {lines(["70%", "56%", "64%"])}
+      </Block>
+      <Block icon={IconList} title="Highlights">
+        {lines(["80%", "68%", "74%"])}
+      </Block>
+    </div>
   );
 }
 

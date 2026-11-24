@@ -66,8 +66,9 @@ function Track(props: {
           key={t.seq}
           className={`absolute inset-y-0 rounded-full ${t.fill}`}
           style={{
-            left: `${(t.startMs / props.totalMs) * 100}%`,
-            width: `${Math.max(0.6, ((t.endMs - t.startMs) / props.totalMs) * 100)}%`,
+            left: `${Math.min(t.startMs / props.totalMs, 1) * 100}%`,
+            width: `${Math.max(0.6, ((Math.min(t.endMs, props.totalMs) - Math.min(t.startMs, props.totalMs)) / props.totalMs) * 100)}%`,
+            maxWidth: `${(1 - Math.min(t.startMs / props.totalMs, 1)) * 100}%`,
           }}
         />
       ))}
@@ -144,7 +145,8 @@ export function SpeakersCard({ meeting }: { meeting: Meeting }) {
   const transcript = useMeetingTranscript(meeting.meeting.id);
   const speakers = meetingSpeakers(meeting);
   if (!meeting.talk.length) return null;
-  const totalMs = Math.max(player.durationMs, meeting.meeting.durationMs ?? 0, 1);
+  const lastEndMs = transcript.data?.at(-1)?.endMs ?? 0;
+  const totalMs = Math.max(player.durationMs, meeting.meeting.durationMs ?? 0, lastEndMs, 1);
   const turns = (transcript.data ?? []).map((s) => ({
     seq: s.seq,
     startMs: s.startMs,
