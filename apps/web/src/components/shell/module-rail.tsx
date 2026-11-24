@@ -82,7 +82,7 @@ export function RailSidebar({ children }: { children: ReactNode }) {
 
 function TopActions() {
   return (
-    <span className="me-1 flex items-center gap-3">
+    <span className="-me-0.5 flex items-center gap-1">
       <NotificationsButton />
       <SearchButton />
     </span>
@@ -105,10 +105,10 @@ function ModuleSwitch({ large = false }: { large?: boolean }) {
         aria-label={`Switch module, currently ${name}`}
         className={cn(
           "w-auto max-w-full shrink",
-          large ? "h-8 gap-2 ps-0.5 pe-1.5 *:[svg]:size-7" : "h-8 gap-2 px-2 *:[svg]:size-4.5",
+          large ? "h-8 gap-1.5 ps-0.75 pe-1.5" : "h-8 gap-2 px-2",
         )}
       >
-        <Mark />
+        <Mark className={large ? "size-6!" : undefined} />
         <span className={cn("min-w-0 truncate", large ? "text-lg" : "text-md")}>{name}</span>
         <IconChevronDown
           className={cn(
