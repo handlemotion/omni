@@ -46,7 +46,7 @@ export function ThreadRow({
         {thread.unread && (
           <span
             aria-label="Unread"
-            className="absolute -start-2.5 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-primary"
+            className="absolute -start-2.25 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-primary"
           />
         )}
         <span className={`min-w-0 truncate ${tone}`}>{sender}</span>
