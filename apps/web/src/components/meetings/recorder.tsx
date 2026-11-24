@@ -95,7 +95,7 @@ export function RecordButton() {
   if (!recorder) return null;
   if (desktop.isDesktop && recorder.phase === "recording") {
     return (
-      <Button intent="secondary" size="sm" className="w-full" onPress={() => void recorder.stop()}>
+      <Button intent="outline" size="sm" className="w-full" onPress={() => void recorder.stop()}>
         <IconStop />
         Stop
       </Button>
@@ -103,7 +103,7 @@ export function RecordButton() {
   }
   return (
     <Button
-      intent="secondary"
+      intent="primary"
       size="sm"
       className="w-full"
       isDisabled={recorder.phase !== "idle"}

@@ -34,15 +34,16 @@ export function MeetingsNav() {
   if (isPending) {
     return (
       <>
+        <RecordSection />
         <SidebarSection>
           <SidebarTreeBones depth={0} />
         </SidebarSection>
-        <RecordSection />
       </>
     );
   }
   return (
     <>
+      <RecordSection />
       {sections.map((section) => (
         <SidebarSection key={section.id} label={section.label}>
           {section.rows.map((group) => (
@@ -62,7 +63,6 @@ export function MeetingsNav() {
           </Button>
         </div>
       )}
-      <RecordSection />
     </>
   );
 }
@@ -126,8 +126,8 @@ function RecordSection() {
   const recorder = useRecorder();
   if (!recorder) return null;
   return (
-    <div className="sticky bottom-0 mt-auto bg-background pt-2">
+    <SidebarSection>
       <RecordButton />
-    </div>
+    </SidebarSection>
   );
 }

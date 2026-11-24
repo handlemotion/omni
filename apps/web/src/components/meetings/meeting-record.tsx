@@ -67,7 +67,7 @@ function Records(props: { meeting: Meeting; canEdit: boolean }) {
     <>
       {!meeting.recordOff && <Matched addresses={props.meeting.attendees.map((a) => a.address)} />}
       {props.canEdit && (
-        <div className="ms-auto w-56 shrink-0">
+        <div className="ms-auto min-w-0 flex-1">
           <RecordPicker
             label={false}
             value={null}
