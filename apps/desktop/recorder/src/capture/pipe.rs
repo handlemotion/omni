@@ -1,6 +1,10 @@
 //! What `omni-capture` (the macOS helper) writes on stdout: one `R` byte once both streams
 //! run, then chunks of a tag byte (`M` mic, `S` the computer's sound), a little-endian `u32`
-//! sample count and that many little-endian `f32` samples, mono at 48 kHz.
+//! sample count and that many little-endian `f32` samples, mono at 48 kHz; or `V`, a
+//! little-endian `u32` byte count and that many bytes of video (its header, then whole
+//! fragments of fragmented MP4).
+//!
+//! And what it reads on stdin: `P` pauses the video, `R` resumes it, and its end stops it.
 
 use std::io::{self, Read};
 
@@ -9,6 +13,11 @@ use super::Chunk;
 pub const READY: u8 = b'R';
 /// Most samples one chunk may claim: a second. More means the pipe is out of step.
 const MAX_SAMPLES: usize = 48_000;
+/// Most bytes one video chunk may claim: a 2-second fragment is under 2 MB even at many times
+/// the bit rate asked for.
+const MAX_VIDEO_BYTES: usize = 64 << 20;
+pub const PAUSE: u8 = b'P';
+pub const RESUME: u8 = b'R';
 
 /// The next chunk, or `None` at a clean end of the stream.
 pub fn read_chunk(reader: &mut impl Read) -> io::Result<Option<Chunk>> {
@@ -19,6 +28,16 @@ pub fn read_chunk(reader: &mut impl Read) -> io::Result<Option<Chunk>> {
     let mut count = [0_u8; 4];
     reader.read_exact(&mut count)?;
     let count = u32::from_le_bytes(count) as usize;
+    if tag[0] == b'V' {
+        if count > MAX_VIDEO_BYTES {
+            return Err(io::Error::other(
+                "the capture helper sent a chunk out of step",
+            ));
+        }
+        let mut bytes = vec![0_u8; count];
+        reader.read_exact(&mut bytes)?;
+        return Ok(Some(Chunk::Video(bytes)));
+    }
     if count > MAX_SAMPLES {
         return Err(io::Error::other(
             "the capture helper sent a chunk out of step",
@@ -67,6 +86,24 @@ mod tests {
         };
         assert_eq!((mic, system), (vec![0.5, -0.5], vec![0.25]));
         assert!(read_chunk(&mut reader).unwrap().is_none());
+    }
+
+    // Bug: reading video bytes as samples (or the other way round) puts the stream out of step
+    // and the recording ends at the first fragment.
+    #[test]
+    fn video_chunks_carry_their_bytes_between_samples() {
+        let mut bytes = vec![b'V'];
+        bytes.extend(3_u32.to_le_bytes());
+        bytes.extend([1, 2, 3]);
+        bytes.extend(chunk(b'S', &[0.25]));
+        let mut reader = bytes.as_slice();
+        let Some(Chunk::Video(video)) = read_chunk(&mut reader).unwrap() else {
+            panic!()
+        };
+        let Some(Chunk::System(system)) = read_chunk(&mut reader).unwrap() else {
+            panic!()
+        };
+        assert_eq!((video, system), (vec![1, 2, 3], vec![0.25]));
     }
 
     // Bug: a garbled length would make the reader allocate gigabytes and take the app down.

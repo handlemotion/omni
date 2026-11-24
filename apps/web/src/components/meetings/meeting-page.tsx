@@ -71,7 +71,7 @@ export function MeetingPage({ id }: { id: string }) {
       title={<GroupCrumb meeting={data} />}
       actions={<HeaderActions meeting={data} onShare={() => setSharing(true)} />}
     >
-      <MeetingAudio id={id} hasAudio={m.hasAudio} durationMs={m.durationMs}>
+      <MeetingAudio id={id} hasAudio={m.hasAudio} hasVideo={m.hasVideo} durationMs={m.durationMs}>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <header className="flex max-w-3xl flex-col gap-3 px-10 pt-6 pb-6">
             <h1 className="text-2xl text-foreground">{m.title ?? "Untitled meeting"}</h1>

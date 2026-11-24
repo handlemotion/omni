@@ -48,7 +48,8 @@ interface, so a self-hoster can point it at any OpenAI-compatible server or Work
   "Transcription"); live comes later on the same interface.
 - Recording on the iPhone. The phone is Rodrigo's and waits for the iOS calendar.
 - Recognizing a voice across meetings (voiceprints). It is biometric data; see "Speakers".
-- Video. Audio only.
+- Video from the browser recorder or Windows. Video is the macOS desktop recorder's, and optional
+  (see "Video" under "Capture").
 
 ## What we take from Circleback, Granola and Amie
 
@@ -202,6 +203,29 @@ Tauri in it so `omni-record` drives the same code from a terminal):
   same upload and never makes a second file; a repeated stop is safe (the pipeline submits a
   meeting to the engine once, `claimSubmission`). A spool is finished only by the member who
   started it; one whose meeting was deleted meanwhile keeps its file in Drive and is let go.
+- **Video** (macOS 14 and later). Once the sound runs, the helper shows the system's own
+  content-sharing picker, so the person picks the call's window or a whole display; Cancel
+  records sound only, and so does an older Mac or Windows. ScreenCaptureKit hands over the frames
+  that changed, at most 15 a second, scaled to at most 1920 pixels on the long side; the helper
+  encodes them as H.264 at about 1 Mbit/s with a key frame every 2 seconds (about 450 MB an hour,
+  a static screen far less) into fragmented MP4, 2-second fragments, and pipes each fragment to
+  the Rust side, which appends it whole to `video.mp4` in the spool. It is a separate file from
+  the audio, so transcription, its cost and its size limits do not change.
+  - **One clock.** The video starts at the audio's zero (the moment the helper reports both sound
+    streams running); its first frame is stretched back to zero, so a pick that took ten seconds
+    shows that frame for ten seconds instead of shifting everything after it. Pause tells the
+    helper (a byte on its stdin), which drops frames while paused and takes the paused time out
+    of the timestamps after it, so the video leaves out the same stretch the audio's cut does.
+    Audio and video agree to within a frame or two, and every transcript time is a video time.
+  - **Nothing is lost.** Fragments are appended whole and forced to the disk with the audio. A
+    crash loses at most the fragment being encoded (2 seconds); recovery cuts `video.mp4` after
+    its last whole box. Stop closes the helper's stdin, so it writes its last fragment before it
+    exits (it is killed after 3 seconds if it has not). The concatenated fragments are a valid
+    MP4 that Chrome and Safari play and seek with byte ranges, so nothing is rewritten at the
+    end.
+  - **Upload.** `finishRecording` uploads `video.mp4` the same way, after the audio, into
+    `Recordings` under the audio's name with `.mp4`, keeps its upload and file ids in the spool,
+    and names it in the stop. A recording without video (or an empty `video.mp4`) uploads none.
 - **In a room**, with no call, the right channel is silent: the transcript relies on the engine's
   speaker labels and the names step alone.
 
@@ -211,7 +235,9 @@ a recording by itself. The bridge's shapes are `@omni/contracts`' `desktop-recor
 
 - Commands: `recording_start` `{ meetingId, memberId, folderId, title }`, `recording_pause`,
   `recording_resume`, `recording_stop`, `recording_list` (stops what a crash left first),
-  `recording_part` (raw bytes), `recording_mark`, `recording_discard`, `recording_schedule`.
+  `recording_part` (raw bytes of `audio` or `video`), `recording_mark`, `recording_discard`,
+  `recording_schedule`. A `DesktopRecording` carries `videoSize` (0 without video) and the
+  video's own `videoUploadId` and `videoNodeId`.
 - Events: `recording-changed` (a `DesktopRecording`, four times a second while capturing and once
   when it stops, when the page runs `finishRecording`); `recording-requested` (tray "Record Now":
   the page asks for consent and starts); `recording-offered` (a meeting began).
@@ -481,7 +507,11 @@ workspace, the files go with the rest of their My files to whoever receives them
 sweep work as before. It plays on the
 meeting page and is kept as long as the meeting is, so a quote can always be heard again; a
 workspace can choose to delete recordings after a number of days instead, or as soon as the
-transcript is saved, and the sweep does it. The engine's raw response is kept in R2 under
+transcript is saved, and the sweep does it. A recording with video has a second file beside the
+audio, `video.mp4`, under the same rules: it plays through `GET /api/meetings/:id/video`, goes to
+the Trash with the meeting, and the page plays it in place of the waveform, the audio staying
+the clock (the video follows it, and is put back in step when it drifts more than a quarter of a
+second). The engine's raw response is kept in R2 under
 `meetings/<org>/<meeting>/engine.json`, not in Drive (nobody opens it), so speakers can be worked
 out again without paying twice. Deleting the meeting deletes it and moves the recording to the
 recorder's Drive Trash.
@@ -495,7 +525,7 @@ All tables carry `org_id`, cascade with the workspace, and are named `meetings_*
 
 | Table                | Key fields                                                                                                                                                                                                                                                                                                                                       | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `meetings_meetings`  | id, org_id, title, started_at, ended_at, duration_ms, event_uid, event_recurrence_id, group_key, record_kind, record_id, access (`restricted` · `workspace`), link_access (`off` · `signed_in` · `anyone`), link_token, recorded_by_member_id, part, consent_at, status, language, audio_node_id, notes_node_id, failure, created_at, updated_at | Unique on (org_id, event_uid, event_recurrence_id, part) where the event is set, with `part` counting from 1; `event_recurrence_id` is `''` for an event that does not repeat, never null, so the key holds for it. `status`: `recording` · `uploaded` · `transcribing` · `naming` · `writing` · `ready` · `failed`. The event is referenced by its iCalendar identity, the CRM record by kind (`company` · `person` · `deal`, or `none` once a person took it off every record) and id, with no foreign key into either module. |
+| `meetings_meetings`  | id, org_id, title, started_at, ended_at, duration_ms, event_uid, event_recurrence_id, group_key, record_kind, record_id, access (`restricted` · `workspace`), link_access (`off` · `signed_in` · `anyone`), link_token, recorded_by_member_id, part, consent_at, status, language, audio_node_id, video_node_id (null without video), notes_node_id, failure, created_at, updated_at | Unique on (org_id, event_uid, event_recurrence_id, part) where the event is set, with `part` counting from 1; `event_recurrence_id` is `''` for an event that does not repeat, never null, so the key holds for it. `status`: `recording` · `uploaded` · `transcribing` · `naming` · `writing` · `ready` · `failed`. The event is referenced by its iCalendar identity, the CRM record by kind (`company` · `person` · `deal`, or `none` once a person took it off every record) and id, with no foreign key into either module. |
 | `meetings_attendees` | meeting_id, org_id, address, name                                                                                                                                                                                                                                                                                                                | Copied from the event at start, or added on the page; each gets a `viewer` grant.                                                                                                                                                                                                                                                                                                                                                              |
 | `meetings_grants`    | meeting_id, org_id, address, role (`owner` · `editor` · `viewer`), granted_by_member_id, created_at                                                                                                                                                                                                                                              | Key (meeting_id, address). Drive's grant shape, by address.                                                                                                                                                                                                                                                                                                                                                                                    |
 | `meetings_speakers`  | meeting_id, label, org_id, name, address, source (`mic` · `engine` · `ai` · `person`), confidence                                                                                                                                                                                                                                                | Key (meeting_id, label). The label is the engine's.                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -597,7 +627,8 @@ the status before it.
    it stops (`finishRecording`, above); the browser sends it as chunks (`PUT /:id/chunks/:seq`)
    as it records.
 2. **Stop.** `POST /api/meetings/:id/stop` names the uploaded file (it must be an audio file of
-   the recorder's own, in their My files) or how many chunks there are (all of them must have
+   the recorder's own, in their My files, and the video, when there is one, a video file of
+   theirs too) or how many chunks there are (all of them must have
    arrived), with the mic intervals and the dropped silences; it sets `uploaded` and enqueues
    `transcribe`.
 3. **File.** For a recording sent as chunks, the first step joins them in order into one file in
@@ -652,7 +683,7 @@ at the engine or in R2.
 Under `/api/meetings`, behind the plan's read-only gate. Recording needs minutes left in the plan's month (`hasAllowance`); stopping counts the recording's minutes once, keyed by its audio file (`docs/spec/billing.md`). Member sessions reach everything below.
 A signed-in person outside the workspace (or anyone, by their own grants alone) uses the user
 door under `/api/meetings/shared`: `GET /` (the meetings shared with them, newest first),
-`GET /:id`, `GET /:id/transcript`, `GET /:id/audio` and `POST /ask` `{ meetingId, question }`,
+`GET /:id`, `GET /:id/transcript`, `GET /:id/audio`, `GET /:id/video` and `POST /ask` `{ meetingId, question }`,
 with the same grant checks through `forUser`. It only reads; an editor grant changes the
 meeting from a workspace session. An Ask there counts against the meeting's workspace. A
 meeting the caller cannot see answers `404`, and a removed grant closes it on the next request.
@@ -665,10 +696,11 @@ meeting the caller cannot see answers `404`, and a removed grant closes it on th
 | `POST /` `{ event?, title?, consent: true }`                         | Starts one; returns its id and the upload. `event`: `{ id, recurrenceId }`, `"now"` (the default) or `null` |
 | `PUT /:id/chunks/:seq?endMs=` (bytes, `x-content-sha256`)            | One chunk of the recording; the answer acknowledges it                    |
 | `GET /:id/chunks`                                                    | The chunks the server holds, for a recorder resuming                      |
-| `POST /:id/stop` `{ chunks \| audioNodeId, durationMs, micSpans, cuts }` | Stops (once every chunk arrived) and starts the pipeline              |
+| `POST /:id/stop` `{ chunks \| audioNodeId, videoNodeId?, durationMs, micSpans, cuts }` | Stops (once every chunk arrived) and starts the pipeline |
 | `GET /:id`                                                           | The meeting: status, attendees, notes, actions, speakers                  |
 | `GET /:id/transcript`                                                | Segments with speakers                                                    |
 | `GET /:id/audio`                                                     | The audio, through Storage's door                                         |
+| `GET /:id/video`                                                     | The video, when the desktop recorder took one, the same way               |
 | `PATCH /:id` `{ title?, access?, link?, record? }`                   | Change, general access and the link; `record: null` takes it off every record (put it on one with `PUT /api/crm/deals/:id/meetings/:meetingId`) |
 | `GET /tasks/:taskId`                                                 | The meeting a calendar task was accepted from, so the task links back to it |
 | `GET /:id/grants` · `PUT /:id/grants/:address` `{ role }` · `DELETE` | Who it is shared with; invite, change, remove                             |
@@ -743,6 +775,7 @@ For the team of ten above, 430 hours a month before these savings:
 | AssemblyAI, with speakers and names | about $110                                             |
 | Claude Haiku: names, notes, groups  | about 430 × 20k tokens in; small next to transcription |
 | R2: 14 MB an hour, kept             | 6 GB more each month, about $0.09 more each month      |
+| R2: video, up to 450 MB an hour     | at most 190 GB more each month if every call had video, about $2.90 more each month |
 
 About 25 cents an hour of meeting all in. At 3 hours of meetings a week per person, one person
 is about 13 hours a month, about $3.25; a team of ten about $33 a month, less what one recording
@@ -776,6 +809,7 @@ the rest. The migration in M2 numbers on top of whatever is on `main` then.
 | M3  | Worker: `/api/meetings`, Drive upload into `Recordings`, the pipeline jobs and engines, realtime, the variables; e2e on the local stack with recorded engine and model responses                                                                                                             | M2         |
 | M3b | Worker: group summaries and Ask (Claude), the notes written into the doc, routes for people outside the workspace (the user door), an accepted task made in the calendar once its tasks exist (T1)                                                                                           | M3         |
 | M4  | Desktop: the recorder (Core Audio tap, ScreenCaptureKit, WASAPI), the spool and upload, the pill, the tray and the start notification                                                                                                                                                        | M3         |
+| M4b | Desktop and Worker: video (macOS picker, H.264 fragments in the spool, `video_node_id`, `GET /:id/video`, the video in the meeting page's player card) | M4 |
 | M5  | Web (Rodrigo, from Figma): the Meetings module, Record in the event panel, the browser recorder                                                                                                                                                                                              | M3         |
 | M6  | CRM: the Meetings tab on a deal, meetings in timelines                                                                                                                                                                                                                                       | M5         |
 | M7  | MCP: `meetings_search`, `meetings_fetch`, `meetings_group`, `meetings_decide`, `meetings_rename_speaker`, `meetings_share`, scopes `meetings:read` and `meetings:write`                                                                                                                      | M3         |
@@ -793,6 +827,9 @@ What each layer must prove:
 - M7: through `/mcp`, an agent reaches no meeting its person cannot open, and deciding an action
   twice makes one task or one draft, never sent.
 - M4: killing the app mid-meeting and opening it again finishes the upload with nothing missing.
+- M4b (video): a recording with a window picked plays its video on the meeting page in step with
+  the transcript's lit word, after a pause too; a crash mid-recording leaves a video that plays to
+  within 2 seconds of the audio's end.
 
 **Later:** a live transcript on the streaming endpoint; the iPhone; an optional bot; Ask across
 every meeting; voiceprints with per-person consent; templates per kind of meeting.

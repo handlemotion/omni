@@ -27,8 +27,13 @@ export const desktopRecordingSchema = z.object({
   startedAtMs: ms,
   /** Audio in the file so far; paused time is not in it (see `cuts`). */
   durationMs: ms,
-  /** Bytes in the spool's file. */
+  /** Bytes in the spool's audio file. */
   size: ms,
+  /**
+   * Bytes in the spool's video (fragmented MP4 on the audio's clock), 0 or absent without one.
+   * Absent from a shell older than video.
+   */
+  videoSize: ms.nullish(),
   /** When the person at this computer spoke, in the audio's time. */
   micSpans: z.array(span),
   /** Where paused time was left out: `atMs` in the audio, `droppedMs` of meeting time. */
@@ -37,6 +42,9 @@ export const desktopRecordingSchema = z.object({
   uploadId: z.string().nullish(),
   /** The Drive file it became, once completed. */
   nodeId: z.string().nullish(),
+  /** The video's own Drive upload and file, as for the audio. */
+  videoUploadId: z.string().nullish(),
+  videoNodeId: z.string().nullish(),
   /** The microphone's level just now, in dBFS (-120 is silence); for the pill. */
   micDb: z.number(),
 });

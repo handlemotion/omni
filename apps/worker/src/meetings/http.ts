@@ -19,7 +19,10 @@ const FAILURES = {
   recording_elsewhere: ["conflict", "someone in your workspace is already recording this meeting"],
   event_not_found: ["not_found", "that event is not on your calendars"],
   decided: ["conflict", "that action was already decided"],
-  not_a_recording: ["bad_request", "the recording must be an audio file in your My files"],
+  not_a_recording: [
+    "bad_request",
+    "the recording must be an audio file (and its video a video file) in your My files",
+  ],
   not_stoppable: ["conflict", "the meeting is not recording"],
   not_retryable: ["conflict", "the meeting has not failed"],
   policy: ["sharing_policy", "your workspace's sharing policy does not allow that"],

@@ -324,7 +324,9 @@ export function deleteMeeting(ex: Ex, actor: MeetingsActor | null, meetingId: st
     await ex.delete(meetingsMeetings).where(eq(meetingsMeetings.id, meetingId));
     return {
       status: "ok",
-      files: [meeting.audioNodeId, meeting.rawNodeId].filter((n): n is string => n !== null),
+      files: [meeting.audioNodeId, meeting.videoNodeId, meeting.rawNodeId].filter(
+        (n): n is string => n !== null,
+      ),
     } as const;
   });
 }

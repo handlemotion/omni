@@ -2,13 +2,15 @@
 //! "Nothing is lost").
 //!
 //! - `audio.ogg`: the recording as it is encoded, page by page.
+//! - `video.mp4` (macOS, when the person picked a window or display): fragmented MP4 on the
+//!   audio's clock, appended a whole fragment at a time (`video.rs`).
 //! - `recording.json`: what it is for and how far it got, rewritten whole (write, then rename).
 //! - `mic.spans`: a `start` line when a mic interval opens and a `start end` line when it
 //!   closes, appended; an interval still open at a crash runs to the file's end.
 //!
 //! A folder whose manifest is not `stopped` was left by a crash, a sleep that never woke or a
-//! quit: `recover` cuts its file at the last whole page and stops it, and it uploads like any
-//! other.
+//! quit: `recover` cuts its audio at the last whole page and its video after the last whole
+//! fragment, and stops it, and it uploads like any other.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -20,10 +22,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::detect::Span;
 use crate::encode::RATE;
-use crate::ogg;
+use crate::{ogg, video};
 
 const MANIFEST: &str = "recording.json";
 const AUDIO: &str = "audio.ogg";
+const VIDEO: &str = "video.mp4";
 const SPANS: &str = "mic.spans";
 const PRE_SKIP: u64 = 312;
 
@@ -49,6 +52,28 @@ pub struct Manifest {
     pub cuts: Vec<(u64, u64)>,
     pub upload_id: Option<String>,
     pub node_id: Option<String>,
+    /// The video's upload and file, as for the audio; absent from a spool older than video.
+    #[serde(default)]
+    pub video_upload_id: Option<String>,
+    #[serde(default)]
+    pub video_node_id: Option<String>,
+}
+
+/// Which of a spool's files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpoolFile {
+    Audio,
+    Video,
+}
+
+/// What finishing has got to: the upload a file goes up as, and the file it became.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Progress {
+    pub upload_id: Option<String>,
+    pub node_id: Option<String>,
+    pub video_upload_id: Option<String>,
+    pub video_node_id: Option<String>,
 }
 
 /// What a new recording is for: the meeting `POST /api/meetings` made.
@@ -129,6 +154,8 @@ impl Spool {
                 cuts: Vec::new(),
                 upload_id: None,
                 node_id: None,
+                video_upload_id: None,
+                video_node_id: None,
             },
         };
         spool.save()?;
@@ -145,6 +172,39 @@ impl Spool {
 
     pub fn audio_path(&self) -> PathBuf {
         self.dir.join(AUDIO)
+    }
+
+    pub fn video_path(&self) -> PathBuf {
+        self.dir.join(VIDEO)
+    }
+
+    fn path(&self, file: SpoolFile) -> PathBuf {
+        match file {
+            SpoolFile::Audio => self.audio_path(),
+            SpoolFile::Video => self.video_path(),
+        }
+    }
+
+    /// Cuts the video after its last whole fragment, and deletes one that has none. Safe to
+    /// run on a video already settled.
+    pub fn settle_video(&self) -> io::Result<()> {
+        let path = self.video_path();
+        let mut file = match OpenOptions::new().read(true).write(true).open(&path) {
+            Ok(file) => file,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        let len = file.metadata()?.len();
+        let playable = video::playable_len(&mut file, len)?;
+        if playable == 0 {
+            drop(file);
+            return fs::remove_file(path);
+        }
+        if playable < len {
+            file.set_len(playable)?;
+            file.sync_all()?;
+        }
+        Ok(())
     }
 
     pub fn save(&self) -> io::Result<()> {
@@ -176,6 +236,10 @@ impl Spool {
 
     pub fn size(&self) -> u64 {
         fs::metadata(self.audio_path()).map_or(0, |m| m.len())
+    }
+
+    pub fn video_size(&self) -> u64 {
+        fs::metadata(self.video_path()).map_or(0, |m| m.len())
     }
 
     /// Stops a recording the app did not stop itself: the file ends at its last whole page,
@@ -218,12 +282,14 @@ impl Spool {
             .map(|s| format!("{} {}\n", s.start_ms, s.end_ms))
             .collect();
         write_atomic(&self.dir.join(SPANS), text.as_bytes())?;
+        self.settle_video()?;
         self.manifest.state = State::Stopped;
         self.save()
     }
 
-    /// Part `number` (from 1) of a stopped recording, in Drive's parts of `part_size` bytes.
-    pub fn read_part(&self, number: u64, part_size: u64) -> io::Result<Vec<u8>> {
+    /// Part `number` (from 1) of a stopped recording's `file`, in Drive's parts of `part_size`
+    /// bytes.
+    pub fn read_part(&self, file: SpoolFile, number: u64, part_size: u64) -> io::Result<Vec<u8>> {
         if self.manifest.state != State::Stopped {
             return Err(io::Error::other("the recording is still going"));
         }
@@ -234,21 +300,28 @@ impl Spool {
             ));
         }
         let offset = (number - 1) * part_size;
-        let len = self.size().saturating_sub(offset).min(part_size);
-        let mut file = File::open(self.audio_path())?;
+        let size = fs::metadata(self.path(file)).map_or(0, |m| m.len());
+        let len = size.saturating_sub(offset).min(part_size);
+        let mut file = File::open(self.path(file))?;
         file.seek(SeekFrom::Start(offset))?;
         let mut part = vec![0; len as usize];
         file.read_exact(&mut part)?;
         Ok(part)
     }
 
-    /// Notes how far the upload got, so a restart carries on from there.
-    pub fn mark(&mut self, upload_id: Option<String>, node_id: Option<String>) -> io::Result<()> {
-        if upload_id.is_some() {
-            self.manifest.upload_id = upload_id;
-        }
-        if node_id.is_some() {
-            self.manifest.node_id = node_id;
+    /// Notes how far the uploads got, so a restart carries on from there. What is not given
+    /// stays as it was.
+    pub fn mark(&mut self, progress: Progress) -> io::Result<()> {
+        let m = &mut self.manifest;
+        for (from, to) in [
+            (progress.upload_id, &mut m.upload_id),
+            (progress.node_id, &mut m.node_id),
+            (progress.video_upload_id, &mut m.video_upload_id),
+            (progress.video_node_id, &mut m.video_node_id),
+        ] {
+            if from.is_some() {
+                *to = from;
+            }
         }
         self.save()
     }
@@ -292,6 +365,9 @@ impl Spool {
                 .collect(),
             upload_id: m.upload_id.clone(),
             node_id: m.node_id.clone(),
+            video_size: Some(self.video_size() as i64),
+            video_upload_id: m.video_upload_id.clone(),
+            video_node_id: m.video_node_id.clone(),
             mic_db,
         }
     }
@@ -364,13 +440,24 @@ mod tests {
         let mut spool = Spool::create(&root, new("m")).unwrap();
         let bytes: Vec<u8> = (0..=255).cycle().take(1000).collect();
         fs::write(spool.audio_path(), &bytes).unwrap();
-        assert!(spool.read_part(1, 300).is_err(), "not while recording");
+        fs::write(spool.video_path(), &bytes[..700]).unwrap();
+        assert!(
+            spool.read_part(SpoolFile::Audio, 1, 300).is_err(),
+            "not while recording"
+        );
         spool.manifest.state = State::Stopped;
         let parts: Vec<u8> = (1..=4)
-            .flat_map(|n| spool.read_part(n, 300).unwrap())
+            .flat_map(|n| spool.read_part(SpoolFile::Audio, n, 300).unwrap())
             .collect();
         assert_eq!(parts, bytes);
-        assert_eq!(spool.read_part(4, 300).unwrap().len(), 100);
+        assert_eq!(
+            spool.read_part(SpoolFile::Audio, 4, 300).unwrap().len(),
+            100
+        );
+        let video: Vec<u8> = (1..=3)
+            .flat_map(|n| spool.read_part(SpoolFile::Video, n, 300).unwrap())
+            .collect();
+        assert_eq!(video, &bytes[..700]);
     }
 
     // Bug: progress kept only in memory would make a restart open a second upload.
@@ -378,11 +465,61 @@ mod tests {
     fn upload_progress_survives_reopening() {
         let root = root("mark");
         let mut spool = Spool::create(&root, new("m")).unwrap();
-        spool.mark(Some("up".into()), None).unwrap();
-        spool.mark(None, Some("node".into())).unwrap();
+        let mark = |spool: &mut Spool, progress| spool.mark(progress).unwrap();
+        mark(
+            &mut spool,
+            Progress {
+                upload_id: Some("up".into()),
+                ..Progress::default()
+            },
+        );
+        mark(
+            &mut spool,
+            Progress {
+                node_id: Some("node".into()),
+                ..Progress::default()
+            },
+        );
+        mark(
+            &mut spool,
+            Progress {
+                video_node_id: Some("video".into()),
+                ..Progress::default()
+            },
+        );
         let reopened = Spool::open(&root.join(&spool.manifest.id)).unwrap();
         assert_eq!(reopened.manifest.upload_id.as_deref(), Some("up"));
         assert_eq!(reopened.manifest.node_id.as_deref(), Some("node"));
+        assert_eq!(reopened.manifest.video_node_id.as_deref(), Some("video"));
+    }
+
+    // Bug: a crash mid-fragment left a video the browser stops at, or refuses; and a video with
+    // no frames yet uploaded as a file that shows nothing.
+    #[test]
+    fn recovering_cuts_the_video_after_its_last_whole_fragment() {
+        let boxed = |kind: &[u8; 4], body: usize| {
+            let mut out = u32::try_from(8 + body).unwrap().to_be_bytes().to_vec();
+            out.extend(kind);
+            out.extend(std::iter::repeat_n(0, body));
+            out
+        };
+        let root = root("video");
+        let mut spool = Spool::create(&root, new("m")).unwrap();
+        let mut whole = boxed(b"ftyp", 20);
+        whole.extend(boxed(b"moov", 600));
+        whole.extend(boxed(b"moof", 100));
+        whole.extend(boxed(b"mdat", 900));
+        let mut cut = whole.clone();
+        cut.extend(&boxed(b"moof", 100)[..50]);
+        fs::write(spool.video_path(), &cut).unwrap();
+        spool.recover().unwrap();
+        assert_eq!(fs::read(spool.video_path()).unwrap(), whole);
+
+        let mut header_only = Spool::create(&root, new("m2")).unwrap();
+        fs::write(header_only.video_path(), &whole[..28 + 608]).unwrap();
+        header_only.recover().unwrap();
+        assert!(!header_only.video_path().exists());
+        assert_eq!(header_only.snapshot(-120.0).video_size, Some(0));
     }
 
     // Bug: a crash before any audio reached the disk must still end as a stopped, empty

@@ -1,23 +1,59 @@
 //! macOS: `omni-capture`, the Swift helper in `Contents/MacOS/` (`recorder/macos`), does the
 //! capture, because Core Audio's process taps and ScreenCaptureKit are Objective-C APIs this
-//! crate would need `unsafe` for. It writes the `pipe.rs` format on stdout; killing it stops it.
+//! crate would need `unsafe` for. It writes the `pipe.rs` format on stdout and reads pause,
+//! resume and stop on stdin; killing it stops it at once.
 //!
 //! Its exit code says why it could not start: 2, no microphone permission; 3, no permission to
 //! capture the computer's sound (audio capture on 14.4+, screen recording before).
 
-use std::io::{BufReader, Read};
-use std::process::{Child, Command, Stdio};
+use std::io::{BufReader, Read, Write};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::Sender;
 use std::thread;
+use std::time::{Duration, Instant};
 
-use super::pipe::{READY, read_chunk};
+use super::pipe::{PAUSE, READY, RESUME, read_chunk};
 use super::{Capture, CaptureError, Chunk};
 
 pub struct Helper {
     child: Child,
+    stdin: Option<ChildStdin>,
 }
 
-impl Capture for Helper {}
+/// How long the helper may take to write the video's last fragment and exit.
+const FINISH_WITHIN: Duration = Duration::from_secs(3);
+
+impl Helper {
+    fn tell(&mut self, command: u8) {
+        if let Some(stdin) = self.stdin.as_mut() {
+            let _ = stdin.write_all(&[command]).and_then(|()| stdin.flush());
+        }
+    }
+}
+
+impl Capture for Helper {
+    fn pause(&mut self) {
+        self.tell(PAUSE);
+    }
+
+    fn resume(&mut self) {
+        self.tell(RESUME);
+    }
+
+    fn finish(&mut self) -> bool {
+        // Its stdin ending is the helper's stop.
+        drop(self.stdin.take());
+        let until = Instant::now() + FINISH_WITHIN;
+        while Instant::now() < until {
+            if matches!(self.child.try_wait(), Ok(Some(_)) | Err(_)) {
+                return true;
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+        let _ = self.child.kill();
+        true
+    }
+}
 
 impl Drop for Helper {
     fn drop(&mut self) {
@@ -51,11 +87,12 @@ pub fn start(tx: Sender<Chunk>) -> Result<Helper, CaptureError> {
         .filter(|path| path.exists())
         .ok_or(CaptureError::Unavailable)?;
     let mut child = Command::new(helper)
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| CaptureError::Failed(e.to_string()))?;
+    let stdin = child.stdin.take();
     let Some(stdout) = child.stdout.take() else {
         return Err(CaptureError::Failed(
             "the capture helper has no output".into(),
@@ -86,5 +123,5 @@ pub fn start(tx: Sender<Chunk>) -> Result<Helper, CaptureError> {
             }
         }
     });
-    Ok(Helper { child })
+    Ok(Helper { child, stdin })
 }

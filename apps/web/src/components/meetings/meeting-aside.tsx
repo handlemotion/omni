@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
-import { IconPauseFilled, IconPlayFilled } from "@/components/icons/central";
+import { useRef, type ReactNode, type RefObject } from "react";
+import { IconMaximize, IconPauseFilled, IconPlayFilled } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Slider, SliderTrack } from "@/components/ui/slider";
 import { useMeetingTranscript, useMeetingWaveform } from "@/hooks/use-meetings.ts";
-import { meetingClock, type Meeting } from "@/lib/meetings.ts";
+import { meetingClock, meetingVideoUrl, type Meeting } from "@/lib/meetings.ts";
 import { usePlayer } from "./meeting-player.tsx";
 import { initial, meetingSpeakers, talkLength, UNKNOWN, type Speaker } from "./meeting-speakers.ts";
 
@@ -112,15 +112,65 @@ function Waveform(props: { id: string; totalMs: number }) {
   );
 }
 
-/** The recording: its sound to seek in, the fallback for a meeting with no video. */
+const RATES = [1, 1.25, 1.5, 2];
+const nextRate = (rate: number) => RATES[(RATES.indexOf(rate) + 1) % RATES.length] ?? 1;
+
+function Video({ id, frame }: { id: string; frame: RefObject<HTMLVideoElement | null> }) {
+  const player = usePlayer();
+  return (
+    // oxlint-disable-next-line jsx-a11y/media-has-caption, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- the transcript is its captions; Play is the keyboard's way
+    <video
+      ref={(element) => {
+        frame.current = element;
+        player.video(element);
+      }}
+      src={meetingVideoUrl(id)}
+      muted
+      playsInline
+      preload="auto"
+      onClick={player.toggle}
+      className="aspect-video w-full cursor-pointer rounded-lg bg-secondary object-contain"
+    />
+  );
+}
+
+function Scrubber({ totalMs }: { totalMs: number }) {
+  const player = usePlayer();
+  return (
+    <div className="relative py-1">
+      <Track turns={[]} totalMs={totalMs} atMs={player.timeMs} className="h-1.5" />
+      <Slider
+        aria-label="Position"
+        minValue={0}
+        maxValue={totalMs}
+        step={1000}
+        value={Math.min(player.timeMs, totalMs)}
+        onChange={(value) => player.seek(Array.isArray(value) ? (value[0] ?? 0) : value)}
+        className="absolute! inset-0 opacity-0"
+      >
+        <SliderTrack className="h-full! cursor-pointer" />
+      </Slider>
+    </div>
+  );
+}
+
+/** The recording: its video when the recorder took one, else its sound, to seek in. */
 export function RecordingCard({ meeting }: { meeting: Meeting }) {
   const player = usePlayer();
+  const video = useRef<HTMLVideoElement | null>(null);
   if (!player.hasAudio) return null;
   const totalMs = Math.max(player.durationMs, meeting.meeting.durationMs ?? 0, 1);
   return (
     <Card>
       <div className="flex flex-col gap-3">
-        <Waveform id={meeting.meeting.id} totalMs={totalMs} />
+        {player.hasVideo ? (
+          <>
+            <Video id={meeting.meeting.id} frame={video} />
+            <Scrubber totalMs={totalMs} />
+          </>
+        ) : (
+          <Waveform id={meeting.meeting.id} totalMs={totalMs} />
+        )}
         <div className="flex h-3 items-center gap-1.5 text-xs leading-3 text-muted-foreground tabular-nums">
           <Button
             intent="plain"
@@ -132,7 +182,29 @@ export function RecordingCard({ meeting }: { meeting: Meeting }) {
             {player.playing ? <IconPauseFilled /> : <IconPlayFilled />}
           </Button>
           <span>{meetingClock(player.timeMs)}</span>
-          <span className="ms-auto">{meetingClock(totalMs)}</span>
+          {player.hasVideo && (
+            <>
+              <Button
+                intent="plain"
+                size="sm"
+                aria-label={`Speed ${player.rate}×, change to ${nextRate(player.rate)}×`}
+                onPress={() => player.setRate(nextRate(player.rate))}
+                className="-my-1 ms-auto h-5 px-1 text-xs tabular-nums"
+              >
+                {player.rate}×
+              </Button>
+              <Button
+                intent="plain"
+                size="sq-2xs"
+                aria-label="Full screen"
+                onPress={() => void video.current?.requestFullscreen()}
+                className="-my-1.5 *:[svg]:size-3"
+              >
+                <IconMaximize />
+              </Button>
+            </>
+          )}
+          <span className={player.hasVideo ? undefined : "ms-auto"}>{meetingClock(totalMs)}</span>
         </div>
       </div>
     </Card>

@@ -73,6 +73,8 @@ export const meetingChunksResponseSchema = z.object({
 export const stopMeetingBodySchema = z
   .object({
     audioNodeId: z.string().min(1).max(64).optional(),
+    /** The recording's video, a video file of the recorder's own; only with `audioNodeId`. */
+    videoNodeId: z.string().min(1).max(64).optional(),
     chunks: z.number().int().min(1).max(MEETINGS_MAX_CHUNKS).optional(),
     durationMs: z
       .number()
@@ -87,6 +89,9 @@ export const stopMeetingBodySchema = z
   })
   .refine((body) => (body.audioNodeId === undefined) !== (body.chunks === undefined), {
     message: "send either audioNodeId or chunks",
+  })
+  .refine((body) => body.videoNodeId === undefined || body.audioNodeId !== undefined, {
+    message: "videoNodeId comes with audioNodeId",
   });
 
 export const changeMeetingBodySchema = z.object({
