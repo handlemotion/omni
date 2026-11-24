@@ -525,6 +525,34 @@ a write, each through the member door so they only ever narrow what the member c
 - `taskMeeting(taskId)`: the meeting a calendar task was accepted from (`meetings_actions.task_id`,
   indexed), or not found when the member cannot open that meeting.
 
+## Importing
+
+Meetings recorded elsewhere come in as meetings with no audio: their transcript and their notes.
+Circleback is the first source; its webhook, its API (`GET /api/meetings/:id` with
+`/transcript`) and its MCP all give the same meeting JSON, which `POST /api/meetings/import`
+takes as it is.
+
+- **Keyed by where it came from.** `meetings_jobs.provider` is the source (`circleback`) and
+  `provider_job_id` its meeting id, taken under a lock on (workspace, source, id), so importing
+  it again, or twice at once, answers `200` with the first import's meeting and changes nothing.
+  A person's edits since are kept. No column is added.
+- **The importer's own.** It is recorded by the caller, starts at Circleback's `createdAt`, lasts
+  its `duration`, is `restricted`, and its attendees with an address get `viewer` as at a start.
+  Attendees without one (Circleback's `Participant 3`) are only speakers.
+- **Saved through the pipeline's writers.** The transcript and speakers go through the same save
+  as an engine's, then the notes through the same save as the model's, so it lands `ready`.
+  Each line ends where the next starts. A speaker Circleback named keeps the name (`engine`); a
+  `Participant N` stays unnamed for a person to rename. Notes: the first `####` section is the
+  summary, each section after it a chapter and a topic, anchored at the turn that, with the one
+  after it, says most of its words. Circleback's sections are by subject, not time, so chapters
+  can be out of order. Action items are `task` actions, owner the assignee, `done` when they were
+  done there. `model` is the source, `prompt_version` 0.
+- **Nothing is paid for.** No engine, no model, no meeting minutes.
+- **Not yet.** The audio (Circleback's `recordingUrl` is a signed MP4 link for 24 hours; the
+  importer would upload it through Drive and name it, as a stop does); binding to the calendar by
+  `icalUid`; the notes doc, which says Omni wrote it from the recording and so is not written for
+  an import; Circleback's webhook straight into a workspace.
+
 ## Binding to the calendar
 
 A recording is of one calendar meeting: one event, or one instance of a repeating one. It keeps
@@ -647,6 +675,7 @@ meeting the caller cannot see answers `404`, and a removed grant closes it on th
 | `POST /ask` `{ meetingId \| groupKey, question }`                    | One answer, `{ answer, citations: [{ n, meetingId, atMs }] }`             |
 | `POST /:id/retry`                                                    | Runs the failed step again                                                |
 | `DELETE /:id`                                                        | Deletes the meeting, its transcript and its audio; the notes doc stays    |
+| `POST /import` (Circleback's meeting JSON)                           | Files another notetaker's meeting as the caller's own, `ready` ("Importing") |
 
 Realtime: `meetings.changed { meetingId, status }` on the workspace's socket to the members who
 can see it, so the page fills in without polling.

@@ -17,6 +17,7 @@ import { zValidator } from "../validator.ts";
 import { groupSummary, memberAsk } from "./ask.ts";
 import { meetingFile } from "./audio.ts";
 import { meetingChunks } from "./chunks.ts";
+import { meetingImport } from "./import.ts";
 import { memberFiles, memberMeetings, recordingsFolder, refused, wire } from "./http.ts";
 import { deleteMeetingObjects, meetingEngine } from "./jobs.ts";
 import { enqueueMeeting } from "./queue.ts";
@@ -33,6 +34,7 @@ export const meetings = new Hono<AppEnv>()
     return next();
   })
   .route("/", meetingChunks)
+  .route("/", meetingImport)
   .get("/groups", zValidator("query", meetingsListQuerySchema), async (c) => {
     const { before, limit } = c.req.valid("query");
     const listed = await memberMeetings(c).groups({

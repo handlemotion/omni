@@ -77,7 +77,7 @@ export async function startMeeting(ex: Db, actor: MeetingsActor, input: StartMee
   return { status: "ok", meetingId: meeting.id, part } as const;
 }
 
-async function shareWithAttendees(
+export async function shareWithAttendees(
   ex: Db,
   actor: MeetingsActor,
   member: NonNullable<MeetingsActor["member"]>,
