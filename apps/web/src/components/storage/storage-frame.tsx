@@ -1,5 +1,5 @@
 import { PageBarActions } from "@/components/ui/button";
-import { PresenceStack } from "@/components/talk/presence-stack";
+import { PagePresence } from "@/components/talk/presence-stack";
 import type { ReactNode } from "react";
 import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 
@@ -24,7 +24,7 @@ export function StorageFrame(props: {
       <span className="min-w-0 flex-1 truncate text-xs text-subtle-foreground">
         {props.caption}
       </span>
-      <PresenceStack />
+      <PagePresence />
       {props.actions && (
         <div className="flex shrink-0 items-center gap-1.5">
           <PageBarActions>{props.actions}</PageBarActions>

@@ -73,21 +73,19 @@ async function openInbox(slug: string, also?: { name: string; slug: string }) {
   );
   const page = await context.newPage();
   await page.goto(new URL(`/${slug}/mail/inbox`, origin).toString());
-  await page.getByRole("tablist", { name: "Open pages" }).waitFor();
+  await page.getByRole("button", { name: /^Switch module, currently / }).waitFor();
   return page;
 }
 
 const SHOTS = process.env.SHELL_SHOTS;
 
-test("the icon rail switches modules, opens search, and shows notifications at the window's right edge", async () => {
+test("the sidebar's top row switches modules, opens search, and opens notifications beside the sidebar", async () => {
   const page = await openInbox("title-bar");
   expect(await page.getByRole("button", { name: "Previous page" }).count()).toBe(0);
-  const modules = page.getByRole("navigation", { name: "Modules" });
-  await modules.getByRole("link", { name: "Drive" }).click();
+  await page.getByRole("button", { name: "Switch module, currently Mail" }).click();
+  await page.getByRole("menuitem", { name: "Drive", exact: true }).click();
   await page.waitForURL((url) => place(url).startsWith("/files"));
-  await expect
-    .poll(() => modules.getByRole("link", { name: "Drive" }).getAttribute("aria-current"))
-    .toBe("page");
+  await page.getByRole("button", { name: "Switch module, currently Drive" }).waitFor();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/bar.png` });
 
   await page.getByRole("button", { name: "Search", exact: true }).click();
@@ -96,14 +94,16 @@ test("the icon rail switches modules, opens search, and shows notifications at t
 
   await page.getByRole("button", { name: "Notifications" }).click();
   const panel = page.getByRole("complementary", { name: "Notifications" });
-  await expect.poll(async () => Math.round((await panel.boundingBox())?.x ?? 0)).toBe(1280 - 432);
+  await expect.poll(async () => Math.round((await panel.boundingBox())?.x ?? 0)).toBe(300);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/panel.png` });
 });
 
-test("on a phone, where the title bar is hidden, the mail list header still opens search", async () => {
+test("on a phone, where the sidebar is a drawer, the mail list header still opens search", async () => {
   const page = await openInbox("title-bar-phone");
   await page.setViewportSize({ width: 390, height: 800 });
-  await page.getByRole("tablist", { name: "Open pages" }).waitFor({ state: "detached" });
+  await page
+    .getByRole("button", { name: /^Switch module, currently / })
+    .waitFor({ state: "detached" });
   const search = page.getByRole("button", { name: "Search", exact: true });
   expect(await search.count()).toBe(1);
   await search.click();

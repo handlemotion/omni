@@ -6,8 +6,8 @@ Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md`
 
 Wok gets a desktop app for macOS and Windows. It is two things in one install:
 
-1. **The app.** The web app, unchanged, in a native window: its own Dock icon, a title bar that
-   holds navigation, native notifications, deep links, auto-update. Built on Tauri 2.
+1. **The app.** The web app, unchanged, in a native window: its own Dock icon, the traffic lights
+   on the sidebar's top row beside the module switcher, native notifications, deep links, auto-update. Built on Tauri 2.
 2. **Drive on the computer.** Storage shows up as one folder the operating system owns,
    `~/Library/CloudStorage/Wok` on macOS, "Wok" in Finder's sidebar, with a folder inside for
    each synced workspace and files that download when opened and upload when saved. This is a macOS File Provider extension. Windows
@@ -231,12 +231,13 @@ after a spike. Swift side: Foundation and FileProvider only.
 
 - **First run.** A hosted build opens its configured origin directly. A build with no origin
   shows the server picker; the answer is stored and changeable from the app menu.
-- **Window.** macOS: `titleBarStyle: Overlay`, hidden title, traffic lights positioned to sit on
-  the navigation row's centre line. Windows: no native title bar. The web app draws minimize,
+- **Window.** macOS: `titleBarStyle: Overlay`, hidden title, traffic lights positioned on the
+  sidebar's 48px top row, the red one's centre as far from the window's left edge as from its top
+  (24pt). Windows: no native title bar. The web app draws minimize,
   maximize (restore when maximized) and close at the window's top right corner, on every screen,
   as Windows draws them (46px wide, the title row's height, Segoe Fluent Icons' glyphs, close red
-  under the pointer, glyphs muted while the window is inactive), and the title row leaves them
-  room. The page takes the frame off itself (`setDecorations(false)`) and draws the controls only
+  under the pointer, glyphs muted while the window is inactive), over the page header's right
+  end, which does not yet leave them room (open: the full-width title row that did is gone). The page takes the frame off itself (`setDecorations(false)`) and draws the controls only
   once that succeeds, so an older shell keeps its frame and an older web app never loses its
   controls; the window keeps the frameless state across launches (`window-state`), and opening a
   different server puts the frame back until that server's app takes it. The bundled page draws
@@ -272,26 +273,21 @@ is loaded by dynamic import, so the browser bundle does not carry it). These are
 `apps/web`, asked for by the founder; they follow `DESIGN.md`, use existing `components/ui`
 primitives, and add no text.
 
-- **The shell** (every viewport wider than a phone, in the browser too): a grey window
-  (`--shell`) with a 48px **top rail**, over one white island (both top corners rounded) that
-  holds the sidebar and the page.
-  - The top rail's left edge: the sidebar toggle (in the desktop app, just past the traffic
-    lights; back and forward are keyboard only), then the workspace
-    switcher (mark, name, chevron). Its middle: the open **page tabs**, centred, then New tab.
-    Its right edge: the teammates online (Talk), then notifications, whose panel slides in from
-    the right edge under the rail. The whole row is a drag region except its controls. The
-    traffic lights' red button and the toggle centre on the sidebar's first icon.
-  - **Page tabs** span every workspace the person is in: each tab shows its module's mark and
-    the page's name (the folder or space open, the file open over it, the thread's subject, the
-    record or meeting; kept with the tabs so a tab not shown since a reload keeps it), and a
-    tab of another workspace than the one on screen ends with that
-    workspace's mark; showing it switches workspace. Tabs are kept in the browser (up to ten),
-    ⌘-click or a middle click opens a link in a background tab, and a tab's close button takes
-    its mark's place on hover. Search opens from the sidebar (and `/`, `⌘K`).
-  - The **sidebar** starts with the modules as tabs (the current one shows its name; the switch
-    animates and the nav slides on press) and Search, then the module's nav, and Settings at its
-    foot. The toggle collapses it to a **rail** of the same padding: the current module (its menu
-    switches module), Search, the nav as icons where it has them, Settings.
+- **The shell** (every viewport wider than a phone, in the browser too): all white, the
+  sidebar and the page side by side with a hairline between them, no inset, no rounded island,
+  no page tabs. The sidebar is always open (no toggle, no rail) and can be resized.
+  - The sidebar's **top row**, 48px and in line with the page's own header: the module switcher
+    (the module's mark and name with a small chevron; its menu lists the modules) and, opposite
+    it, notifications (whose panel slides in from the window's right edge) and Search. In the
+    browser the switcher is the larger variant (17px name, 24px+ mark, heavier chevron) at the
+    row's start. In the desktop app the traffic lights sit at the row's start and the switcher,
+    small, is centred between them and the icons; the row is a drag region except its controls.
+    Back and forward are keyboard only.
+  - Then the module's nav, and at the sidebar's foot the workspace switcher, whose menu also
+    holds account, workspace and connection settings, Invite, Upgrade and Log out.
+  - **Who is online** (Talk) sits in each page's own header, before its actions: the inbox list,
+    a thread, Drive, Clients and a client's record, Calendar, Meetings. With panes side by side
+    (a thread open beside the list) only the leftmost header shows it.
 - On a phone the sidebar is the sheet it was, with the workspace switcher in its top row and the
   module switcher at its foot.
 - `⌘[` / `⌘]` (`Alt+←` / `Alt+→` on Windows) go back and forward; `⌘,` opens Settings; `⌘N`
@@ -401,8 +397,8 @@ machines and reported in the PR, pass or fail per line:
 
 ## Decisions
 
-- **No tabs in the title bar in this version.** They get their own short spec once the title-bar
-  group exists.
+- **No page tabs.** Tried across workspaces in the title bar, then removed with it: the module
+  switcher and the browser's own tabs cover moving between pages.
 - **Bundle identifier `app.omnidirectional.desktop`, shown as "Wok".** Permanent once installed.
   The extension is `app.omnidirectional.desktop.fileprovider`; the app group is
   `group.app.omnidirectional.desktop`. All three stay build config.

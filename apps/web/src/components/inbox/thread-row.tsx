@@ -42,17 +42,22 @@ export function ThreadRow({
       textValue={`${sender} ${thread.subject}`}
       className={`mx-2.5 h-10 gap-3 rounded-lg px-3 selected:bg-primary-subtle **:data-[slot=indicator]:mix-blend-multiply ${isCurrent ? "bg-accent" : ""}`}
     >
-      <span className="flex w-1.5 shrink-0 justify-center">
-        {thread.unread && <span aria-label="Unread" className="size-1.5 rounded-full bg-primary" />}
+      <span className="relative flex w-[min(--spacing(36),25%)] shrink-0">
+        {thread.unread && (
+          <span
+            aria-label="Unread"
+            className="absolute -start-2.25 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-primary"
+          />
+        )}
+        <span className={`min-w-0 truncate ${tone}`}>{sender}</span>
       </span>
-      <span className={`w-[min(--spacing(36),25%)] shrink-0 truncate ${tone}`}>{sender}</span>
       <SenderAvatar
         isSquare
         who={byAddress(thread.senderAddress)}
         name={sender}
         className="shrink-0 bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(5)]"
       />
-      <span className="ms-3 flex w-[min(--spacing(64),30%)] shrink-0 items-center gap-2 @max-2xl:min-w-0 @max-2xl:flex-1">
+      <span className="ms-3 flex w-[min(--spacing(64),30%)] shrink-0 items-center gap-2 @max-4xl:min-w-0 @max-4xl:flex-1">
         <span className={`min-w-0 flex-1 truncate ${tone}`}>
           {thread.subject || "(no subject)"}
         </span>
@@ -62,7 +67,7 @@ export function ThreadRow({
           </span>
         )}
       </span>
-      <span className="ms-3 min-w-0 flex-1 truncate text-subtle-foreground @max-2xl:hidden">
+      <span className="ms-3 min-w-0 flex-1 truncate text-subtle-foreground @max-4xl:hidden">
         {thread.snippet}
       </span>
       {thread.conversation ? (
@@ -97,14 +102,14 @@ export function DateHeader(props: { label: string; count: number; first: boolean
 
 /**
  * The list while its rows load, drawn from skullet's boxes on the row's own grid (checkbox,
- * dot, sender, avatar, subject, preview), enough rows to fill the list. Not measured from sample
+ * sender, avatar, subject, preview), enough rows to fill the list. Not measured from sample
  * rows: the skeleton is held back 150 ms and usually never shows, and measuring cost every switch.
  */
 export function RowBones() {
   return (
     <div className="px-2.5 pt-2">
       {Array.from({ length: 20 }, (_, i) => (
-        <div key={i} className="flex h-10 items-center gap-3 ps-11 pe-3">
+        <div key={i} className="flex h-10 items-center gap-3 ps-6.5 pe-3">
           <span className="w-[min(--spacing(36),25%)] shrink-0">
             <SkeletonBox width={`${45 + ((i * 17) % 30)}%`} height={10} />
           </span>

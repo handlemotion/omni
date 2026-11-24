@@ -1,5 +1,5 @@
 import type { ThreadSummary } from "@omni/client";
-import { PresenceStack } from "@/components/talk/presence-stack";
+import { PagePresence } from "@/components/talk/presence-stack";
 import { SearchButton } from "@/components/search/search-trigger";
 import { useLocation, useParams } from "@tanstack/react-router";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -42,7 +42,7 @@ import type {
   ThreadView,
 } from "@/lib/types.ts";
 
-const READER_WIDTH = 512;
+const READER_WIDTH = 550;
 const READER_MIN = 400;
 const READER_MAX = 4096;
 const LIST_MIN = 320;
@@ -248,7 +248,7 @@ export function List(
               </span>
             )}
             <div className="flex min-w-0 items-center gap-1.5 *:shrink-0">
-              <PresenceStack />
+              <PagePresence />
               <PageBarActions>
                 <span className="flex md:hidden">
                   <SearchButton />
