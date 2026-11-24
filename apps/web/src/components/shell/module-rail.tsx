@@ -82,7 +82,7 @@ export function RailSidebar({ children }: { children: ReactNode }) {
 
 function TopActions() {
   return (
-    <span className="flex items-center gap-0.5">
+    <span className="me-1 flex items-center gap-3">
       <NotificationsButton />
       <SearchButton />
     </span>
@@ -105,12 +105,17 @@ function ModuleSwitch({ large = false }: { large?: boolean }) {
         aria-label={`Switch module, currently ${name}`}
         className={cn(
           "w-auto max-w-full shrink",
-          large ? "h-9 gap-2.5 px-1.5 *:[svg]:size-6" : "h-8 gap-2 px-2 *:[svg]:size-4.5",
+          large ? "h-10 gap-2.5 px-1.5 *:[svg]:size-6.5" : "h-8 gap-2 px-2 *:[svg]:size-4.5",
         )}
       >
         <Mark />
         <span className={cn("min-w-0 truncate", large ? "text-lg" : "text-md")}>{name}</span>
-        <IconChevronDown className="-ms-0.5 size-3.5! shrink-0 text-muted-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
+        <IconChevronDown
+          className={cn(
+            "-ms-0.5 shrink-0 text-muted-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground",
+            large ? "size-4! [&_path]:stroke-2" : "size-3.5!",
+          )}
+        />
       </SidebarItemTrigger>
       <Menu placement="bottom" popover={{ offset: 4, className: "w-60" }}>
         {modules.map((m) => {

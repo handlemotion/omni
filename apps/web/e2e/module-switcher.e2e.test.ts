@@ -74,13 +74,14 @@ async function openInbox(slug: string, options: { reducedMotion?: "reduce" } = {
 }
 
 const LABELS = { mail: "Mail", files: "Drive", crm: "Clients" } as const;
-const rail = (page: Page, name: string) =>
-  page.getByRole("navigation", { name: "Modules" }).getByRole("link", { name, exact: true });
+const rail = (page: Page, name: string) => ({
+  click: async () => {
+    await page.getByRole("button", { name: /^Switch module, currently / }).click();
+    await page.getByRole("menuitem", { name, exact: true }).click();
+  },
+});
 const shows = (page: Page, id: keyof typeof LABELS) =>
-  page
-    .getByRole("navigation", { name: "Modules" })
-    .locator(`[aria-current="page"][aria-label="${LABELS[id]}"]`)
-    .waitFor();
+  page.getByRole("button", { name: `Switch module, currently ${LABELS[id]}` }).waitFor();
 const pager = (page: Page) => page.locator('[data-slot="module-pager"]');
 
 const pageAt = (page: Page) =>
@@ -118,7 +119,7 @@ async function swipe(page: Page, steps: [dx: number, dy: number][]) {
   }
 }
 
-test("the rail opens each module and the pages glide along", async () => {
+test("the module switcher opens each module and the pages glide along", async () => {
   const page = await openInbox("chevrons");
   const frames = slideFrames(page);
   await rail(page, "Drive").click();
@@ -137,7 +138,7 @@ test("the rail opens each module and the pages glide along", async () => {
   await expect.poll(() => pageAt(page)).toBe(1);
 });
 
-test("a sideways swipe leaves the module where it is; only the rail moves between modules", async () => {
+test("a sideways swipe leaves the module where it is; only the switcher moves between modules", async () => {
   const page = await openInbox("swipe");
   const width = await pager(page).evaluate((el) => el.clientWidth);
   await swipe(page, [
@@ -156,7 +157,7 @@ test("a sideways swipe leaves the module where it is; only the rail moves betwee
   expect(await pager(page).evaluate((el) => el.scrollLeft)).toBe(0);
 });
 
-test("each rail click stays on the module it opened", async () => {
+test("each pick in the switcher stays on the module it opened", async () => {
   const page = await openInbox("restore", { reducedMotion: "reduce" });
   const wants = {
     Clients: "/crm/companies",
@@ -207,7 +208,7 @@ test("Tab never lands in a module's page that isn't shown", async () => {
   expect(await drive.evaluate((link) => document.activeElement === link)).toBe(true);
 });
 
-test("switching module from the rail keeps a document's edits, and the pages glide there", async () => {
+test("switching module keeps a document's edits, and the pages glide there", async () => {
   const page = await openInbox("blocked");
   await rail(page, "Drive").click();
   await shows(page, "files");

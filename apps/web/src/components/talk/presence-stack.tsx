@@ -1,5 +1,11 @@
 import { cn } from "cn";
-import { useEffect, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+} from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { IconComment, IconUsers, IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
@@ -165,4 +171,31 @@ export function PresenceStack() {
       {more > 0 && <Everyone more={more} open={openId === EVERYONE} />}
     </div>
   );
+}
+
+const slots: symbol[] = [];
+const slotListeners = new Set<() => void>();
+const changed = () => slotListeners.forEach((listener) => listener());
+const subscribeSlots = (listener: () => void) => {
+  slotListeners.add(listener);
+  return () => void slotListeners.delete(listener);
+};
+
+/**
+ * Who is online, in a page header's actions. With panes side by side (a thread open beside the
+ * list) only the header mounted last, the rightmost, shows it, so the faces appear once and the
+ * Talk window has one face to sit under.
+ */
+export function PagePresence() {
+  const [slot] = useState(() => Symbol("presence"));
+  useLayoutEffect(() => {
+    slots.push(slot);
+    changed();
+    return () => {
+      slots.splice(slots.indexOf(slot), 1);
+      changed();
+    };
+  }, [slot]);
+  const shown = useSyncExternalStore(subscribeSlots, () => slots.at(-1) === slot);
+  return shown ? <PresenceStack /> : null;
 }

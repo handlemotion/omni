@@ -5,17 +5,18 @@ Nov 22, 2026 · Draft · Extends `docs/spec/modules.md` ("What is shared") and `
 
 ## Summary
 
-The title bar shows the teammates who have Wok open right now, as a small stack of their
+Each page's header shows the teammates who have Wok open right now, as a small stack of their
 pictures. Clicking one opens a compact conversation with them that floats over whatever module
 you are in: quick notes, and above all files dropped straight to that person. It is light
 communication between teammates, not a chat product: no channels, no groups, no calls.
 
-Talk is not a module a person picks on the rail. In the code it is one, with the module layout
+Talk is not a module a person picks in the module switcher. In the code it is one, with the module layout
 and rules (`docs/spec/modules.md`), because it owns tables and reads Storage through its door.
 
 ## What a person sees
 
-- **The stack.** In the title bar, left of the notifications bell, in every module: the
+- **The stack.** In the page's header, before its own actions, in every module (with panes side
+  by side, only the rightmost header): the
   workspace's teammates, online or not, at most 3 pictures overlapping, then a fourth circle
   reading `+n` for the rest. Yourself never. A teammate with unread notes for you shows first,
   then those online, then by name. An offline teammate's picture is dimmed and greyed; you can
@@ -136,8 +137,8 @@ not leak.
 ## Realtime
 
 Online is the existing per-workspace realtime Durable Object, not a new service. An app that
-shows Talk opens its socket with `?talk=1` (the web app only while its title bar, and so the
-stack, is on screen: a narrow window that hides it is not a way to reach you, so push still does); the Worker then tags it `team` when the member is a
+shows Talk opens its socket with `?talk=1` (the web app only while the
+stack can be on screen, a window wider than a phone: a narrow window that hides it is not a way to reach you, so push still does); the Worker then tags it `team` when the member is a
 teammate (never on a sync or watch socket, never for a freelancer). Only those sockets count and
 hear Talk, so a client that has no Talk (iOS today, an older web build, the desktop's watch
 sockets) never shows its member as online, never swallows a push, and gets no event it does not
@@ -208,4 +209,4 @@ that stack also changes.
 | T0  | This document                                                      |
 | T1  | `@omni/db`: schema, migration, the member door; leak tests         |
 | T2  | Worker: `/api/talk`, files through Drive, online and delivery; e2e |
-| T3  | Web: the stack in the title bar and the floating window            |
+| T3  | Web: the stack in the page headers and the floating window         |

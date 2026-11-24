@@ -1,5 +1,5 @@
 import { ApiError } from "@omni/client";
-import { PresenceStack } from "@/components/talk/presence-stack";
+import { PagePresence } from "@/components/talk/presence-stack";
 import { useSearch } from "@tanstack/react-router";
 import { useRef, useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -137,7 +137,7 @@ export function RecordTabBar(props: {
       >
         {props.children}
       </TabList>
-      <PresenceStack />
+      <PagePresence />
       {props.actions && (
         <div className="flex shrink-0 items-center gap-1.5">
           <PageBarActions>{props.actions}</PageBarActions>
