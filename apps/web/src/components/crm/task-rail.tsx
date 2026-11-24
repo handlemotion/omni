@@ -69,7 +69,7 @@ export function TaskRail({ filter, onNew }: { filter: TaskFilter; onNew: () => v
           "Tasks",
         )}
       >
-        <ol aria-label="Tasks" className="group/rail -mt-2 flex flex-col">
+        <ol aria-label="Tasks" className="-mt-2 flex flex-col">
           {items.map((item, i) => {
             const place = railPlace(i, items.length);
             return item.kind === "done" ? (

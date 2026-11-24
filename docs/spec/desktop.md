@@ -275,8 +275,8 @@ primitives, and add no text.
 - **The shell** (every viewport wider than a phone, in the browser too): a grey window
   (`--shell`) with a 48px **top rail**, over one white island (both top corners rounded) that
   holds the sidebar and the page.
-  - The top rail's left edge: back and forward (the desktop app only, past the traffic lights;
-    disabled at either end of the window's history), the sidebar toggle, then the workspace
+  - The top rail's left edge: the sidebar toggle (in the desktop app, just past the traffic
+    lights; back and forward are keyboard only), then the workspace
     switcher (mark, name, chevron). Its middle: the open **page tabs**, centred, then New tab.
     Its right edge: the teammates online (Talk), then notifications, whose panel slides in from
     the right edge under the rail. The whole row is a drag region except its controls. The
