@@ -1,4 +1,4 @@
-CREATE TYPE "public"."calendar_task_activity_kind" AS ENUM('status', 'priority', 'assignee', 'due', 'record', 'comment');--> statement-breakpoint
+CREATE TYPE "public"."calendar_task_activity_kind" AS ENUM('status', 'priority', 'assignee', 'due', 'record');--> statement-breakpoint
 CREATE TYPE "public"."calendar_task_priority" AS ENUM('urgent', 'high', 'medium', 'low');--> statement-breakpoint
 CREATE TYPE "public"."calendar_task_status" AS ENUM('backlog', 'todo', 'in_progress', 'done', 'cancelled');--> statement-breakpoint
 CREATE TABLE "calendar_task_activity" (
@@ -7,8 +7,7 @@ CREATE TABLE "calendar_task_activity" (
 	"task_id" text NOT NULL,
 	"actor_member_id" text,
 	"kind" "calendar_task_activity_kind" NOT NULL,
-	"change" jsonb,
-	"body" text,
+	"change" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

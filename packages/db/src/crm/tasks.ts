@@ -1,7 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import {
-  addTaskComment,
   calendarTask,
   cleanTaskBody,
   cleanTaskSteps,
@@ -382,14 +381,6 @@ export async function taskActivity(ex: Ex, member: CrmMember, id: string) {
   const task = await calendarTask(ex, member.orgId, id);
   if (!task || !(await reaches(ex, member, task))) return NOT_FOUND;
   return { status: "ok" as const, items: await readTaskActivity(ex, member.orgId, id) };
-}
-
-/** Comments on a task the member can see; `empty_comment` when it has no text. */
-export async function commentOnTask(tx: Ex, member: CrmMember, id: string, body: string) {
-  const task = await calendarTask(tx, member.orgId, id);
-  if (!task || !(await reaches(tx, member, task))) return NOT_FOUND;
-  const item = await addTaskComment(tx, task, member.id, body);
-  return item ? { status: "ok" as const, item } : ({ status: "empty_comment" } as const);
 }
 
 export const deleteTask: (

@@ -179,7 +179,6 @@ export type CalendarChangedEvent = z.infer<typeof calendarChangedEventSchema>;
 export const CALENDAR_TASK_TITLE_MAX = 500;
 export const CALENDAR_TASK_BODY_MAX = 20_000;
 export const CALENDAR_TASK_STEPS_MAX = 100;
-export const CALENDAR_TASK_COMMENT_MAX = 10_000;
 
 /**
  * Where a task stands. `done` and `cancelled` close it (it has a `completedAt`); the others are
@@ -269,7 +268,7 @@ const activityRecordSchema = z.object({
 
 /**
  * One thing that happened to a task, oldest first in a list: a field changed (`from` and `to`
- * hold its values before and after) or a comment. Its making is not an item: the task's
+ * hold its values before and after). Its making is not an item: the task's
  * `createdAt` and `createdByMemberId` say it.
  */
 export const calendarTaskActivitySchema = z.discriminatedUnion("kind", [
@@ -290,7 +289,6 @@ export const calendarTaskActivitySchema = z.discriminatedUnion("kind", [
     from: activityRecordSchema.nullable(),
     to: activityRecordSchema.nullable(),
   }),
-  z.object({ kind: z.literal("comment"), body: z.string() }),
 ]);
 
 export const calendarTaskActivityItemSchema = z.intersection(
@@ -301,14 +299,6 @@ export const calendarTaskActivityItemSchema = z.intersection(
 /** `GET /tasks/:id/activity`: the latest items, oldest first. */
 export const calendarTaskActivityResponseSchema = z.object({
   items: z.array(calendarTaskActivityItemSchema),
-});
-
-/** `POST /tasks/:id/comments`. */
-export const calendarTaskCommentBodySchema = z.object({
-  body: z.string().max(CALENDAR_TASK_COMMENT_MAX),
-});
-export const calendarTaskCommentResponseSchema = z.object({
-  item: calendarTaskActivityItemSchema,
 });
 
 export const calendarTaskResponseSchema = z.object({ task: calendarTaskSchema });
@@ -324,7 +314,6 @@ export type CalendarTaskPriority = z.infer<typeof calendarTaskPrioritySchema>;
 export type CalendarTaskActivity = z.infer<typeof calendarTaskActivitySchema>;
 export type CalendarTaskActivityItem = z.infer<typeof calendarTaskActivityItemSchema>;
 export type CalendarTaskActivityResponse = z.infer<typeof calendarTaskActivityResponseSchema>;
-export type CalendarTaskCommentResponse = z.infer<typeof calendarTaskCommentResponseSchema>;
 export type CalendarTasksQuery = z.infer<typeof calendarTasksQuerySchema>;
 export type CalendarCreateTaskBody = z.infer<typeof calendarCreateTaskBodySchema>;
 export type CalendarUpdateTaskBody = z.infer<typeof calendarUpdateTaskBodySchema>;

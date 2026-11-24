@@ -125,7 +125,6 @@ import { setDealIcon } from "./crm/deal-icon.ts";
 import { getSettings, putSettings } from "./crm/settings.ts";
 import { replaceStages, stagesOf, type StageInput } from "./crm/stages.ts";
 import {
-  commentOnTask,
   countTasks,
   createTask,
   deleteTask,
@@ -444,8 +443,6 @@ export function memberCrm(db: Db, memberId: string) {
       writeAsMember(door, (m, tx) => deleteTask(tx, m, id), taskOnProject(id)),
     taskActivity: (id: string) =>
       asMember(door, (m, ex) => taskActivity(ex, m, id), taskOnProject(id)),
-    commentOnTask: (id: string, body: string) =>
-      writeAsMember(door, (m, tx) => commentOnTask(tx, m, id, body), taskOnProject(id)),
 
     plan: (dealId: string) => asMember(door, (m, ex) => getPlan(ex, m, dealId), onProject(dealId)),
     createMilestone: (dealId: string, input: MilestoneInput) =>

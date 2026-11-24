@@ -1,11 +1,9 @@
 import {
   calendarCreateTaskBodySchema,
-  calendarTaskCommentBodySchema,
   calendarTasksQuerySchema,
   calendarUpdateTaskBodySchema,
   type CalendarTaskActivityItem,
   type CalendarTaskActivityResponse,
-  type CalendarTaskCommentResponse,
   type CalendarTask as WireTask,
   type CalendarTaskListResponse,
   type CalendarTaskResponse,
@@ -50,10 +48,6 @@ export function wireTaskActivity(item: TaskActivityItem) {
       : { ...base, ...item, at: base.at };
   return wire;
 }
-
-/** A comment with no text. */
-export const emptyComment = (c: Context<AppEnv>) =>
-  c.json(errorBody(c, "bad_request", "a comment needs text", { param: "body" }), 400);
 
 const taskCursor = z.object({ at: z.iso.datetime().nullable(), id: z.string().min(1) });
 
@@ -141,11 +135,4 @@ export const tasks = new Hono<AppEnv>()
     return c.json({
       items: found.items.map(wireTaskActivity),
     } satisfies CalendarTaskActivityResponse);
-  })
-
-  .post("/tasks/:id/comments", zValidator("json", calendarTaskCommentBodySchema), async (c) => {
-    const made = await memberCalendar(c).commentOnTask(c.req.param("id"), c.req.valid("json").body);
-    if (made.status === "empty_comment") return emptyComment(c);
-    if (made.status !== "ok") return refusedTask(c, made);
-    return c.json({ item: wireTaskActivity(made.item) } satisfies CalendarTaskCommentResponse, 201);
   });

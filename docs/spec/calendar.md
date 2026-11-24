@@ -323,7 +323,7 @@ becomes its owner.
 - **One panel.** The same task panel opens beside the calendar and beside the CRM's lists, laid
   out as an issue: the title, the description, then the fields (status, the assignee for a task
   on a record, due date, priority, the record as a link), the subtasks with how many are done,
-  and its activity with a box to comment. A private task's panel has a "Add to CRM"
+  and its activity. A private task's panel has a "Add to CRM"
   field that picks a record (only when the workspace has the CRM); a linked one can be moved to
   another record or taken off it.
 - **Who may change a task.** A private task: its owner. A linked one: anyone who can open its
@@ -338,12 +338,11 @@ becomes its owner.
   closed. `PATCH { status }` moves it and wins over `done`; `done` alone closes to `done` and
   reopens to `todo`. The copy job from `crm_tasks` leaves both alone.
 - **Activity.** `calendar_task_activity` keeps who changed a task's status, priority, assignee,
-  due date or record, with the value before and after (a record with its name as it was), and
-  comments. Its making is not a row: the task's creator and `created_at` say it. A change made
-  through either door writes it in the same transaction. `GET /tasks/:id/activity` (the latest
-  200, oldest first) and `POST /tasks/:id/comments` exist on the calendar's door for one's own
-  tasks and on the CRM's for tasks on records the member can open. Not yet: editing or deleting
-  a comment, mentions.
+  due date or record, with the value before and after (a record with its name as it was). Its
+  making is not a row: the task's creator and `created_at` say it. A change made through either
+  door writes it in the same transaction. `GET /tasks/:id/activity` (the latest 200, oldest
+  first) is on the calendar's door for one's own tasks and on the CRM's for tasks on records the
+  member can open. Tasks take no comments.
 
 ### The move from `crm_tasks`
 

@@ -76,7 +76,7 @@ test("a status an older Worker left behind reads from completed_at", async () =>
   expect((await stack.api(ana.jar, "GET", `/tasks/${id}`)).body.task.status).toBe("done");
 });
 
-test("activity lists who changed what, oldest first, with the record's name, and teammates' comments", async () => {
+test("activity lists who changed what, oldest first, with the record's name, and not edits to the title or body", async () => {
   const { ana, bea, dealId } = await team();
   const id = (await stack.api(ana.jar, "POST", "/tasks", { title: "Ship", dealId })).body.task.id;
   expect((await stack.api(ana.jar, "GET", `/tasks/${id}/activity`)).body.items).toEqual([]);
@@ -85,18 +85,6 @@ test("activity lists who changed what, oldest first, with the record's name, and
   await stack.api(ana.jar, "PATCH", `/tasks/${id}`, { status: "in_progress", priority: "urgent" });
   await stack.api(bea.jar, "PATCH", `/tasks/${id}`, { assigneeMemberId: bea.id, dueAt: due });
   await stack.api(bea.jar, "PATCH", `/tasks/${id}`, { title: "Ship it", body: "Soon" });
-  const comment = await stack.api(bea.jar, "POST", `/tasks/${id}/comments`, {
-    body: "  On it.  ",
-  });
-  expect(comment.status).toBe(201);
-  expect(comment.body.item).toMatchObject({
-    kind: "comment",
-    body: "On it.",
-    actorMemberId: bea.id,
-  });
-  expect((await stack.api(bea.jar, "POST", `/tasks/${id}/comments`, { body: "  " })).status).toBe(
-    400,
-  );
   await stack.api(ana.jar, "PATCH", `/tasks/${id}`, { dealId: null });
 
   const items = (await calendar(bea.jar, "GET", `/tasks/${id}/activity`)).body.items;
@@ -106,7 +94,6 @@ test("activity lists who changed what, oldest first, with the record's name, and
     { kind: "priority", from: null, to: "urgent", actorMemberId: ana.id },
     { kind: "assignee", from: ana.id, to: bea.id, actorMemberId: bea.id },
     { kind: "due", from: null, to: due, actorMemberId: bea.id },
-    { kind: "comment", body: "On it.", actorMemberId: bea.id },
     {
       kind: "record",
       from: { kind: "deal", id: dealId, name: "Website" },
@@ -116,30 +103,26 @@ test("activity lists who changed what, oldest first, with the record's name, and
   ]);
 });
 
-test("another workspace, and a teammate on a private task, can neither read its activity nor comment", async () => {
+test("another workspace, and a teammate on a private task, cannot read its activity", async () => {
   const { ana, bea, dealId } = await team();
   const outsider = await stack.member((await stack.company("elsewhere")).id);
   const linked = (await stack.api(ana.jar, "POST", "/tasks", { title: "Linked", dealId })).body.task
     .id;
   const own = (await calendar(ana.jar, "POST", "/tasks", { title: "Dentist" })).body.task.id;
+  await calendar(ana.jar, "PATCH", `/tasks/${own}`, { priority: "low" });
 
   for (const [jar, id] of [
     [outsider.jar, linked],
     [bea.jar, own],
   ] as const) {
     expect((await stack.api(jar, "GET", `/tasks/${id}/activity`)).status).toBe(404);
-    expect((await stack.api(jar, "POST", `/tasks/${id}/comments`, { body: "hi" })).status).toBe(
-      404,
-    );
     expect((await calendar(jar, "GET", `/tasks/${id}/activity`)).status).toBe(404);
-    expect((await calendar(jar, "POST", `/tasks/${id}/comments`, { body: "hi" })).status).toBe(404);
   }
-  expect((await calendar(ana.jar, "POST", `/tasks/${own}/comments`, { body: "Mine" })).status).toBe(
-    201,
-  );
+  const mine = await calendar(ana.jar, "GET", `/tasks/${own}/activity`);
+  expect(mine.body.items).toMatchObject([{ kind: "priority", from: null, to: "low" }]);
   const rows = await stack.db
     .select()
     .from(schema.calendarTaskActivity)
     .where(eq(schema.calendarTaskActivity.taskId, own));
-  expect(rows.map((row) => row.body)).toEqual(["Mine"]);
+  expect(rows.map((row) => row.actorMemberId)).toEqual([ana.id]);
 });

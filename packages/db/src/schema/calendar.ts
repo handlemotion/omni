@@ -325,12 +325,11 @@ export const calendarTaskActivityKind = pgEnum("calendar_task_activity_kind", [
   "assignee",
   "due",
   "record",
-  "comment",
 ]);
 
 /**
- * What happened to a task, one row each: a field changed by someone (`change` holds its value
- * before and after) or a comment (`body`). Goes with its task.
+ * What happened to a task, one row each: a field someone changed, its value before and after
+ * in `change`. Goes with its task.
  */
 export const calendarTaskActivity = pgTable(
   "calendar_task_activity",
@@ -342,8 +341,7 @@ export const calendarTaskActivity = pgTable(
       .references(() => calendarTasks.id, { onDelete: "cascade" }),
     actorMemberId: text("actor_member_id").references(() => members.id, { onDelete: "set null" }),
     kind: calendarTaskActivityKind("kind").notNull(),
-    change: jsonb("change").$type<{ from: unknown; to: unknown }>(),
-    body: text("body"),
+    change: jsonb("change").$type<{ from: unknown; to: unknown }>().notNull(),
     createdAt: createdAt(),
   },
   (t) => [

@@ -1,4 +1,3 @@
-import { CALENDAR_TASK_COMMENT_MAX } from "@omni/contracts";
 import { and, desc, eq } from "drizzle-orm";
 import { calendarTaskActivity } from "../schema/calendar.ts";
 import type { Ex } from "./core.ts";
@@ -9,16 +8,13 @@ export interface ActivityRecord extends TaskRecord {
   name: string | null;
 }
 
-/** A field that changed, with its value before and after, or a comment. */
+/** A field that changed, with its value before and after. */
 export type TaskActivity =
   | { kind: "status"; from: TaskStatus; to: TaskStatus }
   | { kind: "priority"; from: TaskPriority | null; to: TaskPriority | null }
   | { kind: "assignee"; from: string | null; to: string | null }
   | { kind: "due"; from: Date | null; to: Date | null }
-  | { kind: "record"; from: ActivityRecord | null; to: ActivityRecord | null }
-  | { kind: "comment"; body: string };
-
-type FieldChange = Exclude<TaskActivity, { kind: "comment" }>;
+  | { kind: "record"; from: ActivityRecord | null; to: ActivityRecord | null };
 
 export type TaskActivityItem = TaskActivity & {
   id: string;
@@ -39,7 +35,7 @@ const named = (record: TaskRecord | null, names?: RecordNames) =>
 
 /** What changed between `before` and `after` that a task's activity shows. */
 export function changesOf(before: CalendarTask, after: CalendarTask, names?: RecordNames) {
-  const changes: FieldChange[] = [];
+  const changes: TaskActivity[] = [];
   if (before.status !== after.status) {
     changes.push({ kind: "status", from: before.status, to: after.status });
   }
@@ -82,20 +78,13 @@ export async function logTaskChanges(
   );
 }
 
-/** A comment's text, trimmed; null when there is none. */
-export const cleanComment = (body: string) => {
-  const text = body.trim();
-  return text.length > 0 ? text.slice(0, CALENDAR_TASK_COMMENT_MAX) : null;
-};
-
 type Row = typeof calendarTaskActivity.$inferSelect;
 
 const dateOrNull = (value: unknown) => (typeof value === "string" ? new Date(value) : null);
 
 function itemOf(row: Row) {
   const base = { id: row.id, actorMemberId: row.actorMemberId, at: row.createdAt };
-  if (row.kind === "comment") return { ...base, kind: row.kind, body: row.body ?? "" };
-  const change = row.change ?? { from: null, to: null };
+  const { change } = row;
   if (row.kind === "due") {
     return { ...base, kind: row.kind, from: dateOrNull(change.from), to: dateOrNull(change.to) };
   }
@@ -111,26 +100,4 @@ export async function readTaskActivity(ex: Ex, orgId: string, taskId: string) {
     .orderBy(desc(calendarTaskActivity.createdAt), desc(calendarTaskActivity.id))
     .limit(ITEMS_MAX);
   return rows.reverse().map(itemOf);
-}
-
-/** Adds the member's comment to a task they may read; null when it has no text. */
-export async function addTaskComment(
-  tx: Ex,
-  task: Pick<CalendarTask, "orgId" | "id">,
-  memberId: string,
-  body: string,
-) {
-  const text = cleanComment(body);
-  if (!text) return null;
-  const [row] = await tx
-    .insert(calendarTaskActivity)
-    .values({
-      orgId: task.orgId,
-      taskId: task.id,
-      actorMemberId: memberId,
-      kind: "comment",
-      body: text,
-    })
-    .returning();
-  return itemOf(row!);
 }

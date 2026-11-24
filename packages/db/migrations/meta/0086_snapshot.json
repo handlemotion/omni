@@ -1,5 +1,5 @@
 {
-  "id": "bdf31932-9c2d-4337-aa3b-46434b8b79bb",
+  "id": "11b0a18d-89ad-4862-9f3e-cada6dbc3a77",
   "prevId": "a5e1a49c-1b25-469b-9edb-959e40218b66",
   "version": "7",
   "dialect": "postgresql",
@@ -16828,13 +16828,7 @@
           "name": "change",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": false
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -19602,8 +19596,7 @@
         "priority",
         "assignee",
         "due",
-        "record",
-        "comment"
+        "record"
       ]
     },
     "public.calendar_task_priority": {

@@ -1,7 +1,5 @@
 import {
-  calendarTaskCommentBodySchema,
   type CalendarTaskActivityResponse,
-  type CalendarTaskCommentResponse,
   crmCreateTaskBodySchema,
   crmRecordKeyOf,
   type CrmRecordIds,
@@ -18,7 +16,7 @@ import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 import { announce, memberCrm, refused, wireTask } from "./http.ts";
 import { decodeCursor, encodeCursor } from "../cursor.ts";
-import { emptyComment, wireTaskActivity } from "../calendar/tasks.ts";
+import { wireTaskActivity } from "../calendar/tasks.ts";
 
 const taskCursor = z.object({ at: z.iso.datetime().nullable(), id: z.string().min(1) });
 
@@ -143,14 +141,4 @@ export const tasks = new Hono<AppEnv>()
     return c.json({
       items: found.items.map(wireTaskActivity),
     } satisfies CalendarTaskActivityResponse);
-  })
-
-  .post("/tasks/:id/comments", zValidator("json", calendarTaskCommentBodySchema), async (c) => {
-    const crm = memberCrm(c);
-    const made = await crm.commentOnTask(c.req.param("id"), c.req.valid("json").body);
-    if (made.status === "empty_comment") return emptyComment(c);
-    if (made.status !== "ok") return refused(c, made);
-    const task = await crm.task(c.req.param("id"));
-    if (task.status === "ok") await announceTask(c, task.task);
-    return c.json({ item: wireTaskActivity(made.item) } satisfies CalendarTaskCommentResponse, 201);
   });

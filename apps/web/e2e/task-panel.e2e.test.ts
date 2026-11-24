@@ -45,7 +45,7 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-test("status and priority picked in the panel save, a cancelled task leaves the open list, and changes and comments show in its activity", async () => {
+test("status and priority picked in the panel save, a cancelled task leaves the open list, and the changes show in its activity", async () => {
   const origin = String(worker.url);
   const org = await createOrg(db, "issue-panel");
   await db.insert(schema.orgSetup).values({ orgId: org.id, step: "complete" });
@@ -96,16 +96,9 @@ test("status and priority picked in the panel save, a cancelled task leaves the 
     .poll(() => panel.getByRole("button", { name: "Priority: High" }).isVisible())
     .toBe(true);
 
-  await panel.getByRole("textbox", { name: "Comment" }).fill("Parking is on the north side.");
-  await panel.getByRole("button", { name: "Comment", exact: true }).click();
-  await expect
-    .poll(() => activity.getByText("Parking is on the north side.").isVisible())
-    .toBe(true);
   await page.reload();
   await expect
-    .poll(() => activity.getByText("Parking is on the north side.").isVisible(), {
-      timeout: 10_000,
-    })
+    .poll(() => activity.getByText("set Priority to High").isVisible(), { timeout: 10_000 })
     .toBe(true);
 
   await panel.getByRole("button", { name: "Status: In progress" }).click();

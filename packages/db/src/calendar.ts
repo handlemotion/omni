@@ -32,7 +32,7 @@ import {
   type TaskQuery,
 } from "./calendar/tasks.ts";
 import { releaseMemberTasks } from "./calendar/task-sync.ts";
-import { addTaskComment, readTaskActivity } from "./calendar/task-activity.ts";
+import { readTaskActivity } from "./calendar/task-activity.ts";
 import {
   createBookingLink,
   deleteBookingLink,
@@ -184,13 +184,6 @@ export function memberCalendar(db: Db, memberId: string, mirror?: TaskMirror) {
         if (own.status !== "ok") return own;
         return { status: "ok" as const, items: await readTaskActivity(db, m.orgId, id) };
       }),
-    commentOnTask: (id: string, body: string) =>
-      asTaskMember(db, memberId, async (m) => {
-        const own = await ownTask(db, m, id);
-        if (own.status !== "ok") return own;
-        const item = await addTaskComment(db, own.task, m.id, body);
-        return item ? { status: "ok" as const, item } : ({ status: "empty_comment" } as const);
-      }),
   };
 }
 
@@ -238,7 +231,6 @@ export {
   type TaskStep,
 } from "./calendar/tasks.ts";
 export {
-  addTaskComment,
   logTaskChanges,
   readTaskActivity,
   type ActivityRecord,

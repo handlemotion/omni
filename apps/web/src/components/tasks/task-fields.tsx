@@ -31,7 +31,7 @@ import { useRecordHref } from "@/components/crm/record-trail.tsx";
 import { RecordPicker, useMemberNames } from "@/components/crm/task-dialog.tsx";
 import { taskRecord, type TaskChange } from "@/lib/crm-tasks.ts";
 import { DAY_YEAR } from "@/lib/dates.ts";
-import { statusOf, type TaskPriority, type TaskStatus } from "@/lib/task-status.ts";
+import { isClosed, statusOf, type TaskPriority, type TaskStatus } from "@/lib/task-status.ts";
 
 type Glyph = typeof IconCircle;
 
@@ -100,7 +100,7 @@ export function StatusField(props: { task: CrmTask; onSave: (change: TaskChange)
                 key={id}
                 id={id}
                 textValue={label}
-                onAction={() => id !== status && props.onSave({ status: id })}
+                onAction={() => id !== status && props.onSave({ status: id, done: isClosed(id) })}
               >
                 <ItemIcon className={tone} />
                 <MenuLabel>{label}</MenuLabel>

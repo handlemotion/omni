@@ -209,7 +209,9 @@ function TaskBody(props: {
             <MenuItem
               id="done"
               textValue={closed ? "Reopen" : "Mark as done"}
-              onAction={() => save(closed ? { status: "todo" } : { status: "done" })}
+              onAction={() =>
+                save(closed ? { status: "todo", done: false } : { status: "done", done: true })
+              }
             >
               {closed ? <IconCircle /> : <IconCircleCheck />}
               <MenuLabel>{closed ? "Reopen" : "Mark as done"}</MenuLabel>
