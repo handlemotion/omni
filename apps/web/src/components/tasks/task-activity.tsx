@@ -21,7 +21,7 @@ export function TaskActivity(props: { task: CrmTask; source: TaskSource }) {
     <section aria-label="Activity" className="flex flex-col gap-3">
       <h3 className="flex h-7 items-center text-sm font-medium text-foreground">Activity</h3>
       <Skeleton loading={query.isPending} label="Loading activity" skeleton={<ActivityBones />}>
-        <ol className="flex flex-col gap-3">
+        <ol className="flex flex-col gap-4">
           <Item
             mark={<Avatar person={person(task.createdByMemberId)} />}
             actor={person(task.createdByMemberId)}
@@ -166,7 +166,7 @@ function Item(props: {
   return (
     <li className="relative flex items-start gap-2.5 text-sm">
       {!props.last && (
-        <span aria-hidden className="absolute start-1.75 top-4.5 -bottom-3.5 w-px bg-border" />
+        <span aria-hidden className="absolute start-1.75 top-4.5 -bottom-4.5 w-px bg-border" />
       )}
       <span className="flex h-5 w-3.75 shrink-0 items-center justify-center">{props.mark}</span>
       <p className="min-w-0 flex-1 leading-5 text-muted-foreground">
