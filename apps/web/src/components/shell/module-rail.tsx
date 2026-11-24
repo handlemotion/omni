@@ -105,7 +105,7 @@ function ModuleSwitch({ large = false }: { large?: boolean }) {
         aria-label={`Switch module, currently ${name}`}
         className={cn(
           "w-auto max-w-full shrink",
-          large ? "h-8 gap-2 ps-1 pe-1.5 *:[svg]:size-6.5" : "h-8 gap-2 px-2 *:[svg]:size-4.5",
+          large ? "h-8 gap-2 ps-0.5 pe-1.5 *:[svg]:size-7" : "h-8 gap-2 px-2 *:[svg]:size-4.5",
         )}
       >
         <Mark />
