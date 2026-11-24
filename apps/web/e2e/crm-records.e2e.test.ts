@@ -400,11 +400,11 @@ test("the Projects table lists every deal, closed ones too, and a lost deal's pa
     "Still talking",
   ]);
   await page.getByRole("row", { name: /Never signed/ }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toContain(`/crm/deals/${lost}`);
   await page
-    .getByRole("list", { name: "Record" })
-    .getByRole("link", { name: "Projects" })
+    .getByRole("link", { name: "Projects", exact: true })
+    .and(page.locator("[aria-current=page]"))
     .waitFor();
-  expect(new URL(page.url()).pathname).toContain(`/crm/deals/${lost}`);
 });
 
 test("the sidebar lists the projects and leads, not closed deals, each marked with its client", async () => {
@@ -508,7 +508,7 @@ test("a close date picked from the calendar is saved and shown as text", async (
   }
 });
 
-test("a person opened from a project keeps the project in the crumbs, and its role shows on hover", async () => {
+test("a person opens from a project's People, and its role shows on hover", async () => {
   const team = await workspace("trail");
   const { stages } = await team.api("GET", "/stages");
   const won = stages.find((stage: { kind: string }) => stage.kind === "won");
@@ -571,16 +571,8 @@ test("a person opened from a project keeps the project in the crumbs, and its ro
 
   await row.click();
   await expect.poll(() => new URL(page.url()).pathname).toContain(`/crm/people/${person.id}`);
-  const crumbs = page.getByRole("list", { name: "Record" });
-  await crumbs.getByRole("link", { name: "Serie Documental" }).waitFor();
-  await crumbs.getByRole("link", { name: "Projects" }).waitFor();
-  expect(await crumbs.getByRole("link", { name: "People" }).count()).toBe(0);
   await page.getByRole("heading", { name: "Marisol Velazquez" }).waitFor();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/person-from-project.png` });
-
-  await crumbs.getByRole("link", { name: "Serie Documental" }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toContain(`/crm/deals/${deal.id}`);
-  expect(new URL(page.url()).searchParams.get("via")).toBeNull();
 });
 
 test("a project's icon is uploaded from its header, and a person's menu opens mail to them", async () => {

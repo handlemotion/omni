@@ -79,7 +79,7 @@ test("a deal's Files tab uploads a large file into the deal's folder, previews i
 
   await page.goto(new URL(`/${org.slug}/crm/deals/${deal.deal.id}`, worker.url).toString());
   await page.getByRole("tab", { name: "Files" }).click();
-  await page.getByRole("button", { name: "Add from Drive" }).waitFor();
+  await page.getByRole("button", { name: "Add", exact: true }).waitFor();
   await page
     .locator("input[type=file]")
     .first()
@@ -99,7 +99,7 @@ test("a deal's Files tab uploads a large file into the deal's folder, previews i
   await expect.poll(() => new URL(page.url()).searchParams.get("file")).toBe(footage?.id);
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: "Add from Drive" }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
   const picker = page.getByRole("dialog");
   await picker.getByRole("searchbox").fill("brief");
   await picker.getByRole("row", { name: /brief\.pdf/ }).click();
