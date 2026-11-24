@@ -34,7 +34,7 @@ import { groupKind, meetingClock, meetingGroupPath, type Meeting } from "@/lib/m
 import { Link } from "@/components/ui/link";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { ActionItem } from "./meeting-actions.tsx";
-import { Card, PeopleCard, PlaybackCard, TimelineCard } from "./meeting-aside.tsx";
+import { Card, RecordingCard } from "./meeting-aside.tsx";
 import { MeetingAudio, usePlayer } from "./meeting-player.tsx";
 import { ShareMeetingDialog } from "./meeting-share.tsx";
 import { MeetingTranscript } from "./meeting-transcript.tsx";
@@ -64,7 +64,6 @@ export function MeetingPage({ id }: { id: string }) {
   const meeting = useMeeting(id);
   const [sharing, setSharing] = useState(false);
   usePageTitle(meeting.data?.meeting.title ?? undefined);
-  const [tab, setTab] = useState<"summary" | "transcript">("summary");
   if (!meeting.data) return <MeetingState query={meeting} />;
   const data = meeting.data;
   const m = data.meeting;
@@ -81,11 +80,7 @@ export function MeetingPage({ id }: { id: string }) {
             <MetaRow meeting={data} />
             <Progress meeting={data} />
           </header>
-          <Tabs
-            className="w-full"
-            selectedKey={tab}
-            onSelectionChange={(key) => setTab(key === "transcript" ? "transcript" : "summary")}
-          >
+          <Tabs className="w-full">
             <TabList
               aria-label="Meeting"
               className="sticky top-0 z-10 bg-background px-10 pt-1.5 [--tab-list-pb:--spacing(1.5)]"
@@ -107,24 +102,14 @@ export function MeetingPage({ id }: { id: string }) {
                 </TabPanel>
               </div>
               <aside className="flex w-full flex-col gap-4 lg:sticky lg:top-16 lg:max-w-lg lg:min-w-80 lg:flex-1">
-                {tab === "transcript" ? (
-                  <>
-                    <PlaybackCard meeting={data} />
-                    <TimelineCard meeting={data} />
-                  </>
-                ) : (
-                  <>
-                    <PlaybackCard meeting={data} />
-                    <PeopleCard meeting={data} />
-                    <Card className="pt-3 pb-2">
-                      <Properties
-                        meeting={data}
-                        onShare={editor ? () => setSharing(true) : undefined}
-                        canEdit={editor}
-                      />
-                    </Card>
-                  </>
-                )}
+                <RecordingCard meeting={data} />
+                <Card className="pt-3 pb-2">
+                  <Properties
+                    meeting={data}
+                    onShare={editor ? () => setSharing(true) : undefined}
+                    canEdit={editor}
+                  />
+                </Card>
               </aside>
             </div>
           </Tabs>

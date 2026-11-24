@@ -17,7 +17,6 @@ import {
   meetingQuery,
   meetingsEnabledQuery,
   meetingTranscriptQuery,
-  meetingWaveformQuery,
   renameSpeakerMutation,
   retryMeetingMutation,
   revokeMeetingMutation,
@@ -29,7 +28,6 @@ export const useMeetingGroup = (key: string) => useQuery(meetingGroupQuery(key))
 export const useMeetingList = (group: string) => useInfiniteQuery(meetingListQuery(group));
 export const useMeeting = (id: string) => useQuery(meetingQuery(id));
 export const useMeetingTranscript = (id: string) => useQuery(meetingTranscriptQuery(id));
-export const useMeetingWaveform = (id: string) => useQuery(meetingWaveformQuery(id));
 export const useEventMeetings = (
   event: { uid: string; recurrenceId: string | null },
   enabled = true,

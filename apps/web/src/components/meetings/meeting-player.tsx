@@ -15,6 +15,8 @@ interface Player {
   playing: boolean;
   seek: (ms: number) => void;
   toggle: () => void;
+  rate: number;
+  setRate: (rate: number) => void;
   hasAudio: boolean;
 }
 
@@ -24,6 +26,8 @@ const NO_PLAYER: Player = {
   playing: false,
   seek: () => {},
   toggle: () => {},
+  rate: 1,
+  setRate: () => {},
   hasAudio: false,
 };
 
@@ -40,6 +44,11 @@ export function MeetingAudio(props: {
   const [timeMs, setTimeMs] = useState(0);
   const [durationMs, setDurationMs] = useState(props.durationMs ?? 0);
   const [playing, setPlaying] = useState(false);
+  const [rate, setRateState] = useState(1);
+  const setRate = useCallback((next: number) => {
+    if (audio.current) audio.current.playbackRate = next;
+    setRateState(next);
+  }, []);
   const seek = useCallback((ms: number) => {
     const element = audio.current;
     if (!element) return;
@@ -54,8 +63,8 @@ export function MeetingAudio(props: {
     else element.pause();
   }, []);
   const player = useMemo(
-    () => ({ timeMs, durationMs, playing, seek, toggle, hasAudio: props.hasAudio }),
-    [timeMs, durationMs, playing, seek, toggle, props.hasAudio],
+    () => ({ timeMs, durationMs, playing, seek, toggle, rate, setRate, hasAudio: props.hasAudio }),
+    [timeMs, durationMs, playing, seek, toggle, rate, setRate, props.hasAudio],
   );
   return (
     <PlayerContext.Provider value={player}>

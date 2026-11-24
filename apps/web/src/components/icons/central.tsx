@@ -114,6 +114,8 @@ export { IconFolderOpen as IconFolderOpenFilled } from "central-icons-filled/Ico
 export { IconHandshake as IconHandshakeFilled } from "central-icons-filled/IconHandshake";
 export { IconPlay as IconPlayFilled } from "central-icons-filled/IconPlay";
 export { IconPause as IconPauseFilled } from "central-icons-filled/IconPause";
+export { IconRewind5s } from "central-icons-outlined/IconRewind5s";
+export { IconFastForward5s } from "central-icons-outlined/IconFastForward5s";
 export { IconPeople } from "central-icons-outlined/IconPeople";
 export { IconCalendar1 as IconCalendarFilled } from "central-icons-filled/IconCalendar1";
 export { IconMicrophone as IconMicrophoneFilled } from "central-icons-filled/IconMicrophone";
