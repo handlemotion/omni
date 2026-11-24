@@ -183,11 +183,15 @@ const subscribeSlots = (listener: () => void) => {
 };
 const byPage = (a: HTMLElement, b: HTMLElement) =>
   a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+const visible = (el: HTMLElement) => el.parentElement?.checkVisibility() ?? false;
+const chosen = () => slots.find(visible);
+const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(changed);
 
 /**
  * Who is online, in a page header's actions. With panes side by side (a thread open beside the
- * list) only the header that comes first on the page, the leftmost, shows it, so the faces appear
- * once and the Talk window has one face to sit under. Not in a window narrower than a tablet,
+ * list) only the visible header that comes first on the page, the leftmost, shows it, so the faces
+ * appear once and the Talk window has one face to sit under; a pane hidden in place (the list
+ * behind a full-screen thread) hands it to the next. Not in a window narrower than a tablet,
  * where Talk does not count you as online either (`lib/realtime.ts`).
  */
 export function PagePresence() {
@@ -195,17 +199,20 @@ export function PagePresence() {
   useLayoutEffect(() => {
     const el = slot.current;
     if (!el) return;
+    const header = el.parentElement;
     slots.push(el);
     slots.sort(byPage);
+    if (header) resized?.observe(header);
     changed();
     return () => {
       slots.splice(slots.indexOf(el), 1);
+      if (header) resized?.unobserve(header);
       changed();
     };
   }, []);
   const shown = useSyncExternalStore(
     subscribeSlots,
-    () => !!slot.current && slots[0] === slot.current,
+    () => !!slot.current && chosen() === slot.current,
   );
   const narrow = useIsMobile();
   return (
