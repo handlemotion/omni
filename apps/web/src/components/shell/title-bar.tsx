@@ -53,7 +53,7 @@ export function TitleBar() {
         </SidebarTrigger>
       </span>
       <NavArrows />
-      <span className="ms-auto flex items-center gap-0.5">
+      <span className="ms-auto flex items-center gap-1.5">
         <PresenceStack />
         <SearchButton />
         <NotificationsButton />
