@@ -232,7 +232,7 @@ after a spike. Swift side: Foundation and FileProvider only.
 - **First run.** A hosted build opens its configured origin directly. A build with no origin
   shows the server picker; the answer is stored and changeable from the app menu.
 - **Window.** macOS: `titleBarStyle: Overlay`, hidden title, traffic lights positioned to sit on
-  the title bar's content line (48px row, centres 26pt down, level with the workspace switcher; the red one's centre 23pt in, on the module rail's axis). Windows: no native title bar. The web app draws minimize,
+  the title bar's content line (48px row, centres level with the workspace switcher's, about 24pt down, and the buttons as far from the window's left edge as from its top, 17pt). Windows: no native title bar. The web app draws minimize,
   maximize (restore when maximized) and close at the window's top right corner, on every screen,
   as Windows draws them (46px wide, the title row's height, Segoe Fluent Icons' glyphs, close red
   under the pointer, glyphs muted while the window is inactive), and the title bar leaves them
