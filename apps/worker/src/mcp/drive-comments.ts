@@ -7,6 +7,7 @@ import {
   type StorageContext,
 } from "@omni/db";
 import { z } from "zod";
+import { baseMimeType, STORAGE_CANVAS_TYPE, STORAGE_SHEET_TYPE } from "@omni/contracts";
 import { isDocFile } from "@omni/docs";
 import { notifyMembers, realtimeOf } from "../realtime-announce.ts";
 import { s2Basin } from "../s2.ts";
@@ -122,7 +123,11 @@ export async function currentText(context: ToolContext, drive: StorageContext, f
     const live = await LiveFile.open(basin, node.id, node.contentVersion).catch(() => null);
     if (live?.unsaved) return live.markdown;
   }
-  const textual = isDocFile(node.name, node.mimeType) || (node.mimeType ?? "").startsWith("text/");
+  const type = baseMimeType(node.mimeType);
+  const page = type === STORAGE_SHEET_TYPE || type === STORAGE_CANVAS_TYPE;
+  const textual =
+    isDocFile(node.name, node.mimeType) ||
+    (!page && (type.startsWith("text/") || /[/+](json|xml|yaml)$/.test(type)));
   if (textual && node.size <= MAX_TEXT_BYTES) {
     const files =
       found.via === "member"

@@ -304,10 +304,16 @@ read files the way they find and read mail.
   alone. It returns the ChatGPT `{ id, title, url }` shape plus where the file is. Recordings:
   `fixtures/drive/search.json` (`pnpm --filter @omni/ai record:drive-search`; 8/8 top-1, Jev MRR
   1.00).
-- **Read.** `drive_fetch { id, ids?, max_chars? }` returns up to 10 files' text, the budget split
-  evenly, with `text_status` (`pending` until the indexer reaches it). A doc in the person's
-  workspaces whose live document holds typing not saved yet reads from the live document, as
-  people see it, with `unsaved_edits: true`; an agent never edits from a stale copy.
+- **Read.** `drive_fetch { id, ids?, max_chars?, pages?, offset?, comments? }` returns up to 10
+  files' text, the budget split evenly, with `text_status` (`pending` until the indexer reaches
+  it). A doc in the person's workspaces whose live document holds typing not saved yet reads from
+  the live document, as people see it, with `unsaved_edits: true`; an agent never edits from a
+  stale copy. A text file (text, Markdown, CSV, JSON, XML, YAML, code) up to 1 MB that the indexer
+  has not reached reads from its bytes, so a file written a moment ago reads at once.
+- **Only what is needed.** `pages` (`"3"`, `"2-4"`, `"1,5-7"`) keeps only those `--- Page n ---` or
+  `--- Slide n ---` sections of a PDF or deck. A cut text says `total_chars` and `next_offset`, and
+  `offset` reads on from there, so a 300-page PDF is read a section at a time instead of again
+  from the start with a larger budget.
 - **Versions.** `drive_versions { id, version_id?, max_chars? }`, scope `drive:read`, for people
   who may edit the file in their workspaces' drives. Without `version_id` it lists the current
   content and the earlier versions, newest first (`id`, `written_at`, `written_by`, `agent`,
@@ -316,7 +322,10 @@ read files the way they find and read mail.
   It restores nothing: an agent brings a doc back to a version with `drive_edit_doc { markdown }`,
   which merges into the live document and keeps the current text as a version.
 - **Browse.** `drive_list` without arguments names the drives and what was shared with the
-  person; with `workspace` and `space` it lists a drive's top; with `folder_id` a folder.
+  person; with `teamspace_id` it lists a teamspace's top; with `folder_id` a folder. With
+  `folder_id` and `depth` (up to 4) it lists the folders inside too, breadth first, as one flat list
+  whose `location` says where each item is (cheaper than a nested tree), at most 300 items and
+  `limit` per folder, with `cut: true` when there was more.
 - **Access.** Every node is opened through the app's own doors (`memberDoor`, then `grantDoor`
   for the session's scope) before it is returned: a person's agent reaches their My files, their
   companies' Shared, and what was shared with their addresses, never another member's My files
