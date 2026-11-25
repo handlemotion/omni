@@ -32,7 +32,7 @@ export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
   }, [index]);
 
   return (
-    <div ref={pager} data-slot="module-pager" className="-mx-3 flex min-h-0 flex-1 overflow-clip">
+    <div ref={pager} data-slot="module-pager" className="-mx-2 flex min-h-0 flex-1 overflow-clip">
       <div
         data-slot="module-track"
         className="flex min-w-0 flex-1 transition-transform duration-300 ease-(--ease-out) motion-reduce:transition-none"
@@ -44,7 +44,7 @@ export function ModulePager({ pages }: { pages: Record<ModuleId, ReactNode> }) {
             data-module-page={module.id}
             inert={at !== index}
             aria-hidden={at !== index || undefined}
-            className="flex w-full flex-none flex-col gap-3 overflow-y-auto px-3 *:shrink-0"
+            className="flex w-full flex-none flex-col gap-3 overflow-y-auto px-2 *:shrink-0"
           >
             {shown.has(module.id) && pages[module.id]}
           </div>

@@ -55,7 +55,6 @@ export function SidebarGroup(props: { drive: DriveRoot; label: string; search: s
   const key = driveKey(drive);
   const closed = useSidebarExpanded("drive-groups-closed", key);
   const open = { value: !closed.value, toggle: closed.toggle };
-  const { place: pathname, href } = useWorkspacePaths();
   const path = drivePath(drive);
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- the drive is its key
   const to = useMemo<DropPlace>(() => ({ place: drive, canWrite: true }), [key]);
@@ -66,15 +65,7 @@ export function SidebarGroup(props: { drive: DriveRoot; label: string; search: s
     <SidebarSection ref={section}>
       {menu.dialogs}
       <DragRow to={to} expand={open} menu={menu.props}>
-        <SidebarTreeRow
-          heading
-          href={href(path + props.search)}
-          isCurrent={pathname === path}
-          depth={0}
-          label={props.label}
-          expand={open}
-          onPress={() => !open.value && open.toggle()}
-        />
+        <SidebarTreeRow heading depth={0} isCurrent={false} label={props.label} expand={open} />
       </DragRow>
       {open.value && seen && (
         <Level place={drive} drive={drive} depth={0} ancestors={[]} search={props.search} />
@@ -158,6 +149,7 @@ function FolderRow(props: {
 }) {
   const { node, ancestors } = props;
   const { place: pathname, href: inWorkspace } = useWorkspacePaths();
+  const file = useSearch({ strict: false, select: (search) => (search as { file?: string }).file });
   const drive = driveOf(node);
   const href = `${drivePath(drive)}/${encodeURIComponent(node.id)}`;
   const key = driveKey(drive);
@@ -184,7 +176,7 @@ function FolderRow(props: {
       <DragRow to={to} beside={beside} node={node} expand={props.expand} menu={menu.props}>
         <SidebarTreeRow
           href={inWorkspace(href + props.search)}
-          isCurrent={pathname === href}
+          isCurrent={pathname === href && !file}
           depth={props.depth}
           icon={<FileGlyph kind="folder" className="size-icon" />}
           label={node.name}

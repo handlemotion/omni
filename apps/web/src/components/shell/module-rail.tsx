@@ -53,7 +53,7 @@ export function RailSidebar({ children }: { children: ReactNode }) {
         data-state="expanded"
         className="peer h-auto shrink-0 border-e border-sidebar-border bg-sidebar"
       >
-        <SidebarContent className="gap-3 px-3 pt-0 pb-3 *:shrink-0">
+        <SidebarContent className="gap-3 px-2 pt-0 pb-3 *:shrink-0">
           <div className={cn("-mb-3 flex h-bar items-center gap-1", mac && "ps-2")}>
             <ModuleTitle />
             <span className="ms-auto">

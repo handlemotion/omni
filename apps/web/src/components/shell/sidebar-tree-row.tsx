@@ -8,7 +8,7 @@ import { SidebarItem, SidebarLabel, useSidebar } from "@/components/ui/sidebar";
 const INDENT_PX = 16;
 
 export function SidebarTreeRow(props: {
-  href: string;
+  href?: string;
   isCurrent: boolean;
   depth: number;
   /** A section's own header (a Drive space): small muted text, no icon. */
@@ -25,6 +25,7 @@ export function SidebarTreeRow(props: {
   const rail = state === "collapsed" && !isMobile;
   if (rail && props.depth > 0) return null;
   const expand = rail ? undefined : props.expand;
+  if (props.heading) return <SectionTitle label={props.label} expand={expand} />;
   return (
     <div className="group/tree relative">
       <SidebarItem
@@ -32,10 +33,7 @@ export function SidebarTreeRow(props: {
         isCurrent={props.isCurrent}
         onPress={props.onPress}
         style={rail ? undefined : { paddingInlineStart: 8 + props.depth * INDENT_PX }}
-        className={cn(
-          props.heading && "text-label text-subtle-foreground hover:text-foreground",
-          expand && "pe-8",
-        )}
+        className={expand ? "pe-8" : undefined}
       >
         {props.icon}
         <SidebarLabel>{props.label}</SidebarLabel>
@@ -52,10 +50,7 @@ export function SidebarTreeRow(props: {
           aria-label={`${expand.value ? "Collapse" : "Expand"} ${props.label}`}
           aria-expanded={expand.value}
           onPress={expand.toggle}
-          className={cn(
-            "absolute end-1 top-1 opacity-0 transition-opacity duration-150 group-hover/tree:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none",
-            !props.heading && "aria-expanded:opacity-100",
-          )}
+          className="absolute end-1 top-1 opacity-0 transition-opacity duration-150 group-hover/tree:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
         >
           <IconChevronRight
             className={`transition-transform duration-150 ease-out motion-reduce:transition-none ${expand.value ? "rotate-90" : ""}`}
@@ -63,6 +58,31 @@ export function SidebarTreeRow(props: {
         </Button>
       )}
     </div>
+  );
+}
+
+function SectionTitle(props: {
+  label: string;
+  expand: { value: boolean; toggle: () => void } | undefined;
+}) {
+  const { expand } = props;
+  return (
+    <SidebarItem
+      onPress={expand?.toggle}
+      aria-expanded={expand?.value}
+      className="group/title text-label text-subtle-foreground hover:text-foreground"
+    >
+      <SidebarLabel>{props.label}</SidebarLabel>
+      {expand && (
+        <IconChevronRight
+          aria-hidden
+          className={cn(
+            "ms-auto size-3.5 opacity-0 transition duration-150 ease-out group-hover/title:opacity-100 motion-reduce:transition-none",
+            expand.value && "rotate-90",
+          )}
+        />
+      )}
+    </SidebarItem>
   );
 }
 

@@ -103,7 +103,6 @@ export function useDriveRowMenu(drive: DriveRoot, path: string, expand: Expand) 
     });
   const entries = () =>
     [
-      { icon: IconArrowUpRight, label: "Open", onAction: make.open },
       expandEntry(expand),
       "separator",
       ...make.entries,

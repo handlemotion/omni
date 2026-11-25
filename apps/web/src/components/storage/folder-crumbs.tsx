@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 
 export function FolderCrumbs(props: {
-  top: { name: string; href: string };
+  /** The trail's start: a link, or plain text where the top has no page (a space). */
+  top: { name: string; href?: string | undefined };
   /** The folders below the top, down to this one. */
   path: { id: string; name: string }[];
   href: (folderId: string) => string;
