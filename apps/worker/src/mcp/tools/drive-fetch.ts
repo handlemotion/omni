@@ -117,12 +117,12 @@ interface Range {
 }
 
 function textOf(content: ContextText, range: Range) {
-  if (content.status !== "ok") return { text: NO_TEXT[content.status], total: undefined };
+  if (content.status !== "ok") return { note: "", body: NO_TEXT[content.status], total: undefined };
   const picked = range.pages ? selectPages(content.text, range.pages) : null;
   const whole = picked ?? content.text;
   const note =
     range.pages && picked === null ? "[This file has no pages or slides: all of it.]\n" : "";
-  return { text: note + whole.slice(range.offset), total: whole.length };
+  return { note, body: whole.slice(range.offset), total: whole.length };
 }
 
 function document(
@@ -133,16 +133,17 @@ function document(
   const { found, unsaved, layout, comments } = read;
   const { id, title, url, ...metadata } = item(webAppURL, found);
   const content = found.content!;
-  const { text, total } = textOf(content, range);
-  const cut = text.length > range.budget;
-  const notice = `\n[Cut here. Read on with offset ${range.offset + range.budget}.]`;
-  const shown = Math.max(0, range.budget - notice.length);
+  const { note, body, total } = textOf(content, range);
+  const room = range.budget - note.length;
+  const cut = body.length > room;
+  const notice = `\n[Cut here. Read on with offset ${range.offset + room}.]`;
+  const shown = Math.max(0, room - notice.length);
   const next = range.offset + shown;
   return {
     id,
     title,
     url,
-    text: cut ? `${text.slice(0, shown)}\n[Cut here. Read on with offset ${next}.]` : text,
+    text: note + (cut ? `${body.slice(0, shown)}\n[Cut here. Read on with offset ${next}.]` : body),
     metadata: {
       ...metadata,
       text_status: content.status,

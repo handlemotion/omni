@@ -8,7 +8,7 @@ export function pagesOf(spec: string) {
     if (!match) return null;
     const from = Number(match[1]);
     const to = Number(match[2] ?? match[1]);
-    if (from < 1 || to < from || to - from > 2_000) return null;
+    if (!Number.isSafeInteger(to) || from < 1 || to < from || to - from > 2_000) return null;
     for (let page = from; page <= to; page++) pages.add(page);
   }
   return pages.size ? pages : null;

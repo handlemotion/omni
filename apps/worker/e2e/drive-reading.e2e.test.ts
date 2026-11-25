@@ -85,6 +85,19 @@ test("an agent reads only the pages it asks for, and reads on from where a long 
     offset: next,
   });
   expect(second.text.startsWith(long.slice(next, next + 100))).toBe(true);
+
+  const unpaged = await call(agent, "drive_fetch", {
+    id: notes.file.id,
+    max_chars: 2_000,
+    pages: "1",
+  });
+  const note = "[This file has no pages or slides: all of it.]\n";
+  expect(unpaged.text.startsWith(note)).toBe(true);
+  const read = unpaged.text.slice(note.length, unpaged.text.lastIndexOf("\n[Cut here."));
+  expect(read).toBe(long.slice(0, unpaged.metadata.next_offset));
+
+  const huge = await call(agent, "drive_fetch", { id: report.id, pages: "9007199254740992" });
+  expect(huge.error).toContain("pages");
 });
 
 test("an agent reads a text file it just wrote, before the indexer has", async () => {
