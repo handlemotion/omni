@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { useDrop } from "react-aria-components/useDrop";
+import { IconEllipsis } from "@/components/icons/central";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
 import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
@@ -40,8 +41,6 @@ import { useDriveRowMenu, useFolderRowMenu } from "./sidebar-menus.tsx";
 import { drivePath } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
-const SHOWN = 100;
-
 type Expand = { value: boolean; toggle: () => void };
 
 /**
@@ -55,7 +54,6 @@ export function SidebarGroup(props: { drive: DriveRoot; label: string; search: s
   const key = driveKey(drive);
   const closed = useSidebarExpanded("drive-groups-closed", key);
   const open = { value: !closed.value, toggle: closed.toggle };
-  const { place: pathname, href } = useWorkspacePaths();
   const path = drivePath(drive);
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- the drive is its key
   const to = useMemo<DropPlace>(() => ({ place: drive, canWrite: true }), [key]);
@@ -66,15 +64,7 @@ export function SidebarGroup(props: { drive: DriveRoot; label: string; search: s
     <SidebarSection ref={section}>
       {menu.dialogs}
       <DragRow to={to} expand={open} menu={menu.props}>
-        <SidebarTreeRow
-          heading
-          href={href(path + props.search)}
-          isCurrent={pathname === path}
-          depth={0}
-          label={props.label}
-          expand={open}
-          onPress={() => !open.value && open.toggle()}
-        />
+        <SidebarTreeRow heading depth={0} isCurrent={false} label={props.label} expand={open} />
       </DragRow>
       {open.value && seen && (
         <Level place={drive} drive={drive} depth={0} ancestors={[]} search={props.search} />
@@ -91,35 +81,46 @@ function Level(props: {
   search: string;
 }) {
   const list = useStorageList(props.place);
-  const shown = list.nodes.slice(0, SHOWN);
+  const shown = list.nodes;
   const pending = list.isPending ? null : props.place;
   const folderGap = useGapAt(pending, shown, "folder");
   const fileGap = useGapAt(pending, shown, "file");
   const gap = folderGap ?? fileGap;
   if (list.isPending) return <SidebarTreeBones depth={props.depth} />;
   return (
-    <WithGap
-      gap={gap}
-      rows={shown.map((node) =>
-        node.kind === "folder" ? (
-          <Folder
-            key={node.id}
-            node={node}
-            depth={props.depth}
-            ancestors={props.ancestors}
-            search={props.search}
-          />
-        ) : (
-          <FileRow
-            key={node.id}
-            node={node}
-            depth={props.depth}
-            ancestors={props.ancestors}
-            search={props.search}
-          />
-        ),
+    <>
+      <WithGap
+        gap={gap}
+        rows={shown.map((node) =>
+          node.kind === "folder" ? (
+            <Folder
+              key={node.id}
+              node={node}
+              depth={props.depth}
+              ancestors={props.ancestors}
+              search={props.search}
+            />
+          ) : (
+            <FileRow
+              key={node.id}
+              node={node}
+              depth={props.depth}
+              ancestors={props.ancestors}
+              search={props.search}
+            />
+          ),
+        )}
+      />
+      {list.hasNextPage && (
+        <SidebarTreeRow
+          isCurrent={false}
+          depth={props.depth}
+          icon={<IconEllipsis className="size-icon" />}
+          label="Show more"
+          onPress={() => !list.isFetchingNextPage && void list.fetchNextPage()}
+        />
       )}
-    />
+    </>
   );
 }
 
@@ -158,6 +159,7 @@ function FolderRow(props: {
 }) {
   const { node, ancestors } = props;
   const { place: pathname, href: inWorkspace } = useWorkspacePaths();
+  const file = useSearch({ strict: false, select: (search) => (search as { file?: string }).file });
   const drive = driveOf(node);
   const href = `${drivePath(drive)}/${encodeURIComponent(node.id)}`;
   const key = driveKey(drive);
@@ -184,7 +186,7 @@ function FolderRow(props: {
       <DragRow to={to} beside={beside} node={node} expand={props.expand} menu={menu.props}>
         <SidebarTreeRow
           href={inWorkspace(href + props.search)}
-          isCurrent={pathname === href}
+          isCurrent={pathname === href && !file}
           depth={props.depth}
           icon={<FileGlyph kind="folder" className="size-icon" />}
           label={node.name}

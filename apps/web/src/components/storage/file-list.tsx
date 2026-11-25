@@ -94,7 +94,7 @@ export function FileList({ drive, folderId }: { drive: DriveRoot; folderId?: str
           top={
             hidden && drafts
               ? { name: drafts.name, href: href(drive, drafts.id) }
-              : { name: label, href: href(drive) }
+              : { name: label, href: "teamspaceId" in drive ? undefined : href(drive) }
           }
           path={hidden ? path.slice(1) : path}
           href={(id) => href(drive, id)}

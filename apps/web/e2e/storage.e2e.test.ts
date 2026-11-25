@@ -540,11 +540,11 @@ test("leaving a doc with unsaved typing goes at once, to the last place picked, 
   const path = () => new URL(page.url()).pathname;
   const pressed = Date.now();
   await page.getByRole("link", { name: "Recents", exact: true }).first().click();
-  await page.getByRole("link", { name: "Trash", exact: true }).first().click();
-  await expect.poll(path, { timeout: 1500 }).toMatch(/\/files\/trash$/);
+  await page.getByRole("link", { name: "Drafts", exact: true }).first().click();
+  await expect.poll(path, { timeout: 1500 }).toMatch(/\/files\/drafts$/);
   expect(Date.now() - pressed).toBeLessThan(1500);
   await page.waitForTimeout(4000);
-  expect(path()).toMatch(/\/files\/trash$/);
+  expect(path()).toMatch(/\/files\/drafts$/);
   expect(await page.getByRole("alertdialog", { name: "Save your changes?" }).count()).toBe(0);
 
   const [file] = await db
