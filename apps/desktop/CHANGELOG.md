@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/handlemotion/omni/compare/desktop-v0.9.0...desktop-v0.10.0) (2026-11-25)
+
+
+### Features
+
+* **web:** icon rail and sidebar shell, top rail only in the desktop app ([#95](https://github.com/handlemotion/omni/issues/95)) ([b0a8db9](https://github.com/handlemotion/omni/commit/b0a8db9a14751704d368810171495b80b9f33b7e))
+* **web:** workspace rail, Drive tree navigator, Drafts and a simpler Drive toolbar ([#102](https://github.com/handlemotion/omni/issues/102)) ([7924cfe](https://github.com/handlemotion/omni/commit/7924cfe0c145e89f9221467d79d2bcd2cdc684ae))
+
 ## [0.9.0](https://github.com/handlemotion/omni/compare/desktop-v0.8.0...desktop-v0.9.0) (2026-11-24)
 
 
