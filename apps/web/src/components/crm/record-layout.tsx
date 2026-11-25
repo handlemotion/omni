@@ -156,7 +156,7 @@ export function RecordFrame(props: { children: ReactNode }) {
   return (
     <section className="relative flex h-svh min-h-0 min-w-0 flex-col">
       {phone && (
-        <header className="flex h-12 shrink-0 items-center border-b ps-2.5">
+        <header className="flex h-bar shrink-0 items-center border-b px-2.5">
           <PageNav />
         </header>
       )}

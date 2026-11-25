@@ -113,7 +113,9 @@ export function NotificationsPanel() {
   return (
     <div
       className={`pointer-events-none fixed top-0 bottom-0 end-0 z-30 flex overflow-hidden ${
-        isMobile ? "start-0 justify-end" : "start-(--sidebar-width) justify-start"
+        isMobile
+          ? "start-0 justify-end"
+          : "start-[calc(var(--sidebar-width)+var(--spacing-rail))] justify-start"
       }`}
     >
       <aside
@@ -128,7 +130,7 @@ export function NotificationsPanel() {
             : `invisible opacity-0 motion-reduce:translate-x-0 ${isMobile ? "translate-x-full" : "-translate-x-full"}`
         }`}
       >
-        <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
+        <header className="flex h-bar shrink-0 items-center gap-2 px-3">
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium">Notifications</h2>
           <div className="flex items-center gap-1.5">
             <PageBarActions>

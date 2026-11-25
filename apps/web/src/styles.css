@@ -184,6 +184,8 @@
 
   --spacing-icon: 15px;
   --spacing-sidebar: 300px;
+  --spacing-rail: 52px;
+  --spacing-bar: 44px;
 
   --color-background: var(--background);
   --color-scrim: var(--scrim);

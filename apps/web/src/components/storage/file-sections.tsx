@@ -3,15 +3,12 @@ import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } fr
 import type { Selection } from "react-aria-components";
 import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
 import { SkeletonBox } from "skullet/react";
-import { IconCards, IconRows } from "@/components/icons/central";
 import {
   SettingsRowMenu,
   type SettingsRowMenuItem,
 } from "@/components/settings/kit/settings-row-menu";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { usePrefetchFolder } from "@/hooks/use-storage.ts";
 import type { FolderDraft } from "@/hooks/use-folder-drafts.ts";
@@ -124,43 +121,6 @@ export const FileSections = memo(function FileSections(props: FileSectionsProps)
     </div>
   );
 });
-
-/** Squares or rows, for every folder: in the page's header. */
-export function ViewToggle() {
-  const [view, setView] = useStorageView();
-  return (
-    <ToggleGroup
-      bare
-      size="sq-xs"
-      aria-label="Layout"
-      selectionMode="single"
-      disallowEmptySelection
-      selectedKeys={[view]}
-      onSelectionChange={(keys) => {
-        const [next] = [...keys];
-        if (next === "rows" || next === "cards") setView(next);
-      }}
-    >
-      <LayoutOption id="cards" label="Cards">
-        <IconCards />
-      </LayoutOption>
-      <LayoutOption id="rows" label="Rows">
-        <IconRows />
-      </LayoutOption>
-    </ToggleGroup>
-  );
-}
-
-function LayoutOption(props: { id: StorageView; label: string; children: ReactNode }) {
-  return (
-    <TooltipTrigger delay={400}>
-      <ToggleGroupItem id={props.id} aria-label={props.label}>
-        {props.children}
-      </ToggleGroupItem>
-      <Tooltip>{props.label}</Tooltip>
-    </TooltipTrigger>
-  );
-}
 
 type SelectionProps = Pick<
   React.ComponentProps<typeof GridList>,

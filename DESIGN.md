@@ -59,7 +59,8 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   brand's icon from svgl (`@ridemountainpig/svgl-react`), in its own colours, wherever a file's
   type is drawn: `FileGlyph` and `FileTile` for files, `AttachmentGlyph` for attachment chips
   (`components/storage/file-glyph.tsx`). Every other type stays a Central glyph. Add a brand mark
-  there, never at the call site.
+  there, never at the call site. The one exception is the sidebar's Drive tree: line glyphs only
+  (`LineGlyph`), a blank page for documents, no brand marks.
 - **Menus.** Every menu item leads with an icon (14px, muted, the label after it); a menu
   without icons is not allowed. A person, workspace or mailbox leads with its avatar instead.
   `SettingsRowMenu` requires an `icon` per item, so a missing one fails the type check.

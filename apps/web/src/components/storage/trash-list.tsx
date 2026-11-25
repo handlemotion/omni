@@ -16,6 +16,22 @@ import { UploadsPanel } from "./uploads-panel.tsx";
 
 export function TrashList() {
   const trash = useStorageTrash();
+  return (
+    <StorageFrame
+      title={<Heading className="truncate text-md">Trash</Heading>}
+      caption={trash.nodes.length > 0 && "Deleted forever after 30 days"}
+    >
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <TrashBody />
+      </div>
+      <UploadsPanel />
+    </StorageFrame>
+  );
+}
+
+/** Drive's Trash: what was deleted, to restore or delete forever. In Settings and at its old link. */
+export function TrashBody() {
+  const trash = useStorageTrash();
   const restore = useRestoreNode();
   const [deleting, setDeleting] = useState<StorageNode | null>(null);
   const restoreNode = restore.mutate;
@@ -44,41 +60,35 @@ export function TrashList() {
     [restoreNode],
   );
   return (
-    <StorageFrame
-      title={<Heading className="truncate text-md">Trash</Heading>}
-      caption={trash.nodes.length > 0 && "Deleted forever after 30 days"}
-    >
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {trash.isPending ? (
-          <Skeleton loading label="Loading Trash" skeleton={<TrashRowsBones />}>
-            {null}
-          </Skeleton>
-        ) : trash.isError ? (
-          <div className="flex h-full flex-col">
-            <ListFailed retry={() => void trash.refetch()} />
-          </div>
-        ) : !trash.nodes.length ? (
-          <div className="flex h-full flex-col">
-            <EmptyState
-              figure="drawer"
-              title="Trash is empty"
-              description="Deleted files stay here for 30 days."
-            />
-          </div>
-        ) : (
-          <NodeMenu nodes={trash.nodes} menu={menu}>
-            <TrashRows
-              label="Trash"
-              nodes={trash.nodes}
-              menu={menu}
-              loadMore={trash.hasNextPage ? loadMore : undefined}
-              isLoadingMore={trash.isFetchingNextPage}
-            />
-          </NodeMenu>
-        )}
-      </div>
-      <UploadsPanel />
+    <>
+      {trash.isPending ? (
+        <Skeleton loading label="Loading Trash" skeleton={<TrashRowsBones />}>
+          {null}
+        </Skeleton>
+      ) : trash.isError ? (
+        <div className="flex h-full flex-col">
+          <ListFailed retry={() => void trash.refetch()} />
+        </div>
+      ) : !trash.nodes.length ? (
+        <div className="flex h-full flex-col">
+          <EmptyState
+            figure="drawer"
+            title="Trash is empty"
+            description="Deleted files stay here for 30 days."
+          />
+        </div>
+      ) : (
+        <NodeMenu nodes={trash.nodes} menu={menu}>
+          <TrashRows
+            label="Trash"
+            nodes={trash.nodes}
+            menu={menu}
+            loadMore={trash.hasNextPage ? loadMore : undefined}
+            isLoadingMore={trash.isFetchingNextPage}
+          />
+        </NodeMenu>
+      )}
       {deleting && <DeleteForeverDialog node={deleting} onClose={() => setDeleting(null)} />}
-    </StorageFrame>
+    </>
   );
 }

@@ -76,12 +76,17 @@ async function openInbox(slug: string, options: { reducedMotion?: "reduce" } = {
 const LABELS = { mail: "Mail", files: "Drive", crm: "Clients" } as const;
 const rail = (page: Page, name: string) => ({
   click: async () => {
-    await page.getByRole("button", { name: /^Switch module, currently / }).click();
-    await page.getByRole("menuitem", { name, exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Modules" })
+      .getByRole("button", { name, exact: true })
+      .click();
   },
 });
 const shows = (page: Page, id: keyof typeof LABELS) =>
-  page.getByRole("button", { name: `Switch module, currently ${LABELS[id]}` }).waitFor();
+  page
+    .getByRole("navigation", { name: "Modules" })
+    .locator(`[aria-current="page"][aria-label="${LABELS[id]}"]`)
+    .waitFor();
 const pager = (page: Page) => page.locator('[data-slot="module-pager"]');
 
 const pageAt = (page: Page) =>
@@ -121,9 +126,11 @@ async function swipe(page: Page, steps: [dx: number, dy: number][]) {
 
 test("the module switcher opens each module and the pages glide along", async () => {
   const page = await openInbox("chevrons");
-  await page.getByRole("button", { name: /^Switch module, currently / }).click();
   const frames = slideFrames(page);
-  await page.getByRole("menuitem", { name: "Drive", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Modules" })
+    .getByRole("button", { name: "Drive", exact: true })
+    .click();
   await page.waitForURL((url) => place(url) === "/files");
   await shows(page, "files");
   await expect.poll(() => pageAt(page)).toBe(1);

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { SkeletonBox } from "skullet/react";
 import { IconChevronRight } from "@/components/icons/central";
+import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { SidebarItem, SidebarLabel, useSidebar } from "@/components/ui/sidebar";
 
@@ -10,7 +11,9 @@ export function SidebarTreeRow(props: {
   href: string;
   isCurrent: boolean;
   depth: number;
-  icon: ReactNode;
+  /** A section's own header (a Drive space): small muted text, no icon. */
+  heading?: boolean;
+  icon?: ReactNode;
   label: string;
   /** Trailing detail before the chevron (a count). */
   detail?: ReactNode;
@@ -29,7 +32,10 @@ export function SidebarTreeRow(props: {
         isCurrent={props.isCurrent}
         onPress={props.onPress}
         style={rail ? undefined : { paddingInlineStart: 8 + props.depth * INDENT_PX }}
-        className={expand ? "pe-8" : undefined}
+        className={cn(
+          props.heading && "text-label text-subtle-foreground hover:text-foreground",
+          expand && "pe-8",
+        )}
       >
         {props.icon}
         <SidebarLabel>{props.label}</SidebarLabel>
@@ -46,7 +52,10 @@ export function SidebarTreeRow(props: {
           aria-label={`${expand.value ? "Collapse" : "Expand"} ${props.label}`}
           aria-expanded={expand.value}
           onPress={expand.toggle}
-          className="absolute end-1 top-1 opacity-0 transition-opacity duration-150 group-hover/tree:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
+          className={cn(
+            "absolute end-1 top-1 opacity-0 transition-opacity duration-150 group-hover/tree:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none",
+            !props.heading && "aria-expanded:opacity-100",
+          )}
         >
           <IconChevronRight
             className={`transition-transform duration-150 ease-out motion-reduce:transition-none ${expand.value ? "rotate-90" : ""}`}

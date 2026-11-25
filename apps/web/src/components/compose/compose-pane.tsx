@@ -52,7 +52,7 @@ function ComposeDialogBody({ onSent }: { onSent: () => void }) {
   const [to] = useState(takeComposeTo);
   return (
     <>
-      <div className="flex h-12 shrink-0 items-center border-b px-3 pe-12">
+      <div className="flex h-bar shrink-0 items-center border-b px-3 pe-12">
         <DialogTitle>New email</DialogTitle>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">

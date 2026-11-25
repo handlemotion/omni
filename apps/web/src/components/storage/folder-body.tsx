@@ -178,7 +178,6 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
     return (
       <NodeMenu nodes={list.nodes} menu={props.menu} background={props.background}>
         <EmptyState figure="drawer" {...source.empty}>
-          {!inPane && props.extra}
           {!inPane && <HeaderActions {...props} canWrite={source.canWrite} />}
         </EmptyState>
       </NodeMenu>

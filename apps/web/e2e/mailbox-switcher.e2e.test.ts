@@ -278,8 +278,10 @@ test("switching workspace keeps the module; switching module keeps the workspace
   const before = await active();
 
   const openModule = async (name: string) => {
-    await page.getByRole("button", { name: /^Switch module, currently / }).click();
-    await page.getByRole("menuitem", { name, exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Modules" })
+      .getByRole("button", { name, exact: true })
+      .click();
   };
   await openModule("Drive");
   await page.waitForURL((url) => place(url) === "/files");
@@ -324,8 +326,10 @@ test("g then f keeps the mailbox for the way back to Mail", async () => {
   await page.keyboard.press("g");
   await page.keyboard.press("f");
   await page.waitForURL((url) => place(url) === "/files");
-  await page.getByRole("button", { name: /^Switch module, currently / }).click();
-  await page.getByRole("menuitem", { name: "Mail", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Modules" })
+    .getByRole("button", { name: "Mail", exact: true })
+    .click();
   await page.waitForURL((url) => place(url) === "/mail/inbox");
   expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.support.id);
   await page.getByRole("button", { name: /^Switch mailbox, currently Support/ }).waitFor();

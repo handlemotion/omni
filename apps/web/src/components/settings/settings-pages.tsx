@@ -12,6 +12,7 @@ import {
   IconMailbox,
   IconSettings,
   IconShield,
+  IconTrash,
   IconUsersRound,
 } from "@/components/icons/central";
 import { type ComponentType, type CSSProperties, type ReactNode, useMemo } from "react";
@@ -170,6 +171,12 @@ export const WORKSPACE_PAGES: PageDefinition[] = [
     title: "AI",
     icon: glyph(IconAi),
     terms: ["roles", "assign", "assignment", "triage", "jev", "tags", "descriptions", "labels"],
+  },
+  {
+    id: "trash",
+    title: "Trash",
+    icon: glyph(IconTrash),
+    terms: ["drive", "deleted", "restore", "delete forever", "files", "recover"],
   },
   {
     id: "billing",

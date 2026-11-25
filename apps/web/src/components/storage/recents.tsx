@@ -11,7 +11,7 @@ import { useSharedWithMe } from "@/hooks/use-storage.ts";
 import { driveOf, type StorageNode } from "@/lib/storage.ts";
 import { storageRecentQuery } from "@/lib/storage-find.ts";
 import { isDoc } from "./editor/document-editor.tsx";
-import { FileSections, FileSectionsBones, ViewToggle } from "./file-sections.tsx";
+import { FileSections, FileSectionsBones } from "./file-sections.tsx";
 import { useStorageHref } from "./file-list.tsx";
 import { NodeMenu } from "./node-menu.tsx";
 import { StorageFrame } from "./storage-frame.tsx";
@@ -79,10 +79,7 @@ function useItems() {
 export function Recents() {
   const recents = useItems();
   return (
-    <StorageFrame
-      title={<Heading className="truncate text-md">Recents</Heading>}
-      actions={recents.items.length ? <ViewToggle /> : undefined}
-    >
+    <StorageFrame title={<Heading className="truncate text-md">Recents</Heading>}>
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
         <div className="flex min-h-full flex-col">
           {recents.isPending ? (

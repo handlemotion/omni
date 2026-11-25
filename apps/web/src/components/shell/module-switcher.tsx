@@ -34,6 +34,7 @@ import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { SidebarItemTrigger } from "@/components/ui/sidebar";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { appToast } from "@/components/ui/toast";
 import { isManager } from "@/components/settings/workspace-pages";
 import { useBilling } from "@/hooks/use-billing.ts";
@@ -330,24 +331,25 @@ function Step(props: {
 }
 
 /**
- * The sidebar's top row: the workspace's mark and name, hugging them (no chevron), with `end` (the
- * bell) at the row's far end. Its menu, the sidebar's width: every workspace (the current one
- * checked) and New workspace; account, workspace and connection settings; a company's Invite
- * members and Upgrade for those who manage it; Log out. With `workspacesOnly` (settings' nav), only
- * the workspaces and New workspace, and `onChoose` decides what choosing one does.
+ * The workspace switcher: on the rail, the workspace's mark alone (`rail`); on a phone, the
+ * sidebar's top row, the mark and name hugging them (no chevron), with `end` (the bell) at the
+ * row's far end. Its menu: every workspace (the current one checked) and New workspace; account,
+ * workspace and connection settings; a company's Invite members and Upgrade for those who manage
+ * it; Log out. With `workspacesOnly` (settings' nav), only the workspaces and New workspace, and
+ * `onChoose` decides what choosing one does.
  */
 export function WorkspaceSwitcher({
   end,
   workspacesOnly = false,
   chevron = false,
-  foot = false,
+  rail = false,
   onChoose,
   pending = false,
 }: {
   end?: ReactNode;
   workspacesOnly?: boolean;
-  /** At the sidebar's foot: the menu opens above the row. */
-  foot?: boolean;
+  /** At the rail's top: the workspace's mark alone, its menu opening beside the rail. */
+  rail?: boolean;
   /** A chevron after the name, as the title bar draws it. */
   chevron?: boolean;
   onChoose?: (workspace: Workspace) => void;
@@ -377,6 +379,33 @@ export function WorkspaceSwitcher({
     });
   };
 
+  const menu = (
+    <WorkspaceMenu
+      rail={rail}
+      anchor={rowBox}
+      workspacesOnly={workspacesOnly}
+      workspaces={workspaces}
+      currentId={member.orgId}
+      label={label}
+      onChoose={choose}
+      canCreate={canCreate}
+      onNew={() => void navigate({ to: "/onboarding" })}
+      team={team}
+      onLogOut={() => signOut.mutate()}
+    />
+  );
+
+  if (rail) {
+    return (
+      <RailTrigger
+        workspace={active}
+        label={label(active)}
+        busy={openWorkspace.isPending || pending}
+        menu={menu}
+      />
+    );
+  }
+
   return (
     <div ref={row} className="flex min-w-0 items-center justify-between gap-1">
       <MenuTrigger>
@@ -391,42 +420,80 @@ export function WorkspaceSwitcher({
             <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
           )}
         </SidebarItemTrigger>
-        <Menu
-          placement={foot ? "top start" : "bottom start"}
-          popover={{
-            anchor: rowBox,
-            offset: workspacesOnly ? 2 : 4,
-            collisionPadding: 8,
-            className: "w-60 min-w-(--anchor-width) max-w-[calc(100vw-16px)]",
-          }}
-        >
-          {workspaces.map((workspace) => (
-            <MenuItem
-              key={workspace.id}
-              id={workspace.id}
-              textValue={label(workspace)}
-              onAction={() => choose(workspace)}
-              className="ps-1.5 pe-1.5"
-            >
-              <WorkspaceMark workspace={workspace} size={20} />
-              <Label name={label(workspace)} current={workspace.id === member.orgId} />
-            </MenuItem>
-          ))}
-          {canCreate && (
-            <MenuItem
-              id="new"
-              textValue="New workspace"
-              onAction={() => void navigate({ to: "/onboarding" })}
-            >
-              <IconPlus data-slot="icon" />
-              <MenuLabel>New workspace</MenuLabel>
-            </MenuItem>
-          )}
-          {!workspacesOnly && <SettingsItems team={team} onLogOut={() => signOut.mutate()} />}
-        </Menu>
+        {menu}
       </MenuTrigger>
       {end}
     </div>
+  );
+}
+
+function WorkspaceMenu(props: {
+  rail: boolean;
+  anchor: { getBoundingClientRect: () => DOMRect };
+  workspacesOnly: boolean;
+  workspaces: Workspace[];
+  currentId: string;
+  label: (workspace: Workspace) => string;
+  onChoose: (workspace: Workspace) => void;
+  canCreate: boolean;
+  onNew: () => void;
+  team: boolean;
+  onLogOut: () => void;
+}) {
+  const { rail, label } = props;
+  return (
+    <Menu
+      placement={rail ? "end top" : "bottom start"}
+      popover={{
+        ...(rail ? {} : { anchor: props.anchor }),
+        offset: props.workspacesOnly ? 2 : 4,
+        collisionPadding: 8,
+        className: rail ? "w-60" : "w-60 min-w-(--anchor-width) max-w-[calc(100vw-16px)]",
+      }}
+    >
+      {props.workspaces.map((workspace) => (
+        <MenuItem
+          key={workspace.id}
+          id={workspace.id}
+          textValue={label(workspace)}
+          onAction={() => props.onChoose(workspace)}
+          className="ps-1.5 pe-1.5"
+        >
+          <WorkspaceMark workspace={workspace} size={20} />
+          <Label name={label(workspace)} current={workspace.id === props.currentId} />
+        </MenuItem>
+      ))}
+      {props.canCreate && (
+        <MenuItem id="new" textValue="New workspace" onAction={props.onNew}>
+          <IconPlus data-slot="icon" />
+          <MenuLabel>New workspace</MenuLabel>
+        </MenuItem>
+      )}
+      {!props.workspacesOnly && <SettingsItems team={props.team} onLogOut={props.onLogOut} />}
+    </Menu>
+  );
+}
+
+function RailTrigger(props: {
+  workspace: Workspace;
+  label: string;
+  busy: boolean;
+  menu: ReactNode;
+}) {
+  return (
+    <MenuTrigger>
+      <TooltipTrigger delay={400}>
+        <Button
+          intent="ghost"
+          size="sq-md"
+          aria-label={`Switch workspace, currently ${props.label}`}
+        >
+          {props.busy ? <Loader /> : <WorkspaceMark workspace={props.workspace} size={20} />}
+        </Button>
+        <Tooltip placement="right">{props.label}</Tooltip>
+      </TooltipTrigger>
+      {props.menu}
+    </MenuTrigger>
   );
 }
 
