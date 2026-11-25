@@ -99,7 +99,7 @@ function ModuleRail() {
     <nav
       aria-label="Modules"
       className={cn(
-        "flex w-rail shrink-0 flex-col items-center gap-1 border-e border-sidebar-border bg-sidebar",
+        "flex w-rail shrink-0 flex-col items-center gap-1 border-e border-sidebar-border bg-rail",
         mac ? "pt-bar" : "pt-1.5",
       )}
     >

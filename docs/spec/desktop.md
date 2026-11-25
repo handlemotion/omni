@@ -274,8 +274,8 @@ is loaded by dynamic import, so the browser bundle does not carry it). These are
 primitives, and add no text.
 
 - **The shell** (every viewport wider than a phone, in the browser too): the rail, the sidebar
-  and the page side by side, the rail and the sidebar on the sidebar's off-white with a hairline
-  after each, no inset, no rounded island, no page tabs. The sidebar is always open (no toggle)
+  and the page side by side, the rail on a very subtle grey and the sidebar white like the page, with a
+  light hairline after each, no inset, no rounded island, no page tabs. The sidebar is always open (no toggle)
   and can be resized.
   - The **rail** (52px): the workspace's mark at its top, in line with the sidebar's top row (its
     menu switches workspaces and holds account, workspace and connection settings, Invite,
