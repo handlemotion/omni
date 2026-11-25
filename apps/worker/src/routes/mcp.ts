@@ -4,6 +4,7 @@ import type { AppEnv } from "../context.ts";
 import { authenticate, insufficientScope } from "../mcp/auth.ts";
 import { checkRateLimit, type RateLimitRule } from "../rate-limiter.ts";
 import { createServer, TOOL_SCOPES } from "../mcp/server.ts";
+import { skills } from "../mcp/skills.ts";
 
 function originAllowed(origin: string | undefined, allowed: string[]) {
   return origin === undefined || allowed.includes(origin);
@@ -60,7 +61,8 @@ export const mcp = new Hono<AppEnv>()
       rateLimit: (rule: RateLimitRule, cost?: number) =>
         checkRateLimit(c.env, config, rule, `mcp:${caller.userId}`, cost),
     };
-    const handler = createMcpHandler(() => createServer(context), {
+    const catalog = await skills();
+    const handler = createMcpHandler(() => createServer(context, catalog), {
       legacy: "stateless",
       responseMode: "json",
       onerror: (error) => c.var.log.warn("mcp.error", { error: error.message }),

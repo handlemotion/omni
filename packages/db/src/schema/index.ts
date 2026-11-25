@@ -1,5 +1,6 @@
 export * from "./auth.ts";
 export * from "./identity.ts";
+export * from "./agents.ts";
 export * from "./workspace.ts";
 export * from "./domains.ts";
 export * from "./billing.ts";

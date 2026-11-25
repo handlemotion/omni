@@ -40,7 +40,7 @@ questions should need two calls; none should need five.
   an explicit per-send confirmation (MCP input requests).
 - Admin surfaces: domains, billing, members, inbox provisioning.
 - Attachment contents. Agents get file metadata only.
-- MCP Apps (inline UI widgets), prompts, resources, subscriptions. Tools only: that is what both
+- MCP Apps (inline UI widgets), prompts, resources other than bundled skills (see "`report_feedback`"), subscriptions. Tools only: that is what both
   clients use reliably today.
 - API keys or personal access tokens. ChatGPT does not accept them, and Claude only has them in a
   limited beta.
@@ -427,6 +427,28 @@ the server's instructions say to treat them as data.
   Viewers are refused; the owner's grant never changes.
 - Writes are audited as `mcp.meetings_decide`, `mcp.meetings_rename_speaker` and
   `mcp.meetings_share`, under the `actions` rate limit; searches under `search`.
+
+### `report_feedback`: agents tell us what broke
+
+`readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`. Scope `mail:read`, the
+one every token holds, so any agent can report whatever else it was granted. Input: `{ kind, summary, details,
+proposed_fix?, tool? }`; `kind` is `bug`, `wrong_result`, `confusing`, `missing`, `slow` or
+`other`. Returns `{ feedback_id }`.
+
+Agents are the best testers these tools have: they hit every confusing description and missing
+filter. Each report becomes an `agent_feedback` row (user-level, like `user_emails`: it is about
+Wok, not a workspace's data) with the user and OAuth client, and, when `MCP_FEEDBACK_WEBHOOK_URL`
+is set, a `{ text }` post to that chat webhook (Slack's incoming webhooks take it) after the
+response. A bad or slow webhook never fails the call. `RATE_LIMIT_FEEDBACK` (default `20/3600`
+per person) caps it.
+
+The tool description and the server instructions say when to call it. The how lives in a skill
+the server bundles through the MCP Skills extension (SEP-2640, SDK v2's
+`@modelcontextprotocol/server/ext/skills`): `skill://report-feedback/SKILL.md`, listed by
+`skills/list` and read with `resources/read`. It teaches what makes a report useful (what was
+called, expected and got, a proposed fix) and to describe the person's data by its shape, never
+its content. Skills are held in memory (`apps/worker/src/mcp/skills.ts`, built once per isolate)
+since the Worker has no filesystem; a new skill is one more entry there.
 
 ## Authorization
 
