@@ -458,10 +458,7 @@ test("an assistant's edit lands live in an open doc, merged with what the person
 
   await expect.poll(() => pageText(ana), { timeout: 15_000 }).toContain("Open the meeting at nine");
   await aura.waitFor({ timeout: 5_000 });
-  await ana
-    .getByRole("status")
-    .filter({ hasText: "Drive agent is editing" })
-    .waitFor({ state: "attached" });
+  await ana.getByRole("status").filter({ hasText: "Drive agent is editing" }).waitFor();
   await aura.waitFor({ state: "detached", timeout: 15_000 });
   await expect
     .poll(saved, { timeout: 20_000 })

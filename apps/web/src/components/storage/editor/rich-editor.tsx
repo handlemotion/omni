@@ -11,12 +11,13 @@ import { useDocComments, useLiveComments } from "@/hooks/use-doc-comments.ts";
 import { useDocFiles } from "@/hooks/use-doc-files.ts";
 import { useFilePlace } from "@/hooks/use-storage.ts";
 import type * as Y from "yjs";
+import { useAgentEditing } from "@/hooks/use-agent-editing.ts";
 import { openLiveDoc, type LiveDoc } from "@/lib/live-doc.ts";
 import { sessionQuery } from "@/lib/session.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
-import { AgentAura } from "./agent-aura.tsx";
+import { AgentGlow, AgentPill } from "./agent-aura.tsx";
 import { DocToolbar } from "./doc-toolbar.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useOptionalStorageHref } from "../file-list.tsx";
@@ -235,6 +236,7 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   const comments = useDocComments();
   const commenting = useCommentsExtension(comments);
   useLiveComments(doc, props.nodeId);
+  const agent = useAgentEditing(doc);
   const editable = props.editable ?? true;
   const editorProps = useMemo(
     () => ({
@@ -267,7 +269,8 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
+      <AgentGlow agent={agent} />
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
         <EditorContent editor={editor} className="flex-1" />
         <BlockHandle editor={editor} />
         <FormatBar
@@ -276,7 +279,7 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
         />
         <DocToolbar editor={editor} comments={comments} />
       </div>
-      <AgentAura doc={doc} />
+      <AgentPill agent={agent} />
     </div>
   );
 }
