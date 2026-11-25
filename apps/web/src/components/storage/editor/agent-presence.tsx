@@ -1,7 +1,7 @@
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
 import type { Editor } from "@tiptap/react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { IconSparkle } from "@/components/icons/central";
+import { IconSparkleFilled } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import type { AgentAtWork } from "@/hooks/use-agent-editing.ts";
 import { FACE, faceSpot } from "./collaborator-faces.tsx";
@@ -18,7 +18,7 @@ export function AgentPill(props: { agent: AgentAtWork | null }) {
     >
       {last.current && (
         <span aria-hidden={!props.agent} className="contents">
-          <IconSparkle className="size-3.5" aria-hidden />
+          <IconSparkleFilled className="size-3.5" aria-hidden />
           <span className="shimmer">{last.current} is editing</span>
         </span>
       )}
@@ -82,7 +82,7 @@ export function AgentFace(props: {
         { "--avatar-size": `${FACE}px`, translate: `${spot.left}px ${spot.top}px` } as CSSProperties
       }
     >
-      <IconSparkle className="size-3!" />
+      <IconSparkleFilled className="size-3!" />
     </Avatar>
   );
 }
