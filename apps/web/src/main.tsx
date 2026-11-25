@@ -4,7 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { appToast } from "./components/ui/toast.tsx";
 import { askApi } from "./lib/connectivity.ts";
-import { routeOutsideLinks, routeTitleBarDrags } from "./lib/desktop.ts";
+import { routeLinks, routeTitleBarDrags } from "./lib/desktop.ts";
 import { reloadForUpdate } from "./lib/failure.ts";
 import { easeStickies } from "./lib/eased-sticky.ts";
 import { createQueryClient } from "./lib/query-client.ts";
@@ -15,7 +15,6 @@ import { createAppRouter } from "./router.ts";
 import "./styles.css";
 
 initErrorReporting();
-routeOutsideLinks();
 routeTitleBarDrags();
 easeStickies();
 
@@ -35,6 +34,7 @@ const queryClient = createQueryClient(
   (message, failure) => appToast.error(message, { id: `failure-${failure.kind}` }),
 );
 const router = createAppRouter(queryClient);
+routeLinks((href) => void router.navigate({ href }));
 
 for (const route of router.getMatchedRoutes(window.location.pathname)[0]) {
   router.loadRouteChunk(route)?.catch(() => {});

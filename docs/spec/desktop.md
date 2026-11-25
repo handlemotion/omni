@@ -251,7 +251,8 @@ after a spike. Swift side: Foundation and FileProvider only.
   on desktop it calls the notification plugin instead. Clicking one focuses the window on that
   thread. The Dock / taskbar badge shows the inbox count.
 - **Links.** `omni://` opens threads and files in the app (`omni://open?path=/inbox/…`). Links to
-  other origins open in the default browser. `mailto:` registers Wok as a mail handler and
+  other origins open in the default browser; links to the server's own pages open in the window,
+  even ones that ask for a new window (a Drive link in a message). `mailto:` registers Wok as a mail handler and
   opens compose (macOS and Windows both ask the person first).
 - **Updates.** The updater plugin, checked a minute after start and every 6 hours, downloaded in
   the background and installed while nobody is looking: at once if the window is closed, else

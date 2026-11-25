@@ -137,41 +137,67 @@ function onTitleBarPress(event: MouseEvent) {
 const OUTSIDE = new Set(["http:", "https:", "mailto:", "tel:"]);
 
 /**
- * The URL a click on a link should hand to the default browser, or null to leave the click to the
- * page. Links to another origin, and mail and phone links, open outside the app: the window is
- * the app, with no address bar or back button to return from someone else's site.
+ * Where a click on a link should go, or null to leave the click to the page. Links to another
+ * origin, and mail and phone links, open outside the app: the window is the app, with no address
+ * bar or back button to return from someone else's site. Links to the app's own pages that would
+ * open a new window (`target="_blank"`, and every link in a message's frame) open in this window
+ * instead: the shell sends new windows to the browser, so a Drive link an agent mailed would
+ * otherwise open on the web. `/api/` links (attachments) are left to the page.
  */
-export function outsideLink(event: MouseEvent) {
+export function linkRoute(event: MouseEvent, framed = false) {
   if (event.defaultPrevented || event.button > 1) return null;
-  const target = event.target instanceof Element ? event.target : null;
-  const anchor = target?.closest<HTMLAnchorElement | SVGAElement>("a[href]");
+  // WARNING: a frame's nodes come from another realm, where `instanceof Element` is false.
+  const target = event.target as Partial<Element> | null;
+  const anchor = target?.closest?.<HTMLAnchorElement | SVGAElement>("a[href]");
   if (!anchor || anchor.hasAttribute("download")) return null;
-  const href = anchor instanceof HTMLAnchorElement ? anchor.href : anchor.href.baseVal;
+  const href = typeof anchor.href === "string" ? anchor.href : anchor.href.baseVal;
   let url: URL;
   try {
-    url = new URL(href, window.location.href);
+    url = new URL(href, anchor.baseURI);
   } catch {
     return null;
   }
-  if (!OUTSIDE.has(url.protocol) || url.origin === window.location.origin) return null;
-  return url.toString();
+  if (!OUTSIDE.has(url.protocol)) return null;
+  if (url.origin !== window.location.origin) return { outside: url.toString() };
+  if (!framed && anchor.getAttribute("target") !== "_blank") return null;
+  if (url.pathname.startsWith("/api/")) return null;
+  return { inside: `${url.pathname}${url.search}${url.hash}` };
 }
+
+let navigateInside = (path: string) => window.location.assign(path);
 
 /**
  * In the desktop app, sends every outside link to the default browser on purpose, instead of
  * leaving it to the shell's navigation guard. That keeps the window's own navigations, the ones
  * the app starts with `location.assign` (Google connect, Stripe Checkout, Domain Connect), free
- * to be round trips that come back to the app. Does nothing in a browser.
+ * to be round trips that come back to the app. Links to the app's own pages that ask for a new
+ * window go to `navigate` instead. Does nothing in a browser.
  */
-export function routeOutsideLinks() {
+export function routeLinks(navigate: (path: string) => void) {
   if (!inShell) return;
+  navigateInside = navigate;
   document.addEventListener("click", onLinkClick, true);
   document.addEventListener("auxclick", onLinkClick, true);
 }
 
-function onLinkClick(event: MouseEvent) {
-  const url = outsideLink(event);
-  if (!url) return;
+/** `routeLinks` for a message's frame, whose clicks never reach this document; returns the undo. */
+export function routeFrameLinks(frame: HTMLIFrameElement) {
+  const doc = frame.contentDocument;
+  if (!inShell || !doc) return () => {};
+  doc.addEventListener("click", onFrameLinkClick, true);
+  doc.addEventListener("auxclick", onFrameLinkClick, true);
+  return () => {
+    doc.removeEventListener("click", onFrameLinkClick, true);
+    doc.removeEventListener("auxclick", onFrameLinkClick, true);
+  };
+}
+
+const onLinkClick = (event: MouseEvent) => followLink(event, linkRoute(event));
+const onFrameLinkClick = (event: MouseEvent) => followLink(event, linkRoute(event, true));
+
+function followLink(event: MouseEvent, route: ReturnType<typeof linkRoute>) {
+  if (!route) return;
   event.preventDefault();
-  desktop.openOutside(url);
+  if (route.outside !== undefined) desktop.openOutside(route.outside);
+  else navigateInside(route.inside);
 }
