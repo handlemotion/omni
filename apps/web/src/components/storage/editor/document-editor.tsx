@@ -2,7 +2,7 @@ import { ApiError, fileType, TEXT_PREVIEW_BYTES } from "@omni/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { SkeletonBox } from "skullet/react";
+import { Skeleton, SkeletonBox } from "skullet/react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useReportEditing } from "@/hooks/use-file-presence.ts";
@@ -16,7 +16,11 @@ import { identityChecks, identityOf } from "@/lib/storage-uploads.ts";
 import { NoPreview, StageLoading } from "../preview/shared.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
 
-const RichEditor = lazy(() => import("./rich-editor.tsx"));
+const loadRichEditor = () => import("./rich-editor.tsx");
+const RichEditor = lazy(loadRichEditor);
+
+/** Starts fetching the doc editor's code, so it is in hand by the time the doc's text is. */
+export const preloadRichEditor = () => void loadRichEditor();
 const SourceEditor = lazy(() => import("./source-editor.tsx"));
 
 /** What both editors take: the text to start from, and how to read what it has become. */
@@ -116,6 +120,9 @@ export function useEditSession(
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState<number | null>(null);
   const [opened, setOpened] = useState("");
+  const [shownAt, setShownAt] = useState("");
+  const openedNow = useRef(opened);
+  openedNow.current = opened;
   const read = useRef<(() => string) | null>(null);
   const base = useRef<number | undefined>(undefined);
   const changes = useRef(0);
@@ -291,6 +298,7 @@ export function useEditSession(
 
   return {
     editing,
+    shown: opened !== "" && shownAt === opened,
     live: isLive,
     dirty,
     saving,
@@ -332,7 +340,9 @@ export function useEditSession(
       opened,
       onReady: useCallback((reader: () => string) => {
         read.current = reader;
+        setShownAt(openedNow.current);
       }, []),
+      onUnreadable: useCallback(() => setShownAt(openedNow.current), []),
       onChange: () => {
         if (!writable) return;
         changes.current += 1;
@@ -388,15 +398,17 @@ export function DocumentEditor(props: {
   const { node, url, shareId, opened, onReady, onChange, live, editable } = session.editor;
   const kind = fileType(node.name, node.mimeType).kind;
   const text = useQuery(previewTextQuery({ url, version: `edit:${opened}`, size: node.size }));
-  if (
+  const unreadable =
     text.isError ||
-    text.data?.binary ||
-    text.data?.partial ||
-    text.data?.text.includes("\uFFFD")
-  ) {
-    return <NoPreview kind={kind} onDownload={props.onDownload} />;
-  }
-  const loading = (
+    !!text.data?.binary ||
+    !!text.data?.partial ||
+    !!text.data?.text.includes("\uFFFD");
+  const { onUnreadable } = session.editor;
+  useEffect(() => {
+    if (unreadable) onUnreadable();
+  }, [unreadable, onUnreadable]);
+  if (unreadable) return <NoPreview kind={kind} onDownload={props.onDownload} />;
+  const loading = isDoc(node) ? null : (
     <StageLoading label="Loading file">
       <div className="flex w-full flex-col gap-2.5">
         {[60, 42, 75, 30, 55].map((width, i) => (
@@ -434,6 +446,34 @@ export function DocumentEditor(props: {
       </Suspense>
       <ConflictDialog session={session} />
       <LeaveDialog session={session} />
+    </div>
+  );
+}
+
+/**
+ * A doc's page while it gets ready, drawn once for every step of that (its text, the editor,
+ * the live doc) so it waits its moment to show only once: a title, then lines.
+ */
+export function DocLoading() {
+  return (
+    <div className="absolute inset-0 z-10 flex bg-background">
+      <Skeleton
+        loading
+        label="Loading doc"
+        className="min-w-0 flex-1"
+        skeleton={
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-10 py-10">
+            <SkeletonBox width="40%" height={24} />
+            <div className="mt-3 flex flex-col gap-3">
+              {[92, 84, 96, 60, 88, 76, 94, 45].map((width, i) => (
+                <SkeletonBox key={i} width={`${width}%`} height={12} />
+              ))}
+            </div>
+          </div>
+        }
+      >
+        {null}
+      </Skeleton>
     </div>
   );
 }
