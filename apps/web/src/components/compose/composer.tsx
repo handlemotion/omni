@@ -819,11 +819,39 @@ function ComposerFrame(props: {
         ].join(" ")
       }
     >
-      <div className="contents" onMouseDown={focusBody} onClick={focusBody}>
+      <div
+        className="contents"
+        onMouseDown={focusBody}
+        onClick={focusBody}
+        onPaste={(event) => {
+          const pasted = pastedFiles(event.clipboardData);
+          if (!pasted.length) return;
+          event.preventDefault();
+          props.onFiles(pasted);
+        }}
+      >
         {props.children}
       </div>
     </DropZone>
   );
+}
+
+function pastedFiles(data: DataTransfer) {
+  const files = [...data.files];
+  if (!files.length) return [];
+  const html = data.getData("text/html");
+  if (html && new DOMParser().parseFromString(html, "text/html").body.textContent?.trim()) {
+    return [];
+  }
+  return files.map(namedPaste);
+}
+
+function namedPaste(file: File, index: number) {
+  if (file.name && file.name !== "image.png") return file;
+  const ext = file.type.split("/")[1]?.replace("jpeg", "jpg") || "png";
+  const stamp = new Date().toISOString().slice(0, 19).replace("T", " at ").replaceAll(":", ".");
+  const suffix = index ? ` ${index + 1}` : "";
+  return new File([file], `Image ${stamp}${suffix}.${ext}`, { type: file.type });
 }
 
 const CONTROLS =

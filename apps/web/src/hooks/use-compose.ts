@@ -84,6 +84,8 @@ export interface ComposerFile {
   progress: number;
   error?: string;
   attachment?: SendAttachment;
+  /** The image picked or pasted here, for its chip's preview. */
+  image?: Blob;
 }
 
 /**
@@ -113,6 +115,7 @@ export function useComposerFiles(mailboxId: string | undefined) {
             mimeType: file.type,
             status: "uploading",
             progress: 0,
+            ...(file.type.startsWith("image/") ? { image: file } : {}),
           },
         ]);
         uploadFile(mailboxId, file, {
