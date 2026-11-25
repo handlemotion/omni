@@ -2,11 +2,22 @@
 @reference "../../../styles.css";
 
 .document-page {
-  @apply mx-auto w-full max-w-3xl px-10 py-10 text-md/6 text-foreground outline-none;
+  @apply w-full max-w-3xl px-10 py-10 text-md/6 text-foreground outline-none;
+  margin-inline: max(0px, calc((100% - 48rem) / 2));
+  transition: margin-inline-start var(--outline-move) var(--ease-out);
 }
-/* Beside a floating outline the page leaves it 18rem, moving right of centre when it must. */
-.doc-beside-outline .document-page {
-  margin-inline-start: max(18rem, calc((100% - 48rem) / 2));
+/* While the outline is open the page slides right, its text 2.5rem clear of the open list. */
+[data-outline-open] .document-page {
+  margin-inline-start: max(17rem, calc((100% - 48rem) / 2));
+}
+@media (prefers-reduced-motion: reduce) {
+  .document-page {
+    transition: none;
+  }
+}
+/* A heading picked in the outline lands a little below the page's top edge, not on it. */
+.document-page :is(h1, h2, h3) {
+  scroll-margin-top: 2.5rem;
 }
 .document-page > * + * {
   @apply mt-3;

@@ -56,7 +56,8 @@ export function BlockComment(props: {
     const move = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       const block = target?.closest<HTMLElement>(".document-page > *");
-      if (block && !block.classList.contains("ProseMirror-widget"))
+      if (block?.querySelector(".doc-comment")) setSpot(null);
+      else if (block && !block.classList.contains("ProseMirror-widget"))
         setSpot(spotOf(scroller, block));
     };
     const leave = () => setSpot(null);

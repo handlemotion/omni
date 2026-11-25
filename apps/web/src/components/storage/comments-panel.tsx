@@ -58,7 +58,7 @@ const SAMPLE: StorageComments = {
   ],
 };
 
-interface Door {
+export interface Door {
   id: string;
   shareId?: string | undefined;
 }
@@ -197,12 +197,14 @@ function Quote(props: { text: string; active: boolean; onPress?: () => void }) {
   );
 }
 
-function CommentRow(props: {
+export function CommentRow(props: {
   door: Door;
   thread: StorageThread;
   replying: boolean;
   onReplying: (on: boolean) => void;
   doc?: DocComments | undefined;
+  /** In a popover on a doc's page: no rule under the last, a little less room. */
+  inline?: boolean;
 }) {
   const { door, thread, doc } = props;
   const { root } = thread;
@@ -225,7 +227,7 @@ function CommentRow(props: {
   return (
     <li
       ref={row}
-      className={`border-b px-5 py-4 ${active ? "bg-secondary/60" : ""}`}
+      className={`${props.inline ? "px-3 py-3 not-last:border-b" : "border-b px-5 py-4"} ${active && !props.inline ? "bg-secondary/60" : ""}`}
       aria-label={`Comment from ${commentAuthor(root)}`}
       aria-current={active || undefined}
     >

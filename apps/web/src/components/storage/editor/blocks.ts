@@ -145,9 +145,6 @@ export const BLOCKS: BlockKind[] = [
   },
 ];
 
-/** A kind by its id, for the toolbar's buttons. */
-export const block = (id: string) => BLOCKS.find((each) => each.id === id)!;
-
 /** The kinds a `/` query finds: by the start of a word in the label, or of another word. */
 export function findBlocks(query: string) {
   const q = query.trim().toLowerCase();
