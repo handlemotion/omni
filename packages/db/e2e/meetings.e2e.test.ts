@@ -3,7 +3,13 @@ import { afterAll, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
 import { handOverMemberMeetings, meetingsPipeline } from "../src/meetings.ts";
 import { and, eq, lt } from "drizzle-orm";
-import { meetingsChunks, members, storagePolicies, users } from "../src/schema/index.ts";
+import {
+  meetingsChunks,
+  members,
+  storagePolicies,
+  userEmails,
+  users,
+} from "../src/schema/index.ts";
 import { setRole } from "./storage-support.ts";
 import { createOrg, createTestDatabase } from "./support.ts";
 
@@ -482,4 +488,19 @@ test("the sweep stops an abandoned recording only while every chunk it holds is 
       endMs: 20_000,
     }),
   ).toBe("not_recording");
+});
+
+test("a meeting shared with someone's second address opens for them, inside the workspace and out", async () => {
+  const s = await studio();
+  const second = `marta-home-${s.t}@client.test`;
+  const benSecond = `ben-home-${s.t}@studio.test`;
+  await db.insert(userEmails).values([
+    { userId: s.client.id, email: second, verifiedAt: new Date() },
+    { userId: s.ben.userId, email: benSecond, verifiedAt: new Date() },
+  ]);
+  const { meetingId } = ok(await record(s.dana.id, { attendees: [second, benSecond] }));
+
+  expect(ok(await forUser(db, s.client.id).meetings.get(meetingId)).role).toBe("viewer");
+  expect(ok(await forUser(db, s.client.id).meetings.transcript(meetingId)).segments).toEqual([]);
+  expect(ok(await forMember(db, s.ben.id).meetings.get(meetingId)).role).toBe("viewer");
 });

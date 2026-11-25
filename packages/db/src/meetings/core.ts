@@ -1,4 +1,4 @@
-import { and, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableName, or, sql, type SQL, type Table } from "drizzle-orm";
 import { isTeammate } from "../roles.ts";
 import type { Db } from "../client.ts";
 import { storageAddresses } from "../storage.ts";
@@ -28,12 +28,16 @@ export interface MeetingsActor {
   scopeOrgId: string | null;
 }
 
+// WARNING: a select from one table drops table prefixes, so subqueries name outer columns with this.
+const outer = (table: Table, column: { name: string }) =>
+  sql`${sql.identifier(getTableName(table))}.${sql.identifier(column.name)}`;
+
 const addressColumns = {
   email: users.email,
   verified: users.emailVerified,
   extra: sql<
     string[]
-  >`coalesce((select json_agg(${userEmails.email}) from ${userEmails} where ${userEmails.userId} = ${users.id}), '[]'::json)`,
+  >`coalesce((select json_agg(ue.email) from ${userEmails} ue where ue.user_id = ${outer(users, users.id)}), '[]'::json)`,
 };
 
 const addressList = (row: { email: string; verified: boolean; extra: string[] }) => [
@@ -112,7 +116,7 @@ export async function access(ex: Ex, actor: MeetingsActor, meetingId: string) {
   const grantRoles = actor.addresses.length
     ? sql<
         MeetingRole[]
-      >`coalesce((select json_agg(g.role) from ${meetingsGrants} g where g.meeting_id = ${meetingsMeetings.id} and g.address in ${actor.addresses}), '[]'::json)`
+      >`coalesce((select json_agg(g.role) from ${meetingsGrants} g where g.meeting_id = ${outer(meetingsMeetings, meetingsMeetings.id)} and g.address in ${actor.addresses}), '[]'::json)`
     : sql<MeetingRole[]>`'[]'::json`;
   const [row] = await ex
     .select({ meeting: meetingsMeetings, grantRoles })
