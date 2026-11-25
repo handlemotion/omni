@@ -64,9 +64,9 @@
   --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
-  /* A grey fill a hair under the page's white (a step subtler than `surface`), so the sidebar
-     reads apart from the content beside its hairline border. */
-  --sidebar: #fefefe;
+  /* A very subtle off-white under the page's white, so the sidebar reads apart from the content
+     beside its hairline border. */
+  --sidebar: #fafafa;
   /* The window behind the sidebar and the page: white, like them. */
   --shell: var(--background);
   --sidebar-foreground: var(--foreground);

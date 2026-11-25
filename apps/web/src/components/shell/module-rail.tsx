@@ -34,7 +34,7 @@ const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
 };
 
 /**
- * The sidebar, white beside the white page and always open. Its top row, in line with the page's
+ * The sidebar, a very subtle off-white beside the white page, and always open. Its top row, in line with the page's
  * own header, holds the module switcher and, opposite it, notifications and Search; in the desktop
  * app the traffic lights sit at its start and the switcher is centred between them and the icons.
  * Then the module's own pages, and the workspace switcher at its foot, whose menu also holds
@@ -47,7 +47,7 @@ export function RailSidebar({ children }: { children: ReactNode }) {
       collapsible="none"
       closeButton={false}
       data-state="expanded"
-      className="peer h-auto shrink-0 border-e border-sidebar-border bg-background"
+      className="peer h-auto shrink-0 border-e border-sidebar-border bg-sidebar"
     >
       <SidebarContent className="gap-3 px-3 pt-0 pb-3 *:shrink-0">
         {app ? (
