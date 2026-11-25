@@ -29,6 +29,7 @@ export const meetingKeys = {
   enabled: () => [...meetingKeys.all(), "enabled"] as const,
   groups: () => [...meetingKeys.all(), "groups"] as const,
   group: (key: string) => [...meetingKeys.all(), "group", key] as const,
+  groupSummary: (key: string) => [...meetingKeys.all(), "group-summary", key] as const,
   list: (group: string) => [...meetingKeys.all(), "list", group] as const,
   meeting: (id: string) => [...meetingKeys.all(), "meeting", id] as const,
   transcript: (id: string) => [...meetingKeys.all(), "transcript", id] as const,
@@ -77,11 +78,26 @@ export const meetingGroupsQuery = () =>
     select: (data) => data.pages.flatMap((page) => page.groups),
   });
 
+/** A group's page at once: its timeline, and its summary when one is kept for this reader. */
 export const meetingGroupQuery = (key: string) =>
   queryOptions({
     queryKey: meetingKeys.group(key),
     queryFn: ({ signal }) =>
-      call(api.meetings.groups[":key"].$get({ param: { key } }, { init: { signal } })),
+      call(
+        api.meetings.groups[":key"].$get(
+          { param: { key }, query: { summary: "later" } },
+          { init: { signal } },
+        ),
+      ),
+  });
+
+/** A group's summary for this reader: the kept one, else one the model writes, in seconds. */
+export const meetingGroupSummaryQuery = (key: string) =>
+  queryOptions({
+    queryKey: meetingKeys.groupSummary(key),
+    queryFn: ({ signal }) =>
+      call(api.meetings.groups[":key"].summary.$get({ param: { key } }, { init: { signal } })),
+    select: (body) => body.summary,
   });
 
 /** Every meeting in a group, newest first, whatever its status, a page at a time. */

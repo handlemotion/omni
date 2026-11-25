@@ -1,6 +1,7 @@
 import {
   changeMeetingBodySchema,
   grantMeetingBodySchema,
+  meetingGroupQuerySchema,
   meetingsListQuerySchema,
   meetingsSearchQuerySchema,
   renameSpeakerBodySchema,
@@ -14,7 +15,7 @@ import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { storageLimit } from "../storage/core.ts";
 import { zValidator } from "../validator.ts";
-import { groupSummary, memberAsk } from "./ask.ts";
+import { groupSummary, memberAsk, summaryToMake } from "./ask.ts";
 import { meetingFile } from "./audio.ts";
 import { meetingChunks } from "./chunks.ts";
 import { meetingImport } from "./import.ts";
@@ -49,12 +50,14 @@ export const meetings = new Hono<AppEnv>()
       })),
     });
   })
-  .get("/groups/:key", async (c) => {
+  .get("/groups/:key", zValidator("query", meetingGroupQuerySchema), async (c) => {
     const key = c.req.param("key");
+    const later = c.req.valid("query").summary === "later";
     const digest = await memberMeetings(c).groupDigest(key);
     if (digest.status !== "ok") return refused(c, digest);
     return c.json({
-      summary: await groupSummary(c.var, key, digest),
+      summary: later ? (digest.cached?.summary ?? null) : await groupSummary(c.var, key, digest),
+      summaryPending: later && summaryToMake(c.var.config, digest),
       timeline: digest.meetings.flatMap((m) =>
         m.highlights.map((h) => ({ meetingId: m.id, startedAt: m.startedAt.toISOString(), ...h })),
       ),
@@ -65,6 +68,12 @@ export const meetings = new Hono<AppEnv>()
         summary: m.summary,
       })),
     });
+  })
+  .get("/groups/:key/summary", async (c) => {
+    const key = c.req.param("key");
+    const digest = await memberMeetings(c).groupDigest(key);
+    if (digest.status !== "ok") return refused(c, digest);
+    return c.json({ summary: await groupSummary(c.var, key, digest) });
   })
   .get("/tasks/:taskId", async (c) => {
     const found = await memberMeetings(c).taskMeeting(c.req.param("taskId"));

@@ -88,3 +88,29 @@ test("a group's summary and Ask read only the meetings their reader can open", a
     (await m.api(dana, "POST", "/ask", { ...one, groupKey: "domain:client.test" })).status,
   ).toBe(400);
 });
+
+test("a group's page answers before the model writes its summary, which its own route makes once", async () => {
+  const org = await m.stack.company(`meetings-${randomUUID().slice(0, 8)}`);
+  const dana = await m.stack.member(org.id);
+  const group = encodeURIComponent("domain:client.test");
+  await m.record(dana, {
+    title: "Kickoff",
+    attendees: [{ address: "marta@client.test", name: "Marta Gil" }],
+  });
+
+  const from = m.calls.length;
+  const page = await m.api(dana, "GET", `/groups/${group}?summary=later`);
+  expect(page.status).toBe(200);
+  expect(page.body).toMatchObject({ summary: null, summaryPending: true });
+  expect(page.body.timeline.length).toBeGreaterThan(0);
+  expect(prompts("group", from)).toHaveLength(0);
+
+  const made = await m.api(dana, "GET", `/groups/${group}/summary`);
+  expect(made.status).toBe(200);
+  expect(made.body.summary).toMatch(/December 4/);
+  expect(prompts("group", from)).toHaveLength(1);
+
+  const again = await m.api(dana, "GET", `/groups/${group}?summary=later`);
+  expect(again.body).toMatchObject({ summary: made.body.summary, summaryPending: false });
+  expect(prompts("group", from)).toHaveLength(1);
+});

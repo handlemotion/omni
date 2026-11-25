@@ -118,6 +118,15 @@ export const meetingsListQuerySchema = z.object({
   recurrence: z.iso.datetime({ offset: true }).optional(),
 });
 
+/**
+ * `GET /api/meetings/groups/:key`: `summary=later` answers at once with the summary kept for the
+ * reader's meetings, or none and `summaryPending`, for `GET …/:key/summary` to make; without it
+ * the answer waits while the model writes one (clients from before).
+ */
+export const meetingGroupQuerySchema = z.object({
+  summary: z.enum(["wait", "later"]).optional(),
+});
+
 export const meetingsSearchQuerySchema = z.object({
   q: z.string().min(1).max(200),
   limit: z.coerce.number().int().min(1).max(100).optional(),

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { SkeletonBox } from "skullet/react";
 import { IconChevronRight } from "@/components/icons/central";
 import { cn } from "cn";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarItem, SidebarLabel, useSidebar } from "@/components/ui/sidebar";
 
 const INDENT_PX = 16;
+const INTENT_MS = 50;
 
 export function SidebarTreeRow(props: {
   href?: string;
@@ -20,8 +21,11 @@ export function SidebarTreeRow(props: {
   expand?: { value: boolean; toggle: () => void };
   /** Pressing the row itself, as it follows its link. */
   onPress?: () => void;
+  /** The pointer rests on the row: load what it opens before it is pressed. */
+  onIntent?: () => void;
 }) {
   const { state, isMobile } = useSidebar();
+  const intent = useRef<ReturnType<typeof setTimeout>>(undefined);
   const rail = state === "collapsed" && !isMobile;
   if (rail && props.depth > 0) return null;
   const expand = rail ? undefined : props.expand;
@@ -32,6 +36,11 @@ export function SidebarTreeRow(props: {
         href={props.href}
         isCurrent={props.isCurrent}
         onPress={props.onPress}
+        onHoverStart={() => {
+          const onIntent = props.onIntent;
+          if (onIntent) intent.current = setTimeout(onIntent, INTENT_MS);
+        }}
+        onHoverEnd={() => clearTimeout(intent.current)}
         style={rail ? undefined : { paddingInlineStart: 8 + props.depth * INDENT_PX }}
         className={expand ? "pe-8" : undefined}
       >

@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Skeleton } from "skullet/react";
+import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { StorageFrame } from "@/components/storage/storage-frame";
 import { useMeetingGroup, useMeetingGroups, useMeetingList } from "@/hooks/use-meetings.ts";
@@ -21,7 +21,15 @@ export function GroupPage({ groupKey }: { groupKey: string }) {
             <EmptyState figure="cabinet" title="No meetings yet" />
           ) : (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-5 py-6">
-              {page.data?.summary && <p className="text-sm">{page.data.summary}</p>}
+              {page.summaryPending ? (
+                <div role="status" aria-label="Loading" className="flex flex-col gap-2.5 py-1">
+                  {["100%", "94%", "62%"].map((width) => (
+                    <SkeletonBox key={width} width={width} height={10} />
+                  ))}
+                </div>
+              ) : (
+                page.summary && <p className="text-sm">{page.summary}</p>
+              )}
               {page.data && page.data.timeline.length > 0 && (
                 <section className="flex flex-col gap-2">
                   <h2 className="text-xs text-muted-foreground">Timeline</h2>

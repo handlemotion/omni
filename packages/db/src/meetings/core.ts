@@ -1,8 +1,8 @@
-import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm";
-import { isTeammate, loadMemberRow } from "../roles.ts";
+import { and, eq, or, sql, type SQL } from "drizzle-orm";
+import { isTeammate } from "../roles.ts";
 import type { Db } from "../client.ts";
 import { storageAddresses } from "../storage.ts";
-import { users } from "../schema/auth.ts";
+import { members, users } from "../schema/auth.ts";
 import { userEmails } from "../schema/identity.ts";
 import { meetingsGrants, meetingsMeetings } from "../schema/meetings.ts";
 
@@ -28,26 +28,41 @@ export interface MeetingsActor {
   scopeOrgId: string | null;
 }
 
+const addressColumns = {
+  email: users.email,
+  verified: users.emailVerified,
+  extra: sql<
+    string[]
+  >`coalesce((select json_agg(${userEmails.email}) from ${userEmails} where ${userEmails.userId} = ${users.id}), '[]'::json)`,
+};
+
+const addressList = (row: { email: string; verified: boolean; extra: string[] }) => [
+  ...new Set([...(row.verified ? [row.email] : []), ...row.extra].map((a) => a.toLowerCase())),
+];
+
 /** The person's verified addresses, lowercase. */
 export async function addressesOf(ex: Ex, userId: string) {
-  const [user] = await ex
-    .select({ email: users.email, verified: users.emailVerified })
-    .from(users)
-    .where(eq(users.id, userId));
-  const extra = await ex
-    .select({ email: userEmails.email })
-    .from(userEmails)
-    .where(eq(userEmails.userId, userId));
-  const all = [...(user?.verified ? [user.email] : []), ...extra.map((e) => e.email)];
-  return [...new Set(all.map((a) => a.toLowerCase()))];
+  const [user] = await ex.select(addressColumns).from(users).where(eq(users.id, userId));
+  return user ? addressList(user) : [];
 }
 
+/** The member as an actor, read in one round trip: every meetings read starts with it. */
 export async function memberActor(ex: Ex, memberId: string) {
-  const row = await loadMemberRow(ex, memberId);
+  const [row] = await ex
+    .select({
+      id: members.id,
+      orgId: members.organizationId,
+      userId: members.userId,
+      role: members.role,
+      ...addressColumns,
+    })
+    .from(members)
+    .innerJoin(users, eq(users.id, members.userId))
+    .where(eq(members.id, memberId));
   if (!row) return null;
   return {
     userId: row.userId,
-    addresses: await addressesOf(ex, row.userId),
+    addresses: addressList(row),
     member: { id: row.id, orgId: row.orgId, teammate: isTeammate(row.role) },
     scopeOrgId: row.orgId,
   } satisfies MeetingsActor;
@@ -92,27 +107,20 @@ const best = (roles: MeetingRole[]) =>
     null,
   );
 
-/** The meeting and the actor's role on it; null when they cannot open it. */
+/** The meeting and the actor's role on it, in one round trip; null when they cannot open it. */
 export async function access(ex: Ex, actor: MeetingsActor, meetingId: string) {
-  const [meeting] = await ex
-    .select()
+  const grantRoles = actor.addresses.length
+    ? sql<
+        MeetingRole[]
+      >`coalesce((select json_agg(g.role) from ${meetingsGrants} g where g.meeting_id = ${meetingsMeetings.id} and g.address in ${actor.addresses}), '[]'::json)`
+    : sql<MeetingRole[]>`'[]'::json`;
+  const [row] = await ex
+    .select({ meeting: meetingsMeetings, grantRoles })
     .from(meetingsMeetings)
     .where(and(eq(meetingsMeetings.id, meetingId), reachable(actor)));
-  if (!meeting) return null;
-  const grants = actor.addresses.length
-    ? await ex
-        .select({ role: meetingsGrants.role })
-        .from(meetingsGrants)
-        .where(
-          and(
-            eq(meetingsGrants.meetingId, meetingId),
-            inArray(meetingsGrants.address, actor.addresses),
-          ),
-        )
-    : [];
-  const roles: MeetingRole[] = grants
-    .map((g) => g.role)
-    .filter((role) => actor.member || role !== "owner");
+  if (!row) return null;
+  const { meeting } = row;
+  const roles: MeetingRole[] = row.grantRoles.filter((role) => actor.member || role !== "owner");
   if (actor.member && meeting.recordedByMemberId === actor.member.id) roles.push("owner");
   if (actor.member?.teammate && meeting.access === "workspace") roles.push("viewer");
   const role = best(roles) ?? "viewer";

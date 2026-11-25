@@ -37,6 +37,13 @@ interface Digest {
   cached: { summary: string } | null;
 }
 
+/** Whether `groupSummary` would ask the model: nothing kept yet, notes to read and a model. */
+export const summaryToMake = (config: Config, digest: Digest) =>
+  !digest.cached &&
+  digest.meetings.length > 0 &&
+  digest.meetingsHash !== null &&
+  meetingsModel(config) !== null;
+
 /**
  * A group's summary for one reader: the one kept for exactly the meetings they can open, or a
  * new one made from those meetings' notes and kept under them. Readers who see the same meetings

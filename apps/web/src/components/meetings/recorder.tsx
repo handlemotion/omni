@@ -1,11 +1,16 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { IconPlus, IconStop } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { DesktopRecordingRequest } from "@omni/client";
 import { useDesktopRecorderState } from "@/hooks/use-desktop-recorder.ts";
-import { RecorderContext, useRecorder, useRecorderState } from "@/hooks/use-recorder.ts";
+import {
+  RecorderContext,
+  useRecorder,
+  useRecorderState,
+  type AskingRecorder,
+} from "@/hooks/use-recorder.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useMeetingsEnabled } from "@/hooks/use-meetings.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
@@ -21,20 +26,45 @@ import { canCapture } from "@/lib/recorder-capture.ts";
  */
 export function RecorderProvider({ children }: { children: ReactNode }) {
   const meetings = useMeetingsEnabled();
-  if (meetings && desktop.isDesktop) return <DesktopRecorder>{children}</DesktopRecorder>;
-  if (!meetings || !canCapture()) return children;
-  return <BrowserRecorder>{children}</BrowserRecorder>;
+  const [recorder, setRecorder] = useState<AskingRecorder | null>(null);
+  const kind = !meetings ? null : desktop.isDesktop ? "desktop" : canCapture() ? "browser" : null;
+  // WARNING: never wrap children conditionally here; it remounts the whole app and cancels its requests.
+  const beside = useMemo(
+    () =>
+      kind === "desktop" ? (
+        <DesktopRecorder publish={setRecorder} />
+      ) : kind === "browser" ? (
+        <BrowserRecorder publish={setRecorder} />
+      ) : null,
+    [kind],
+  );
+  return (
+    <RecorderContext value={kind ? recorder : null}>
+      {children}
+      {beside}
+    </RecorderContext>
+  );
+}
+
+type Publish = (recorder: AskingRecorder | null) => void;
+
+function usePublish(publish: Publish, recorder: AskingRecorder) {
+  useEffect(() => publish(recorder), [publish, recorder]);
+  useEffect(() => () => publish(null), [publish]);
 }
 
 type Pending = { event: DesktopRecordingRequest["event"] } | null;
 
-function BrowserRecorder({ children }: { children: ReactNode }) {
+function BrowserRecorder({ publish }: { publish: Publish }) {
   const { member } = useMember();
   const recorder = useRecorderState(member.id);
   const [asking, setAsking] = useState(false);
+  usePublish(
+    publish,
+    useMemo(() => ({ ...recorder, ask: () => setAsking(true) }), [recorder]),
+  );
   return (
-    <RecorderContext value={{ ...recorder, ask: () => setAsking(true) }}>
-      {children}
+    <>
       <Consent
         isOpen={asking}
         onCancel={() => setAsking(false)}
@@ -44,17 +74,20 @@ function BrowserRecorder({ children }: { children: ReactNode }) {
         }}
       />
       <RecorderPill />
-    </RecorderContext>
+    </>
   );
 }
 
-function DesktopRecorder({ children }: { children: ReactNode }) {
+function DesktopRecorder({ publish }: { publish: Publish }) {
   const { member } = useMember();
   const [pending, setPending] = useState<Pending>(null);
   const recorder = useDesktopRecorderState(member.id, (event) => setPending({ event }));
+  usePublish(
+    publish,
+    useMemo(() => ({ ...recorder, ask: () => setPending({ event: null }) }), [recorder]),
+  );
   return (
-    <RecorderContext value={{ ...recorder, ask: () => setPending({ event: null }) }}>
-      {children}
+    <>
       <Consent
         isOpen={pending !== null && recorder.phase === "idle"}
         onCancel={() => setPending(null)}
@@ -64,7 +97,7 @@ function DesktopRecorder({ children }: { children: ReactNode }) {
           void recorder.start(event);
         }}
       />
-    </RecorderContext>
+    </>
   );
 }
 
