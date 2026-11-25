@@ -280,7 +280,7 @@ primitives, and add no text.
   - The **rail** (52px): the workspace's mark at its top, in line with the sidebar's top row (its
     menu switches workspaces and holds account, workspace and connection settings, Invite,
     Upgrade and Log out), then a tile per module, its mark alone, its name as a tooltip.
-  - The sidebar's **top row**, 44px and in line with the page's own header (44px, even padding
+  - The sidebar's **top row**, 44px and in line with the page's own header (44px, 16px padding
     on both sides): the module's name, and opposite it notifications (whose panel slides in from
     the window's right edge) and Search. In the desktop app the traffic lights sit over the
     rail's top and the row's start, and the rail's tiles start under the row; the row is a drag

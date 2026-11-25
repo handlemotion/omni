@@ -173,7 +173,7 @@ function PanelHeader(props: {
   const { node, page, session, exports } = props;
   return (
     <div
-      className={`flex h-bar shrink-0 items-center gap-3 px-3 ${page ? "" : "border-b"} ${props.inset}`}
+      className={`flex h-bar shrink-0 items-center gap-3 px-4 ${page ? "" : "border-b"} ${props.inset}`}
     >
       {props.fullScreen && props.shell && <PageNav />}
       <Title node={node} rename={props.rename} trail={page ? props.trail : undefined} />

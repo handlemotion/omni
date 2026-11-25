@@ -6,8 +6,8 @@ const CARD = 176;
 export const COMPACT_CARD = 104;
 const GAP_X = 12;
 const GAP_Y = 16;
-const INSET_START = 6;
-const INSET_END = 6;
+const INSET_START = 10;
+const INSET_END = 10;
 const GUESS_EXTRA = 48;
 
 export const cardsLayout = (card = CARD) =>
@@ -25,7 +25,7 @@ export const COMPACT_CARDS_LAYOUT = cardsLayout(COMPACT_CARD);
  * first card is measured and the rest follow it: each measurement resizes the list and lays it
  * out again, and measuring every card was most of a folder's first render. Cards are at least
  * `CARD` wide, the gap between them fixed, and the room left over widens the cards, so the outer
- * cards' art lines up with the page header's padding on both sides (`px-3` in
+ * cards' art lines up with the page header's padding on both sides (`px-4` in
  * `storage-frame.tsx`, less the card's own `p-1.5`).
  */
 export class CardsLayout<T> extends GridLayout<T> {

@@ -45,7 +45,7 @@ export function SettingsPage({ page }: { page: SettingsPageId }) {
 
   return (
     <section className="flex h-svh min-h-0 min-w-0 flex-col">
-      <header className={`flex h-bar shrink-0 items-center gap-2 border-b border-border px-3`}>
+      <header className={`flex h-bar shrink-0 items-center gap-2 border-b border-border px-4`}>
         <PageNav />
         <Heading className="min-w-0 truncate text-md">{title}</Heading>
       </header>

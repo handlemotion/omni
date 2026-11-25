@@ -251,7 +251,7 @@ function PanelHeader(props: {
   deleting: boolean;
 }) {
   return (
-    <div className="flex h-bar shrink-0 items-center gap-1 border-b px-3">
+    <div className="flex h-bar shrink-0 items-center gap-1 border-b px-4">
       <h2 className="min-w-0 flex-1 truncate text-md text-foreground">{props.title}</h2>
       <Button
         intent="plain"

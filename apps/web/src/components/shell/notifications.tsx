@@ -130,7 +130,7 @@ export function NotificationsPanel() {
             : `invisible opacity-0 motion-reduce:translate-x-0 ${isMobile ? "translate-x-full" : "-translate-x-full"}`
         }`}
       >
-        <header className="flex h-bar shrink-0 items-center gap-2 px-3">
+        <header className="flex h-bar shrink-0 items-center gap-2 px-4">
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium">Notifications</h2>
           <div className="flex items-center gap-1.5">
             <PageBarActions>

@@ -219,7 +219,7 @@ function ConversationSkeleton() {
         className={SECTION}
         skeleton={
           <>
-            <div className="flex h-bar shrink-0 items-center gap-3 border-b px-3">
+            <div className="flex h-bar shrink-0 items-center gap-3 border-b px-4">
               <span className="min-w-0 flex-1">
                 <SkeletonBox width="45%" height={14} />
               </span>
@@ -353,7 +353,7 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
 
   return (
     <div
-      className={`flex h-bar shrink-0 items-center gap-3 border-b px-3 ${fullScreen ? "" : "border-s"}`}
+      className={`flex h-bar shrink-0 items-center gap-3 border-b px-4 ${fullScreen ? "" : "border-s"}`}
     >
       {fullScreen && <PageNav />}
       {fullScreen && (

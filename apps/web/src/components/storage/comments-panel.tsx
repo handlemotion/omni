@@ -101,7 +101,7 @@ export function CommentsPanel(props: {
       aria-label={`Comments on ${node.name}`}
       className="flex min-w-0 flex-1 flex-col border-s bg-background"
     >
-      <div className="flex h-bar shrink-0 items-center gap-2 px-3">
+      <div className="flex h-bar shrink-0 items-center gap-2 px-4">
         <Heading level={2} className="shrink-0 text-md">
           Comments
         </Heading>

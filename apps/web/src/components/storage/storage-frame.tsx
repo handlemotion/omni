@@ -17,7 +17,7 @@ export function StorageFrame(props: {
 }) {
   const header = (toggle: ReactNode, inset: string) => (
     <header
-      className={`flex h-bar shrink-0 items-center gap-2 px-3 ${inset} ${props.bordered ? "border-b" : ""}`}
+      className={`flex h-bar shrink-0 items-center gap-2 px-4 ${inset} ${props.bordered ? "border-b" : ""}`}
     >
       {toggle}
       <div className="flex min-w-0 items-center">{props.title}</div>

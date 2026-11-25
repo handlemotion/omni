@@ -233,7 +233,7 @@ export function List(
           ref={listRef}
           className={`relative flex flex-1 flex-col ${split ? "min-w-80" : "min-w-0"} ${hideList ? "hidden" : ""}`}
         >
-          <header className={`@container/list-head flex h-bar shrink-0 items-center gap-2 px-3`}>
+          <header className={`@container/list-head flex h-bar shrink-0 items-center gap-2 px-4`}>
             <PageNav />
             <Heading className="shrink-0 text-md whitespace-nowrap">{props.title}</Heading>
             <span className="min-w-0 flex-1 truncate text-xs text-subtle-foreground">
