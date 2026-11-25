@@ -1,5 +1,5 @@
 import { fileType, formatBytes } from "@omni/client";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   IconCheck,
   IconMaximize,
@@ -42,6 +42,7 @@ import {
   type EditSession,
 } from "../editor/document-editor.tsx";
 import { DocBar, DocBarActions } from "../editor/doc-bar.tsx";
+import { FLOATING_OUTLINE_WIDTH, FloatingOutline, useWiderThan } from "../editor/doc-outline.tsx";
 import { HeaderMenu } from "./header-menu.tsx";
 import { PreviewBody } from "./preview-body.tsx";
 import { PreviewRail } from "./preview-rail.tsx";
@@ -101,11 +102,13 @@ export function PreviewPanel(props: {
   const [details, toggleDetails] = useShowDetails();
   const exports = doc && !shown ? session.text : undefined;
   const page = !!exports && props.fullScreen;
+  const [floating, setFloating] = useState(false);
   return (
     <section aria-label={node.name} className="flex min-w-0 flex-1 flex-col bg-background">
       <PanelHeader
         {...props}
         page={page}
+        floating={floating}
         inset={inset}
         session={session}
         exports={exports}
@@ -134,6 +137,8 @@ export function PreviewPanel(props: {
             comments={comments.on ? comments : null}
             shareId={props.shareId}
             onDownload={props.onDownload}
+            page={page}
+            onFloating={setFloating}
           />
         ) : (
           <Stage node={node} url={props.url} tools={tools} onDownload={download} />
@@ -147,6 +152,7 @@ export function PreviewPanel(props: {
 function PanelHeader(props: {
   node: StorageNode;
   page: boolean;
+  floating: boolean;
   inset: string;
   fullScreen: boolean;
   shell: boolean;
@@ -181,6 +187,7 @@ function PanelHeader(props: {
               session={session}
               text={exports}
               canExport={props.canExport}
+              outline={!props.floating}
             />
           )}
           <EditActions session={session} canEdit={props.canEdit} doc={props.doc} />
@@ -208,12 +215,23 @@ function EditingBody(props: {
   comments: DocComments | null;
   shareId: string | undefined;
   onDownload?: (() => void) | undefined;
+  page: boolean;
+  onFloating: (floating: boolean) => void;
 }) {
-  const { session, comments } = props;
+  const { session, comments, onFloating } = props;
+  const [area, wide] = useWiderThan(FLOATING_OUTLINE_WIDTH);
+  const floating = props.page && wide;
+  useEffect(() => {
+    onFloating(floating);
+    return () => onFloating(false);
+  }, [floating, onFloating]);
   return (
     <DocCommentsContext value={comments}>
       <div className="flex min-h-0 flex-1">
-        <DocumentEditor session={session} onDownload={props.onDownload} />
+        <div ref={area} className="relative flex min-w-0 flex-1 flex-col">
+          <DocumentEditor session={session} onDownload={props.onDownload} />
+          {floating && <FloatingOutline root={area} />}
+        </div>
         {comments?.open && (
           <div className="flex w-80 min-w-0 shrink-0">
             <CommentsPanel

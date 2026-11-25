@@ -55,10 +55,12 @@ export function DocBarActions(props: {
   session: EditSession;
   text: () => string | undefined;
   canExport?: boolean | undefined;
+  /** False while the outline floats beside the page. */
+  outline?: boolean;
 }) {
   return (
     <>
-      <Outline node={props.node} />
+      {props.outline !== false && <Outline node={props.node} />}
       <Modes {...props} />
     </>
   );
