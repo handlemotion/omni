@@ -47,7 +47,15 @@ export function ComposerFiles(props: { files: ComposerFile[]; onRemove: (id: str
             className: "max-w-64 pe-1 hover:bg-transparent active:scale-100",
           })}
         >
-          <AttachmentGlyph name={file.filename} mimeType={file.mimeType} />
+          {file.previewUrl ? (
+            <img
+              src={file.previewUrl}
+              alt=""
+              className="size-4 shrink-0 rounded-[3px] object-cover"
+            />
+          ) : (
+            <AttachmentGlyph name={file.filename} mimeType={file.mimeType} />
+          )}
           <span className="truncate">{file.filename || "Attachment"}</span>
           <span
             className={
