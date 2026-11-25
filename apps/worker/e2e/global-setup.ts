@@ -12,8 +12,12 @@ const lockDir = join(workerRoot, ".wrangler/e2e-build.lock");
 const inputs = ["apps/worker", "apps/web", "packages", "pnpm-lock.yaml"];
 const skip = new Set(["node_modules", "dist", "e2e", ".tsbuild", ".wrangler", ".turbo"]);
 
+// WARNING: Vitest sets NODE_ENV=test, which `vite build` turns into React's development bundle.
+const BUILD_ENV = { NODE_ENV: "production" };
+
 function fingerprint() {
   const hash = createHash("sha256");
+  hash.update(`${JSON.stringify(BUILD_ENV)}\n`);
   const walk = (path: string) => {
     const stat = statSync(path, { throwIfNoEntry: false });
     if (!stat) return;
@@ -80,7 +84,11 @@ export default async function setup() {
     execFileSync(
       "pnpm",
       ["exec", "wrangler", "deploy", "--dry-run", "--outdir", prebuiltWorkerDir],
-      { cwd: workerRoot, stdio: ["ignore", "ignore", "inherit"] },
+      {
+        cwd: workerRoot,
+        stdio: ["ignore", "ignore", "inherit"],
+        env: { ...process.env, ...BUILD_ENV },
+      },
     );
     writeFileSync(stampFile, current);
   });

@@ -15,8 +15,17 @@ export async function uploadFiles(page: Page, files: Files) {
     await page.locator("input[type=file]:not([webkitdirectory])").first().setInputFiles(files);
     return;
   }
+  await pickFrom(page, "Upload files", files);
+}
+
+/** Uploads the folder at `path`, tree and all, from the header's New menu and Upload folder. */
+export async function uploadFolder(page: Page, path: string) {
+  await pickFrom(page, "Upload folder", path);
+}
+
+async function pickFrom(page: Page, item: "Upload files" | "Upload folder", files: Files) {
   const chooser = page.waitForEvent("filechooser");
-  await header.first().click();
-  await page.getByRole("menuitem", { name: "Upload files" }).click();
+  await page.locator("header").getByRole("button", { name: "New", exact: true }).first().click();
+  await page.getByRole("menuitem", { name: item }).click();
   await (await chooser).setFiles(files as Parameters<Awaited<typeof chooser>["setFiles"]>[0]);
 }
