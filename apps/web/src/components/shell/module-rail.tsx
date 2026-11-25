@@ -90,7 +90,7 @@ const MODULE_TILE = "size-8 justify-center rounded-[9px] px-0 *:[svg]:size-5 hov
 
 /**
  * The modules as a column of tiles on the window's grey, each with its own coloured mark, the
- * current one on a white tile; settings at its foot. The CRM has no tile (`RAIL_HIDDEN`). Its
+ * current one on a white tile with a faint ring; settings at its foot. The CRM has no tile (`RAIL_HIDDEN`). Its
  * first tile lines up with the nav panel's header row. Closing the sidebar hides the nav panel;
  * the rail stays.
  */
@@ -203,7 +203,10 @@ function ModuleRail() {
               aria-label={module.label}
               onHoverStart={() => warmModule(module.id)}
               onPress={() => press(module.id)}
-              className={cn(MODULE_TILE, isCurrent && "bg-background hover:bg-background")}
+              className={cn(
+                MODULE_TILE,
+                isCurrent && "bg-background ring-1 ring-foreground/6 hover:bg-background",
+              )}
             >
               <Mark />
             </SidebarItem>
@@ -218,7 +221,10 @@ function ModuleRail() {
             aria-label="Settings"
             isCurrent={inSettings}
             onPress={() => openSettings("general")}
-            className={cn(TILE, inSettings && "bg-background hover:bg-background")}
+            className={cn(
+              TILE,
+              inSettings && "bg-background ring-1 ring-foreground/6 hover:bg-background",
+            )}
           >
             {inSettings ? <IconSettingsFilled /> : <IconSettings />}
           </SidebarItem>
