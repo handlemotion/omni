@@ -16,7 +16,11 @@ import { identityChecks, identityOf } from "@/lib/storage-uploads.ts";
 import { NoPreview, StageLoading } from "../preview/shared.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
 
-const RichEditor = lazy(() => import("./rich-editor.tsx"));
+const loadRichEditor = () => import("./rich-editor.tsx");
+const RichEditor = lazy(loadRichEditor);
+
+/** Starts fetching the doc editor's code, so it is in hand by the time the doc's text is. */
+export const preloadRichEditor = () => void loadRichEditor();
 const SourceEditor = lazy(() => import("./source-editor.tsx"));
 
 /** What both editors take: the text to start from, and how to read what it has become. */
@@ -116,6 +120,9 @@ export function useEditSession(
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState<number | null>(null);
   const [opened, setOpened] = useState("");
+  const [shownAt, setShownAt] = useState("");
+  const openedNow = useRef(opened);
+  openedNow.current = opened;
   const read = useRef<(() => string) | null>(null);
   const base = useRef<number | undefined>(undefined);
   const changes = useRef(0);
@@ -291,6 +298,7 @@ export function useEditSession(
 
   return {
     editing,
+    shown: opened !== "" && shownAt === opened,
     live: isLive,
     dirty,
     saving,
@@ -332,7 +340,9 @@ export function useEditSession(
       opened,
       onReady: useCallback((reader: () => string) => {
         read.current = reader;
+        setShownAt(openedNow.current);
       }, []),
+      onUnreadable: useCallback(() => setShownAt(openedNow.current), []),
       onChange: () => {
         if (!writable) return;
         changes.current += 1;
@@ -388,15 +398,17 @@ export function DocumentEditor(props: {
   const { node, url, shareId, opened, onReady, onChange, live, editable } = session.editor;
   const kind = fileType(node.name, node.mimeType).kind;
   const text = useQuery(previewTextQuery({ url, version: `edit:${opened}`, size: node.size }));
-  if (
+  const unreadable =
     text.isError ||
-    text.data?.binary ||
-    text.data?.partial ||
-    text.data?.text.includes("\uFFFD")
-  ) {
-    return <NoPreview kind={kind} onDownload={props.onDownload} />;
-  }
-  const loading = (
+    !!text.data?.binary ||
+    !!text.data?.partial ||
+    !!text.data?.text.includes("\uFFFD");
+  const { onUnreadable } = session.editor;
+  useEffect(() => {
+    if (unreadable) onUnreadable();
+  }, [unreadable, onUnreadable]);
+  if (unreadable) return <NoPreview kind={kind} onDownload={props.onDownload} />;
+  const loading = isDoc(node) ? null : (
     <StageLoading label="Loading file">
       <div className="flex w-full flex-col gap-2.5">
         {[60, 42, 75, 30, 55].map((width, i) => (

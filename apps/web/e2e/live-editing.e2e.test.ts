@@ -387,7 +387,11 @@ test("a comment on selected text is marked for every editor, follows its words, 
     .poll(async () => (await marked.allInnerTexts()).join(""), { timeout: 15_000 })
     .toBe("our plan");
 
-  await ana.getByRole("button", { name: "Resolve" }).click();
+  await ana.locator(".doc-comment").click();
+  await ana
+    .getByRole("dialog", { name: "Comments" })
+    .getByRole("button", { name: "Resolve" })
+    .click();
   await expect.poll(() => marked.count(), { timeout: 15_000 }).toBe(0);
   await own.close();
 });

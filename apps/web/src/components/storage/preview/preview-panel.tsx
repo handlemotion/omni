@@ -37,10 +37,12 @@ import {
   canEditFile,
   DocumentEditor,
   isDoc,
+  preloadRichEditor,
   useEditSession,
   type EditSession,
 } from "../editor/document-editor.tsx";
 import { DocBar, DocBarActions } from "../editor/doc-bar.tsx";
+import { DocLoading } from "../editor/doc-loading.tsx";
 import { FloatingOutline } from "../editor/doc-outline.tsx";
 import { HeaderMenu } from "./header-menu.tsx";
 import { PreviewBody } from "./preview-body.tsx";
@@ -92,7 +94,7 @@ export function PreviewPanel(props: {
   const canEdit = props.canWrite && canEditFile(node) && !shown;
   const doc = canEditFile(node) && !shown && isDoc(node);
   const inset = headerInset(props.fullScreen);
-  useAlwaysEditing(session, doc);
+  const editingBody = useAlwaysEditing(session, doc);
   const comments = useDocCommentsState(
     node.id,
     props.shareId,
@@ -130,7 +132,7 @@ export function PreviewPanel(props: {
       <div
         className={`flex min-h-0 flex-1 flex-col ${page ? "bg-background" : "bg-surface"} ${props.fullScreen ? "" : "border-s"}`}
       >
-        {session.editing ? (
+        {editingBody ? (
           <EditingBody
             session={session}
             comments={comments.on ? comments : null}
@@ -228,8 +230,9 @@ function EditingBody(props: {
     <DocCommentsContext value={comments}>
       <div className="flex min-h-0 flex-1">
         <div ref={area} className="relative flex min-w-0 flex-1 flex-col">
-          <DocumentEditor session={session} onDownload={props.onDownload} />
+          {session.editing && <DocumentEditor session={session} onDownload={props.onDownload} />}
           {floating && <FloatingOutline root={area} />}
+          {isDoc(session.editor.node) && !session.shown && <DocLoading />}
         </div>
       </div>
     </DocCommentsContext>
@@ -329,8 +332,12 @@ function EditActions(props: { session: EditSession; canEdit: boolean; doc: boole
 function useAlwaysEditing(session: EditSession, doc: boolean) {
   const { editing, start, editor } = session;
   useEffect(() => {
+    if (doc) preloadRichEditor();
+  }, [doc]);
+  useEffect(() => {
     if (doc && !editing) start();
   }, [doc, editing, start, editor.node.id]);
+  return editing || doc;
 }
 
 function WindowActions(props: {
