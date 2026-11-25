@@ -15,6 +15,7 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 import { openSpace } from "./spaces.ts";
+import { uploadFiles } from "./uploads.ts";
 
 const place = (url: URL | string) => `/${new URL(url).pathname.split("/").slice(2).join("/")}`;
 
@@ -226,10 +227,11 @@ test("switching module keeps a document's edits, and the pages glide there", asy
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n") });
+  await uploadFiles(page, {
+    name: "plan.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Plan\n"),
+  });
   await page.getByRole("row", { name: /plan\.md/ }).click();
   const editor = page.locator("[contenteditable=true]");
   await editor.getByRole("heading", { name: "Plan" }).click();

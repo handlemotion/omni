@@ -288,8 +288,8 @@ test("switching workspace keeps the module; switching module keeps the workspace
   expect(await active()).toBe(before);
   expect(await page.getByRole("link", { name: "Later", exact: true }).count()).toBe(0);
 
-  await page.getByRole("link", { name: "Trash", exact: true }).click();
-  await page.waitForURL((url) => place(url) === "/files/trash");
+  await page.getByRole("link", { name: "Recents", exact: true }).click();
+  await page.waitForURL((url) => place(url) === "/files/recents");
   const other = before === acme.orgId ? "Beta" : "Acme";
   await page.route(/\/api\/(mailboxes|counts)/, () => undefined);
   await page.getByRole("button", { name: /^Switch workspace, currently / }).click();
@@ -300,7 +300,7 @@ test("switching workspace keeps the module; switching module keeps the workspace
   });
   await page.getByRole("button", { name: `Switch workspace, currently ${other}` }).waitFor();
   await page.unroute(/\/api\/(mailboxes|counts)/);
-  expect(place(page.url())).toBe("/files/trash");
+  expect(place(page.url())).toBe("/files/recents");
   await expect.poll(active).toBe(other === "Beta" ? beta.orgId : acme.orgId);
 
   await openModule("Calendar");

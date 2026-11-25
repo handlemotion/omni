@@ -14,6 +14,7 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 import { openSpace } from "./spaces.ts";
+import { uploadFiles } from "./uploads.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -53,10 +54,7 @@ test("a box drawn on a PDF page is saved as that page's fractions and pinned the
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "deck.pdf", mimeType: "application/pdf", buffer: twoPagePdf() });
+  await uploadFiles(page, { name: "deck.pdf", mimeType: "application/pdf", buffer: twoPagePdf() });
   await page.getByRole("row", { name: /deck\.pdf/ }).click({ timeout: 30_000 });
 
   const second = page.getByLabel("Page 2", { exact: true });

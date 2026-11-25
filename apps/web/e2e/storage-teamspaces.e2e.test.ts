@@ -15,6 +15,7 @@ import {
   SYSTEM_MAIL_FROM,
   type TestDb,
 } from "../../worker/e2e/support.ts";
+import { uploadFiles } from "./uploads.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -67,10 +68,11 @@ test("a member makes a private teamspace from the sidebar, files land in it, and
   const teamspaceId = decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
 
   await page.getByText("No files yet", { exact: true }).waitFor();
-  await page
-    .locator("input[type=file]:not([webkitdirectory])")
-    .first()
-    .setInputFiles({ name: "nda.txt", mimeType: "text/plain", buffer: Buffer.from("secret") });
+  await uploadFiles(page, {
+    name: "nda.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("secret"),
+  });
   await page.getByRole("row", { name: /nda\.txt/ }).waitFor({ timeout: 30_000 });
   const [nda] = await db
     .select()
@@ -93,7 +95,7 @@ test("a member makes a private teamspace from the sidebar, files land in it, and
   await page.goBack();
   await page.waitForURL(/\/files\/recents/);
   await page.goBack();
-  await page.getByRole("button", { name: "Space settings" }).click();
+  await page.locator("header").getByRole("button", { name: "Share", exact: true }).click();
   await page.getByRole("dialog").getByText("Owner").waitFor();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings.png` });
   await page.keyboard.press("Escape");
