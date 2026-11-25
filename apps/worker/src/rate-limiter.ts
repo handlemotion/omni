@@ -24,6 +24,7 @@ const RULES = {
   storageSync: "RATE_LIMIT_STORAGE_SYNC",
   booking: "RATE_LIMIT_BOOKING",
   bookingNew: "RATE_LIMIT_BOOKING_NEW",
+  feedback: "RATE_LIMIT_FEEDBACK",
 } as const satisfies Record<string, keyof Config>;
 
 export type RateLimitRule = keyof typeof RULES;

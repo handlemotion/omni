@@ -16,6 +16,7 @@ declare global {
       STRIPE_WEBHOOK_SECRET?: string;
       IOS_APP_IDS?: string;
       TRANSCRIBE_API_KEY?: string;
+      MCP_FEEDBACK_WEBHOOK_URL?: string;
     }
   }
 }
@@ -47,6 +48,7 @@ const configSchema = z
     MAIL_SERVICE_HMAC_SECRET: z.string().min(32),
     SYSTEM_MAIL_FROM: optionalText.pipe(z.email().optional()),
     SENTRY_DSN: optionalText.pipe(z.url().optional()),
+    MCP_FEEDBACK_WEBHOOK_URL: optionalText.pipe(z.url().optional()),
     ANTHROPIC_API_KEY: optionalText,
     ANTHROPIC_BASE_URL: optionalText.pipe(z.url().optional()),
     DRIVE_OCR: optionalText.pipe(z.enum(["on", "off"]).default("on")),
@@ -135,6 +137,7 @@ const configSchema = z
     RATE_LIMIT_STORAGE_SYNC: rateLimit("600/60"),
     RATE_LIMIT_BOOKING: rateLimit("120/60"),
     RATE_LIMIT_BOOKING_NEW: rateLimit("10/3600"),
+    RATE_LIMIT_FEEDBACK: rateLimit("20/3600"),
   })
   .refine((env) => !env.S2_BASIN_URL || !!env.S2_BASIN, {
     path: ["S2_BASIN"],

@@ -21,6 +21,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
   expect(tables.map((t) => t.table_name).toSorted()).toEqual(
     [
       "accounts",
+      "agent_feedback",
       "ai_usage",
       "assignments",
       "attachments",

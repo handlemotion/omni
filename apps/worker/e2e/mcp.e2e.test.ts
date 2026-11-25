@@ -1008,12 +1008,13 @@ describe("changing mail", () => {
     }
   });
 
-  test("with only mail:read, every tool but inbox, search and fetch asks to step up", async () => {
+  test("with only mail:read, every tool but inbox, search, fetch and report_feedback asks to step up", async () => {
     const client = await agent(readOnly);
     const names = (await client.listTools()).tools.map((t) => t.name);
     await client.close();
-    expect(names).toEqual(expect.arrayContaining(["inbox", "search", "fetch"]));
-    const gated = names.filter((name) => !["inbox", "search", "fetch"].includes(name));
+    const open = ["inbox", "search", "fetch", "report_feedback"];
+    expect(names).toEqual(expect.arrayContaining(open));
+    const gated = names.filter((name) => !open.includes(name));
     for (const name of gated) {
       const response = await legacyCall(readOnly, {
         jsonrpc: "2.0",

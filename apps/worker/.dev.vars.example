@@ -163,6 +163,11 @@ EXPO_ACCESS_TOKEN=
 # and credentials; their environment tag is ENVIRONMENT.
 SENTRY_DSN=
 
+# Secret, optional. A chat incoming-webhook URL (Slack's, or any that takes `{"text": …}`) that
+# gets each report agents send through the MCP `report_feedback` tool. Reports are stored in
+# `agent_feedback` either way.
+MCP_FEEDBACK_WEBHOOK_URL=
+
 # --- Domain Connect (docs/domain-connect/) ---
 # Optional. The providerId our templates are published under. Empty hides "Set up automatically".
 DOMAIN_CONNECT_PROVIDER_ID=
@@ -205,6 +210,7 @@ RATE_LIMIT_STORAGE_LINK_COMMENT=
 RATE_LIMIT_STORAGE_SYNC=
 RATE_LIMIT_BOOKING=
 RATE_LIMIT_BOOKING_NEW=
+RATE_LIMIT_FEEDBACK=
 
 # --- E2E tests only (`pnpm --filter @omni/worker test:e2e`) ---
 # Admin URL of the local Postgres; each test file creates and drops its own database.
