@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useCallback } from "react";
 import { createDraft } from "@/lib/compose.ts";
 import { keys } from "@/lib/query-keys.ts";
 import { useAllMailboxes } from "./use-mail.ts";
@@ -12,6 +13,7 @@ import {
   taskMeetingQuery,
   grantMeetingMutation,
   meetingGroupQuery,
+  meetingGroupSummaryQuery,
   meetingGroupsQuery,
   meetingListQuery,
   meetingQuery,
@@ -24,8 +26,40 @@ import {
 } from "@/lib/meetings.ts";
 
 export const useMeetingsEnabled = () => useQuery(meetingsEnabledQuery()).data === true;
+
+/**
+ * Loads what a sidebar row opens before it is pressed: a meeting and its transcript, or a group's
+ * page (never its summary, which a model writes).
+ */
+export function usePrefetchMeetingPlace() {
+  const client = useQueryClient();
+  return useCallback(
+    (target: { meetingId: string } | { groupKey: string }) => {
+      if ("meetingId" in target) {
+        void client.prefetchQuery(meetingQuery(target.meetingId));
+        void client.prefetchQuery(meetingTranscriptQuery(target.meetingId));
+      } else {
+        void client.prefetchQuery(meetingGroupQuery(target.groupKey));
+      }
+    },
+    [client],
+  );
+}
 export const useMeetingGroups = () => useInfiniteQuery(meetingGroupsQuery());
-export const useMeetingGroup = (key: string) => useQuery(meetingGroupQuery(key));
+/**
+ * A group's page, and its summary asked for beside it (kept ones answer at once, a new one takes
+ * the model seconds): `summaryPending` while it is being written.
+ */
+export function useMeetingGroup(key: string) {
+  const page = useQuery(meetingGroupQuery(key));
+  const made = useQuery(meetingGroupSummaryQuery(key));
+  const summary = page.data?.summary ?? made.data ?? null;
+  return {
+    ...page,
+    summary,
+    summaryPending: !summary && made.isPending && page.data?.summaryPending !== false,
+  };
+}
 export const useMeetingList = (group: string) => useInfiniteQuery(meetingListQuery(group));
 export const useMeeting = (id: string) => useQuery(meetingQuery(id));
 export const useMeetingTranscript = (id: string) => useQuery(meetingTranscriptQuery(id));

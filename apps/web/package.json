@@ -13,7 +13,8 @@
     "bench:drive": "node scripts/bench-drive.ts",
     "bench:preview": "node scripts/bench-preview.ts",
     "bench:cards": "node scripts/bench-cards.ts",
-    "bench:crm": "node scripts/bench-crm.ts"
+    "bench:crm": "node scripts/bench-crm.ts",
+    "bench:meetings": "node scripts/bench-meetings.ts"
   },
   "dependencies": {
     "@chenglou/pretext": "1.0.0",

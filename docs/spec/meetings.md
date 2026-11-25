@@ -691,7 +691,8 @@ meeting the caller cannot see answers `404`, and a removed grant closes it on th
 | Route                                                                | What                                                                      |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `GET /groups?before=`                                                | The sidebar: groups, newest first, with count and last meeting            |
-| `GET /groups/:key`                                                   | A group's summary, timeline, open actions and meetings                    |
+| `GET /groups/:key?summary=later`                                     | A group's timeline and meetings at once, with its summary when one is kept for the reader; else `summaryPending`. Without `summary=later` it waits while the model writes one (clients from before) |
+| `GET /groups/:key/summary`                                           | The group's summary for the reader: the kept one, else written by the model now and kept |
 | `GET /?event=<uid>&recurrence=`                                      | The meeting for an event, so the calendar panel shows it                  |
 | `POST /` `{ event?, title?, consent: true }`                         | Starts one; returns its id and the upload. `event`: `{ id, recurrenceId }`, `"now"` (the default) or `null` |
 | `PUT /:id/chunks/:seq?endMs=` (bytes, `x-content-sha256`)            | One chunk of the recording; the answer acknowledges it                    |

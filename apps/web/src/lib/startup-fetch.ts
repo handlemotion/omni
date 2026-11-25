@@ -7,6 +7,13 @@ for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel="preload
   early.set(link.href, response);
 }
 
+const preload = (path: string) => {
+  const url = new URL(path, window.location.href).href;
+  const response = fetch(url, { credentials: "include" });
+  response.catch(() => {});
+  early.set(url, response);
+};
+
 const drive = /^\/[^/]+\/files\/(my|shared)(?:\/([^/]+))?\/?$/.exec(window.location.pathname);
 if (drive) {
   const [, space, folder] = drive;
@@ -16,11 +23,29 @@ if (drive) {
       : { space: space === "my" ? "personal" : "shared" },
   );
   query.set("limit", "100");
-  const url = new URL(`/api/storage/nodes?${query}`, window.location.href).href;
-  const response = fetch(url, { credentials: "include" });
-  response.catch(() => {});
-  early.set(url, response);
+  preload(`/api/storage/nodes?${query}`);
 }
+
+const meetingPage = (id: string) => {
+  preload(`/api/meetings/${encodeURIComponent(id)}`);
+  preload(`/api/meetings/${encodeURIComponent(id)}/transcript`);
+};
+
+const groupPage = (key: string) => {
+  preload(`/api/meetings/groups/${encodeURIComponent(key)}?summary=later`);
+  preload(`/api/meetings/groups/${encodeURIComponent(key)}/summary`);
+};
+
+const meetings = /^\/[^/]+\/meetings(?:\/(g\/)?([^/]+))?\/?$/.exec(window.location.pathname);
+if (meetings) {
+  const [, group, place] = meetings;
+  preload("/api/meetings/groups?limit=50");
+  if (place && group) groupPage(decodeURIComponent(place));
+  else if (place) meetingPage(decodeURIComponent(place));
+}
+
+/** Whether the first screen is still loading: the startup answers are not taken or dropped yet. */
+export const startingUp = () => early.size > 0;
 
 /** The preloaded answer for this request, once; `undefined` sends it to the network. */
 export function takeStartupResponse(input: RequestInfo | URL, init?: RequestInit) {

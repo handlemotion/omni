@@ -194,7 +194,7 @@ test("a second Wok tab leaves a recording that is still going alone", async () =
 
   const second = await page.context().newPage();
   await second.goto(page.url());
-  await second.getByRole("button", { name: "Record" }).waitFor();
+  await second.getByRole("button", { name: "Record", exact: true }).waitFor();
   const before = (await chunksOf(meeting!.id)).length;
   await expect
     .poll(async () => (await chunksOf(meeting!.id)).length, { timeout: 20_000 })

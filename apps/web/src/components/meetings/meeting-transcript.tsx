@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useDeferredValue, useMemo, useState } from "react";
 import { Skeleton } from "skullet/react";
 import { IconCheck, IconCopy } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import { useClipboard } from "@/hooks/use-clipboard.ts";
 import { useMeetingTranscript, useMeetingWrites } from "@/hooks/use-meetings.ts";
 import { meetingClock, type Meeting, type MeetingSegment } from "@/lib/meetings.ts";
 import { usePlayer } from "./meeting-player.tsx";
+import type { Speaker } from "./meeting-speakers.ts";
 
 /** Each speaker's name, by the engine's label: the name given, else `Speaker N`. */
 export function speakerNames(meeting: Meeting) {
@@ -33,6 +34,8 @@ function turns(segments: MeetingSegment[]) {
   return out;
 }
 
+const FIRST_TURNS = 30;
+
 function wordAt(segment: MeetingSegment, words: string[], timeMs: number) {
   if (timeMs < segment.startMs || timeMs >= segment.endMs) return -1;
   const at = (timeMs - segment.startMs) / Math.max(1, segment.endMs - segment.startMs);
@@ -45,13 +48,15 @@ export function MeetingTranscript(props: { meeting: Meeting; canRename: boolean 
   const transcript = useMeetingTranscript(id);
   const [query, setQuery] = useState("");
   const { copy, copied } = useClipboard();
-  const speakers = meetingSpeakers(props.meeting);
+  const player = usePlayer();
+  const speakers = useMemo(() => meetingSpeakers(props.meeting), [props.meeting]);
   const speakerOf = (label: string | null) => speakers.get(label ?? "") ?? UNKNOWN;
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const all = transcript.data ?? [];
     return turns(needle ? all.filter((s) => s.text.toLowerCase().includes(needle)) : all);
   }, [transcript.data, query]);
+  const drawn = useDeferredValue(shown, shown.slice(0, FIRST_TURNS));
   const text = () =>
     (transcript.data ?? [])
       .map((s) => `[${meetingClock(s.startMs)}] ${speakerOf(s.speaker).name}: ${s.text}`)
@@ -74,43 +79,93 @@ export function MeetingTranscript(props: { meeting: Meeting; canRename: boolean 
       </div>
       <Skeleton loading={transcript.isPending} label="Loading">
         <ol className="flex flex-col gap-8">
-          {shown.map((turn) => {
-            const speaker = speakerOf(turn.speaker);
-            return (
-              <li key={turn.segments[0]!.seq} className="flex flex-col gap-3">
-                <div className="flex h-6 items-center gap-2">
-                  <SpeakerAvatar speaker={speaker} />
-                  {props.canRename && turn.speaker ? (
-                    <SpeakerMenu meeting={props.meeting} label={turn.speaker} name={speaker.name} />
-                  ) : (
-                    <span className="text-sm">{speaker.name}</span>
-                  )}
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {meetingClock(turn.segments[0]!.startMs)}
-                  </span>
-                </div>
-                <p className="text-sm/6 text-foreground">
-                  {turn.segments.map((segment) => (
-                    <Segment key={segment.seq} segment={segment} fill={speaker.fill} />
-                  ))}
-                </p>
-              </li>
-            );
-          })}
+          {drawn.map((turn) => (
+            <TurnRow
+              key={turn.segments[0]!.seq}
+              turn={turn}
+              speaker={speakerOf(turn.speaker)}
+              meeting={props.meeting}
+              canRename={props.canRename}
+              playingSeq={playingSeq(turn, player.playing, player.timeMs)}
+              hasAudio={player.hasAudio}
+              seek={player.seek}
+            />
+          ))}
         </ol>
       </Skeleton>
     </div>
   );
 }
 
-function Segment(props: { segment: MeetingSegment; fill: string }) {
+function playingSeq(turn: Turn, playing: boolean, timeMs: number) {
+  if (!playing) return -1;
+  const first = turn.segments[0]!;
+  const last = turn.segments.at(-1)!;
+  if (timeMs < first.startMs || timeMs >= last.endMs) return -1;
+  return turn.segments.find((s) => timeMs >= s.startMs && timeMs < s.endMs)?.seq ?? -1;
+}
+
+const TurnRow = memo(function TurnRow(props: {
+  turn: Turn;
+  speaker: Speaker;
+  meeting: Meeting;
+  canRename: boolean;
+  playingSeq: number;
+  hasAudio: boolean;
+  seek: (ms: number) => void;
+}) {
+  const { turn, speaker } = props;
+  return (
+    <li className="flex flex-col gap-3">
+      <div className="flex h-6 items-center gap-2">
+        <SpeakerAvatar speaker={speaker} />
+        {props.canRename && turn.speaker ? (
+          <SpeakerMenu meeting={props.meeting} label={turn.speaker} name={speaker.name} />
+        ) : (
+          <span className="text-sm">{speaker.name}</span>
+        )}
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {meetingClock(turn.segments[0]!.startMs)}
+        </span>
+      </div>
+      <p className="text-sm/6 text-foreground">
+        {turn.segments.map((segment) =>
+          segment.seq === props.playingSeq ? (
+            <PlayingSegment
+              key={segment.seq}
+              segment={segment}
+              fill={speaker.fill}
+              hasAudio={props.hasAudio}
+              seek={props.seek}
+            />
+          ) : (
+            <span
+              key={segment.seq}
+              className={props.hasAudio ? "cursor-pointer" : undefined}
+              onPointerDown={() => props.hasAudio && props.seek(segment.startMs)}
+            >
+              {segment.text}{" "}
+            </span>
+          ),
+        )}
+      </p>
+    </li>
+  );
+});
+
+function PlayingSegment(props: {
+  segment: MeetingSegment;
+  fill: string;
+  hasAudio: boolean;
+  seek: (ms: number) => void;
+}) {
   const player = usePlayer();
   const words = props.segment.text.split(/\s+/).filter(Boolean);
   const lit = player.playing ? wordAt(props.segment, words, player.timeMs) : -1;
   return (
     <span
-      className={player.hasAudio ? "cursor-pointer" : undefined}
-      onPointerDown={() => player.hasAudio && player.seek(props.segment.startMs)}
+      className={props.hasAudio ? "cursor-pointer" : undefined}
+      onPointerDown={() => props.hasAudio && props.seek(props.segment.startMs)}
     >
       {words.map((word, i) => (
         // oxlint-disable-next-line react/no-array-index-key -- a word's place is its identity

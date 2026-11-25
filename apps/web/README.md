@@ -34,6 +34,13 @@ clicks (rename a deal, add a note, complete a task, open a company) until they s
 Worker whose database is `BENCH_DB_LATENCY` ms away per round trip (default 60, a Worker at the edge
 one region from its database; 2 is a Worker placed beside it), and fails when a change shows and
 is then undone by the refetch. `BENCH_CALLS=1` lists every API call it saw by median time.
+`pnpm bench:meetings` does it for Meetings (`scripts/bench-meetings.ts`), against a fresh seed of 340
+meetings in 60 groups with the database `BENCH_DB_LATENCY` ms away and a stand-in model that takes
+`BENCH_MODEL_MS` (default 3000) to write a group's summary: startup on Meetings and on a meeting's
+link, opening a meeting from the sidebar (straight, and after a 200 ms hover), back to one seen
+before, the Transcript tab of a 1,200-turn meeting (first turn, every turn, long tasks), back to
+Summary, and a series' page (its timeline, then its summary). `BENCH_CALLS=1` adds each API call's
+median time.
 `pnpm bench:preview` opens files in Drive's preview (a 12 MP photo, a PDF, a 6,000-function
 TypeScript file, a 5,000-row CSV, uploaded fresh each run): from the press until the panel shows,
 until the file's content shows, and until all of it has, the first time and again, and stepping

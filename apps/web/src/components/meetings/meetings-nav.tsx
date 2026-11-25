@@ -3,7 +3,7 @@ import { IconMicrophone, IconRepeat } from "@/components/icons/central";
 import { RecordMark } from "@/components/crm/record-list";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
-import { useMeetingGroups, useMeetingList } from "@/hooks/use-meetings.ts";
+import { useMeetingGroups, useMeetingList, usePrefetchMeetingPlace } from "@/hooks/use-meetings.ts";
 import { Button } from "@/components/ui/button";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import { groupByDate } from "@/lib/date-groups.ts";
@@ -65,6 +65,7 @@ export function MeetingsNav() {
 
 function GroupRow({ group }: { group: MeetingGroup }) {
   const { place, href } = useWorkspacePaths();
+  const prefetch = usePrefetchMeetingPlace();
   const [open, setOpen] = useState(false);
   const path = groupTarget(group.groupKey);
   const kind = groupKind(group.groupKey);
@@ -88,6 +89,13 @@ function GroupRow({ group }: { group: MeetingGroup }) {
         label={title}
         detail={many && group.meetings > 1 ? group.meetings : undefined}
         expand={many ? { value: open, toggle: () => setOpen(!open) } : undefined}
+        onIntent={() =>
+          prefetch(
+            many
+              ? { groupKey: group.groupKey }
+              : { meetingId: group.groupKey.slice("meeting:".length) },
+          )
+        }
       />
       {open && <GroupMeetings groupKey={group.groupKey} />}
     </>
@@ -96,6 +104,7 @@ function GroupRow({ group }: { group: MeetingGroup }) {
 
 function GroupMeetings({ groupKey }: { groupKey: string }) {
   const { place, href } = useWorkspacePaths();
+  const prefetch = usePrefetchMeetingPlace();
   const list = useMeetingList(groupKey);
   if (list.isPending) return <SidebarTreeBones depth={1} />;
   return (
@@ -111,6 +120,7 @@ function GroupMeetings({ groupKey }: { groupKey: string }) {
             icon={<IconMicrophone className="size-icon" />}
             label={meeting.title ?? DAY.format(new Date(meeting.startedAt))}
             detail={meeting.title ? DAY.format(new Date(meeting.startedAt)) : undefined}
+            onIntent={() => prefetch({ meetingId: meeting.id })}
           />
         );
       })}
