@@ -129,7 +129,7 @@ export function BodyEditor(props: {
         "aria-label": props.label,
         "data-composer-body": "",
         class: [
-          "overscroll-contain px-[var(--composer-x,--spacing(3))] pt-[var(--composer-y,--spacing(3))] pb-1 text-base/6 text-foreground outline-hidden sm:text-sm/6",
+          "overscroll-contain px-[var(--composer-x,--spacing(3))] py-[var(--composer-y,--spacing(3))] text-base/6 text-foreground outline-hidden sm:text-sm/6",
           "[&_img]:my-1 [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-md [&_img.ProseMirror-selectednode]:ring-2 [&_img.ProseMirror-selectednode]:ring-ring",
           "[&_ul]:list-disc [&_ul]:ps-5 [&_ol]:list-decimal [&_ol]:ps-5 [&_a]:text-primary [&_a]:underline [&_blockquote]:border-s-2 [&_blockquote]:ps-3 [&_blockquote]:text-muted-foreground",
           "[&_p.is-editor-empty:first-child]:before:pointer-events-none [&_p.is-editor-empty:first-child]:before:float-start [&_p.is-editor-empty:first-child]:before:h-0 [&_p.is-editor-empty:first-child]:before:text-muted-foreground [&_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",
