@@ -16,6 +16,7 @@ import { isSettingsPath } from "@/hooks/use-settings.ts";
 import { desktop } from "@/lib/desktop.ts";
 import {
   useModulePress,
+  RAIL_HIDDEN,
   useModules,
   useOpenModule,
   usePressedModule,
@@ -89,7 +90,7 @@ function ModuleTitle() {
 
 function ModuleRail() {
   const mac = desktop.isDesktop && desktop.platform === "mac";
-  const modules = useModules();
+  const modules = useModules().filter((m) => !RAIL_HIDDEN.has(m.id));
   const pressed = usePressedModule();
   const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
   const current = inSettings ? null : pressed;

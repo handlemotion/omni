@@ -350,6 +350,9 @@ board by stage; a won deal is the project.
   workspace default, else the device's. The API still refuses a value with no currency at all.
 - **Projects** are deals in an `open` or `won` stage (`kind=open,won`): leads and running
   projects, chosen by stage kind, never by stage name. The sidebar lists them on their own.
+- **Deprecation.** The CRM is on the road to deprecation (Nov 25, 2026): the web and desktop
+  module rail no longer shows it. Its routes stay, and links from mail, meetings and the command
+  menu still open its pages, with its nav panel.
 - **Navigation.** The sidebar (the iOS menu) lists the CRM's pages (Companies, People, Projects,
   Tasks), then **Projects**: the open and won deals, by name, led by its client's logo. The
   Projects page holds every deal, on the board or in the table. There are no stage shortcuts: the

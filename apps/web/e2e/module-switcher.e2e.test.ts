@@ -74,7 +74,7 @@ async function openInbox(slug: string, options: { reducedMotion?: "reduce" } = {
   return page;
 }
 
-const LABELS = { mail: "Mail", files: "Drive", crm: "Clients" } as const;
+const LABELS = { mail: "Mail", files: "Drive", calendar: "Calendar" } as const;
 const rail = (page: Page, name: string) => ({
   click: async () => {
     await page
@@ -137,14 +137,27 @@ test("the module switcher opens each module and the pages glide along", async ()
   await expect.poll(() => pageAt(page)).toBe(1);
   expect((await frames).some((at) => at > 0.1 && at < 0.9)).toBe(true);
 
-  await rail(page, "Clients").click();
-  await page.waitForURL((url) => place(url) === "/crm/companies");
-  await shows(page, "crm");
+  await rail(page, "Calendar").click();
+  await page.waitForURL((url) => place(url) === "/calendar");
+  await shows(page, "calendar");
   await expect.poll(() => pageAt(page)).toBe(2);
 
   await rail(page, "Drive").click();
   await page.waitForURL((url) => place(url) === "/files");
   await expect.poll(() => pageAt(page)).toBe(1);
+});
+
+test("the CRM has no rail tile, but a link to it still opens its pages", async () => {
+  const page = await openInbox("no-crm-tile");
+  const tiles = page.getByRole("navigation", { name: "Modules" });
+  await tiles.getByRole("button", { name: "Drive", exact: true }).waitFor();
+  expect(await tiles.getByRole("button", { name: "Clients", exact: true }).count()).toBe(0);
+
+  await page.goto(page.url().replace(/\/mail\/.*$/, "/crm/companies"));
+  const crm = page.locator('[data-module-page="crm"]');
+  await crm.getByRole("link", { name: "Companies" }).waitFor();
+  expect(await crm.evaluate((el) => (el as HTMLElement).inert)).toBe(false);
+  expect(await tiles.getByRole("button", { name: "Clients", exact: true }).count()).toBe(0);
 });
 
 test("a sideways swipe leaves the module where it is; only the switcher moves between modules", async () => {
@@ -169,20 +182,11 @@ test("a sideways swipe leaves the module where it is; only the switcher moves be
 test("each pick in the switcher stays on the module it opened", async () => {
   const page = await openInbox("restore", { reducedMotion: "reduce" });
   const wants = {
-    Clients: "/crm/companies",
     Mail: "/mail/inbox",
     Calendar: "/calendar",
     Drive: "/files",
   } as const;
-  for (const name of [
-    "Clients",
-    "Mail",
-    "Calendar",
-    "Mail",
-    "Drive",
-    "Calendar",
-    "Clients",
-  ] as const) {
+  for (const name of ["Calendar", "Mail", "Drive", "Mail", "Calendar", "Drive"] as const) {
     await rail(page, name).click();
     await page.waitForURL((url) => place(url) === wants[name]);
     await page.waitForTimeout(400);
@@ -238,9 +242,9 @@ test("switching module keeps a document's edits, and the pages glide there", asy
   await page.keyboard.press("End");
   await page.keyboard.type(" B");
 
-  await rail(page, "Clients").click();
-  await page.waitForURL((url) => place(url) === "/crm/companies");
-  await shows(page, "crm");
+  await rail(page, "Calendar").click();
+  await page.waitForURL((url) => place(url) === "/calendar");
+  await shows(page, "calendar");
   await expect.poll(() => pageAt(page)).toBe(2);
 
   await page.goto(spaceAt);

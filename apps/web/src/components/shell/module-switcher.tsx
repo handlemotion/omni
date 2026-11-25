@@ -246,17 +246,24 @@ export function useOpenModule() {
 }
 
 /**
- * The modules in their sidebar order: the CRM only where the workspace has it, Meetings only
- * where a transcription engine is set up.
+ * The modules in their sidebar order: Meetings only where a transcription engine is set up. The
+ * CRM is on its way out: it is listed only while one of its pages is open (links from mail,
+ * meetings and the command menu still lead there), so the pager, the title and the phone switcher
+ * can show it, and the rail never gives it a tile (`RAIL_HIDDEN`).
  */
 export function useModules() {
   const hasCrm = useHasCrm();
+  const onCrm = useCurrentModule() === "crm";
   const hasMeetings = useMeetingsEnabled();
+  const crm = hasCrm && onCrm;
   return useMemo(
-    () => [MAIL, DRIVE, ...(hasCrm ? [CRM] : []), CALENDAR, ...(hasMeetings ? [MEETINGS] : [])],
-    [hasCrm, hasMeetings],
+    () => [MAIL, DRIVE, ...(crm ? [CRM] : []), CALENDAR, ...(hasMeetings ? [MEETINGS] : [])],
+    [crm, hasMeetings],
   );
 }
+
+/** Modules with no tile in the rail. */
+export const RAIL_HIDDEN: ReadonlySet<ModuleId> = new Set(["crm"]);
 
 /**
  * The sidebar's foot, as on iOS: the module on screen in a pill, between a chevron each way to its
