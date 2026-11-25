@@ -203,6 +203,8 @@ export function CommentRow(props: {
   replying: boolean;
   onReplying: (on: boolean) => void;
   doc?: DocComments | undefined;
+  /** In a popover on a doc's page: no rule under the last, a little less room. */
+  inline?: boolean;
 }) {
   const { door, thread, doc } = props;
   const { root } = thread;
