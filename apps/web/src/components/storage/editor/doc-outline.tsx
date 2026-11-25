@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useState, type RefObject } from "react";
 import { IconH1, IconH2, IconH3, IconOutline } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
@@ -133,7 +133,7 @@ export function FloatingOutline(props: { root: RefObject<HTMLElement | null> }) 
   const current = useCurrentHeading(headings);
   const [open, setOpen] = useState(false);
   const { root } = props;
-  useEffect(() => {
+  useLayoutEffect(() => {
     root.current?.toggleAttribute("data-outline-open", open);
   }, [root, open]);
   if (headings.length === 0) return null;
@@ -148,7 +148,7 @@ export function FloatingOutline(props: { root: RefObject<HTMLElement | null> }) 
     >
       <div
         aria-hidden
-        className={`flex w-8 flex-col items-start gap-1.5 px-2 py-2 transition-opacity duration-200 ease-out motion-reduce:transition-none ${open ? "opacity-0" : ""}`}
+        className={`flex w-8 flex-col items-start gap-1.5 px-2 py-2 transition-opacity duration-(--outline-move) ease-out motion-reduce:transition-none ${open ? "opacity-0" : ""}`}
       >
         {headings.map((heading) => (
           <span
@@ -163,7 +163,7 @@ export function FloatingOutline(props: { root: RefObject<HTMLElement | null> }) 
             className={cn(
               popupSurface,
               "flex max-h-[70vh] w-64 flex-col overflow-y-auto p-1",
-              "transition-[opacity,translate] duration-200 ease-out starting:-translate-x-2 starting:opacity-0 motion-reduce:transition-none",
+              "transition-[opacity,translate] duration-(--outline-move) ease-out starting:-translate-x-2 starting:opacity-0 motion-reduce:transition-none",
             )}
           >
             {headings.map((heading) => (
