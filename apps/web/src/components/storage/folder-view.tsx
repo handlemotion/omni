@@ -219,6 +219,7 @@ export function FolderView(props: {
                 <FolderActions
                   extra={props.actions}
                   empty={folderIsEmpty(source, drafts)}
+                  loading={source.list.isPending}
                   selection={selection}
                   source={source}
                   onNewFolder={folders.start}

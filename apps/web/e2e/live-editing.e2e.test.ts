@@ -151,7 +151,7 @@ test("New doc opens an empty page, and blocks picked from / are saved as Markdow
   const page = await own.newPage();
   await page.goto(new URL("/files", origin).toString());
   await openSpace(page);
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("main").getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("menuitem", { name: "New doc" }).click();
   const body = page.locator("[contenteditable=true]");
   await body.waitFor({ timeout: 15_000 });

@@ -72,11 +72,14 @@ export function FolderPane(props: { bar: ReactNode; children: ReactNode }) {
 
 /**
  * A folder's header actions: one bordered button that makes or uploads something here, then the
- * page's own (Share), or what a selection can do.
+ * page's own (Share), or what a selection can do. The button waits for the folder's first page:
+ * an empty folder shows its own New and Upload instead, so one shown while it loads would vanish,
+ * an open menu with it.
  */
 export function FolderActions(props: {
   extra: ReactNode;
   empty: boolean;
+  loading: boolean;
   selection: NodeSelection;
   source: FolderSource;
   onNewFolder: () => void;
@@ -87,7 +90,7 @@ export function FolderActions(props: {
 }) {
   const { selection, source } = props;
   if (!selection.active) {
-    if (props.empty) return props.extra;
+    if (props.empty || props.loading) return props.extra;
     return (
       <>
         {source.canWrite && (
