@@ -78,7 +78,7 @@ export function NotificationsButton() {
 
 type View = "all" | "unread";
 
-/** The panel, beside the sidebar (on a phone, at the window's right edge). Mount once in the shell. */
+/** The panel, at the window's right edge under its button. Mount once in the shell. */
 export function NotificationsPanel() {
   const open = useNotificationsPanel();
   const { isMobile } = useSidebar();
@@ -114,10 +114,8 @@ export function NotificationsPanel() {
 
   return (
     <div
-      className={`pointer-events-none fixed top-0 bottom-0 end-0 z-30 flex overflow-hidden ${
-        isMobile
-          ? "start-0 justify-end"
-          : "start-[calc(var(--sidebar-width)+var(--spacing-rail))] justify-start"
+      className={`pointer-events-none fixed bottom-0 end-0 z-30 flex justify-end overflow-hidden ${
+        isMobile ? "start-0 top-0" : "start-0 top-12"
       }`}
     >
       <aside
@@ -126,10 +124,10 @@ export function NotificationsPanel() {
         aria-label="Notifications"
         tabIndex={-1}
         inert={!open}
-        className={`pointer-events-auto flex h-full w-108 max-w-full flex-col ${isMobile ? "border-s" : "border-e"} bg-background shadow-overlay outline-hidden transition-[translate,opacity,visibility] duration-200 ease-out motion-reduce:transition-[opacity,visibility] ${
+        className={`pointer-events-auto flex h-full w-108 max-w-full flex-col border-s ${isMobile ? "" : "border-t"} bg-background shadow-overlay outline-hidden transition-[translate,opacity,visibility] duration-200 ease-out motion-reduce:transition-[opacity,visibility] ${
           open
             ? "visible translate-x-0 opacity-100"
-            : `invisible opacity-0 motion-reduce:translate-x-0 ${isMobile ? "translate-x-full" : "-translate-x-full"}`
+            : "invisible translate-x-full opacity-0 motion-reduce:translate-x-0"
         }`}
       >
         <header className="flex h-bar shrink-0 items-center gap-2 px-4">

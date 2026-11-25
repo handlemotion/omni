@@ -36,14 +36,14 @@ export function SettingsNav() {
   );
   const items = (
     <>
-      <SearchField aria-label="Search settings" value={query} onChange={setQuery} className="mt-2">
+      <SearchField aria-label="Search settings" value={query} onChange={setQuery}>
         <SearchInput placeholder="Search settings" />
       </SearchField>
       {shownAccount.length > 0 && <Group label="Personal" pages={shownAccount} />}
       <Group label="Workspace" pages={shownWorkspace} switcher={<SettingsWorkspaceSwitcher />} />
     </>
   );
-  if (!isMobile) return <RailSidebar>{items}</RailSidebar>;
+  if (!isMobile) return <RailSidebar title="Settings">{items}</RailSidebar>;
   return (
     <Sidebar closeButton={false}>
       <SidebarContent className="*:shrink-0">

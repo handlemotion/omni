@@ -13,6 +13,7 @@ import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { SettingsNav } from "../../components/settings/settings-nav.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { DriveDragProvider } from "../../components/storage/drive-drag.tsx";
+import { TitleBar } from "../../components/shell/title-bar.tsx";
 import { TalkArrival } from "../../components/talk/talk-arrival.tsx";
 import { TalkWindow } from "../../components/talk/talk-window.tsx";
 import { useTalkNotifications } from "../../components/talk/use-talk-notifications.ts";
@@ -118,13 +119,13 @@ function Shell() {
   useShortcut("settings", useToggleSettings());
   return (
     <RecorderProvider>
-      <ResizableSidebarProvider className="h-svh overflow-hidden bg-background">
+      <ResizableSidebarProvider className="h-svh overflow-hidden bg-shell">
         <ListSweepProvider>
           <DriveDragProvider>
             {settings ? <SettingsNav /> : <AppSidebar />}
             <NotificationsPanel />
             <CommandMenu />
-            <SidebarInset className="min-w-0">
+            <SidebarInset className="min-w-0 md:mt-12 md:border-t md:border-sidebar-border md:peer-data-[state=collapsed]:rounded-tl-xl md:peer-data-[state=collapsed]:border-s">
               <SidebarResizeGrip />
               <ModuleBoundary>
                 <Outlet />
@@ -132,6 +133,7 @@ function Shell() {
             </SidebarInset>
           </DriveDragProvider>
         </ListSweepProvider>
+        <TitleBar />
         <TalkWindow />
         <TalkArrival meId={member.id} />
         <KeyboardShortcuts />

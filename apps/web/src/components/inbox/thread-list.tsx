@@ -1,5 +1,4 @@
 import type { ThreadSummary } from "@omni/client";
-import { PagePresence } from "@/components/talk/presence-stack";
 import { SearchButton } from "@/components/search/search-trigger";
 import { useLocation, useParams } from "@tanstack/react-router";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -245,7 +244,6 @@ export function List(
               </span>
             )}
             <div className="flex min-w-0 items-center gap-1.5 *:shrink-0">
-              <PagePresence />
               <PageBarActions>
                 <span className="flex md:hidden">
                   <SearchButton />

@@ -1,5 +1,4 @@
 import type { Conversation as HelpdeskState, Message, Thread } from "@omni/client";
-import { PagePresence } from "@/components/talk/presence-stack";
 import type { FetchStatus } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -365,7 +364,6 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
         <MiddleTruncate text={subject || "(no subject)"} />
       </Heading>
       <div className="flex shrink-0 items-center gap-1.5">
-        <PagePresence />
         <PageBarActions>
           <TriageActions thread={thread} />
           <Action label={fullScreen ? "Side by side" : "Full screen"} onPress={toggleFullScreen}>

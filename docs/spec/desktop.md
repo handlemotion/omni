@@ -231,13 +231,12 @@ after a spike. Swift side: Foundation and FileProvider only.
 
 - **First run.** A hosted build opens its configured origin directly. A build with no origin
   shows the server picker; the answer is stored and changeable from the app menu.
-- **Window.** macOS: `titleBarStyle: Overlay`, hidden title, traffic lights positioned on the
-  sidebar's 44px top row, the red one's centre as far from the window's left edge as from its top
-  (22pt). Windows: no native title bar. The web app draws minimize,
+- **Window.** macOS: `titleBarStyle: Overlay`, hidden title, traffic lights positioned to sit on
+  the title bar's centre line (48px row, the red one's centre 23pt in, on the module rail's axis). Windows: no native title bar. The web app draws minimize,
   maximize (restore when maximized) and close at the window's top right corner, on every screen,
   as Windows draws them (46px wide, the title row's height, Segoe Fluent Icons' glyphs, close red
-  under the pointer, glyphs muted while the window is inactive), over the page header's right
-  end, which does not yet leave them room (open: the full-width title row that did is gone). The page takes the frame off itself (`setDecorations(false)`) and draws the controls only
+  under the pointer, glyphs muted while the window is inactive), and the title bar leaves them
+  room. The page takes the frame off itself (`setDecorations(false)`) and draws the controls only
   once that succeeds, so an older shell keeps its frame and an older web app never loses its
   controls; the window keeps the frameless state across launches (`window-state`), and opening a
   different server puts the frame back until that server's app takes it. The bundled page draws
@@ -261,7 +260,7 @@ after a spike. Swift side: Foundation and FileProvider only.
   Tauri itself.
   Once one is downloaded the shell tells the page (`update-ready`, `update_ready`), and the
   nav panel shows a blue "Restart to update" row, a nav row's height, at its foot; with the
-  sidebar collapsed to its rail, a blue tile above Settings instead. Either restarts into the
+  sidebar closed the rail shows a blue tile above Settings instead. Either restarts into the
   update with the window shown (`update_install`). "Check for Updates…" in the tray and the app
   menu checks at once: a download brings the window forward to that row, otherwise a
   notification says Wok is up to date or that the check failed.
@@ -273,23 +272,24 @@ is loaded by dynamic import, so the browser bundle does not carry it). These are
 `apps/web`, asked for by the founder; they follow `DESIGN.md`, use existing `components/ui`
 primitives, and add no text.
 
-- **The shell** (every viewport wider than a phone, in the browser too): the rail, the sidebar
-  and the page side by side, the rail on a very subtle grey and the sidebar white like the page, with a
-  light hairline after each, no inset, no rounded island, no page tabs. The sidebar is always open (no toggle)
-  and can be resized.
-  - The **rail** (52px): the workspace's mark at its top, in line with the sidebar's top row (its
-    menu switches workspaces and holds account, workspace and connection settings, Invite,
-    Upgrade and Log out), then a tile per module, its mark alone, its name as a tooltip. Clients, on its way out, has no
-    tile; its pages open only from links.
-  - The sidebar's **top row**, 44px and in line with the page's own header (44px, 16px padding
-    on both sides): the module's name, and opposite it notifications (whose panel slides in from
-    the window's right edge) and Search. In the desktop app the traffic lights sit over the
-    rail's top and the row's start, and the rail's tiles start under the row; the row is a drag
-    region except its controls. Back and forward are keyboard only.
-  - Then the module's nav.
-  - **Who is online** (Talk) sits in each page's own header, before its actions: the inbox list,
-    a thread, Drive, Clients and a client's record, Calendar, Meetings. With panes side by side
-    (a thread open beside the list) only the leftmost header shows it.
+- **The shell** (every viewport wider than a phone, in the browser too): a very subtle grey
+  window (`--shell`, #fafafa) holding the white content: the nav panel and the page, the panel's
+  top corner rounded, with light hairlines.
+  - A **title bar** across the top, 48px: the workspace switcher (mark, name, chevron) past the
+    traffic lights, then the sidebar toggle and back and forward arrows (disabled at either end
+    of the window's history); at the far end the teammates online (Talk), search (it opens the
+    command menu, as `/` and `⌘K` do; there is no search field in the page headers, except a
+    search icon in the mail list header on a phone, where the title bar is hidden), then
+    notifications. The whole row is a drag region except its controls.
+  - A **module rail** down the left edge: Mail, Drive, Calendar and (where set up) Meetings as
+    icon tiles with their coloured marks, the current one on a white tile; Settings at the foot.
+    Clients, on its way out, has no tile; its pages open only from links. It never moves.
+  - The **nav panel** beside it, titled with the module (or Settings; Calendar has no title,
+    its month sits there), its top row 44px and in line with the page headers. The sidebar
+    toggle hides only the panel; while it is hidden, resting on the toggle previews the panel
+    over the page. The panel can be resized.
+  - Notifications open under the title bar, sliding in from the window's right edge under
+    their button.
 - On a phone the sidebar is the sheet it was, with the workspace switcher in its top row and the
   module switcher at its foot.
 - `⌘[` / `⌘]` (`Alt+←` / `Alt+→` on Windows) go back and forward; `⌘,` opens Settings; `⌘N`
@@ -399,8 +399,11 @@ machines and reported in the PR, pass or fail per line:
 
 ## Decisions
 
-- **No page tabs.** Tried across workspaces in the title bar, then removed with it: the module
-  switcher and the browser's own tabs cover moving between pages.
+- **No page tabs.** Tried across workspaces in the title bar, then removed: the module rail and
+  the browser's own tabs cover moving between pages.
+- **The title bar and module rail shell.** A Notion-like shell (a workspace rail and the module
+  name atop a white sidebar, no title bar) was tried and dropped for the grey title bar and
+  module rail, kept in the newer, lighter colours.
 - **Bundle identifier `app.omnidirectional.desktop`, shown as "Wok".** Permanent once installed.
   The extension is `app.omnidirectional.desktop.fileprovider`; the app group is
   `group.app.omnidirectional.desktop`. All three stay build config.

@@ -67,10 +67,9 @@
   --navbar-foreground: var(--foreground);
   /* The sidebar is white like the page; its hairline border sets it apart. */
   --sidebar: var(--background);
-  /* The module rail alone takes a very subtle grey, so the shell's outer column reads apart. */
-  --rail: #fafafa;
-  /* The window behind the sidebar and the page: white, like them. */
-  --shell: var(--background);
+  /* The window around the white card (title bar and module rail): a very subtle grey. Hover fills
+     on it use `secondary`. */
+  --shell: #fafafa;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);
@@ -186,7 +185,6 @@
 
   --spacing-icon: 15px;
   --spacing-sidebar: 300px;
-  --spacing-rail: 52px;
   --spacing-bar: 44px;
 
   --color-background: var(--background);
@@ -228,7 +226,6 @@
   --color-navbar: var(--navbar);
   --color-navbar-foreground: var(--navbar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-rail: var(--rail);
   --color-shell: var(--shell);
   --color-module-mail: var(--module-mail);
   --color-module-drive: var(--module-drive);
