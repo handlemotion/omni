@@ -1,6 +1,7 @@
 import { BLOCKED_SRC_ATTR } from "@omni/mail-core/blocked-src";
 import { useEffect, useRef, useState } from "react";
 import { routeFrameContextMenu } from "@/components/ui/context-menu";
+import { routeFrameLinks } from "@/lib/desktop.ts";
 import { MESSAGE_FRAME_SANDBOX } from "@/lib/message-html.ts";
 import { messageHtmlUrl } from "@/lib/urls.ts";
 
@@ -46,6 +47,7 @@ export function FullMessage(props: {
     if (!frame) return;
     let observer: ResizeObserver | undefined;
     let unroute = () => {};
+    let unrouteLinks = () => {};
     let refits = 0;
     const fit = () => {
       const doc = frame.contentDocument;
@@ -58,6 +60,8 @@ export function FullMessage(props: {
       applyFrameDefaults(frame);
       unroute();
       unroute = routeFrameContextMenu(frame);
+      unrouteLinks();
+      unrouteLinks = routeFrameLinks(frame);
       refits = 0;
       fit();
       observer?.disconnect();
@@ -72,6 +76,7 @@ export function FullMessage(props: {
       frame.removeEventListener("load", onLoad);
       observer?.disconnect();
       unroute();
+      unrouteLinks();
     };
   }, []);
 
