@@ -396,6 +396,47 @@ its own named for the agent. A Wok sheet is `text/vnd.omni.sheet` (`docs/spec/sh
 - **Limits.** `SHEET_LIMITS` in `@omni/sheets`: 100,000 cells, 20,000 rows a tab, 200 columns,
   20 tabs, 5 MB; 100 edits and 10,000 cells a call. Audited as `mcp.drive_sheet`.
 
+### Organizing: `drive_organize`
+
+Scope `drive:write`, not read-only, not destructive (trash is reversible for 30 days; nothing is
+deleted for good). Notion's `move-pages` and `update-page`, for a whole folder tree in one call.
+
+- **Input.** `{ changes: [{ action, id?, name?, folder_id?, teamspace_id?, ref? }] }`, up to 50,
+  applied in order. `action` is `create_folder` (name, and folder_id or teamspace_id), `move` (id,
+  and folder_id or teamspace_id), `rename` (id, name), `trash` (id) or `restore` (id).
+- **Refs.** A new folder may carry a `ref`; later changes in the same call use it as an `id` or a
+  `folder_id`, so one call makes `Clients/Acme` and files a document into it.
+- **Each change answers on its own** (`{ action, ok, item? | id?, error? }`), as `triage` does: one
+  that fails (a name taken, a folder moved into itself, a locked file) leaves the others.
+- **Doors.** Changes go through the member door of the workspace the node is in, the same
+  `move`, `rename`, `trash` and `restore` the app's routes call, so a teammate's private
+  teamspace stays out of reach. Moves stay inside one workspace. Trashed nodes are out of every
+  read, so `restore` tries each workspace the person is a member of.
+- **Effects.** Open apps are told which listings changed (`announceTo`), each change is audited
+  as `mcp.drive_organize`, the `actions` rate limit counts each change, and a workspace whose
+  plan is unpaid refuses.
+
+### Comments: `drive_comment`, and `drive_fetch { comments: true }`
+
+Notion's `create-comment` and `get-comments`, over the comments people write in Wok
+(`docs/spec/docs.md`).
+
+- **Read.** `drive_fetch { comments: true }` (scope `drive:read`) adds each file's open threads to its
+  metadata. `drive_comment { id }` answers them too.
+- **Write.** `drive_comment { id, add?, resolve?, reopen?, include_resolved? }`, scope `drive:write`.
+  Each `add` is `{ text, reply_to? }` and at most one of `quote` (a passage of a doc or text file,
+  found exactly once in its text now: the live document when people have unsaved typing, else
+  its bytes, so a doc written a second ago can be quoted; a doc is matched as the editor flattens it
+  to place comments, `@omni/docs` `docText`, without Markdown), `page` (a PDF page), `lines`
+  (`{ start, end }`) or `cell` (A1, `Costs!B3`); none comments on the whole file. A reply reopens
+  its thread, as in the app. It answers the threads as they are after the changes and the new
+  comments' ids.
+- **Threads** are compact: `{ id, by, at, text, on?, resolved?, replies? }`, where `on` is
+  `page 3`, `lines 4-9`, `cell B3` or the quoted passage (cut at 200 characters).
+- **Doors.** The member door for files in the person's workspaces, the grant door for what was
+  shared with them (a commenter or editor grant may comment). Notifications and the realtime
+  `commentsChanged` go out as they do for a person's comment.
+
 ### Meetings: `meetings_search`, `meetings_fetch`, `meetings_group`, `meetings_decide`, `meetings_rename_speaker`, `meetings_share`
 
 Recorded calls (`docs/spec/meetings.md`). Reads need `meetings:read`, writes `meetings:write`.
