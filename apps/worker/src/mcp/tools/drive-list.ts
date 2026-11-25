@@ -1,12 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { StorageContext, StorageListCursor } from "@omni/db";
 import { z } from "zod";
-import { child, driveFor, item, itemSchema } from "../drive.ts";
+import { child, driveFor, item, itemSchema, type Item } from "../drive.ts";
 import { result, toolError } from "../format.ts";
 import { encodeCursor, readCursor } from "../../cursor.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
 const SHARED_WITH_YOU = 20;
+const MAX_DEPTH = 4;
+const MAX_TREE = 300;
 
 const inputSchema = z.object({
   folder_id: z.string().min(1).optional().describe("A folder id: list what is inside it."),
@@ -17,6 +19,15 @@ const inputSchema = z.object({
     .optional()
     .describe("A teamspace id from `drives`: list the top of that teamspace."),
   limit: z.number().int().min(1).max(100).default(50),
+  depth: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_DEPTH)
+    .default(1)
+    .describe(
+      `With \`folder_id\`: also list inside its folders, this many levels down (up to ${MAX_DEPTH}, ${MAX_TREE} items in all), each item's \`location\` saying where it is.`,
+    ),
   cursor: z.string().optional().describe("`next_cursor` from the last page."),
 });
 
@@ -24,6 +35,10 @@ type Input = z.infer<typeof inputSchema>;
 
 const outputSchema = z.object({
   folder: itemSchema.optional().describe("The folder listed."),
+  cut: z
+    .boolean()
+    .optional()
+    .describe("With `depth`: the tree has more than was listed. List a folder in it for the rest."),
   items: z.array(itemSchema).describe("Folders first, then files, by name."),
   next_cursor: z.string().optional(),
   drives: z
@@ -91,6 +106,7 @@ async function list(context: ToolContext, input: Input) {
         "No folder with that id you can open. Ids come from `drive_search` or `drive_list`.",
       );
     }
+    if (input.depth > 1 && !read) return tree(context, drive, listed, input);
     return result({
       folder: item(context.webAppURL, listed.folder),
       items: listed.nodes.map((node) => child(context.webAppURL, listed.folder, node)),
@@ -109,6 +125,37 @@ async function list(context: ToolContext, input: Input) {
   }
 
   return overview(context, drive);
+}
+
+type Listed = NonNullable<Awaited<ReturnType<StorageContext["listFolder"]>>>;
+
+async function tree(context: ToolContext, drive: StorageContext, top: Listed, input: Input) {
+  const items: Item[] = [];
+  let cut = top.nextCursor !== null;
+  let level: Listed[] = [top];
+  for (let depth = 1; depth <= input.depth && level.length; depth++) {
+    const next: Listed[] = [];
+    for (const listed of level) {
+      for (const node of listed.nodes) {
+        if (items.length >= MAX_TREE) {
+          cut = true;
+          break;
+        }
+        items.push(child(context.webAppURL, listed.folder, node));
+        if (node.kind !== "folder" || depth === input.depth) continue;
+        const inside = await drive.listFolder(node.id, { limit: input.limit });
+        if (!inside) continue;
+        cut ||= inside.nextCursor !== null;
+        next.push(inside);
+      }
+    }
+    level = next;
+  }
+  return result({
+    folder: item(context.webAppURL, top.folder),
+    items,
+    ...(cut ? { cut: true } : {}),
+  });
 }
 
 function topOf(

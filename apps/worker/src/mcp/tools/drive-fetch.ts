@@ -12,7 +12,14 @@ import { writerIn } from "../drive-write.ts";
 import { driveFor, item, itemSchema } from "../drive.ts";
 import { result, toolError } from "../format.ts";
 import { guarded, type ToolContext } from "../server.ts";
-import { commentDoorFor, threadsOf, threadSchema, type Thread } from "../drive-comments.ts";
+import {
+  commentDoorFor,
+  currentText,
+  threadsOf,
+  threadSchema,
+  type Thread,
+} from "../drive-comments.ts";
+import { pagesOf, selectPages } from "../text-range.ts";
 import { tilesFor } from "./drive-canvas.ts";
 
 const MAX_IDS = 10;
@@ -35,6 +42,17 @@ const inputSchema = z.object({
     .boolean()
     .default(false)
     .describe("Also answer each file's open comment threads (`drive_comment` writes them)."),
+  pages: z
+    .string()
+    .max(200)
+    .optional()
+    .describe('PDFs and decks: only these pages or slides, as "3", "2-4" or "1,5-7".'),
+  offset: z
+    .number()
+    .int()
+    .nonnegative()
+    .default(0)
+    .describe("Start this many characters in: the `next_offset` of a text that was cut."),
 });
 
 const documentSchema = z.object({
@@ -51,6 +69,14 @@ const documentSchema = z.object({
       .enum(["ok", "pending", "empty", "unsupported", "too_large", "failed"])
       .describe("Whether the text could be read: `pending` is read within a minute or two."),
     truncated: z.boolean().describe("The text stops before the end of the file."),
+    total_chars: z
+      .number()
+      .optional()
+      .describe("The length of the whole text (of the pages asked for)."),
+    next_offset: z
+      .number()
+      .optional()
+      .describe("When the text was cut: pass it as `offset` to read on from there."),
     role: z
       .string()
       .describe("What the person may do with it: member, editor, commenter or viewer."),
@@ -84,26 +110,45 @@ const NO_TEXT: Record<Exclude<ContextText["status"], "ok">, string> = {
   failed: "[Wok could not read this file's text. Open it with the url.]",
 };
 
+interface Range {
+  budget: number;
+  offset: number;
+  pages: Set<number> | null;
+}
+
+function textOf(content: ContextText, range: Range) {
+  if (content.status !== "ok") return { text: NO_TEXT[content.status], total: undefined };
+  const picked = range.pages ? selectPages(content.text, range.pages) : null;
+  const whole = picked ?? content.text;
+  const note =
+    range.pages && picked === null ? "[This file has no pages or slides: all of it.]\n" : "";
+  return { text: note + whole.slice(range.offset), total: whole.length };
+}
+
 function document(
   webAppURL: string,
   read: { found: ContextRead; unsaved: boolean; layout?: string; comments?: Thread[] },
-  budget: number,
+  range: Range,
 ) {
   const { found, unsaved, layout, comments } = read;
   const { id, title, url, ...metadata } = item(webAppURL, found);
   const content = found.content!;
-  const whole = content.status === "ok" ? content.text : NO_TEXT[content.status];
-  const cut = whole.length > budget;
-  const notice = `\n[Cut here: ${whole.length} characters in all. Fetch this file alone or raise max_chars to read more.]`;
+  const { text, total } = textOf(content, range);
+  const cut = text.length > range.budget;
+  const notice = `\n[Cut here. Read on with offset ${range.offset + range.budget}.]`;
+  const shown = Math.max(0, range.budget - notice.length);
+  const next = range.offset + shown;
   return {
     id,
     title,
     url,
-    text: cut ? `${whole.slice(0, Math.max(0, budget - notice.length))}${notice}` : whole,
+    text: cut ? `${text.slice(0, shown)}\n[Cut here. Read on with offset ${next}.]` : text,
     metadata: {
       ...metadata,
       text_status: content.status,
       truncated: cut || content.truncated,
+      ...(total !== undefined ? { total_chars: total } : {}),
+      ...(cut ? { next_offset: next } : {}),
       role: found.role,
       ...(unsaved ? { unsaved_edits: true } : {}),
       ...(layout ? { layout } : {}),
@@ -180,7 +225,16 @@ function asSeen(context: ToolContext, drive: StorageContext, found: ContextRead)
       return { found, unsaved: false };
     });
   }
-  return withLiveText(context, found);
+  return withLiveText(context, found).then((seen) =>
+    seen.found.content?.status === "pending" ? readNow(context, drive, seen.found) : seen,
+  );
+}
+
+async function readNow(context: ToolContext, drive: StorageContext, found: ContextRead) {
+  const text = await currentText(context, drive, found).catch(() => null);
+  if (text === null) return { found, unsaved: false };
+  const content: ContextText = { status: "ok", text, truncated: false };
+  return { found: { ...found, content }, unsaved: false };
 }
 
 async function read(context: ToolContext, input: z.infer<typeof inputSchema>) {
@@ -200,8 +254,11 @@ async function read(context: ToolContext, input: z.infer<typeof inputSchema>) {
       "None of those ids is a file you can open. Ids come from `drive_search` or `drive_list`; use `drive_list` for a folder.",
     );
   }
-  const budget = Math.floor(input.max_chars / found.length);
-  const [first, ...more] = found.map((hit) => document(context.webAppURL, hit, budget));
+  const pages = input.pages === undefined ? null : pagesOf(input.pages);
+  if (input.pages !== undefined && !pages)
+    return toolError('`pages` reads like "3", "2-4" or "1,5-7".');
+  const range = { budget: Math.floor(input.max_chars / found.length), offset: input.offset, pages };
+  const [first, ...more] = found.map((hit) => document(context.webAppURL, hit, range));
   const missing = wanted.filter((id) => !found.some((hit) => hit.found.node.id === id));
   return result({
     ...first!,

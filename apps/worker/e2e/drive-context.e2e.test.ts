@@ -232,8 +232,9 @@ test("a replaced file is read again, and a token without drive:read is asked to 
   const done = await stack.api(ana.jar, "POST", `/uploads/${upload.id}/complete`);
   expect((done.body.node as StorageNode).contentVersion).toBe(2);
 
-  const pending = (await call(agent, "drive_fetch", { id: note.id })) as unknown as Fetched;
-  expect(pending.metadata.text_status).toBe("pending");
+  const fresh = (await call(agent, "drive_fetch", { id: note.id })) as unknown as Fetched;
+  expect(fresh.metadata.text_status).toBe("ok");
+  expect(fresh.text).toBe(`Final ${after}`);
   expect(await search(agent, before)).toEqual([]);
   await indexAll();
   expect(await search(agent, before)).toEqual([]);
