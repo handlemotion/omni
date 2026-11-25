@@ -14,7 +14,8 @@
   --foreground: #171717;
   --muted-foreground: #858585;
   --subtle-foreground: #a6a6a6;
-  --border: #e8e8e8;
+  /* Lighter than the Figma's #e8e8e8, so pane edges divide without contrasting hard. */
+  --border: #efefef;
   --accent: #f3f3f3;
   /* Behind a see-through sender logo: logos are drawn for a light page. */
   --logo-tile: #ffffff;
@@ -64,9 +65,10 @@
   --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
-  /* A very subtle off-white under the page's white, so the sidebar reads apart from the content
-     beside its hairline border. */
-  --sidebar: #fcfcfc;
+  /* The sidebar is white like the page; its hairline border sets it apart. */
+  --sidebar: var(--background);
+  /* The module rail alone takes a very subtle grey, so the shell's outer column reads apart. */
+  --rail: #fafafa;
   /* The window behind the sidebar and the page: white, like them. */
   --shell: var(--background);
   --sidebar-foreground: var(--foreground);
@@ -226,6 +228,7 @@
   --color-navbar: var(--navbar);
   --color-navbar-foreground: var(--navbar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-rail: var(--rail);
   --color-shell: var(--shell);
   --color-module-mail: var(--module-mail);
   --color-module-drive: var(--module-drive);
