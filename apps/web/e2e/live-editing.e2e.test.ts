@@ -447,14 +447,25 @@ test("an assistant's edit lands live in an open doc, merged with what the person
   });
   const edited = await agent.callTool({
     name: "drive_edit_doc",
-    arguments: { id, edits: [{ find: "Open the meeting", replace: "Open the meeting at nine" }] },
+    arguments: {
+      id,
+      edits: [
+        { find: "Open", replace: "Please open" },
+        { find: "meeting", replace: "meeting at nine" },
+      ],
+    },
   });
   expect(edited.isError).toBeFalsy();
 
-  await expect.poll(() => pageText(ana), { timeout: 15_000 }).toContain("Open the meeting at nine");
+  await expect
+    .poll(() => pageText(ana), { timeout: 15_000 })
+    .toContain("Please open the meeting at nine");
   await working.waitFor({ timeout: 5_000 });
   await inked;
-  expect((await ink.allTextContents()).join("").trim()).toBe("at nine");
+  expect((await ink.allTextContents()).map((text) => text.trim())).toEqual([
+    "Please open",
+    "at nine",
+  ]);
   await ana
     .getByRole("status")
     .filter({ hasText: "Drive agent is editing" })
@@ -463,7 +474,7 @@ test("an assistant's edit lands live in an open doc, merged with what the person
   await working.waitFor({ state: "detached", timeout: 15_000 });
   await expect
     .poll(saved, { timeout: 20_000 })
-    .toMatch(/^# Agenda\n\nOpen the meeting at nine\n\nReview the budget\n\nThen lunch\n*$/);
+    .toMatch(/^# Agenda\n\nPlease open the meeting at nine\n\nReview the budget\n\nThen lunch\n*$/);
   expect(await ana.getByRole("alertdialog").count()).toBe(0);
   await own.close();
 });
