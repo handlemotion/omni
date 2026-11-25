@@ -116,7 +116,7 @@ test("two editors on one Markdown file see each other's typing, and the page is 
     expect((await pageText(page)).match(/Start/g)).toHaveLength(1);
   }
   for (const page of [ana, bo]) {
-    await page.locator(".collaboration-carets__caret").first().waitFor({ timeout: 15_000 });
+    await page.locator("[data-collaborator-faces] > *").first().waitFor({ timeout: 15_000 });
   }
 
   const id = new URL(ana.url()).searchParams.get("file") ?? "";
@@ -130,7 +130,7 @@ test("two editors on one Markdown file see each other's typing, and the page is 
 
   await bo.getByRole("list", { name: "Folder" }).locator("a[href]").last().click();
   await expect
-    .poll(() => ana.locator(".collaboration-carets__caret").count(), { timeout: 15_000 })
+    .poll(() => ana.locator("[data-collaborator-faces] > *").count(), { timeout: 15_000 })
     .toBe(0);
 });
 

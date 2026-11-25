@@ -4,6 +4,10 @@
 .document-page {
   @apply mx-auto w-full max-w-3xl px-10 py-10 text-md/6 text-foreground outline-none;
 }
+/* Beside a floating outline the page leaves it 18rem, moving right of centre when it must. */
+.doc-beside-outline .document-page {
+  margin-inline-start: max(18rem, calc((100% - 48rem) / 2));
+}
 .document-page > * + * {
   @apply mt-3;
 }
@@ -105,16 +109,6 @@
 .ProseMirror-dropcursor,
 .document-page + .ProseMirror-dropcursor {
   @apply bg-primary;
-}
-.collaboration-carets__caret {
-  @apply pointer-events-none relative -mx-px border-x;
-  word-break: normal;
-}
-.collaboration-carets__label {
-  @apply absolute bottom-[calc(100%+3px)] -left-px flex items-center gap-1 rounded-md rounded-bl-none p-1 pe-1.5 text-xs/4 font-normal whitespace-nowrap text-collaborator-foreground select-none;
-}
-.collaboration-carets__avatar {
-  @apply flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-collaborator-foreground/25 object-cover text-[10px]/4;
 }
 .document-page .doc-comment {
   @apply cursor-pointer border-b-2 border-warning/60 bg-warning/15;

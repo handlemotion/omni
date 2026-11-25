@@ -71,8 +71,13 @@ shared schema in `@omni/docs`, live through Yjs. This spec adds:
   `<details open>` when it is open. Dropdowns nest.
 - **No indent model.** Lists nest with Tab, nothing else indents. No rulers, margins, page size
   or fonts: the page has one layout, and Word and PDF exports lay it out for print.
-- **Modes.** The doc bar's mode menu: Editing, or Commenting, where the text is read-only and a
-  selection offers only Comment. Opening another file starts it in Editing again.
+- **One mode.** A doc opens ready to write in; there is no Editing or Commenting menu. Commenting
+  is a tool: the toolbar's comment button and Comment on a selection. Someone who may only read
+  sees the text read-only, with a selection offering only Comment.
+- **Who else is here.** Each other person in a live doc shows as their picture floating left of
+  the block they are in, where the block handle sits, sliding as they move; several in one block
+  stack. No caret and no selection highlight. In the header, the people editing the file stack
+  like the app's presence faces.
 - The bubble bar over selected text (bold, italic, strikethrough, code, comment), the `/` menu
   (which gains Dropdown) and the block handle stay.
 
@@ -234,7 +239,7 @@ what the link's role allows:
 
 | Role      | Page                                                                    |
 | --------- | ----------------------------------------------------------------------- |
-| Editor    | Editing (or Commenting), toolbar, live with everyone on the doc          |
+| Editor    | One mode, toolbar, live with everyone on the doc                         |
 | Commenter | Read-only text; a selection offers Comment; the toolbar shows comments  |
 | Viewer    | Read-only text, no toolbar, no comments                                 |
 

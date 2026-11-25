@@ -368,7 +368,7 @@ keep saving version by version.
 - No Handlemotion-specific value: limits and keys are environment variables with defaults.
 - `apps/web` and `apps/ios` are owned by the web and iOS owner. The client side (opening the
   outsider socket in `live-doc.ts`, following `doc.access` and `doc.comments`, drawing guest
-  carets) is specified here; its UI waits for its Figma frames and the owner's go-ahead.
+  faces beside the block they are in) is specified here; its UI waits for its Figma frames and the owner's go-ahead.
 
 ## Stacking
 
@@ -444,5 +444,5 @@ E2e against the local stack (`pnpm stack:up`, s2-lite), no mocks. Each names the
 `scripts/check-realtime-audience.test.mjs` (a bare `getWebSockets()` fails the check).
 
 **On the stack:** two browsers, a member signed in and a guest in a private window on an Editor
-link, typing into the same paragraph: both see each other's text and carets; the link set to
+link, typing into the same paragraph: both see each other's text and faces; the link set to
 Viewer closes the guest's page to read only within seconds.

@@ -15,7 +15,9 @@ import { openLiveDoc, type LiveDoc } from "@/lib/live-doc.ts";
 import { sessionQuery } from "@/lib/session.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
+import { BlockComment } from "./block-comment.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
+import { CollaboratorFaces, faceAnchor } from "./collaborator-faces.tsx";
 import { DocToolbar } from "./doc-toolbar.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useOptionalStorageHref } from "../file-list.tsx";
@@ -69,45 +71,13 @@ export function collaboratorColor(memberId: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(token).trim();
 }
 
-const colorOf = (user: Record<string, unknown>) => {
-  if (typeof user.color === "string") return user.color;
-  if (typeof user.slot !== "number" || user.slot < 1 || user.slot > COLLABORATOR_COLORS) return "";
-  const token = `--collaborator-${Math.floor(user.slot)}`;
-  return getComputedStyle(document.documentElement).getPropertyValue(token).trim();
-};
-
-const caret = (user: Record<string, unknown>) => {
-  const color = colorOf(user);
-  const name = typeof user.name === "string" ? user.name : "";
-  const line = document.createElement("span");
-  line.className = "collaboration-carets__caret";
-  line.style.borderColor = color;
-  const tag = document.createElement("span");
-  tag.className = "collaboration-carets__label";
-  tag.style.backgroundColor = color;
-  if (typeof user.image === "string" && user.image) {
-    const picture = document.createElement("img");
-    picture.src = user.image;
-    picture.alt = "";
-    picture.className = "collaboration-carets__avatar";
-    tag.append(picture);
-  } else {
-    const initial = document.createElement("span");
-    initial.className = "collaboration-carets__avatar";
-    initial.textContent = name.slice(0, 1).toUpperCase();
-    tag.append(initial);
-  }
-  tag.append(document.createTextNode(name));
-  line.append(tag);
-  return line;
-};
-
 const withCarets = (live: LiveDoc, me: Collaborator) => [
   ...liveExtensions(live.doc),
   CollaborationCaret.configure({
     provider: { awareness: live.awareness },
     user: me,
-    render: caret,
+    render: faceAnchor,
+    selectionRender: () => ({}),
   }),
 ];
 
@@ -235,6 +205,7 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   const commenting = useCommentsExtension(comments);
   useLiveComments(doc, props.nodeId);
   const editable = props.editable ?? true;
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const editorProps = useMemo(
     () => ({
       attributes: { class: "document-page", "aria-label": name, tabindex: editable ? "-1" : "0" },
@@ -265,9 +236,14 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   }, [editor, editable]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
+    <div
+      ref={setScroller}
+      className="relative flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain"
+    >
       <EditorContent editor={editor} className="flex-1" />
+      {doc && <CollaboratorFaces editor={editor} scroller={scroller} />}
       <BlockHandle editor={editor} />
+      <BlockComment editor={editor} comments={comments} scroller={scroller} />
       <FormatBar
         editor={editor}
         onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
