@@ -55,6 +55,20 @@ export function wireHtml(html: string, files: ComposerFile[]) {
   return body.innerHTML;
 }
 
+/**
+ * The body with each uploaded inline image shown from its upload rather than a local preview, so
+ * it still shows after the editor that made the preview is gone (an undone send, reopened).
+ */
+export function uploadedImages(html: string, files: ComposerFile[]) {
+  const body = parse(html);
+  for (const img of body.querySelectorAll("img[data-file]")) {
+    const file = files.find((f) => f.id === img.getAttribute("data-file"));
+    if (file?.status !== "ready" || file.attachment?.kind !== "upload") continue;
+    img.setAttribute("src", `/api/uploads/${encodeURIComponent(file.attachment.uploadId)}`);
+  }
+  return body.innerHTML;
+}
+
 /** A saved draft's body back in the editor: its `cid:` images shown from their uploads. */
 export function editorHtml(html: string, uploadIds: string[]) {
   const body = parse(html);

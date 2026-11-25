@@ -151,6 +151,35 @@ test("a draft with a pasted image comes back with the image showing", async () =
   await context.close();
 });
 
+test("clicking into the text puts the caret there", async () => {
+  const { page, body, context } = await openReply("fay@paste.test", "paste-click");
+  await body.click();
+  await page.keyboard.type("world");
+  await body
+    .locator("p")
+    .first()
+    .click({ position: { x: 1, y: 8 } });
+  await page.keyboard.type("Hello ");
+  await expect.poll(() => body.innerText()).toMatch(/^Hello world/);
+  await context.close();
+});
+
+test("an undone send brings its pasted image back showing", async () => {
+  const { page, body, context } = await openReply("gus@paste.test", "paste-undo");
+  await body.click();
+  await page.keyboard.type("Look.");
+  await paste(page, [{ name: "image.png", type: "image/png" }], "");
+  await expect.poll(() => page.getByRole("button", { name: "Send" }).isEnabled()).toBe(true);
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.getByRole("button", { name: "Undo" }).click();
+  const img = body.locator("img");
+  await expect.poll(() => img.getAttribute("src")).toMatch(/^\/api\/uploads\//);
+  await expect
+    .poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+    .toBeGreaterThan(0);
+  await context.close();
+});
+
 test("an image pasted and then deleted from the body is not sent", async () => {
   const { page, body, context, mailboxId } = await openReply("cai@paste.test", "paste-delete");
   await body.click();

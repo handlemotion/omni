@@ -40,7 +40,14 @@ import { Toolbar } from "./toolbar.tsx";
 import { offerUndoSend } from "./undo-send.ts";
 import { copyText } from "@/hooks/use-clipboard.ts";
 import { BodyEditor, type BodyContent, type BodyHandle } from "./body-editor.tsx";
-import { carriedFiles, editorHtml, pastedFiles, textToHtml, wireHtml } from "./body-html.ts";
+import {
+  carriedFiles,
+  editorHtml,
+  pastedFiles,
+  textToHtml,
+  uploadedImages,
+  wireHtml,
+} from "./body-html.ts";
 
 const SIG_SEPARATOR = "-- \n";
 
@@ -336,7 +343,14 @@ function ModeComposer(props: {
 
   const send = () => {
     if (!canSend) return;
-    const before = { text, html, to, cc, bcc, files: files.files };
+    const before = {
+      text,
+      html: uploadedImages(html, files.files),
+      to,
+      cc,
+      bcc,
+      files: files.files,
+    };
     const attachments = sendable(files.files, html);
     const wire = wireHtml(html, files.files);
     const recipientsChanged =
@@ -660,7 +674,15 @@ function NewMessage(props: {
   const canSend = !files.busy && to.length > 0 && !sendNew.isPending;
   const send = () => {
     if (!canSend) return;
-    const before = { to, cc, bcc, subject, text, html, files: files.files };
+    const before = {
+      to,
+      cc,
+      bcc,
+      subject,
+      text,
+      html: uploadedImages(html, files.files),
+      files: files.files,
+    };
     const restore = () => {
       setTo(before.to);
       setCc(before.cc);
@@ -891,7 +913,7 @@ function ComposerFrame(props: {
 }
 
 const CONTROLS =
-  "button, a, input, textarea, select, [role=button], [role=combobox], [role=option], [data-composer-head]";
+  "button, a, input, textarea, select, [role=button], [role=combobox], [role=option], [data-composer-head], [data-composer-body]";
 
 function focusBody(event: React.MouseEvent<HTMLElement>) {
   if (event.button !== 0 || (event.target as HTMLElement).closest(CONTROLS)) return;
