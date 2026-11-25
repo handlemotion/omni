@@ -6,22 +6,11 @@ import { Avatar } from "@/components/ui/avatar";
 import type { AgentAtWork } from "@/hooks/use-agent-editing.ts";
 import { FACE, faceSpot } from "./collaborator-faces.tsx";
 
-/** A pill at the foot of the doc naming the agent editing it; it keeps the name as it fades. */
-export function AgentPill(props: { agent: AgentAtWork | null }) {
-  const last = useRef(props.agent?.name);
-  if (props.agent) last.current = props.agent.name;
+/** Names the agent editing the doc to screen readers; on screen its face and its ink show it. */
+export function AgentStatus(props: { agent: AgentAtWork | null }) {
   return (
-    <div
-      role="status"
-      data-active={props.agent ? "" : undefined}
-      className="agent-pill pointer-events-none absolute bottom-4 left-1/2 flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-1 text-xs text-primary-foreground"
-    >
-      {last.current && (
-        <span aria-hidden={!props.agent} className="contents">
-          <IconSparkleFilled className="size-3.5" aria-hidden />
-          <span className="shimmer">{last.current} is editing</span>
-        </span>
-      )}
+    <div role="status" className="sr-only">
+      {props.agent && `${props.agent.name} is editing`}
     </div>
   );
 }

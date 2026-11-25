@@ -439,6 +439,8 @@ test("an assistant's edit lands live in an open doc, merged with what the person
   const working = ana.locator("[data-agent-face][data-active]");
   expect(await working.count()).toBe(0);
 
+  const ink = ana.locator(".agent-ink");
+  const inked = ink.first().waitFor({ timeout: 20_000 });
   const agent = await connectAgent(origin, jar, {
     scope: "openid mail:read drive:read drive:write",
     authURL: origin.replace(/\/$/, ""),
@@ -451,7 +453,13 @@ test("an assistant's edit lands live in an open doc, merged with what the person
 
   await expect.poll(() => pageText(ana), { timeout: 15_000 }).toContain("Open the meeting at nine");
   await working.waitFor({ timeout: 5_000 });
-  await ana.getByRole("status").filter({ hasText: "Drive agent is editing" }).waitFor();
+  await inked;
+  expect((await ink.allTextContents()).join("").trim()).toBe("at nine");
+  await ana
+    .getByRole("status")
+    .filter({ hasText: "Drive agent is editing" })
+    .waitFor({ state: "attached" });
+  await ink.first().waitFor({ state: "detached", timeout: 5_000 });
   await working.waitFor({ state: "detached", timeout: 15_000 });
   await expect
     .poll(saved, { timeout: 20_000 })

@@ -18,7 +18,8 @@ import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
 import { BlockComment } from "./block-comment.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
-import { AgentFace, AgentPill } from "./agent-presence.tsx";
+import { AgentFace, AgentStatus } from "./agent-presence.tsx";
+import { AgentInk, useAgentInk } from "./agent-ink.ts";
 import { CollaboratorFaces, faceAnchor } from "./collaborator-faces.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useOptionalStorageHref } from "../file-list.tsx";
@@ -54,6 +55,7 @@ const EXTENSIONS = blocks(false);
 const liveExtensions = (doc: Y.Doc) => [
   ...blocks(true),
   Collaboration.configure({ document: doc }),
+  AgentInk,
 ];
 
 /** Who this tab is to the others in the doc: a name, a picture, and a colour that stays theirs. */
@@ -217,6 +219,7 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
     onReady(() => editor.getMarkdown());
   }, [editor, onReady]);
   useCommentMarks(editor, comments);
+  useAgentInk(editor, doc);
   useEffect(() => {
     editor.setEditable(editable);
   }, [editor, editable]);
@@ -238,7 +241,7 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
           onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
         />
       </div>
-      <AgentPill agent={agent} />
+      <AgentStatus agent={agent} />
     </div>
   );
 }

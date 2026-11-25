@@ -154,3 +154,30 @@
 .document-page [data-type="detailsContent"] {
   @apply mt-1;
 }
+
+/* Text an agent just wrote (`AgentInk`): it comes in in the accent blue, holds a beat, and
+   settles into the page's ink. */
+.document-page .agent-ink {
+  animation: agent-ink 2400ms var(--ease-out) both;
+}
+@keyframes agent-ink {
+  from {
+    color: var(--primary);
+    opacity: 0.3;
+  }
+  12% {
+    color: var(--primary);
+    opacity: 1;
+  }
+  45% {
+    color: var(--primary);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes agent-ink {
+    from,
+    45% {
+      color: var(--primary);
+    }
+  }
+}
