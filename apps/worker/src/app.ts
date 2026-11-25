@@ -64,6 +64,7 @@ import { storage } from "./storage/routes.ts";
 import { storageShared } from "./storage/shared.ts";
 import { storageSigning } from "./storage/signing.ts";
 import { storageSync } from "./storage/sync.ts";
+import { storageTransfer } from "./storage/transfer.ts";
 import { workspaces } from "./routes/workspaces.ts";
 import { join } from "./routes/join.ts";
 import { appLinks } from "./routes/app-links.ts";
@@ -238,6 +239,7 @@ export const app = new Hono<AppEnv>()
   .route("/api/meetings/shared", meetingsShared)
   .route("/api/booking", bookingPublic)
   .route("/api/storage/sync", storageSync)
+  .route("/api/storage/transfer", storageTransfer)
   .use("/api/connect/google/callback", desktopGoogleReturn)
   .route("/api", api)
   .onError(answerThrown);

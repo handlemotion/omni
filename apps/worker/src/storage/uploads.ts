@@ -53,13 +53,13 @@ export const tooLarge = (c: Context<AppEnv>, size: number) =>
  * the row fails, the row is aborted and the error thrown.
  */
 export async function startObject(
-  c: Context<AppEnv>,
+  bucket: R2Bucket,
   files: MemberStorage | SharedStorage,
   opened: StorageUpload,
 ) {
   if (opened.size === 0) return opened;
   try {
-    const multipart = await c.env.STORAGE_BUCKET.createMultipartUpload(opened.r2Key);
+    const multipart = await bucket.createMultipartUpload(opened.r2Key);
     const started = await files.startUpload(opened.id, multipart.uploadId);
     if (!started) throw new Error("storage: the upload was gone before it started");
     return started;
@@ -109,17 +109,26 @@ async function findUploadRow(c: Context<AppEnv>, id: string) {
   return upload?.orgId === orgId ? upload : null;
 }
 
-async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
-  const n = Number(c.req.param("n"));
+/**
+ * Stores part `n` of upload `uploadId` from `body`, which must be exactly the part's length
+ * (`length`, the request's content-length), and answers the part, or why it was refused.
+ */
+export async function storePart(
+  c: Context<AppEnv>,
+  uploadId: string,
+  n: number,
+  body: ReadableStream | Uint8Array | null,
+  length: number,
+) {
   const { files } = writeDoor(c);
-  const upload = await findUploadRow(c, c.req.param("id") ?? "");
+  const upload = await findUploadRow(c, uploadId);
   if (!upload || (!upload.nodeId && !live(upload))) return refused(c, "not_found");
   if (upload.nodeId) return apiError(c, "upload_complete", "the upload is already a file");
   if (n < 1 || n > partCount(upload.size) || !upload.r2UploadId) {
     return apiError(c, "invalid_part", `the upload has ${partCount(upload.size)} parts`);
   }
   const expected = partLength(upload.size, n);
-  if (!body || Number(c.req.header("content-length")) !== expected) {
+  if (!body || length !== expected) {
     return apiError(c, "invalid_part", `part ${n} must be exactly ${expected} bytes`);
   }
   const multipart = c.env.STORAGE_BUCKET.resumeMultipartUpload(upload.r2Key, upload.r2UploadId);
@@ -168,6 +177,41 @@ async function prepareObject(c: Context<AppEnv>, upload: StorageUpload) {
   return apiError(c, "checksum_mismatch", "the bytes stored do not match the sha256 sent");
 }
 
+/**
+ * Makes upload `uploadId` a file once all its parts are stored, and answers the file, or why it
+ * was refused. `ifContentVersion` refuses a new version when the file moved on.
+ */
+export async function completeUpload(
+  c: Context<AppEnv>,
+  uploadId: string,
+  ifContentVersion: number | null | undefined,
+) {
+  const { db, config, log } = c.var;
+  const { files } = writeDoor(c);
+  const upload = await findUpload(c, uploadId);
+  if (!upload) return refused(c, "not_found");
+  if (!upload.nodeId) {
+    if (!live(upload)) return refused(c, "not_found");
+    const unready = await prepareObject(c, upload);
+    if (unready) return unready;
+  }
+  const { limitBytes } = await storageLimit(db, config, upload.orgId);
+  const done = await files.completeUpload(upload.id, { limitBytes, ifContentVersion });
+  if (done.status === "ok") {
+    announceDrives(c, [done.node]);
+    journalSaved(c, done.node);
+    return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
+  }
+  if (done.status === "not_found") {
+    const aborted = await files.abortUpload(upload.id);
+    if (aborted.status === "ok") {
+      await deleteStorageObjects(c.env.STORAGE_BUCKET, [aborted.r2Key], log);
+    }
+  }
+  if (done.status === "version_conflict") return staleSave(c, done.contentVersion);
+  return refused(c, done.status);
+}
+
 export const storageUploads = new Hono<AppEnv>()
   .post("/uploads", zValidator("json", storageOpenUploadBodySchema), async (c) => {
     const { name, size, mimeType, sha256, parentId, space, teamspaceId } = c.req.valid("json");
@@ -185,7 +229,7 @@ export const storageUploads = new Hono<AppEnv>()
       caps: uploadCaps(config),
     });
     if (opened.status !== "ok") return refused(c, opened.status);
-    return c.json(answer(await startObject(c, files, opened.upload)), 201);
+    return c.json(answer(await startObject(c.env.STORAGE_BUCKET, files, opened.upload)), 201);
   })
 
   .get("/uploads/:id", async (c) => {
@@ -212,7 +256,13 @@ export const storageUploads = new Hono<AppEnv>()
 
   .put("/uploads/:id/parts/:n{[0-9]+}", async (c) => {
     const body = c.req.raw.body;
-    const stored = await storePart(c, body);
+    const stored = await storePart(
+      c,
+      c.req.param("id"),
+      Number(c.req.param("n")),
+      body,
+      Number(c.req.header("content-length")),
+    );
     if (body && !body.locked) await body.pipeTo(new WritableStream()).catch(() => {});
     return stored;
   })
@@ -224,31 +274,7 @@ export const storageUploads = new Hono<AppEnv>()
     if (!guard.success) {
       return apiError(c, "bad_request", "ifContentVersion must be a whole number");
     }
-    const { ifContentVersion } = guard.data;
-    const { db, config, log } = c.var;
-    const { files } = writeDoor(c);
-    const upload = await findUpload(c, c.req.param("id"));
-    if (!upload) return refused(c, "not_found");
-    if (!upload.nodeId) {
-      if (!live(upload)) return refused(c, "not_found");
-      const unready = await prepareObject(c, upload);
-      if (unready) return unready;
-    }
-    const { limitBytes } = await storageLimit(db, config, upload.orgId);
-    const done = await files.completeUpload(upload.id, { limitBytes, ifContentVersion });
-    if (done.status === "ok") {
-      announceDrives(c, [done.node]);
-      journalSaved(c, done.node);
-      return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
-    }
-    if (done.status === "not_found") {
-      const aborted = await files.abortUpload(upload.id);
-      if (aborted.status === "ok") {
-        await deleteStorageObjects(c.env.STORAGE_BUCKET, [aborted.r2Key], log);
-      }
-    }
-    if (done.status === "version_conflict") return staleSave(c, done.contentVersion);
-    return refused(c, done.status);
+    return completeUpload(c, c.req.param("id"), guard.data.ifContentVersion);
   })
 
   .delete("/uploads/:id", async (c) => {

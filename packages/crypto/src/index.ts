@@ -24,6 +24,7 @@ export {
   type Keyring,
 } from "./credentials.ts";
 export { signDomainConnectQuery } from "./domain-connect.ts";
+export { signTransferKey, transferOfKey, type TransferGrant } from "./transfer-key.ts";
 export {
   decodeBase64,
   randomToken,

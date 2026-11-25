@@ -39,7 +39,8 @@ questions should need two calls; none should need five.
 - Sending mail, or any action that reaches someone outside Wok. Later, behind its own scope and
   an explicit per-send confirmation (MCP input requests).
 - Admin surfaces: domains, billing, members, inbox provisioning.
-- Attachment contents. Agents get file metadata only.
+- Mail attachment contents. Agents get file metadata only (Drive files move with
+  `drive_upload` and `drive_download`).
 - MCP Apps (inline UI widgets), prompts, resources other than bundled skills (see "`report_feedback`"), subscriptions. Tools only: that is what both
   clients use reliably today.
 - API keys or personal access tokens. ChatGPT does not accept them, and Claude only has them in a
@@ -436,6 +437,35 @@ Notion's `create-comment` and `get-comments`, over the comments people write in 
 - **Doors.** The member door for files in the person's workspaces, the grant door for what was
   shared with them (a commenter or editor grant may comment). Notifications and the realtime
   `commentsChanged` go out as they do for a person's comment.
+
+### Files to and from the agent's machine: `drive_upload`, `drive_download`
+
+An agent that runs on a machine (Claude Code, Codex, a script) moves files between that machine
+and Drive without sending the bytes through the model. MCP has no file transfer, so the tools hand
+out short-lived links that `curl` uses; an agent without a shell sends and gets small files inline.
+
+- **Upload.** `drive_upload { name, folder_id | teamspace_id }` for a new file, or `{ id }` for its
+  next version (checked against the version read, like the app's save), with one of:
+  `text` or `base64` (up to 1 MB, written at once through `writeText`, answering the file), or
+  `size` and an optional `sha256`. With `size` it opens an upload as the app does
+  (`openUpload` / `openVersionUpload`, quota, caps, the agent's name on the version) and answers a
+  link good for an hour and a `curl -T` command. One `PUT` of the whole file (up to 96 MB, under the
+  Worker's 100 MB body cap) is split into 16 MB parts on the way and completed, answering the file;
+  a larger one sends `PUT ?part=n` per part, then `POST`. A sha256 that does not match is refused
+  and nothing is kept. Wok docs, Markdown files, sheets and canvases are refused as targets: their
+  edit tools merge with live editors, a raw upload would not.
+- **Download.** `drive_download { id, ids?, inline? }`, up to 10 files, scope `drive:read`: each
+  answers a link good for 15 minutes and a `curl -o <name>` command. With `inline`, pictures (PNG,
+  JPEG, GIF, WebP up to 3.75 MB) come back as MCP image content the model can see, and other files
+  up to 1 MB as base64, 5 MB a call in all.
+- **Links.** `/api/storage/transfer/<key>` (`apps/worker/src/storage/transfer.ts`). The key is
+  `signTransferKey` (`@omni/crypto`): an HMAC under `BETTER_AUTH_SECRET`, domain-separated from the
+  other keys made with it, over `get` or `put`, the file or upload id, the user, the
+  connection's workspace scope, the workspace whose member door it uses (none for a share), the
+  version a `put` replaces, and the expiry. Nothing is stored. Each use checks again, through the
+  same doors as the app: the member must still be a member (`findMember`), the file must still
+  open for them, so removing someone or unsharing a file ends their links at once. Request logs
+  name the route pattern, never the key. No new service or variable.
 
 ### Meetings: `meetings_search`, `meetings_fetch`, `meetings_group`, `meetings_decide`, `meetings_rename_speaker`, `meetings_share`
 
