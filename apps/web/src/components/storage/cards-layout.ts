@@ -1,7 +1,7 @@
 import { GridLayout, Size, type GridLayoutOptions } from "react-aria-components/Virtualizer";
 import type { LayoutInfo } from "react-aria-components/Virtualizer";
 
-const CARD = 176;
+const CARD = 160;
 /** A narrower card for a folder shown in a pane (a CRM record's Files tab): about six a row. */
 export const COMPACT_CARD = 104;
 const GAP_X = 12;
