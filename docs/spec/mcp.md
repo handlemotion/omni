@@ -451,7 +451,8 @@ out short-lived links that `curl` uses; an agent without a shell sends and gets 
   (`openUpload` / `openVersionUpload`, quota, caps, the agent's name on the version) and answers a
   link good for an hour and a `curl -T` command. One `PUT` of the whole file (up to 96 MB, under the
   Worker's 100 MB body cap) is split into 16 MB parts on the way and completed, answering the file;
-  a larger one sends `PUT ?part=n` per part, then `POST`. A sha256 that does not match is refused
+  a larger one sends `PUT ?part=n` per part from a temporary file (so `curl` sends its length), then
+  `POST`. Sizes over `STORAGE_MAX_FILE_BYTES` or R2's part count are refused before anything opens. A sha256 that does not match is refused
   and nothing is kept. Wok docs, Markdown files, sheets and canvases are refused as targets: their
   edit tools merge with live editors, a raw upload would not.
 - **Download.** `drive_download { id, ids?, inline? }`, up to 10 files, scope `drive:read`: each

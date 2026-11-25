@@ -1,4 +1,9 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import type { Client } from "@modelcontextprotocol/client";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { connectAgent } from "./mcp-support.ts";
@@ -8,12 +13,18 @@ import { WEB_ORIGIN } from "./support.ts";
 let stack: StorageStack;
 beforeAll(async () => {
   stack = await startStorageStack({
-    vars: { WEB_APP_URL: WEB_ORIGIN, RATE_LIMIT_AUTH: "off", RATE_LIMIT_SEARCH: "off" },
+    vars: {
+      WEB_APP_URL: WEB_ORIGIN,
+      RATE_LIMIT_AUTH: "off",
+      RATE_LIMIT_SEARCH: "off",
+      STORAGE_MAX_FILE_BYTES: String(MAX_FILE_BYTES),
+    },
   });
 }, 120_000);
 afterAll(() => stack?.stop());
 
 const WRITE = "openid mail:read drive:read drive:write";
+const MAX_FILE_BYTES = 120 * 1024 * 1024;
 const PNG = Uint8Array.from(
   atob(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
@@ -189,4 +200,43 @@ test("a file over one part goes up in one PUT, split into parts on the way", asy
   expect(node.size).toBe(bytes.byteLength);
   const back = new Uint8Array(await (await stack.download(ana.jar, node.id)).arrayBuffer());
   expect(sha256(back)).toBe(sha256(bytes));
+});
+
+test("a file over 96 MB goes up part by part with the command the tool answers, and one over the cap is refused", async () => {
+  const { ana, teamspaceId, agent } = await setUp("acme-huge");
+  expect(
+    (
+      await call(agent, "drive_upload", {
+        name: "x.bin",
+        teamspace_id: teamspaceId,
+        size: MAX_FILE_BYTES + 1,
+      })
+    ).error,
+  ).toContain("larger than one file may be");
+
+  const bytes = new Uint8Array(97 * 1024 * 1024);
+  for (let i = 0; i < bytes.length; i += 1024) bytes[i] = (i / 1024) % 253;
+  const opened = await call(agent, "drive_upload", {
+    name: "huge.bin",
+    teamspace_id: teamspaceId,
+    size: bytes.byteLength,
+    sha256: sha256(bytes),
+  });
+  expect(opened.upload.parts).toMatchObject({ count: 7 });
+  const dir = await mkdtemp(join(tmpdir(), "drive-upload-"));
+  try {
+    await writeFile(join(dir, "huge.bin"), bytes);
+    const origin = new URL(opened.upload.url).origin;
+    const command = opened.upload.command.replaceAll(origin, new URL(stack.worker.url).origin);
+    const { stdout } = await promisify(execFile)("bash", ["-c", command], {
+      cwd: dir,
+      maxBuffer: 1024 * 1024,
+    });
+    const node = JSON.parse(stdout.slice(stdout.lastIndexOf('{"node"'))).node;
+    expect(node).toMatchObject({ name: "huge.bin", size: bytes.byteLength });
+    const back = new Uint8Array(await (await stack.download(ana.jar, node.id)).arrayBuffer());
+    expect(sha256(back)).toBe(sha256(bytes));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

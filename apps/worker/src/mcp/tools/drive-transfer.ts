@@ -1,12 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { isOmniCanvas } from "@omni/canvas";
-import { baseMimeType, opensAsDoc, STORAGE_PART_BYTES } from "@omni/contracts";
+import { baseMimeType, opensAsDoc, STORAGE_MAX_PARTS, STORAGE_PART_BYTES } from "@omni/contracts";
 import { signTransferKey, toBase64, type TransferGrant } from "@omni/crypto";
 import { forUser, type ContextRead, type StorageContext } from "@omni/db";
 import { isOmniSheet } from "@omni/sheets";
 import { z } from "zod";
 import { writeText } from "../../storage/doc-write.ts";
-import { storageLimit } from "../../storage/core.ts";
+import { partCount, storageLimit } from "../../storage/core.ts";
 import { STORAGE_TRANSFER_WHOLE_BYTES } from "../../storage/transfer.ts";
 import { startObject, uploadCaps } from "../../storage/uploads.ts";
 import { driveFor, item, itemSchema } from "../drive.ts";
@@ -262,6 +262,23 @@ async function writeNow(
     : toolError("The file was written, but it could not be opened again.");
 }
 
+const partsCommand = (name: string, url: string, parts: number) =>
+  [
+    "(set -e; part=$(mktemp); trap 'rm -f \"$part\"' EXIT;",
+    `for n in $(seq 1 ${parts}); do`,
+    `dd if=${quoted(name)} of="$part" bs=${STORAGE_PART_BYTES} skip=$((n-1)) count=1 status=none;`,
+    `curl -sS --fail-with-body -T "$part" ${quoted(url)}"?part=$n";`,
+    "done;",
+    `curl -sS --fail-with-body -X POST ${quoted(url)})`,
+  ].join(" ");
+
+const sizeRefusal = (context: ToolContext, size: number) =>
+  size > context.config.STORAGE_MAX_FILE_BYTES || partCount(size) > STORAGE_MAX_PARTS
+    ? toolError(
+        `That file is larger than one file may be here (${context.config.STORAGE_MAX_FILE_BYTES} bytes).`,
+      )
+    : null;
+
 async function openLink(
   context: ToolContext,
   target: Target,
@@ -308,7 +325,7 @@ async function openLink(
       expires_at: expiresAt.toISOString(),
       command: whole
         ? `curl -sS --fail-with-body -T ${quoted(target.name)} ${quoted(url)}`
-        : `for n in $(seq 1 ${parts}); do dd if=${quoted(target.name)} bs=${STORAGE_PART_BYTES} skip=$((n-1)) count=1 status=none | curl -sS --fail-with-body -T - "${url}?part=$n"; done && curl -sS --fail-with-body -X POST ${quoted(url)}`,
+        : partsCommand(target.name, url, parts),
       ...(whole
         ? {}
         : { parts: { part_bytes: STORAGE_PART_BYTES, count: parts, put: url, complete: url } }),
@@ -326,6 +343,8 @@ async function upload(context: ToolContext, input: UploadInput) {
   const blocked = await ready(context, target.orgId);
   if (blocked) return toolError(blocked);
   if (input.size === undefined) return writeNow(context, scoped.drive, target, input);
+  const tooLarge = sizeRefusal(context, input.size);
+  if (tooLarge) return tooLarge;
   return openLink(context, target, { ...input, size: input.size });
 }
 
