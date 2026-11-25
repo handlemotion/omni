@@ -12,7 +12,6 @@ import {
   IconMarkdown,
   IconNewDoc,
   IconPencil,
-  IconSettings,
   IconTrash,
   IconUserAdd,
 } from "@/components/icons/central";
@@ -27,7 +26,7 @@ import {
   useTrashNode,
 } from "@/hooks/use-storage.ts";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { ShareDialog } from "./share-dialog.tsx";
 import { TeamspaceSettingsDialog } from "./teamspace-dialogs.tsx";
 import {
   driveOf,
@@ -86,17 +85,27 @@ export function FileList({ drive, folderId }: { drive: DriveRoot; folderId?: str
   const path = list.folder?.path ?? [];
   const folderHref = useMemo(() => (node: StorageNode) => href(driveOf(node), node.id), [href]);
   const label = useDriveLabel(drive);
+  const hidden = "space" in drive && drive.space === "personal";
+  const drafts = path[0];
   return (
     <FolderView
       title={(leaf) => (
         <FolderCrumbs
-          top={{ name: label, href: href(drive) }}
-          path={path}
+          top={
+            hidden && drafts
+              ? { name: drafts.name, href: href(drive, drafts.id) }
+              : { name: label, href: href(drive) }
+          }
+          path={hidden ? path.slice(1) : path}
           href={(id) => href(drive, id)}
           leaf={leaf}
         />
       )}
-      actions={"teamspaceId" in drive ? <TeamspaceButton id={drive.teamspaceId} /> : undefined}
+      actions={
+        hidden && path.length <= 1 ? undefined : (
+          <ShareButton drive={drive} folder={folderId ? (path.at(-1) ?? null) : null} />
+        )
+      }
       source={{
         label: path.at(-1)?.name ?? label,
         place,
@@ -120,25 +129,23 @@ export function useDriveLabel(drive: DriveRoot) {
   return "space" in drive ? SPACE_LABEL[drive.space] : (teamspace ?? "");
 }
 
-function TeamspaceButton(props: { id: string }) {
+function ShareButton(props: { drive: DriveRoot; folder: { id: string; name: string } | null }) {
   const { teamspaces } = useTeamspaces();
-  const teamspace = teamspaces.find((each) => each.id === props.id);
+  const teamspace =
+    "teamspaceId" in props.drive
+      ? teamspaces.find((each) => each.id === (props.drive as { teamspaceId: string }).teamspaceId)
+      : undefined;
   const [open, setOpen] = useState(false);
-  if (!teamspace) return null;
+  if (!props.folder && !teamspace) return null;
   return (
     <>
-      <TooltipTrigger delay={400}>
-        <Button
-          intent="plain"
-          size="sq-sm"
-          aria-label="Space settings"
-          onPress={() => setOpen(true)}
-        >
-          <IconSettings />
-        </Button>
-        <Tooltip>Space settings</Tooltip>
-      </TooltipTrigger>
-      {open && <TeamspaceSettingsDialog teamspace={teamspace} onClose={() => setOpen(false)} />}
+      <Button size="sm" onPress={() => setOpen(true)}>
+        Share
+      </Button>
+      {open && props.folder && <ShareDialog node={props.folder} onClose={() => setOpen(false)} />}
+      {open && !props.folder && teamspace && (
+        <TeamspaceSettingsDialog teamspace={teamspace} onClose={() => setOpen(false)} />
+      )}
     </>
   );
 }

@@ -18,6 +18,7 @@ import {
   SYSTEM_MAIL_FROM,
 } from "../../worker/e2e/support.ts";
 import { openSpace } from "./spaces.ts";
+import { uploadFiles } from "./uploads.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
@@ -57,14 +58,11 @@ test("files and folders move by dragging them onto folders on the page and in th
     .waitFor({ timeout: 15_000 });
   const photos = await folder(page, { name: "Photos", teamspaceId });
   const projects = await folder(page, { name: "Projects", teamspaceId });
-  const drafts = await folder(page, { name: "Drafts", parentId: projects });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles([
-      { name: "sunset.png", mimeType: "image/png", buffer: Buffer.from("sunset") },
-      { name: "forest.png", mimeType: "image/png", buffer: Buffer.from("forest") },
-    ]);
+  const drafts = await folder(page, { name: "Sketches", parentId: projects });
+  await uploadFiles(page, [
+    { name: "sunset.png", mimeType: "image/png", buffer: Buffer.from("sunset") },
+    { name: "forest.png", mimeType: "image/png", buffer: Buffer.from("forest") },
+  ]);
   await page.getByRole("row", { name: /forest\.png/ }).waitFor({ timeout: 30_000 });
   const sidebar = (name: string) => page.getByRole("link", { name, exact: true });
 
@@ -89,26 +87,26 @@ test("files and folders move by dragging them onto folders on the page and in th
     .toEqual(["dropped.txt", "sunset.png"]);
 
   await drag(page, page.getByRole("row", { name: /forest\.png/ }), sidebar("Projects"));
-  await expect.poll(() => names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
+  await expect.poll(() => names(page, { parent: projects })).toEqual(["Sketches", "forest.png"]);
 
   const projectsToggle = page.getByRole("button", { name: /^(Expand|Collapse) Projects$/ });
   if ((await projectsToggle.getAttribute("aria-expanded")) === "false")
     await projectsToggle.click();
-  await sidebar("Drafts").waitFor();
-  await drag(page, page.getByRole("row", { name: /Projects/ }).first(), sidebar("Drafts"));
+  await sidebar("Sketches").waitFor();
+  await drag(page, page.getByRole("row", { name: /Projects/ }).first(), sidebar("Sketches"));
   expect(await names(page, { parent: drafts })).toEqual([]);
 
   await drag(page, sidebar("Photos"), sidebar("Projects"));
   await expect
     .poll(() => names(page, { parent: projects }))
-    .toEqual(["Drafts", "Photos", "forest.png"]);
+    .toEqual(["Photos", "Sketches", "forest.png"]);
   expect(await names(page, { teamspace: teamspaceId })).toEqual(["Projects"]);
   expect(await names(page, { parent: photos })).toEqual(["dropped.txt", "sunset.png"]);
   await page.getByRole("row", { name: /Photos/ }).waitFor({ state: "detached" });
 
   await drag(page, sidebar("Photos"), sidebar("Projects"), "bottom");
   await expect.poll(() => names(page, { teamspace: teamspaceId })).toEqual(["Photos", "Projects"]);
-  expect(await names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
+  expect(await names(page, { parent: projects })).toEqual(["Sketches", "forest.png"]);
 });
 
 async function drag(page: Page, from: Locator, to: Locator, at: "middle" | "bottom" = "middle") {

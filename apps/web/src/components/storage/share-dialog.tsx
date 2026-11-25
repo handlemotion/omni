@@ -42,7 +42,10 @@ const EXPIRY: { id: string; label: string; days: number | null }[] = [
 ];
 const DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
-export function ShareDialog(props: { node: StorageNode; onClose: () => void }) {
+export function ShareDialog(props: {
+  node: Pick<StorageNode, "id" | "name">;
+  onClose: () => void;
+}) {
   const sharing = useStorageSharing(props.node.id);
   return (
     <SharingDialog name={props.node.name} sharing={sharing.data?.sharing} onClose={props.onClose}>

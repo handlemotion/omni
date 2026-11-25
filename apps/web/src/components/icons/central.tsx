@@ -28,6 +28,7 @@ export { IconArrowBoxLeft as IconLogOut } from "central-icons-outlined/IconArrow
 export { IconEmail1 as IconMail } from "central-icons-outlined/IconEmail1";
 export { IconMailbox } from "central-icons-outlined/IconMailbox";
 export { IconPencil } from "central-icons-outlined/IconPencil";
+export { IconFileEdit } from "central-icons-outlined/IconFileEdit";
 export { IconPlusMedium as IconPlus } from "central-icons-outlined/IconPlusMedium";
 export { IconPaperPlane as IconSend } from "central-icons-outlined/IconPaperPlane";
 export { IconSignature } from "central-icons-outlined/IconSignature";

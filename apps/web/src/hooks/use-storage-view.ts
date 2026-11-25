@@ -1,10 +1,6 @@
-import { storedChoice } from "../lib/stored-preference.ts";
-
 export type StorageView = "rows" | "cards";
 
-/** `[view, setView]` for Drive's folders. */
-export const useStorageView = storedChoice<StorageView>(
-  "omni:storage-view",
-  ["rows", "cards"],
-  "cards",
-);
+const CARDS: readonly [StorageView] = ["cards"];
+
+/** `[view]` for Drive's folders: cards, always. */
+export const useStorageView = () => CARDS;

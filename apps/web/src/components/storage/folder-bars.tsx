@@ -1,12 +1,20 @@
 import type { ReactNode } from "react";
+import {
+  IconFolder,
+  IconFolderPlus,
+  IconNewDoc,
+  IconPlus,
+  IconTable,
+  IconUpload,
+} from "@/components/icons/central";
+import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Button } from "@/components/ui/button";
 import { FileTrigger } from "@/components/ui/file-trigger";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
 import type { FolderSource } from "./folder-view.tsx";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
 import { InPane } from "./in-pane.ts";
-import { ViewToggle } from "./file-sections.tsx";
-import { HeaderActions } from "./folder-body.tsx";
+import { pickFiles } from "./folder-context.tsx";
 import { SelectionBar } from "./selection-bar.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
 
@@ -62,7 +70,10 @@ export function FolderPane(props: { bar: ReactNode; children: ReactNode }) {
   );
 }
 
-/** A folder's header actions: the layout switch, the page's own, New and Upload, or what a selection can do. */
+/**
+ * A folder's header actions: one bordered button that makes or uploads something here, then the
+ * page's own (Share), or what a selection can do.
+ */
 export function FolderActions(props: {
   extra: ReactNode;
   empty: boolean;
@@ -76,18 +87,18 @@ export function FolderActions(props: {
 }) {
   const { selection, source } = props;
   if (!selection.active) {
-    if (props.empty) return null;
+    if (props.empty) return props.extra;
     return (
       <>
-        <ViewToggle />
+        {source.canWrite && (
+          <AddMenu
+            onNewFolder={props.onNewFolder}
+            onNewDoc={props.onNewDoc}
+            pending={props.newDocPending}
+            onFiles={props.onFiles}
+          />
+        )}
         {props.extra}
-        <HeaderActions
-          canWrite={source.canWrite}
-          onNewFolder={props.onNewFolder}
-          onNewDoc={props.onNewDoc}
-          newDocPending={props.newDocPending}
-          onFiles={props.onFiles}
-        />
       </>
     );
   }
@@ -100,5 +111,57 @@ export function FolderActions(props: {
       canTrash={source.canTrash}
       onMove={props.onMove}
     />
+  );
+}
+
+function AddMenu(props: {
+  onNewFolder: () => void;
+  onNewDoc: (() => void) | undefined;
+  pending: boolean;
+  onFiles: (files: File[] | Picked) => void;
+}) {
+  return (
+    <MenuTrigger>
+      <Button intent="outline" size="sm" isPending={props.pending}>
+        <IconPlus data-slot="icon" />
+        New
+      </Button>
+      <Menu placement="bottom end" aria-label="New" popover={{ className: "min-w-56" }}>
+        <MenuItem
+          id="doc"
+          textValue="New doc"
+          isDisabled={!props.onNewDoc}
+          onAction={props.onNewDoc}
+        >
+          <IconNewDoc data-slot="icon" />
+          <MenuLabel>New doc</MenuLabel>
+        </MenuItem>
+        <MenuItem id="sheet" textValue="New sheet" isDisabled>
+          <IconTable data-slot="icon" />
+          <MenuLabel>New sheet</MenuLabel>
+        </MenuItem>
+        <MenuItem id="folder" textValue="New folder" onAction={props.onNewFolder}>
+          <IconFolderPlus data-slot="icon" />
+          <MenuLabel>New folder</MenuLabel>
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
+          id="upload-files"
+          textValue="Upload files"
+          onAction={() => pickFiles(props.onFiles)}
+        >
+          <IconUpload data-slot="icon" />
+          <MenuLabel>Upload files</MenuLabel>
+        </MenuItem>
+        <MenuItem
+          id="upload-folder"
+          textValue="Upload folder"
+          onAction={() => pickFiles(props.onFiles, true)}
+        >
+          <IconFolder data-slot="icon" />
+          <MenuLabel>Upload folder</MenuLabel>
+        </MenuItem>
+      </Menu>
+    </MenuTrigger>
   );
 }

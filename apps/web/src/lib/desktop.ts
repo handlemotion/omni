@@ -111,7 +111,7 @@ export const desktop = {
   },
 };
 
-const TITLE_BAR_PX = 48;
+const TITLE_BAR_PX = 44;
 
 const CONTROL = "button, a, input, textarea, select, label, [role], [contenteditable]";
 

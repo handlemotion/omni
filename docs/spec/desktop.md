@@ -7,7 +7,7 @@ Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md`
 Wok gets a desktop app for macOS and Windows. It is two things in one install:
 
 1. **The app.** The web app, unchanged, in a native window: its own Dock icon, the traffic lights
-   on the sidebar's top row beside the module switcher, native notifications, deep links, auto-update. Built on Tauri 2.
+   on the sidebar's top row, native notifications, deep links, auto-update. Built on Tauri 2.
 2. **Drive on the computer.** Storage shows up as one folder the operating system owns,
    `~/Library/CloudStorage/Wok` on macOS, "Wok" in Finder's sidebar, with a folder inside for
    each synced workspace and files that download when opened and upload when saved. This is a macOS File Provider extension. Windows
@@ -232,8 +232,8 @@ after a spike. Swift side: Foundation and FileProvider only.
 - **First run.** A hosted build opens its configured origin directly. A build with no origin
   shows the server picker; the answer is stored and changeable from the app menu.
 - **Window.** macOS: `titleBarStyle: Overlay`, hidden title, traffic lights positioned on the
-  sidebar's 48px top row, the red one's centre as far from the window's left edge as from its top
-  (24pt). Windows: no native title bar. The web app draws minimize,
+  sidebar's 44px top row, the red one's centre as far from the window's left edge as from its top
+  (22pt). Windows: no native title bar. The web app draws minimize,
   maximize (restore when maximized) and close at the window's top right corner, on every screen,
   as Windows draws them (46px wide, the title row's height, Segoe Fluent Icons' glyphs, close red
   under the pointer, glyphs muted while the window is inactive), over the page header's right
@@ -273,18 +273,19 @@ is loaded by dynamic import, so the browser bundle does not carry it). These are
 `apps/web`, asked for by the founder; they follow `DESIGN.md`, use existing `components/ui`
 primitives, and add no text.
 
-- **The shell** (every viewport wider than a phone, in the browser too): all white, the
-  sidebar and the page side by side with a hairline between them, no inset, no rounded island,
-  no page tabs. The sidebar is always open (no toggle, no rail) and can be resized.
-  - The sidebar's **top row**, 48px and in line with the page's own header: the module switcher
-    (the module's mark and name with a small chevron; its menu lists the modules) and, opposite
-    it, notifications (whose panel slides in from the window's right edge) and Search. In the
-    browser the switcher is the larger variant (17px name, 24px+ mark, heavier chevron) at the
-    row's start. In the desktop app the traffic lights sit at the row's start and the switcher,
-    small, is centred between them and the icons; the row is a drag region except its controls.
-    Back and forward are keyboard only.
-  - Then the module's nav, and at the sidebar's foot the workspace switcher, whose menu also
-    holds account, workspace and connection settings, Invite, Upgrade and Log out.
+- **The shell** (every viewport wider than a phone, in the browser too): the rail, the sidebar
+  and the page side by side, the rail and the sidebar on the sidebar's off-white with a hairline
+  after each, no inset, no rounded island, no page tabs. The sidebar is always open (no toggle)
+  and can be resized.
+  - The **rail** (52px): the workspace's mark at its top, in line with the sidebar's top row (its
+    menu switches workspaces and holds account, workspace and connection settings, Invite,
+    Upgrade and Log out), then a tile per module, its mark alone, its name as a tooltip.
+  - The sidebar's **top row**, 44px and in line with the page's own header (44px, 16px padding
+    on both sides): the module's name, and opposite it notifications (whose panel slides in from
+    the window's right edge) and Search. In the desktop app the traffic lights sit over the
+    rail's top and the row's start, and the rail's tiles start under the row; the row is a drag
+    region except its controls. Back and forward are keyboard only.
+  - Then the module's nav.
   - **Who is online** (Talk) sits in each page's own header, before its actions: the inbox list,
     a thread, Drive, Clients and a client's record, Calendar, Meetings. With panes side by side
     (a thread open beside the list) only the leftmost header shows it.

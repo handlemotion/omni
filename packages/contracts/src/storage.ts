@@ -553,6 +553,10 @@ export type StorageListResponse = z.infer<typeof storageListResponseSchema>;
 export type StorageNodeResponse = z.infer<typeof storageNodeResponseSchema>;
 export type StorageTrashResponse = z.infer<typeof storageTrashResponseSchema>;
 export type StorageFindResponse = z.infer<typeof storageFindResponseSchema>;
+
+/** `GET /drafts`: the member's private Drafts folder, made on first use. */
+export const storageDraftsResponseSchema = z.object({ folderId: z.string() });
+export type StorageDraftsResponse = z.infer<typeof storageDraftsResponseSchema>;
 export type StorageFolderIconsResponse = z.infer<typeof storageFolderIconsResponseSchema>;
 export type StorageCreateFolderBody = z.infer<typeof storageCreateFolderBodySchema>;
 export type StorageChangeNodeBody = z.infer<typeof storageChangeNodeBodySchema>;

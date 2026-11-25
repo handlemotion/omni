@@ -14,7 +14,7 @@ import {
 } from "@/components/icons/central";
 import { Button, PageBarActions } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
-import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
+import { PageNav } from "@/components/shell/page-nav";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
@@ -219,7 +219,7 @@ function ConversationSkeleton() {
         className={SECTION}
         skeleton={
           <>
-            <div className="flex h-12 shrink-0 items-center gap-3 border-b ps-5 pe-4">
+            <div className="flex h-bar shrink-0 items-center gap-3 border-b px-4">
               <span className="min-w-0 flex-1">
                 <SkeletonBox width="45%" height={14} />
               </span>
@@ -348,13 +348,12 @@ function threadSubject(thread: Thread | undefined) {
 
 function Actions({ thread, subject }: { thread: Thread; subject: string }) {
   const [fullScreen, toggleFullScreen] = useFullScreen();
-  const pageNav = usePageNavShown();
   const navigate = useNavigate();
   const closeHref = useOpenList()?.closeHref;
 
   return (
     <div
-      className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${fullScreen && pageNav ? "ps-2.5" : "ps-5"} ${fullScreen ? "" : "border-s"}`}
+      className={`flex h-bar shrink-0 items-center gap-3 border-b px-4 ${fullScreen ? "" : "border-s"}`}
     >
       {fullScreen && <PageNav />}
       {fullScreen && (

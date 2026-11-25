@@ -1,7 +1,7 @@
 import { PageBarActions } from "@/components/ui/button";
 import { PagePresence } from "@/components/talk/presence-stack";
 import type { ReactNode } from "react";
-import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
+import { PageNav } from "@/components/shell/page-nav";
 
 export function StorageFrame(props: {
   /** The header's leading part: a heading, or breadcrumbs. */
@@ -17,7 +17,7 @@ export function StorageFrame(props: {
 }) {
   const header = (toggle: ReactNode, inset: string) => (
     <header
-      className={`flex h-12 shrink-0 items-center gap-2 pe-2.5 ${inset} ${props.bordered ? "border-b" : ""}`}
+      className={`flex h-bar shrink-0 items-center gap-2 px-4 ${inset} ${props.bordered ? "border-b" : ""}`}
     >
       {toggle}
       <div className="flex min-w-0 items-center">{props.title}</div>
@@ -36,13 +36,12 @@ export function StorageFrame(props: {
     <section
       className={`relative flex min-h-0 min-w-0 flex-col ${props.sidebar === false ? "flex-1" : "h-svh"}`}
     >
-      {props.sidebar === false ? header(null, "ps-5") : <ShellHeader header={header} />}
+      {props.sidebar === false ? header(null, "") : <ShellHeader header={header} />}
       {props.children}
     </section>
   );
 }
 
 function ShellHeader(props: { header: (toggle: ReactNode, inset: string) => ReactNode }) {
-  const shown = usePageNavShown();
-  return props.header(<PageNav />, shown ? "ps-2.5" : "ps-5");
+  return props.header(<PageNav />, "");
 }
