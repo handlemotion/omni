@@ -203,6 +203,7 @@ async function trash(run: Run, change: Change) {
 
 async function restore(run: Run, change: Change) {
   if (!change.id) return "Name the `id` to restore.";
+  const id = run.refs.get(change.id) ?? change.id;
   let blocked: string | null = null;
   for (const workspace of await run.drive.workspaces()) {
     const writer = await writerFor(run, workspace.id);
@@ -210,7 +211,7 @@ async function restore(run: Run, change: Change) {
       blocked = writer;
       continue;
     }
-    const restored = await writer.files.restore(change.id);
+    const restored = await writer.files.restore(id);
     if (restored.status === "not_found") continue;
     if (restored.status !== "ok") return refusal(restored.status);
     run.touched.push(restored.node);

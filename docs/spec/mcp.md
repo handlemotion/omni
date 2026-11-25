@@ -426,7 +426,8 @@ Notion's `create-comment` and `get-comments`, over the comments people write in 
 - **Write.** `drive_comment { id, add?, resolve?, reopen?, include_resolved? }`, scope `drive:write`.
   Each `add` is `{ text, reply_to? }` and at most one of `quote` (a passage of a doc or text file,
   found exactly once in its text now: the live document when people have unsaved typing, else
-  its bytes, so a doc written a second ago can be quoted), `page` (a PDF page), `lines`
+  its bytes, so a doc written a second ago can be quoted; a doc is matched as the editor flattens it
+  to place comments, `@omni/docs` `docText`, without Markdown), `page` (a PDF page), `lines`
   (`{ start, end }`) or `cell` (A1, `Costs!B3`); none comments on the whole file. A reply reopens
   its thread, as in the app. It answers the threads as they are after the changes and the new
   comments' ids.

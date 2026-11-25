@@ -5,4 +5,5 @@ export { DOC_TYPE, isDocFile, isOmniDoc } from "./file.ts";
 export { Dropdown } from "./dropdown.ts";
 export { readableMarkdown } from "./entities.ts";
 export { pageLoss } from "./page.ts";
+export { docText } from "./text.ts";
 export { blockCounts, diffBlocks } from "./diff.ts";

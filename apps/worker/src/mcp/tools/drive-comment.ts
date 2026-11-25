@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { ContextRead, StorageCommentAnchor } from "@omni/db";
+import { docText, isDocFile } from "@omni/docs";
+import type { ContextRead, StorageCommentAnchor, StorageContext } from "@omni/db";
 import { z } from "zod";
 import {
   announceComment,
@@ -24,7 +25,9 @@ const addSchema = z.object({
     .min(1)
     .max(2_000)
     .optional()
-    .describe("Docs and text files: words that occur exactly once in the file now, to comment on."),
+    .describe(
+      "Docs and text files: words that occur exactly once in the file now, to comment on. In a doc, quote the text as it reads, without Markdown (`the beta release`, not `the **beta** release`).",
+    ),
   page: z.number().int().positive().optional().describe("PDFs: the page to comment on."),
   lines: z
     .object({ start: z.number().int().positive(), end: z.number().int().positive() })
@@ -150,6 +153,12 @@ async function resolveAll(files: Door, nodeId: string, input: Input) {
   return null;
 }
 
+async function quotable(context: ToolContext, drive: StorageContext, found: ContextRead) {
+  const text = await currentText(context, drive, found);
+  if (text === null || !isDocFile(found.node.name, found.node.mimeType)) return text;
+  return docText(text);
+}
+
 const changeCount = (input: Input) =>
   (input.add?.length ?? 0) + (input.resolve?.length ?? 0) + (input.reopen?.length ?? 0);
 
@@ -170,10 +179,10 @@ async function comment(context: ToolContext, input: Input) {
   if (typeof opened === "string") return toolError(opened);
   const { found, files } = opened;
   const changes = changeCount(input);
-  const blocked = changes ? await ready(context, found.workspace.id) : null;
+  const blocked = changes ? await ready(context, found.workspace.id, changes) : null;
   if (blocked) return toolError(blocked);
   const quoting = input.add?.some((add) => add.quote !== undefined && !add.reply_to);
-  const text = quoting ? await currentText(context, opened.drive, found) : null;
+  const text = quoting ? await quotable(context, opened.drive, found) : null;
   const { added, error } = await addAll(context, files, found, input.add ?? [], text);
   if (error) return partial(error, added);
   const unresolved = await resolveAll(files, found.node.id, input);

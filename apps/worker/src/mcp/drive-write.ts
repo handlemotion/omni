@@ -72,8 +72,8 @@ export async function placeFor(
 }
 
 /** Why a write cannot happen now (the rate limit, an unpaid plan), or null. */
-export async function ready(context: ToolContext, orgId: string) {
-  const wait = await context.rateLimit("actions");
+export async function ready(context: ToolContext, orgId: string, changes = 1) {
+  const wait = await context.rateLimit("actions", changes);
   if (wait) return `Too many changes. Try again in ${wait} seconds.`;
   if (!(await inGoodStanding(context.db, context.config, orgId))) {
     return "This workspace is read-only until its plan is paid.";

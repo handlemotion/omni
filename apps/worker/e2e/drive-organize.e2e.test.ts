@@ -8,7 +8,12 @@ import { WEB_ORIGIN } from "./support.ts";
 let stack: StorageStack;
 beforeAll(async () => {
   stack = await startStorageStack({
-    vars: { WEB_APP_URL: WEB_ORIGIN, RATE_LIMIT_AUTH: "off", RATE_LIMIT_SEARCH: "off" },
+    vars: {
+      WEB_APP_URL: WEB_ORIGIN,
+      RATE_LIMIT_AUTH: "off",
+      RATE_LIMIT_SEARCH: "off",
+      RATE_LIMIT_ACTIONS: "30/60",
+    },
   });
 }, 120_000);
 afterAll(() => stack?.stop());
@@ -93,6 +98,16 @@ test("an agent builds a folder tree, files into it, and trashes and restores, on
     changes: [{ action: "restore", id: built.results[0].item.id }],
   });
   expect(restored.results[0]).toMatchObject({ ok: true, item: { title: "Clients" } });
+  const undone = await call(agent, "drive_organize", {
+    changes: [
+      { action: "create_folder", name: "Scratch", teamspace_id: teamspaceId, ref: "scratch" },
+      { action: "trash", id: "scratch" },
+      { action: "restore", id: "scratch" },
+    ],
+  });
+  expect(undone.results.map((r: Answer) => r.ok)).toEqual([true, true, true]);
+  expect(undone.results[2].item).toMatchObject({ title: "Scratch" });
+
   expect(await call(agent, "drive_fetch", { id: notes.id })).toMatchObject({
     title: "kickoff.txt",
     metadata: { location: "Shared / Clients / Acme" },
@@ -110,7 +125,7 @@ test("an agent comments on a passage, its person's teammate sees it, and the age
   const made = await call(agent, "drive_create_doc", {
     name: "Brief",
     teamspace_id: teamspaceId,
-    markdown: "# Brief\n\nShip the beta on Friday.\n\nBudget is 10k.",
+    markdown: "# Brief\n\nShip the **beta** on Friday.\n\nBudget is 10k.",
   });
   const id = made.doc.id;
 
@@ -119,14 +134,19 @@ test("an agent comments on a passage, its person's teammate sees it, and the age
     add: [{ text: "Which Friday?", quote: "Monday" }],
   });
   expect(missed.error).toContain("exactly once");
+  const markdownQuote = await call(agent, "drive_comment", {
+    id,
+    add: [{ text: "Bold?", quote: "the **beta**" }],
+  });
+  expect(markdownQuote.error).toContain("exactly once");
 
   const added = await call(agent, "drive_comment", {
     id,
-    add: [{ text: "Which Friday?", quote: "on Friday" }, { text: "Looks good overall." }],
+    add: [{ text: "Which Friday?", quote: "the beta on Friday" }, { text: "Looks good overall." }],
   });
   expect(added.added).toHaveLength(2);
   expect(added.threads).toMatchObject([
-    { text: "Which Friday?", on: '"on Friday"' },
+    { text: "Which Friday?", on: '"the beta on Friday"' },
     { text: "Looks good overall." },
   ]);
   expect(added.threads[1]).not.toHaveProperty("on");
@@ -134,10 +154,11 @@ test("an agent comments on a passage, its person's teammate sees it, and the age
   const seen = await stack.api(bea.jar, "GET", `/files/${id}/comments`);
   expect(seen.status).toBe(200);
   const root = seen.body.comments.find((c: Answer) => c.body === "Which Friday?");
-  expect(root.anchor).toMatchObject({
+  expect(root.anchor).toEqual({
     kind: "text",
-    quote: "on Friday",
-    prefix: expect.stringContaining("Ship the beta"),
+    quote: "the beta on Friday",
+    prefix: "Brief\nShip ",
+    suffix: ".\nBudget is 10k.",
   });
   await stack.api(bea.jar, "POST", `/files/${id}/comments`, {
     body: "The 12th.",
@@ -162,4 +183,23 @@ test("an agent comments on a passage, its person's teammate sees it, and the age
   expect(
     (await call(outsiderAgent, "drive_comment", { id, add: [{ text: "hi" }] })).error,
   ).toBeDefined();
+});
+
+test("a batch of comments counts each change against the person's write limit", async () => {
+  const acme = await stack.company("acme-limit");
+  const ana = await stack.member(acme.id);
+  const space = await stack.api(ana.jar, "POST", "/teamspaces", { name: "Ana", private: true });
+  const teamspaceId = (space.body.teamspace as { id: string }).id;
+  const agent = await connectAgent(stack.worker.url, ana.jar, { scope: WRITE });
+  const made = await call(agent, "drive_create_doc", {
+    name: "Notes",
+    teamspace_id: teamspaceId,
+    markdown: "# Notes",
+  });
+  const twenty = Array.from({ length: 20 }, (_, i) => ({ text: `Point ${i}` }));
+  const first = await call(agent, "drive_comment", { id: made.doc.id, add: twenty });
+  expect(first.added).toHaveLength(20);
+  const again = await call(agent, "drive_comment", { id: made.doc.id, add: twenty });
+  expect(again.error).toContain("Too many changes");
+  expect((await call(agent, "drive_comment", { id: made.doc.id })).threads).toHaveLength(20);
 });
