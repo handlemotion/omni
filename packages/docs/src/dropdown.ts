@@ -1,7 +1,7 @@
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
 import type { JSONContent, MarkdownToken } from "@tiptap/core";
 
-const OPEN = /^<details( open)?>[ \t]*\n/;
+const OPEN = /^<details( open)?>[ \t]*\n?/;
 const TAG = /<(\/?)details\b[^>]*>/g;
 const SUMMARY = /^\s*<summary>([\s\S]*?)<\/summary>[ \t]*\n?/;
 
@@ -28,6 +28,8 @@ const textOf = (node: JSONContent | undefined, h: { renderChildren: Function }) 
  *     The blocks inside.
  *
  *     </details>
+ *
+ * It reads `<details><summary>The line</summary>` on one line too, as GitHub does.
  */
 export const Dropdown = Details.extend({
   markdownTokenizer: {

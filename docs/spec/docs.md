@@ -261,7 +261,10 @@ versions name them. A doc inside a shared folder still saves version by version 
 
 `drive_create_doc` writes a Wok doc: its name as given, with no `.md`. `drive_edit_doc` edits
 Wok docs and Markdown files alike and keeps each one's type. Its Markdown may hold dropdowns as
-`<details>` blocks.
+`<details>` blocks, with the `<summary>` on its own line or on the `<details>` line. A doc whose
+Markdown the page cannot read back word for word opens as its source instead, so both tools
+refuse Markdown that would open that way, naming the line, and write nothing; an edit to a doc
+that already opens as source is not held to it.
 
 ## Not in this change
 

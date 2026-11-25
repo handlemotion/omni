@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-import { applyEdits, type EditResult } from "@omni/docs";
+import { applyEdits, pageLoss, type EditResult } from "@omni/docs";
 import type { StorageContext } from "@omni/db";
 import { z } from "zod";
 import { createDoc, editDoc } from "../../storage/docs.ts";
@@ -22,7 +22,7 @@ const markdown = z
   .string()
   .max(MAX_MARKDOWN)
   .describe(
-    "The doc in Markdown: headings, lists, `- [ ]` to-dos, tables, code, quotes, links, images, and dropdowns as `<details><summary>Line</summary>` blocks.",
+    "The doc in Markdown: headings, lists, `- [ ]` to-dos, tables, code, quotes, links, images, and dropdowns as `<details><summary>Line</summary>` blocks. No other HTML.",
   );
 
 const createInput = z.object({
@@ -67,6 +67,17 @@ const REFUSED: Record<string, string> = {
   parent_trashed: "That folder is in the trash.",
 };
 
+const notAPage = (line: string) =>
+  `Wok would open this doc as Markdown source, not as a page: it cannot show \`${line.slice(0, 200)}\` as a block. Write it with the blocks the \`markdown\` field lists. Nothing was changed.`;
+
+const keepsPage = (changed: EditResult, before: string) => {
+  if (!changed.ok || pageLoss(before) !== undefined) return changed;
+  const line = pageLoss(changed.markdown);
+  if (line === undefined) return changed;
+  const refused: EditResult = { ok: false, error: notAPage(line) };
+  return refused;
+};
+
 const refusal = (reason: string) =>
   toolError(REFUSED[reason] ?? "Wok could not write the doc this time. Try again in a moment.");
 
@@ -88,6 +99,8 @@ async function create(context: ToolContext, input: z.infer<typeof createInput>) 
   if (!writer) return refusal("forbidden");
   const blocked = await ready(context, at.orgId);
   if (blocked) return toolError(blocked);
+  const lost = pageLoss(input.markdown);
+  if (lost !== undefined) return toolError(notAPage(lost));
   const made = await createDoc(await deps(context), writer.files, at.orgId, {
     place: at.place,
     name: input.name,
@@ -114,9 +127,12 @@ async function edit(context: ToolContext, input: z.infer<typeof editInput>) {
   const blocked = await ready(context, found.workspace.id);
   if (blocked) return toolError(blocked);
   const change = (current: string) =>
-    input.edits
-      ? applyEdits(current, input.edits)
-      : ({ ok: true, markdown: input.markdown ?? "" } satisfies EditResult);
+    keepsPage(
+      input.edits
+        ? applyEdits(current, input.edits)
+        : ({ ok: true, markdown: input.markdown ?? "" } satisfies EditResult),
+      current,
+    );
   const writing = await deps(context);
   const by = `a:${writer.memberId}:${writing.agent}`;
   const edited = await editDoc(writing, writer.files, input.id, change, by);
