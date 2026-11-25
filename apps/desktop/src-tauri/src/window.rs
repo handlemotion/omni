@@ -88,11 +88,11 @@ fn chrome<'a, R: Runtime, M: Manager<R>>(
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        // The buttons' centre lands about 2pt above `y` (measured on macOS: 18 put it at 15.8,
-        // 34 at 31.8), so 28 puts it 26pt down, level with the workspace switcher in the web app's 48px title row
-        // (the row's exact middle, 24pt, read as too high). At x 16
-        // the red one's centre is 23pt in, on the sidebar icons' axis.
-        .traffic_light_position(tauri::LogicalPosition::new(16.0, 28.0));
+        // The buttons' centre lands about 2.25pt above `y` and the red one's edge at `x` (measured
+        // on 0.10.0's (15, 24): centre 21.75pt down, edge 15pt in). 26.5 centres them on the
+        // workspace switcher (24.25pt down in the 48px title row), leaving the 14pt buttons 17pt
+        // from the top, so x 17 leaves the same 17pt on the left.
+        .traffic_light_position(tauri::LogicalPosition::new(17.0, 26.5));
     #[cfg(windows)]
     let builder = builder.shadow(true);
     builder
