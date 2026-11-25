@@ -84,7 +84,7 @@ function ModuleTitle() {
   const pressed = usePressedModule();
   const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
   const name = inSettings ? "Settings" : (modules.find((m) => m.id === pressed)?.label ?? "");
-  return <h2 className="min-w-0 truncate ps-2 text-lg">{name}</h2>;
+  return <h2 className="min-w-0 truncate ps-2 text-md">{name}</h2>;
 }
 
 function ModuleRail() {

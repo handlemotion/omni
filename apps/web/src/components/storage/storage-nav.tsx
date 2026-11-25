@@ -102,16 +102,18 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
         <Rows rows={PLACES} mailbox={mailbox} />
         {browse && <BrowseTeamspacesRow onPress={browse} />}
       </SidebarSection>
-      {teamspaces
-        .filter((teamspace) => teamspace.role !== null)
-        .map((teamspace) => (
-          <SidebarGroup
-            key={teamspace.id}
-            drive={{ teamspaceId: teamspace.id }}
-            label={teamspace.name}
-            search={search}
-          />
-        ))}
+      <div className="flex flex-col gap-1">
+        {teamspaces
+          .filter((teamspace) => teamspace.role !== null)
+          .map((teamspace) => (
+            <SidebarGroup
+              key={teamspace.id}
+              drive={{ teamspaceId: teamspace.id }}
+              label={teamspace.name}
+              search={search}
+            />
+          ))}
+      </div>
     </SpacesArea>
   );
 }

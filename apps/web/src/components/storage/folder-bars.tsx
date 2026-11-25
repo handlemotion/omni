@@ -8,7 +8,6 @@ import {
   IconUpload,
 } from "@/components/icons/central";
 import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { FileTrigger } from "@/components/ui/file-trigger";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
@@ -123,13 +122,11 @@ function AddMenu(props: {
 }) {
   return (
     <MenuTrigger>
-      <TooltipTrigger delay={400}>
-        <Button intent="outline" size="sq-sm" aria-label="New or upload" isPending={props.pending}>
-          <IconPlus />
-        </Button>
-        <Tooltip>New or upload</Tooltip>
-      </TooltipTrigger>
-      <Menu placement="bottom end" aria-label="New or upload" popover={{ className: "min-w-56" }}>
+      <Button intent="outline" size="sm" isPending={props.pending}>
+        <IconPlus data-slot="icon" />
+        New
+      </Button>
+      <Menu placement="bottom end" aria-label="New" popover={{ className: "min-w-56" }}>
         <MenuItem
           id="doc"
           textValue="New doc"
