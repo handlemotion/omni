@@ -25,6 +25,7 @@ import { meetingsChangedElsewhere } from "./meetings.ts";
 import { crmChangedElsewhere } from "./crm-cache.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
+import { listingsFilling } from "./storage-uploads.ts";
 import { setOnline } from "./talk.ts";
 import { addMessage, fetchNewest, noteWentBy, setReactions, threadRead } from "./talk-cache.ts";
 import { talkWindow } from "./talk-window.ts";
@@ -156,7 +157,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       driveTimer = undefined;
       const batch = driveChanges;
       driveChanges = [];
-      void storageDrivesChanged(client, batch);
+      void storageDrivesChanged(client, batch, listingsFilling());
     }, FLUSH_MS);
   };
 

@@ -269,10 +269,26 @@ async function finish(batch: Batch) {
   batch.touched = [];
   batch.changed = false;
   if (changed) void storageChanged(client);
-  else if (touched.length) {
-    void storageListsRefresh(client, touched);
-    void client.invalidateQueries({ queryKey: keys.storageUsage() });
+  else if (!batch.target.shareId && !batch.target.replaces) {
+    void storageListsRefresh(client, [keys.storageList(batch.target.place), ...touched]);
+    if (touched.length) void client.invalidateQueries({ queryKey: keys.storageUsage() });
   }
+}
+
+/**
+ * The listings (as `JSON.stringify`ed query keys) that a batch in this tab is still filling. It
+ * patches them as its files land and asks for them once at its end, so the `storage.changed` its
+ * own files set off need not ask for them meanwhile: a 500-file upload asks once, not per file.
+ */
+export function listingsFilling() {
+  const batches = new Set(jobs.flatMap((job) => (job.status === "failed" ? [] : [job.batch])));
+  const filling = new Set<string>();
+  for (const { target, touched } of batches) {
+    if (target.shareId || target.replaces) continue;
+    for (const key of [keys.storageList(target.place), ...touched])
+      filling.add(JSON.stringify(key));
+  }
+  return filling;
 }
 
 function pump() {

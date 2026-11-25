@@ -229,12 +229,17 @@ const staleFor = (change: StorageDriveChange) => {
 /**
  * Someone changed a drive (`storage.changed`): the listings it names, and those under a folder it
  * names, are fetched again, and Trash, Search and usage with them. Other listings are kept, so a
- * busy drive does not refetch every folder ever opened.
+ * busy drive does not refetch every folder ever opened. Listings in `filling` (stringified keys)
+ * are left too: an upload in this tab asks for them once it ends.
  */
-export function storageDrivesChanged(client: QueryClient, changes: StorageDriveChange[]) {
+export function storageDrivesChanged(
+  client: QueryClient,
+  changes: StorageDriveChange[],
+  filling: ReadonlySet<string> = new Set(),
+) {
   const checks = changes.map(staleFor);
   const stale = lists(client).flatMap(([key, data]) =>
-    checks.some((check) => check(key, data)) ? [key] : [],
+    !filling.has(JSON.stringify(key)) && checks.some((check) => check(key, data)) ? [key] : [],
   );
   return Promise.all([
     ...stale.map((queryKey) => client.invalidateQueries({ queryKey, exact: true })),

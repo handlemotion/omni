@@ -19,7 +19,7 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 import { openSpace } from "./spaces.ts";
-import { uploadFiles } from "./uploads.ts";
+import { uploadFiles, uploadFolder } from "./uploads.ts";
 
 const PART = 16 * 1024 * 1024;
 
@@ -136,7 +136,7 @@ test("500 small files upload with at most 6 requests open at once and one listin
   );
   expect(rows).toHaveLength(500);
   await page
-    .getByRole("row", { name: new RegExp(`${tag}-499\\.txt`) })
+    .getByRole("row", { name: new RegExp(`${tag}-000\\.txt`) })
     .waitFor({ timeout: 30_000 });
   await page.waitForLoadState("networkidle");
 
@@ -146,6 +146,18 @@ test("500 small files upload with at most 6 requests open at once and one listin
   expect(most).toBeLessThanOrEqual(6);
   expect(seen.me).toBe(1);
   expect(seen.lists).toBeLessThanOrEqual(2);
+
+  const last = page.getByRole("row", { name: new RegExp(`${tag}-499\\.txt`) });
+  await page.mouse.move(800, 400);
+  await expect
+    .poll(
+      async () => {
+        await page.mouse.wheel(0, 4000);
+        return last.count();
+      },
+      { timeout: 30_000 },
+    )
+    .toBeGreaterThan(0);
 });
 
 test("a folder tree picked or dropped is made again, empty folders too, files in place", async () => {
@@ -186,7 +198,7 @@ test("a folder tree picked or dropped is made again, empty folders too, files in
     ].toSorted(),
   );
 
-  await page.locator("input[type=file][webkitdirectory]").first().setInputFiles(root);
+  await uploadFolder(page, root);
   const picked = await until(
     () => treeUnder(`${tag} (1)`),
     (found) => found.length === 6,

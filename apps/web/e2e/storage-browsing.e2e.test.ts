@@ -3,7 +3,13 @@ import type { AddressInfo } from "node:net";
 import { crc32, deflateSync } from "node:zlib";
 import { schema } from "@omni/db";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type Request,
+} from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createMailbox,
@@ -51,11 +57,11 @@ test("a folder of 200 photos draws from thumbnails alone, under 10 MB, and never
   const person = await account(`photos-${Date.now()}@gmail.test`);
   const folder = await person.folder("Shoot");
   let originals = 0;
-  for (let i = 0; i < 200; i++) {
-    const png = photoPng(900, i);
+  await atOnce(200, 6, async (i) => {
+    const png = photoPng(512, i);
     originals += png.length;
     await person.upload({ parentId: folder }, `photo-${String(i).padStart(3, "0")}.png`, png);
-  }
+  });
   expect(originals).toBeGreaterThan(10 * 1024 * 1024);
 
   const page = await person.page(await person.space(folder));
@@ -68,7 +74,7 @@ test("a folder of 200 photos draws from thumbnails alone, under 10 MB, and never
     thumbnails.set(path, (await response.body().catch(() => Buffer.alloc(0))).length);
   });
   await page.getByRole("row", { name: /photo-000\.png/ }).waitFor({ timeout: 30_000 });
-  await scrollToEnd(page, () => thumbnails.size >= 200);
+  await scrollToEndScreenByScreen(page, () => thumbnails.size >= 200);
 
   const bytes = [...thumbnails.values()].reduce((sum, n) => sum + n, 0);
   expect(thumbnails.size).toBe(200);
@@ -217,11 +223,30 @@ async function account(email: string) {
   };
 }
 
-async function scrollToEnd(page: Page, done: () => boolean) {
+async function atOnce(count: number, limit: number, each: (i: number) => Promise<void>) {
+  let next = 0;
+  const lane = async () => {
+    while (next < count) await each(next++);
+  };
+  await Promise.all(Array.from({ length: limit }, lane));
+}
+
+async function scrollToEndScreenByScreen(page: Page, done: () => boolean) {
+  await page.waitForLoadState("networkidle");
+  const loading = new Set<Request>();
+  const isThumbnail = (request: Request) => new URL(request.url()).pathname.endsWith("/thumbnail");
+  page.on("request", (request) => {
+    if (isThumbnail(request)) loading.add(request);
+  });
+  page.on("requestfinished", (request) => loading.delete(request));
+  page.on("requestfailed", (request) => loading.delete(request));
   for (let step = 0; step < 200 && !done(); step++) {
     await page.mouse.move(600, 400);
-    await page.mouse.wheel(0, 800);
+    await page.mouse.wheel(0, 500);
     await page.waitForTimeout(100);
+    for (let waited = 0; loading.size > 0 && waited < 5_000; waited += 50) {
+      await page.waitForTimeout(50);
+    }
   }
   await page.waitForTimeout(500);
 }

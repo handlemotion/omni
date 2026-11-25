@@ -282,11 +282,19 @@ test("New folder is named in place, and each name creates one folder", async () 
   await openSpace(page);
   const newFolder = {
     click: async () => {
-      await page.getByRole("button", { name: "New", exact: true }).first().click();
+      await page
+        .getByRole("main")
+        .getByRole("button", { name: "New", exact: true })
+        .first()
+        .click();
       await page.getByRole("menuitem", { name: "New folder" }).click();
     },
   };
-  await page.getByRole("button", { name: "New", exact: true }).first().waitFor({ timeout: 15_000 });
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: "New", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
   const field = page.getByRole("textbox", { name: "Folder name" });
 
   await newFolder.click();
@@ -325,7 +333,7 @@ test("Rename changes a name in place on a row and a card, once", async () => {
     .waitFor({ timeout: 15_000 });
   await uploadFiles(page, { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") });
   await page.getByRole("row", { name: /notes\.txt/ }).waitFor({ timeout: 15_000 });
-  await page.getByRole("button", { name: "New", exact: true }).first().click();
+  await page.getByRole("main").getByRole("button", { name: "New", exact: true }).first().click();
   await page.getByRole("menuitem", { name: "New folder" }).click();
   await page.keyboard.press("Enter");
   await page.getByRole("row", { name: /Untitled folder/ }).waitFor();
@@ -447,7 +455,7 @@ test("a Markdown file is edited as a page, saves itself as Markdown, and a newer
     expect(await leaving.count()).toBe(0);
   }
   await editor.getByText("mine again").waitFor();
-  await page.getByRole("list", { name: "Folder" }).locator("a[href]").last().click();
+  await page.getByRole("link", { name: "Recents", exact: true }).first().click();
   await expect.poll(content, { timeout: 15_000 }).toContain("- Second **point** mine again");
   expect(await leaving.count()).toBe(0);
   await expect.poll(() => editor.count()).toBe(0);
@@ -461,7 +469,7 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
     .first()
     .waitFor({ timeout: 15_000 });
   const text =
-    "# Prices\n\n| Plan | Price |\n| --- | --- |\n| Pro | 9 |\n\n<details><summary>Terms</summary>Billed yearly</details>\n";
+    "# Prices\n\n| Plan | Price |\n| --- | --- |\n| Pro | 9 |\n\n<!-- Billed yearly -->\n";
   await uploadFiles(page, {
     name: "prices.md",
     mimeType: "text/markdown",
