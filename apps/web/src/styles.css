@@ -64,9 +64,9 @@
   --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
-  /* A grey fill a hair under the page's white (a step subtler than `surface`), so the sidebar
-     reads apart from the content beside its hairline border. */
-  --sidebar: #fefefe;
+  /* A very subtle off-white under the page's white, so the sidebar reads apart from the content
+     beside its hairline border. */
+  --sidebar: #fafafa;
   /* The window behind the sidebar and the page: white, like them. */
   --shell: var(--background);
   --sidebar-foreground: var(--foreground);
@@ -153,11 +153,6 @@
   --warning-subtle-foreground: oklch(0.555 0.163 48.998);
   --info-subtle: oklch(0.685 0.169 237.323 / 0.15);
   --info-subtle-foreground: oklch(0.5 0.134 242.749);
-  /* The glow round a doc an agent is editing (`AgentAura`): the accent blue, a sky blue and an
-     indigo, swept round the page's edges. */
-  --agent-aura-blue: var(--primary);
-  --agent-aura-sky: var(--primary-button);
-  --agent-aura-indigo: #6d5dfc;
 }
 
 @theme inline {
@@ -342,48 +337,6 @@
   animation: shimmer 1.6s linear infinite;
   @media (prefers-reduced-motion: reduce) {
     animation: none;
-  }
-}
-
-/* A doc an agent is editing: a glow rises from the page's bottom edge, its colours drifting
-   along it. Absolutely placed under the page's scroller; `data-active` while the agent works. */
-@utility agent-aura {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  height: 160px;
-  pointer-events: none;
-  background: linear-gradient(
-      90deg,
-      var(--agent-aura-blue),
-      var(--agent-aura-sky),
-      var(--agent-aura-indigo),
-      var(--agent-aura-blue)
-    )
-    0 0 / 200% 100%;
-  mask-image: linear-gradient(to top, #000, transparent);
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 700ms ease-out,
-    visibility 0s 700ms;
-  animation: agent-aura 4s linear infinite paused;
-  &[data-active] {
-    opacity: 0.4;
-    visibility: visible;
-    animation-play-state: running;
-    transition:
-      opacity 300ms ease-out,
-      visibility 0s;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
-}
-
-@keyframes agent-aura {
-  to {
-    background-position: 200% 0;
   }
 }
 

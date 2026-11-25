@@ -71,8 +71,13 @@ shared schema in `@omni/docs`, live through Yjs. This spec adds:
   `<details open>` when it is open. Dropdowns nest.
 - **No indent model.** Lists nest with Tab, nothing else indents. No rulers, margins, page size
   or fonts: the page has one layout, and Word and PDF exports lay it out for print.
-- **Modes.** The doc bar's mode menu: Editing, or Commenting, where the text is read-only and a
-  selection offers only Comment. Opening another file starts it in Editing again.
+- **One mode.** A doc opens ready to write in; there is no Editing or Commenting menu. Commenting
+  is a tool: the toolbar's comment button and Comment on a selection. Someone who may only read
+  sees the text read-only, with a selection offering only Comment.
+- **Who else is here.** Each other person in a live doc shows as their picture floating left of
+  the block they are in, where the block handle sits, sliding as they move; several in one block
+  stack. No caret and no selection highlight. In the header, the people editing the file stack
+  like the app's presence faces.
 - The bubble bar over selected text (bold, italic, strikethrough, code, comment), the `/` menu
   (which gains Dropdown) and the block handle stay.
 
@@ -111,9 +116,9 @@ from. Versions follow editing sessions (#706):
   document it ends the session that wrote the content (`storage_contents.session_ended`), so the
   content from before its change stays restorable whoever saves next.
 - **An agent at work shows.** While an agent's edits arrive in an open doc (live records whose
-  `by` is `a:<memberId>:<agent>`), a blue glow rises from the page's bottom edge behind the
-  toolbar, and a pill above the toolbar says "<agent> is editing" (a status, so screen readers
-  hear it too). Both fade out 6 seconds after the agent's last edit
+  `by` is `a:<memberId>:<agent>`), the agent's face (a sparkle on the accent blue) floats left of
+  the block its last edit changed, where people's faces float, and a solid blue pill above the
+  toolbar says "<agent> is editing" (a status, so screen readers hear it too). Both fade out 6 seconds after the agent's last edit
   (`AGENT_LINGER_MS`), so the gaps between an agent's calls read as one stretch of work.
 - Comments and signatures keep the `contentVersion` they were made on.
 
@@ -239,7 +244,7 @@ what the link's role allows:
 
 | Role      | Page                                                                    |
 | --------- | ----------------------------------------------------------------------- |
-| Editor    | Editing (or Commenting), toolbar, live with everyone on the doc          |
+| Editor    | One mode, toolbar, live with everyone on the doc                         |
 | Commenter | Read-only text; a selection offers Comment; the toolbar shows comments  |
 | Viewer    | Read-only text, no toolbar, no comments                                 |
 

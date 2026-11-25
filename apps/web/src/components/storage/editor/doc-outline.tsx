@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { IconH1, IconH2, IconH3, IconOutline } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 
 const LEVEL_ICON = { H1: IconH1, H2: IconH2, H3: IconH3 } as const;
+const INDENT = { H1: "", H2: "ps-5", H3: "ps-8" } as const;
+
+/** Wide enough for the outline to float beside the page, the page moved right to make room. */
+export const FLOATING_OUTLINE_WIDTH = 1120;
 
 interface Heading {
   id: string;
@@ -22,6 +26,9 @@ function headingsOf(page: Element | null) {
   }
   return found;
 }
+
+const go = (heading: Heading) =>
+  heading.element.scrollIntoView({ block: "start", behavior: "smooth" });
 
 /**
  * The doc's outline: its headings, read from the page when opened, each one scrolled to when
@@ -52,9 +59,7 @@ export function DocOutline(props: { page: () => Element | null }) {
               key={heading.id}
               id={heading.id}
               textValue={heading.text}
-              onAction={() =>
-                heading.element.scrollIntoView({ block: "start", behavior: "smooth" })
-              }
+              onAction={() => go(heading)}
             >
               <Icon data-slot="icon" />
               <MenuLabel>{heading.text}</MenuLabel>
@@ -64,4 +69,103 @@ export function DocOutline(props: { page: () => Element | null }) {
       </Menu>
     </MenuTrigger>
   );
+}
+
+function useLiveHeadings(root: RefObject<HTMLElement | null>) {
+  const [headings, setHeadings] = useState<Heading[]>([]);
+  useEffect(() => {
+    let frame = 0;
+    let watched: Element | null = null;
+    const read = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const page = root.current?.querySelector(".document-page") ?? null;
+        if (page !== watched) {
+          watched = page;
+          if (page)
+            pageObserver.observe(page, { childList: true, subtree: true, characterData: true });
+        }
+        setHeadings(headingsOf(page));
+      });
+    };
+    const pageObserver = new MutationObserver(read);
+    const rootObserver = new MutationObserver(read);
+    if (root.current) rootObserver.observe(root.current, { childList: true, subtree: true });
+    read();
+    return () => {
+      cancelAnimationFrame(frame);
+      pageObserver.disconnect();
+      rootObserver.disconnect();
+    };
+  }, [root]);
+  return headings;
+}
+
+function useCurrentHeading(headings: Heading[]) {
+  const [current, setCurrent] = useState<string | null>(null);
+  useEffect(() => {
+    const first = headings[0];
+    const scroller = first?.element.closest(".overflow-auto");
+    if (!first || !scroller) return setCurrent(null);
+    const update = () => {
+      const top = scroller.getBoundingClientRect().top + 80;
+      let at = first.id;
+      for (const heading of headings) {
+        if (heading.element.getBoundingClientRect().top <= top) at = heading.id;
+      }
+      setCurrent(at);
+    };
+    update();
+    scroller.addEventListener("scroll", update, { passive: true });
+    return () => scroller.removeEventListener("scroll", update);
+  }, [headings]);
+  return current;
+}
+
+/**
+ * The outline floating beside a full-screen doc, at the page's left, with no card: each heading
+ * a muted line, indented by level, the one being read in the foreground.
+ */
+export function FloatingOutline(props: { root: RefObject<HTMLElement | null> }) {
+  const headings = useLiveHeadings(props.root);
+  const current = useCurrentHeading(headings);
+  if (headings.length === 0) return null;
+  return (
+    <nav
+      aria-label="Outline"
+      className="pointer-events-none absolute inset-y-0 start-0 flex w-72 flex-col py-10 ps-10 pe-4"
+    >
+      <ul className="pointer-events-auto flex min-h-0 flex-col overflow-y-auto">
+        {headings.map((heading) => (
+          <li key={heading.id} className={INDENT[heading.level]}>
+            <Button
+              intent="plain"
+              size="sm"
+              aria-current={heading.id === current ? "location" : undefined}
+              className="w-full justify-start [--btn-foreground:var(--color-muted-foreground)] hover:[--btn-foreground:var(--color-foreground)] aria-[current]:[--btn-foreground:var(--color-foreground)]"
+              onPress={() => go(heading)}
+            >
+              <span className="truncate">{heading.text}</span>
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+/** Whether `element` is at least `width` wide, kept current as it resizes. */
+export function useWiderThan(width: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setWide((entry?.contentRect.width ?? 0) >= width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [width]);
+  return [ref, wide] as const;
 }

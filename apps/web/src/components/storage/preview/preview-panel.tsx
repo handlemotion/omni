@@ -1,5 +1,5 @@
 import { fileType, formatBytes } from "@omni/client";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   IconCheck,
   IconMaximize,
@@ -15,7 +15,6 @@ import {
   DescriptionList,
   DescriptionTerm,
 } from "@/components/ui/description-list";
-import { Avatar } from "@/components/ui/avatar";
 import { Heading } from "@/components/ui/heading";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
@@ -30,6 +29,7 @@ import { useShowDetails } from "@/hooks/use-show-details.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { type StorageNode } from "@/lib/storage.ts";
+import { TalkFace } from "@/components/talk/presence-stack";
 import { CommentsPanel } from "../comments-panel.tsx";
 import { TypeBadge } from "../file-glyph.tsx";
 import { FIELD_OFFSET, NameField } from "../name-field.tsx";
@@ -42,6 +42,7 @@ import {
   type EditSession,
 } from "../editor/document-editor.tsx";
 import { DocBar, DocBarActions } from "../editor/doc-bar.tsx";
+import { FLOATING_OUTLINE_WIDTH, FloatingOutline, useWiderThan } from "../editor/doc-outline.tsx";
 import { HeaderMenu } from "./header-menu.tsx";
 import { PreviewBody } from "./preview-body.tsx";
 import { PreviewRail } from "./preview-rail.tsx";
@@ -101,11 +102,13 @@ export function PreviewPanel(props: {
   const [details, toggleDetails] = useShowDetails();
   const exports = doc && !shown ? session.text : undefined;
   const page = !!exports && props.fullScreen;
+  const [floating, setFloating] = useState(false);
   return (
     <section aria-label={node.name} className="flex min-w-0 flex-1 flex-col bg-background">
       <PanelHeader
         {...props}
         page={page}
+        floating={floating}
         inset={inset}
         session={session}
         exports={exports}
@@ -134,6 +137,8 @@ export function PreviewPanel(props: {
             comments={comments.on ? comments : null}
             shareId={props.shareId}
             onDownload={props.onDownload}
+            page={page}
+            onFloating={setFloating}
           />
         ) : (
           <Stage node={node} url={props.url} tools={tools} onDownload={download} />
@@ -147,6 +152,7 @@ export function PreviewPanel(props: {
 function PanelHeader(props: {
   node: StorageNode;
   page: boolean;
+  floating: boolean;
   inset: string;
   fullScreen: boolean;
   shell: boolean;
@@ -181,6 +187,7 @@ function PanelHeader(props: {
               session={session}
               text={exports}
               canExport={props.canExport}
+              outline={!props.floating}
             />
           )}
           <EditActions session={session} canEdit={props.canEdit} doc={props.doc} />
@@ -208,12 +215,26 @@ function EditingBody(props: {
   comments: DocComments | null;
   shareId: string | undefined;
   onDownload?: (() => void) | undefined;
+  page: boolean;
+  onFloating: (floating: boolean) => void;
 }) {
-  const { session, comments } = props;
+  const { session, comments, onFloating } = props;
+  const [area, wide] = useWiderThan(FLOATING_OUTLINE_WIDTH);
+  const floating = props.page && wide;
+  useEffect(() => {
+    onFloating(floating);
+    return () => onFloating(false);
+  }, [floating, onFloating]);
   return (
     <DocCommentsContext value={comments}>
       <div className="flex min-h-0 flex-1">
-        <DocumentEditor session={session} onDownload={props.onDownload} />
+        <div
+          ref={area}
+          className={`relative flex min-w-0 flex-1 flex-col ${floating ? "doc-beside-outline" : ""}`}
+        >
+          <DocumentEditor session={session} onDownload={props.onDownload} />
+          {floating && <FloatingOutline root={area} />}
+        </div>
         {comments?.open && (
           <div className="flex w-80 min-w-0 shrink-0">
             <CommentsPanel
@@ -260,18 +281,23 @@ function FileEditors(props: { nodeId: string }) {
   const members = useMembers().data?.members ?? [];
   if (editors.length === 0) return null;
   return (
-    <div className="me-1 flex items-center -space-x-1">
+    <div className="me-1 flex items-center">
       {editors.map((editor) => {
         const member = members.find((m) => m.id === editor.memberId);
         const name = member?.user.name || member?.user.email || "Someone";
         return (
           <TooltipTrigger key={editor.memberId} delay={400}>
-            <Button intent="plain" size="sq-sm" aria-label={`${name} is editing`}>
-              <Avatar
-                size="xs"
-                src={member?.user.image ?? null}
-                initials={name.slice(0, 1).toUpperCase()}
-                className="bg-accent text-foreground outline-2 outline-background"
+            <Button
+              intent="plain"
+              size="sq-sm"
+              isCircle
+              aria-label={`${name} is editing`}
+              className="relative -ms-2 first:ms-0 hover:z-10"
+            >
+              <TalkFace
+                person={{ name, image: member?.user.image ?? null }}
+                size={24}
+                className="ring-2 ring-background"
               />
             </Button>
             <Tooltip>{name} is editing</Tooltip>

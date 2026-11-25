@@ -12,16 +12,22 @@ export function agentOf(by: string | undefined) {
   return by?.startsWith("a:") ? by.split(":").slice(2).join(":") : undefined;
 }
 
-/** The agent editing the live doc now (its name), or null when none has for a while. */
+/** An agent editing the doc: its name, and a count of its edits that ticks with each one. */
+export interface AgentAtWork {
+  name: string;
+  edits: number;
+}
+
+/** The agent editing the live doc now, or null when none has for a while. */
 export function useAgentEditing(doc: LiveDoc | null) {
-  const [agent, setAgent] = useState<string | null>(null);
+  const [agent, setAgent] = useState<AgentAtWork | null>(null);
   useEffect(() => {
     if (!doc) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stop = doc.onUpdate((by) => {
       const name = agentOf(by);
       if (name === undefined) return;
-      setAgent(name);
+      setAgent((was) => ({ name, edits: (was?.edits ?? 0) + 1 }));
       clearTimeout(timer);
       timer = setTimeout(() => setAgent(null), AGENT_LINGER_MS);
     });

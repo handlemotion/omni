@@ -34,7 +34,7 @@ const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
 };
 
 /**
- * The sidebar, white beside the white page and always open. Its top row, in line with the page's
+ * The sidebar, a very subtle off-white beside the white page, and always open. Its top row, in line with the page's
  * own header, holds the module switcher and, opposite it, notifications and Search; in the desktop
  * app the traffic lights sit at its start and the switcher is centred between them and the icons.
  * Then the module's own pages, and the workspace switcher at its foot, whose menu also holds
@@ -47,7 +47,7 @@ export function RailSidebar({ children }: { children: ReactNode }) {
       collapsible="none"
       closeButton={false}
       data-state="expanded"
-      className="peer h-auto shrink-0 border-e border-sidebar-border bg-background"
+      className="peer h-auto shrink-0 border-e border-sidebar-border bg-sidebar"
     >
       <SidebarContent className="gap-3 px-3 pt-0 pb-3 *:shrink-0">
         {app ? (
@@ -105,10 +105,10 @@ function ModuleSwitch({ large = false }: { large?: boolean }) {
         aria-label={`Switch module, currently ${name}`}
         className={cn(
           "w-auto max-w-full shrink",
-          large ? "h-8 gap-1.5 ps-0.75 pe-1.5" : "h-8 gap-2 px-2",
+          large ? "h-8 gap-1.5 ps-1.5 pe-1.5" : "h-8 gap-2 px-2",
         )}
       >
-        <Mark className={large ? "size-6!" : undefined} />
+        <Mark className={large ? "size-4.5!" : undefined} />
         <span className={cn("min-w-0 truncate", large ? "text-lg" : "text-md")}>{name}</span>
         <IconChevronDown
           className={cn(
