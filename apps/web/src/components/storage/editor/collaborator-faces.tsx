@@ -5,6 +5,7 @@ import { Avatar } from "@/components/ui/avatar";
 const ANCHOR = "document-face-anchor";
 const BLOCK = "li, p, h1, h2, h3, h4, h5, h6, pre, blockquote, th, td, [data-type='details']";
 const FACE = 20;
+const BESIDE_HANDLE = 58;
 
 /**
  * Where another person is in the doc, drawn as nothing in the text: an empty mark that
@@ -46,15 +47,15 @@ function facesIn(scroller: HTMLElement) {
       name,
       image: anchor.dataset.image ?? "",
       top: at.top - box.top + scroller.scrollTop + (line - FACE) / 2,
-      left: at.left - box.left + scroller.scrollLeft - 36 - nth * (FACE - 6),
+      left: at.left - box.left + scroller.scrollLeft - BESIDE_HANDLE - nth * (FACE - 6),
     });
   }
   return faces;
 }
 
 /**
- * The others in a live doc, each as their picture floating left of the block they are in, where
- * the block handle sits, sliding as they move. Several in one block stack. No caret, no
+ * The others in a live doc, each as their picture floating left of the block they are in, past
+ * the block handle so both fit, sliding as they move. Several in one block stack. No caret, no
  * highlight.
  */
 export function CollaboratorFaces(props: { editor: Editor; scroller: HTMLElement | null }) {

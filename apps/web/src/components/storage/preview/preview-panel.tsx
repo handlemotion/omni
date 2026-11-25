@@ -1,5 +1,5 @@
 import { fileType, formatBytes } from "@omni/client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   IconCheck,
   IconMaximize,
@@ -30,7 +30,6 @@ import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { type StorageNode } from "@/lib/storage.ts";
 import { TalkFace } from "@/components/talk/presence-stack";
-import { CommentsPanel } from "../comments-panel.tsx";
 import { TypeBadge } from "../file-glyph.tsx";
 import { FIELD_OFFSET, NameField } from "../name-field.tsx";
 import { PdfMarksContext } from "./pdf-marks.tsx";
@@ -42,7 +41,7 @@ import {
   type EditSession,
 } from "../editor/document-editor.tsx";
 import { DocBar, DocBarActions } from "../editor/doc-bar.tsx";
-import { FLOATING_OUTLINE_WIDTH, FloatingOutline, useWiderThan } from "../editor/doc-outline.tsx";
+import { FloatingOutline } from "../editor/doc-outline.tsx";
 import { HeaderMenu } from "./header-menu.tsx";
 import { PreviewBody } from "./preview-body.tsx";
 import { PreviewRail } from "./preview-rail.tsx";
@@ -179,7 +178,7 @@ function PanelHeader(props: {
       <Title node={node} rename={props.rename} trail={page ? props.trail : undefined} />
       <div className="flex shrink-0 items-center gap-1.5">
         {props.shell && <FileEditors nodeId={node.id} />}
-        <PageBarActions>
+        <PageBarActions bare={page && session.editing}>
           {page && exports && (
             <DocBarActions
               node={node}
@@ -219,8 +218,8 @@ function EditingBody(props: {
   onFloating: (floating: boolean) => void;
 }) {
   const { session, comments, onFloating } = props;
-  const [area, wide] = useWiderThan(FLOATING_OUTLINE_WIDTH);
-  const floating = props.page && wide;
+  const area = useRef<HTMLDivElement>(null);
+  const floating = props.page;
   useEffect(() => {
     onFloating(floating);
     return () => onFloating(false);
@@ -228,23 +227,10 @@ function EditingBody(props: {
   return (
     <DocCommentsContext value={comments}>
       <div className="flex min-h-0 flex-1">
-        <div
-          ref={area}
-          className={`relative flex min-w-0 flex-1 flex-col ${floating ? "doc-beside-outline" : ""}`}
-        >
+        <div ref={area} className="relative flex min-w-0 flex-1 flex-col">
           <DocumentEditor session={session} onDownload={props.onDownload} />
           {floating && <FloatingOutline root={area} />}
         </div>
-        {comments?.open && (
-          <div className="flex w-80 min-w-0 shrink-0">
-            <CommentsPanel
-              node={session.editor.node}
-              shareId={props.shareId}
-              onClose={comments.close}
-              doc={comments}
-            />
-          </div>
-        )}
       </div>
     </DocCommentsContext>
   );

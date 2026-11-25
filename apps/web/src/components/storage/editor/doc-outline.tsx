@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { cn } from "cn";
+import { useEffect, useState, type RefObject } from "react";
 import { IconH1, IconH2, IconH3, IconOutline } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
+import { popupSurface } from "@/components/ui/popover";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 
 const LEVEL_ICON = { H1: IconH1, H2: IconH2, H3: IconH3 } as const;
 const INDENT = { H1: "", H2: "ps-5", H3: "ps-8" } as const;
-
-/** Wide enough for the outline to float beside the page, the page moved right to make room. */
-export const FLOATING_OUTLINE_WIDTH = 1120;
 
 interface Heading {
   id: string;
@@ -122,50 +121,56 @@ function useCurrentHeading(headings: Heading[]) {
   return current;
 }
 
+const LINE = { H1: "w-4", H2: "w-3", H3: "w-2" } as const;
+
 /**
- * The outline floating beside a full-screen doc, at the page's left, with no card: each heading
- * a muted line, indented by level, the one being read in the foreground.
+ * The outline of a full-screen doc, at its top left by the header: a stack of lines, one per
+ * heading, the one being read darker. Under the pointer (or focus) it opens into the headings.
  */
 export function FloatingOutline(props: { root: RefObject<HTMLElement | null> }) {
   const headings = useLiveHeadings(props.root);
   const current = useCurrentHeading(headings);
+  const [open, setOpen] = useState(false);
   if (headings.length === 0) return null;
   return (
     <nav
       aria-label="Outline"
-      className="pointer-events-none absolute inset-y-0 start-0 flex w-72 flex-col py-10 ps-10 pe-4"
+      className="absolute start-4 top-4 z-10"
+      onPointerEnter={() => setOpen(true)}
+      onPointerLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={(event) => !event.currentTarget.contains(event.relatedTarget) && setOpen(false)}
     >
-      <ul className="pointer-events-auto flex min-h-0 flex-col overflow-y-auto">
+      <div aria-hidden className="flex w-8 flex-col items-start gap-1.5 px-2 py-2">
         {headings.map((heading) => (
-          <li key={heading.id} className={INDENT[heading.level]}>
-            <Button
-              intent="plain"
-              size="sm"
-              aria-current={heading.id === current ? "location" : undefined}
-              className="w-full justify-start [--btn-foreground:var(--color-muted-foreground)] hover:[--btn-foreground:var(--color-foreground)] aria-[current]:[--btn-foreground:var(--color-foreground)]"
-              onPress={() => go(heading)}
-            >
-              <span className="truncate">{heading.text}</span>
-            </Button>
-          </li>
+          <span
+            key={heading.id}
+            className={`h-0.5 rounded-full ${LINE[heading.level]} ${heading.id === current ? "bg-foreground" : "bg-border"}`}
+          />
         ))}
-      </ul>
+      </div>
+      {open && (
+        <div className="absolute start-0 top-0">
+          <ul className={cn(popupSurface, "flex max-h-[70vh] w-64 flex-col overflow-y-auto p-1")}>
+            {headings.map((heading) => (
+              <li key={heading.id} className={INDENT[heading.level]}>
+                <Button
+                  intent="plain"
+                  size="sm"
+                  aria-current={heading.id === current ? "location" : undefined}
+                  className="w-full justify-start [--btn-foreground:var(--color-muted-foreground)] hover:[--btn-foreground:var(--color-foreground)] aria-[current]:[--btn-foreground:var(--color-foreground)]"
+                  onPress={() => {
+                    go(heading);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="truncate">{heading.text}</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </nav>
   );
-}
-
-/** Whether `element` is at least `width` wide, kept current as it resizes. */
-export function useWiderThan(width: number) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [wide, setWide] = useState(false);
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => {
-      setWide((entry?.contentRect.width ?? 0) >= width);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [width]);
-  return [ref, wide] as const;
 }

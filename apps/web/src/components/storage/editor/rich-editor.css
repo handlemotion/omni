@@ -4,9 +4,9 @@
 .document-page {
   @apply mx-auto w-full max-w-3xl px-10 py-10 text-md/6 text-foreground outline-none;
 }
-/* Beside a floating outline the page leaves it 18rem, moving right of centre when it must. */
-.doc-beside-outline .document-page {
-  margin-inline-start: max(18rem, calc((100% - 48rem) / 2));
+/* A heading picked in the outline lands a little below the page's top edge, not on it. */
+.document-page :is(h1, h2, h3) {
+  scroll-margin-top: 2.5rem;
 }
 .document-page > * + * {
   @apply mt-3;

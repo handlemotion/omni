@@ -2,6 +2,7 @@ import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { cn } from "cn";
+import { useState } from "react";
 import {
   IconBold,
   IconCode,
@@ -15,13 +16,27 @@ import { popupSurface } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 
+const HANDLE = 24;
+
+function dropOf(editor: Editor, pos: number) {
+  const dom = editor.view.nodeDOM(pos);
+  if (!(dom instanceof HTMLElement)) return 0;
+  const line = parseFloat(getComputedStyle(dom).lineHeight);
+  return Number.isFinite(line) ? Math.max(0, (line - HANDLE) / 2) : 0;
+}
+
 /** Beside the block under the pointer: a grip to drag it somewhere else. */
 export function BlockHandle(props: { editor: Editor }) {
+  const [drop, setDrop] = useState(0);
   return (
-    <DragHandle editor={props.editor}>
+    <DragHandle
+      editor={props.editor}
+      onNodeChange={({ editor, pos }) => setDrop(pos < 0 ? 0 : dropOf(editor, pos))}
+    >
       <span
         aria-hidden
-        className="document-handle flex size-6.5 cursor-grab items-center justify-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground active:cursor-grabbing"
+        style={{ marginTop: drop }}
+        className="document-handle flex size-6 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
       >
         <IconGrip className="size-icon" />
       </span>

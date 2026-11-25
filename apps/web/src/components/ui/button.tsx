@@ -124,18 +124,26 @@ export interface ButtonProps
   isPending?: boolean;
 }
 
-const InPageBar = createContext(false);
+const InPageBar = createContext<false | "outline" | "bare">(false);
 
 /**
  * A page's or panel's own actions (its header's right side). Every button inside is bordered or
  * primary: a bare `plain` or `ghost` one draws as `outline`, since bare icons belong to the shell.
+ * `bare` (a doc open as a page): no borders, each one `ghost`, a fill only under the pointer.
  */
-export function PageBarActions({ children }: { children: ReactNode }) {
-  return <InPageBar.Provider value={true}>{children}</InPageBar.Provider>;
+export function PageBarActions({ children, bare }: { children: ReactNode; bare?: boolean }) {
+  return <InPageBar.Provider value={bare ? "bare" : "outline"}>{children}</InPageBar.Provider>;
 }
 
 /** True inside `PageBarActions`, for controls that change their look there. */
-export const useInPageBar = () => useContext(InPageBar);
+export const useInPageBar = () => useContext(InPageBar) !== false;
+
+const BARE: ReadonlySet<unknown> = new Set(["plain", "ghost", "outline"]);
+
+function drawnIn(bar: false | "outline" | "bare", intent: ButtonProps["intent"]) {
+  if (bar === "bare") return BARE.has(intent) ? "ghost" : intent;
+  return bar && (intent === "plain" || intent === "ghost") ? "outline" : intent;
+}
 
 export function Button({
   className,
@@ -150,8 +158,7 @@ export function Button({
   ...props
 }: ButtonProps & { onClick?: ButtonPrimitiveProps["onClick"] }) {
   const { onClick: forwardedClick, ...rest } = props;
-  const inBar = useContext(InPageBar);
-  const drawn = inBar && (intent === "plain" || intent === "ghost") ? "outline" : intent;
+  const drawn = drawnIn(useContext(InPageBar), intent);
   return (
     <ButtonPrimitive
       ref={ref}

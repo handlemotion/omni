@@ -18,12 +18,12 @@ import type { EditorProps } from "./document-editor.tsx";
 import { BlockComment } from "./block-comment.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
 import { CollaboratorFaces, faceAnchor } from "./collaborator-faces.tsx";
-import { DocToolbar } from "./doc-toolbar.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useOptionalStorageHref } from "../file-list.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
 import { docExtensions, Dropdown, readableMarkdown } from "@omni/docs";
 import { DriveFiles } from "./drive-files.tsx";
+import { DocThreads } from "./doc-threads.tsx";
 import { SlashMenu } from "./slash-menu.tsx";
 import SourceEditor from "./source-editor.tsx";
 import "./rich-editor.css";
@@ -244,11 +244,11 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
       {doc && <CollaboratorFaces editor={editor} scroller={scroller} />}
       <BlockHandle editor={editor} />
       <BlockComment editor={editor} comments={comments} scroller={scroller} />
+      <DocThreads editor={editor} comments={comments} scroller={scroller} />
       <FormatBar
         editor={editor}
         onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
       />
-      <DocToolbar editor={editor} comments={comments} />
     </div>
   );
 }
