@@ -41,6 +41,8 @@ import {
 } from "@/hooks/use-notifications-panel.ts";
 import { useOpenSettings } from "@/hooks/use-settings.ts";
 import { useFilePlace } from "@/hooks/use-storage.ts";
+import { driveOf } from "@/lib/storage.ts";
+import { useOptionalStorageHref } from "@/components/storage/file-list";
 import { pictureUrl } from "@/lib/urls.ts";
 import { CountBadge } from "./count-badge";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
@@ -215,6 +217,7 @@ function NotificationList({ unread }: { unread: boolean }) {
   const workspace = useWorkspaceSlug();
   const openSettings = useOpenSettings();
   const filePlace = useFilePlace();
+  const storageHref = useOptionalStorageHref();
   const hover = useFluidHoverList({
     itemSelector: "[role='row']",
     highlightedSelector: "[data-focus-visible]",
@@ -226,16 +229,11 @@ function NotificationList({ unread }: { unread: boolean }) {
     const comment = commentTarget(n);
     if (comment) {
       void filePlace(comment.nodeId).then((now) => {
-        const { space, folderId } = now ?? comment;
-        const place = space === "personal" ? "my" : "shared";
-        const search = { comments: comment.nodeId };
-        return folderId
-          ? router.navigate({
-              to: `/$workspace/files/${place}/$folderId`,
-              params: { workspace, folderId },
-              search,
-            })
-          : router.navigate({ to: `/$workspace/files/${place}/`, params: { workspace }, search });
+        if (!storageHref) return;
+        const { space, teamspaceId, folderId } = now ?? comment;
+        const folder = storageHref(driveOf({ space, teamspaceId }), folderId ?? undefined);
+        const href = `${folder}${folder.includes("?") ? "&" : "?"}comments=${encodeURIComponent(comment.nodeId)}`;
+        return router.navigate({ href });
       });
       return;
     }
