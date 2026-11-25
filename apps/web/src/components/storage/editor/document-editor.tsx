@@ -34,7 +34,7 @@ export interface EditorProps {
   /** Called once the editor is up, with how to read its text now. */
   onReady: (read: () => string) => void;
   onChange: () => void;
-  /** False while the person only reads and comments on the doc (Commenting). */
+  /** False for someone who may only read the doc. */
   editable?: boolean;
 }
 
@@ -102,8 +102,6 @@ export function isDoc(node: StorageNode) {
   return isMarkdown(node) && canEditFile(node);
 }
 
-export type DocMode = "editing" | "commenting";
-
 /** The open file's editing: on or off, unsaved changes, and saving them (a doc saves itself). */
 export function useEditSession(
   node: StorageNode,
@@ -113,7 +111,6 @@ export function useEditSession(
   sharedLive = false,
 ) {
   const client = useQueryClient();
-  const [mode, setMode] = useState<DocMode>("editing");
   const [editing, setEditing] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -142,7 +139,6 @@ export function useEditSession(
     setEditing(false);
     setDirty(false);
     setConflict(null);
-    setMode("editing");
   }, [node.id]);
 
   useEffect(() => {
@@ -327,11 +323,9 @@ export function useEditSession(
       reopen(conflict ?? base.current ?? 0);
       void storageChanged(client);
     },
-    mode,
-    setMode,
     writable,
     editor: {
-      editable: writable && mode === "editing",
+      editable: writable,
       node,
       url,
       shareId,

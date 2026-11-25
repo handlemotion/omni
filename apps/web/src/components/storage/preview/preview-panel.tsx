@@ -15,7 +15,6 @@ import {
   DescriptionList,
   DescriptionTerm,
 } from "@/components/ui/description-list";
-import { Avatar } from "@/components/ui/avatar";
 import { Heading } from "@/components/ui/heading";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
@@ -30,6 +29,7 @@ import { useShowDetails } from "@/hooks/use-show-details.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { type StorageNode } from "@/lib/storage.ts";
+import { TalkFace } from "@/components/talk/presence-stack";
 import { CommentsPanel } from "../comments-panel.tsx";
 import { TypeBadge } from "../file-glyph.tsx";
 import { FIELD_OFFSET, NameField } from "../name-field.tsx";
@@ -278,18 +278,23 @@ function FileEditors(props: { nodeId: string }) {
   const members = useMembers().data?.members ?? [];
   if (editors.length === 0) return null;
   return (
-    <div className="me-1 flex items-center -space-x-1">
+    <div className="me-1 flex items-center">
       {editors.map((editor) => {
         const member = members.find((m) => m.id === editor.memberId);
         const name = member?.user.name || member?.user.email || "Someone";
         return (
           <TooltipTrigger key={editor.memberId} delay={400}>
-            <Button intent="plain" size="sq-sm" aria-label={`${name} is editing`}>
-              <Avatar
-                size="xs"
-                src={member?.user.image ?? null}
-                initials={name.slice(0, 1).toUpperCase()}
-                className="bg-accent text-foreground outline-2 outline-background"
+            <Button
+              intent="plain"
+              size="sq-sm"
+              isCircle
+              aria-label={`${name} is editing`}
+              className="relative -ms-2 first:ms-0 hover:z-10"
+            >
+              <TalkFace
+                person={{ name, image: member?.user.image ?? null }}
+                size={24}
+                className="ring-2 ring-background"
               />
             </Button>
             <Tooltip>{name} is editing</Tooltip>

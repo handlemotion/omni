@@ -1,29 +1,15 @@
-import type { ComponentType } from "react";
-import {
-  IconChevronDown,
-  IconCommentPlain,
-  IconLock,
-  IconPencil,
-  IconUserAdd,
-} from "@/components/icons/central";
+import { IconLock, IconUserAdd } from "@/components/icons/central";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSection, MenuTrigger } from "@/components/ui/menu";
 import type { StorageNode } from "@/lib/storage.ts";
-import type { DocMode, EditSession } from "./document-editor.tsx";
+import type { EditSession } from "./document-editor.tsx";
 import { DocOutline } from "./doc-outline.tsx";
 import { DOC_EXPORTS, useDocExport } from "./export-menu.tsx";
 
-type Icon = ComponentType<{ className?: string; "data-slot"?: string }>;
-
-const MODES: { id: DocMode; label: string; icon: Icon }[] = [
-  { id: "editing", label: "Editing", icon: IconPencil },
-  { id: "commenting", label: "Commenting", icon: IconCommentPlain },
-];
-
 /**
- * A doc's second bar, under its header: its outline, then how it is open (Editing, or Commenting: read, select and comment)
- * and Share, which holds sharing it and exporting it. Absent for anything but a doc being edited.
+ * A doc's second bar, under its header: its outline, then Share, which holds sharing it and
+ * exporting it. Absent for anything but a doc being edited.
  */
 export function DocBar(props: {
   node: StorageNode;
@@ -48,7 +34,7 @@ export function DocBar(props: {
   );
 }
 
-/** The bar's controls in a doc page's own header: outline, mode and Share, in one line. */
+/** The bar's controls in a doc page's own header: outline and Share, in one line. */
 export function DocBarActions(props: {
   node: StorageNode;
   items: SettingsRowMenuItem[];
@@ -83,7 +69,6 @@ function Modes(props: {
 }) {
   return (
     <>
-      {props.session.writable && <ModeMenu session={props.session} />}
       <ShareMenu
         node={props.node}
         items={props.items}
@@ -92,39 +77,6 @@ function Modes(props: {
         shareId={props.session.editor.shareId}
       />
     </>
-  );
-}
-
-function ModeMenu(props: { session: EditSession }) {
-  const { mode, setMode } = props.session;
-  const current = MODES.find((each) => each.id === mode) ?? MODES[0]!;
-  return (
-    <MenuTrigger>
-      <Button intent="plain" size="sm">
-        <current.icon data-slot="icon" />
-        {current.label}
-        <IconChevronDown data-slot="icon" />
-      </Button>
-      <Menu
-        aria-label="Mode"
-        placement="bottom end"
-        popover={{ offset: 4 }}
-        selectionMode="single"
-        selectedKeys={[mode]}
-      >
-        {MODES.map((each) => (
-          <MenuItem
-            key={each.id}
-            id={each.id}
-            textValue={each.label}
-            onAction={() => setMode(each.id)}
-          >
-            <each.icon data-slot="icon" />
-            <MenuLabel>{each.label}</MenuLabel>
-          </MenuItem>
-        ))}
-      </Menu>
-    </MenuTrigger>
   );
 }
 
