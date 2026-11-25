@@ -106,6 +106,30 @@ test("an agent writes a doc and edits it, only where its person may", async () =
     "# Launch plan\n\n- [x] Book the venue\n- [ ] Send invites by Friday",
   );
 
+  const html = await call(anaAgent, "drive_edit_doc", {
+    id: made.doc.id,
+    edits: [
+      { find: "Send invites by Friday", replace: '<span style="color:red">Send invites</span>' },
+    ],
+  });
+  expect((html as { error: string }).error).toContain("as Markdown source");
+  expect(await contentOf(ana, made.doc.id)).toContain("- [ ] Send invites by Friday");
+  const oneLine = "# Notes\n\n<details><summary>Typos</summary>\n\n- Header\n\n</details>";
+  const folded = await call(anaAgent, "drive_create_doc", {
+    name: "Notes",
+    teamspace_id: teamspaceId,
+    markdown: oneLine,
+  });
+  if ("error" in folded) throw new Error(folded.error);
+  expect(await contentOf(ana, folded.doc.id)).toBe(oneLine);
+  expect(
+    await call(anaAgent, "drive_create_doc", {
+      name: "Raw",
+      teamspace_id: teamspaceId,
+      markdown: "# Raw\n\n1. Alpha\n2. Beta\n\n<div>Boxed</div>",
+    }),
+  ).toMatchObject({ error: expect.stringContaining("<div>Boxed</div>") });
+
   const carlAgent = await connectAgent(stack.worker.url, carl.jar, { scope: WRITE });
   expect(
     await call(carlAgent, "drive_edit_doc", { id: made.doc.id, markdown: "# Mine now" }),

@@ -23,7 +23,7 @@ import { CollaboratorFaces, faceAnchor } from "./collaborator-faces.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useOptionalStorageHref } from "../file-list.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
-import { docExtensions, Dropdown, readableMarkdown } from "@omni/docs";
+import { docExtensions, Dropdown, pageLoss, readableMarkdown } from "@omni/docs";
 import { DriveFiles } from "./drive-files.tsx";
 import { DocThreads } from "./doc-threads.tsx";
 import { SlashMenu } from "./slash-menu.tsx";
@@ -104,28 +104,11 @@ function seedFrom(markdown: string) {
   };
 }
 
-const words = (markdown: string) =>
-  markdown
-    .replace(/&#(x?)([\da-f]{1,6});/gi, (_, hex: string, code: string) =>
-      String.fromCodePoint(parseInt(code, hex ? 16 : 10) || 32),
-    )
-    .replace(/\[([^\]]*)\]\(mailto:[^)]*\)/g, "$1")
-    .replace(/<([^<>\s@]+@[^<>\s]+)>/g, "$1")
-    .replace(/^\s*\d+[.)]\s/gm, "")
-    .replace(/[^\p{L}\p{N}]+/gu, "");
-
-function roundTrips(markdown: string) {
-  const editor = new Editor({ extensions: EXTENSIONS, content: markdown, contentType: "markdown" });
-  const back = editor.getMarkdown();
-  editor.destroy();
-  return words(back) === words(markdown);
-}
-
 type Phase = { kind: "opening" } | { kind: "live"; doc: LiveDoc } | { kind: "off" };
 
 export default function RichEditor(props: EditorProps) {
   const text = useMemo(() => readableMarkdown(props.text), [props.text]);
-  const page = useMemo(() => roundTrips(text), [text]);
+  const page = useMemo(() => pageLoss(text) === undefined, [text]);
   return page ? <LivePage {...props} text={text} /> : <SourceEditor {...props} live={undefined} />;
 }
 
