@@ -4,7 +4,8 @@ import { Avatar } from "@/components/ui/avatar";
 
 const ANCHOR = "document-face-anchor";
 const BLOCK = "li, p, h1, h2, h3, h4, h5, h6, pre, blockquote, th, td, [data-type='details']";
-const FACE = 20;
+/** A face's size, in pixels. */
+export const FACE = 20;
 
 /**
  * Where another person is in the doc, drawn as nothing in the text: an empty mark that
@@ -26,8 +27,23 @@ interface Face {
   left: number;
 }
 
-function facesIn(scroller: HTMLElement) {
+/**
+ * Where a face goes for the block holding `inside`, in the scroller's own coordinates: on the
+ * block's first line, left of it where the block handle sits, the `nth` one there stacked further
+ * left.
+ */
+export function faceSpot(scroller: HTMLElement, inside: Element, nth = 0) {
+  const block = inside.closest(BLOCK) ?? inside;
   const box = scroller.getBoundingClientRect();
+  const at = block.getBoundingClientRect();
+  const line = parseFloat(getComputedStyle(block).lineHeight) || 24;
+  return {
+    top: at.top - box.top + scroller.scrollTop + (line - FACE) / 2,
+    left: at.left - box.left + scroller.scrollLeft - 36 - nth * (FACE - 6),
+  };
+}
+
+function facesIn(scroller: HTMLElement) {
   const perBlock = new Map<Element, number>();
   const perName = new Map<string, number>();
   const faces: Face[] = [];
@@ -37,16 +53,13 @@ function facesIn(scroller: HTMLElement) {
     perName.set(name, seen + 1);
     const block = anchor.parentElement?.closest(BLOCK) ?? anchor.parentElement;
     if (!block) continue;
-    const at = block.getBoundingClientRect();
-    const line = parseFloat(getComputedStyle(block).lineHeight) || 24;
     const nth = perBlock.get(block) ?? 0;
     perBlock.set(block, nth + 1);
     faces.push({
       key: `${name}-${seen}`,
       name,
       image: anchor.dataset.image ?? "",
-      top: at.top - box.top + scroller.scrollTop + (line - FACE) / 2,
-      left: at.left - box.left + scroller.scrollLeft - 36 - nth * (FACE - 6),
+      ...faceSpot(scroller, block, nth),
     });
   }
   return faces;

@@ -37,6 +37,7 @@ export function Avatar({
   logoTile,
   className,
   style,
+  children,
   ...props
 }: AvatarProps & React.ComponentPropsWithoutRef<"span">) {
   const [failed, setFailed] = useState<string | null>(null);
@@ -96,6 +97,7 @@ export function Avatar({
           onError={() => setFailed(src)}
         />
       )}
+      {children}
     </span>
   );
 }
