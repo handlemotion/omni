@@ -347,22 +347,6 @@
   }
 }
 
-/* The pill above a doc's toolbar naming the agent editing it: rises in, sinks out. */
-@utility agent-pill {
-  translate: -50% 4px;
-  opacity: 0;
-  transition:
-    opacity 300ms var(--ease-out),
-    translate 300ms var(--ease-out);
-  &[data-active] {
-    translate: -50% 0;
-    opacity: 1;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    transition: opacity 300ms ease-out;
-  }
-}
-
 @keyframes shimmer {
   from {
     background-position: 100% 0;

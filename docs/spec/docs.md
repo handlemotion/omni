@@ -117,9 +117,11 @@ from. Versions follow editing sessions (#706):
   content from before its change stays restorable whoever saves next.
 - **An agent at work shows.** While an agent's edits arrive in an open doc (live records whose
   `by` is `a:<memberId>:<agent>`), the agent's face (a sparkle on the accent blue) floats left of
-  the block its last edit changed, where people's faces float, and a solid blue pill above the
-  toolbar says "<agent> is editing" (a status, so screen readers hear it too). Both fade out 6 seconds after the agent's last edit
-  (`AGENT_LINGER_MS`), so the gaps between an agent's calls read as one stretch of work.
+  the block its last edit changed, where people's faces float, and a status only screen readers
+  hear says "<agent> is editing". The face fades out 6 seconds after the agent's last edit
+  (`AGENT_LINGER_MS`), so the gaps between an agent's calls read as one stretch of work. The
+  text each edit writes comes in in the accent blue and settles into the page's ink within about
+  two seconds (`AGENT_INK_MS`); text someone else writes doesn't.
 - Comments and signatures keep the `contentVersion` they were made on.
 
 This is what files of every type get. Wok's own types get History on top of it (next section).
