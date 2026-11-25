@@ -99,7 +99,7 @@ test("files and folders move by dragging them onto folders on the page and in th
   await drag(page, sidebar("Photos"), sidebar("Projects"));
   await expect
     .poll(() => names(page, { parent: projects }))
-    .toEqual(["Sketches", "Photos", "forest.png"]);
+    .toEqual(["Photos", "Sketches", "forest.png"]);
   expect(await names(page, { teamspace: teamspaceId })).toEqual(["Projects"]);
   expect(await names(page, { parent: photos })).toEqual(["dropped.txt", "sunset.png"]);
   await page.getByRole("row", { name: /Photos/ }).waitFor({ state: "detached" });
