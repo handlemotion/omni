@@ -91,7 +91,7 @@ export function EventPanel(props: {
       aria-label={event.title}
       className="flex h-svh w-80 shrink-0 flex-col border-l bg-background"
     >
-      <div className="flex h-12 shrink-0 items-center gap-2 ps-4 pe-2.5">
+      <div className="flex h-bar shrink-0 items-center gap-2 px-4">
         <h2 className="min-w-0 flex-1 truncate text-md">{event.title || "(No title)"}</h2>
         <Button intent="outline" size="sq-sm" aria-label="Close" onPress={props.onClose}>
           <IconX />

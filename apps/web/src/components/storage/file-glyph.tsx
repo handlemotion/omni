@@ -48,6 +48,22 @@ export function FileGlyph(props: { kind: FileKind | "folder"; className?: string
   return <Glyph className={props.className} />;
 }
 
+const LINE: Record<FileKind | "folder", Glyph> = {
+  ...GLYPH,
+  pdf: IconFile,
+  document: IconFile,
+  doc: IconFile,
+  text: IconFile,
+  presentation: IconFile,
+  spreadsheet: IconTable,
+};
+
+/** A file's type as a plain line glyph, never a brand's mark: the sidebar's tree. */
+export function LineGlyph(props: { kind: FileKind | "folder"; className?: string }) {
+  const Glyph = LINE[props.kind];
+  return <Glyph className={props.className} />;
+}
+
 /** An attachment chip's mark: the brand's for a PDF or an Office file, else the paperclip. */
 export function AttachmentGlyph(props: { name: string; mimeType?: string | null }) {
   const brands: Partial<Record<FileKind, Glyph>> = BRAND;

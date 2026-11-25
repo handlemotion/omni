@@ -18,6 +18,7 @@ const SETTINGS_PAGES = [
   "pipeline",
   "ai",
   "billing",
+  "trash",
 ] as const;
 
 export type SettingsPageId = (typeof SETTINGS_PAGES)[number];

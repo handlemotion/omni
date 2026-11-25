@@ -19,6 +19,7 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 import { openSpace } from "./spaces.ts";
+import { uploadFiles } from "./uploads.ts";
 
 const DOT_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -71,10 +72,11 @@ test("a file larger than one part uploads from the page and downloads byte for b
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "footage.bin", mimeType: "application/octet-stream", buffer: bytes });
+  await uploadFiles(page, {
+    name: "footage.bin",
+    mimeType: "application/octet-stream",
+    buffer: bytes,
+  });
   await page.getByRole("row", { name: /footage\.bin/ }).waitFor({ timeout: 60_000 });
   expect(parts.toSorted()).toEqual(["1", "2", "3"]);
 
@@ -96,10 +98,7 @@ test("a doc exported as Word keeps its headings, to-dos, marks, table and images
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "dot.png", mimeType: "image/png", buffer: DOT_PNG });
+  await uploadFiles(page, { name: "dot.png", mimeType: "image/png", buffer: DOT_PNG });
   await page.getByRole("row", { name: /dot\.png/ }).waitFor({ timeout: 30_000 });
   const [dot] = await db
     .select({ id: schema.storageNodes.id })
@@ -108,10 +107,11 @@ test("a doc exported as Word keeps its headings, to-dos, marks, table and images
   const text =
     "# Plan\n\nShip **soon**.\n\n- [x] Draft\n- [ ] Review\n\n| Who | When |\n| --- | --- |\n| Ana | Monday |\n\n```\nfirst();\n\nthird();\n```\n\nUp\\\n\\\nDown\n\n1. Step\n   - Aside\n\nThen\n\n4. Fourth\n" +
     `\n![dot](/api/storage/files/${dot?.id}/content)\n`;
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "export.md", mimeType: "text/markdown", buffer: Buffer.from(text) });
+  await uploadFiles(page, {
+    name: "export.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(text),
+  });
   await page.getByRole("row", { name: /export\.md/ }).waitFor({ timeout: 30_000 });
 
   await page.getByRole("button", { name: "Actions for export.md" }).click();
@@ -150,10 +150,7 @@ test("a link open to anyone downloads its file, byte for byte, for someone signe
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "brief.pdf", mimeType: "application/pdf", buffer: bytes });
+  await uploadFiles(page, { name: "brief.pdf", mimeType: "application/pdf", buffer: bytes });
   await page.getByRole("row", { name: /brief\.pdf/ }).waitFor({ timeout: 30_000 });
 
   await page.getByRole("button", { name: "Actions for brief.pdf" }).click();
@@ -207,7 +204,7 @@ test("an XLSX opens to its visible sheets' cells as the workbook shows them", as
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page.locator("input[type=file]").first().setInputFiles({
+  await uploadFiles(page, {
     name: "pipeline.xlsx",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     buffer,
@@ -245,16 +242,14 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
     await route.continue().catch(() => {});
   });
   const names = ["one.bin", "two.bin", "three.bin"];
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles(
-      names.map((name) => ({
-        name,
-        mimeType: "application/octet-stream",
-        buffer: randomBytes(4096),
-      })),
-    );
+  await uploadFiles(
+    page,
+    names.map((name) => ({
+      name,
+      mimeType: "application/octet-stream",
+      buffer: randomBytes(4096),
+    })),
+  );
   await page.waitForRequest("**/api/storage/uploads/*/parts/1");
 
   await page.getByRole("button", { name: /^Switch workspace/ }).click();
@@ -300,7 +295,6 @@ test("New folder is named in place, and each name creates one folder", async () 
   await page.keyboard.press("Escape");
   await page.getByRole("row", { name: "Untitled folder" }).waitFor();
 
-  await page.getByRole("radio", { name: "Rows" }).first().click();
   await newFolder.click();
   await page.keyboard.type("Plns");
   await page.keyboard.press("ArrowLeft");
@@ -329,10 +323,7 @@ test("Rename changes a name in place on a row and a card, once", async () => {
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") });
+  await uploadFiles(page, { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") });
   await page.getByRole("row", { name: /notes\.txt/ }).waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "New", exact: true }).first().click();
   await page.getByRole("menuitem", { name: "New folder" }).click();
@@ -375,17 +366,14 @@ test("a Markdown file is edited as a page, saves itself as Markdown, and a newer
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles([
-      {
-        name: "plan.md",
-        mimeType: "text/markdown",
-        buffer: Buffer.from("# Plan\n\n- First point\n"),
-      },
-      { name: "zz.txt", mimeType: "text/plain", buffer: Buffer.from("next") },
-    ]);
+  await uploadFiles(page, [
+    {
+      name: "plan.md",
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# Plan\n\n- First point\n"),
+    },
+    { name: "zz.txt", mimeType: "text/plain", buffer: Buffer.from("next") },
+  ]);
   await page.getByRole("row", { name: /plan\.md/ }).click();
   const editor = page.locator("[contenteditable=true]");
   await editor.getByRole("heading", { name: "Plan" }).waitFor({ timeout: 15_000 });
@@ -474,10 +462,11 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
     .waitFor({ timeout: 15_000 });
   const text =
     "# Prices\n\n| Plan | Price |\n| --- | --- |\n| Pro | 9 |\n\n<details><summary>Terms</summary>Billed yearly</details>\n";
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "prices.md", mimeType: "text/markdown", buffer: Buffer.from(text) });
+  await uploadFiles(page, {
+    name: "prices.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(text),
+  });
   await page.getByRole("row", { name: /prices\.md/ }).click();
   const source = page.locator(".cm-content");
   await source.getByText("| Pro | 9 |").waitFor({ timeout: 15_000 });
@@ -508,13 +497,10 @@ test("picking another file while a text file has unsaved edits asks first and ke
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles([
-      { name: "a-notes.txt", mimeType: "text/plain", buffer: Buffer.from("first line\n") },
-      { name: "b-other.txt", mimeType: "text/plain", buffer: Buffer.from("other file\n") },
-    ]);
+  await uploadFiles(page, [
+    { name: "a-notes.txt", mimeType: "text/plain", buffer: Buffer.from("first line\n") },
+    { name: "b-other.txt", mimeType: "text/plain", buffer: Buffer.from("other file\n") },
+  ]);
   await page.getByRole("row", { name: /a-notes\.txt/ }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   const source = page.locator(".cm-content");
@@ -537,13 +523,10 @@ test("leaving a doc with unsaved typing goes at once, to the last place picked, 
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles([
-      { name: "away.md", mimeType: "text/markdown", buffer: Buffer.from("# Away\n\nFirst line\n") },
-      { name: "zz.txt", mimeType: "text/plain", buffer: Buffer.from("next") },
-    ]);
+  await uploadFiles(page, [
+    { name: "away.md", mimeType: "text/markdown", buffer: Buffer.from("# Away\n\nFirst line\n") },
+    { name: "zz.txt", mimeType: "text/plain", buffer: Buffer.from("next") },
+  ]);
   await page.getByRole("row", { name: /away\.md/ }).click();
   const editor = page.locator("[contenteditable=true]");
   await editor.getByText("First line").click();
@@ -580,13 +563,10 @@ test("switching docs while the first is still saving saves both, each to its own
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles([
-      { name: "a-doc.md", mimeType: "text/markdown", buffer: Buffer.from("# A\n\nAlpha line\n") },
-      { name: "b-doc.md", mimeType: "text/markdown", buffer: Buffer.from("# B\n\nBeta line\n") },
-    ]);
+  await uploadFiles(page, [
+    { name: "a-doc.md", mimeType: "text/markdown", buffer: Buffer.from("# A\n\nAlpha line\n") },
+    { name: "b-doc.md", mimeType: "text/markdown", buffer: Buffer.from("# B\n\nBeta line\n") },
+  ]);
   const uploaded = () =>
     db
       .select({ id: schema.storageNodes.id, name: schema.storageNodes.name })
@@ -635,17 +615,14 @@ test("closing a doc returns to the folder where it was scrolled", async () => {
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles([
-      ...Array.from({ length: 16 }, (_, at) => ({
-        name: `note-${String(at).padStart(2, "0")}.txt`,
-        mimeType: "text/plain",
-        buffer: Buffer.from(`note ${at}`),
-      })),
-      { name: "zz-plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n") },
-    ]);
+  await uploadFiles(page, [
+    ...Array.from({ length: 16 }, (_, at) => ({
+      name: `note-${String(at).padStart(2, "0")}.txt`,
+      mimeType: "text/plain",
+      buffer: Buffer.from(`note ${at}`),
+    })),
+    { name: "zz-plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n") },
+  ]);
   await expect
     .poll(
       async () =>

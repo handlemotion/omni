@@ -8,7 +8,7 @@ import {
   IconX,
 } from "@/components/icons/central";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
-import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
+import { PageNav } from "@/components/shell/page-nav";
 import { Button, PageBarActions } from "@/components/ui/button";
 import {
   DescriptionDetails,
@@ -91,7 +91,7 @@ export function PreviewPanel(props: {
   );
   const canEdit = props.canWrite && canEditFile(node) && !shown;
   const doc = canEditFile(node) && !shown && isDoc(node);
-  const inset = useHeaderInset(props.fullScreen, props.shell);
+  const inset = headerInset(props.fullScreen);
   useAlwaysEditing(session, doc);
   const comments = useDocCommentsState(
     node.id,
@@ -172,7 +172,7 @@ function PanelHeader(props: {
   const { node, page, session, exports } = props;
   return (
     <div
-      className={`flex h-12 shrink-0 items-center gap-3 pe-2.5 ${page ? "" : "border-b"} ${props.inset}`}
+      className={`flex h-bar shrink-0 items-center gap-3 px-4 ${page ? "" : "border-b"} ${props.inset}`}
     >
       {props.fullScreen && props.shell && <PageNav />}
       <Title node={node} rename={props.rename} trail={page ? props.trail : undefined} />
@@ -326,12 +326,6 @@ function EditActions(props: { session: EditSession; canEdit: boolean; doc: boole
   );
 }
 
-function useHeaderInset(fullScreen: boolean, shell: boolean) {
-  const nav = usePageNavShown() && shell;
-  if (!fullScreen) return "border-s ps-5";
-  return nav ? "ps-2.5" : "ps-5";
-}
-
 function useAlwaysEditing(session: EditSession, doc: boolean) {
   const { editing, start, editor } = session;
   useEffect(() => {
@@ -442,3 +436,5 @@ function Title(props: {
     </Heading>
   );
 }
+
+const headerInset = (fullScreen: boolean) => (fullScreen ? "" : "border-s");

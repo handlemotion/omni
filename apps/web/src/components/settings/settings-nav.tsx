@@ -36,7 +36,7 @@ export function SettingsNav() {
   );
   const items = (
     <>
-      <SearchField aria-label="Search settings" value={query} onChange={setQuery}>
+      <SearchField aria-label="Search settings" value={query} onChange={setQuery} className="mt-2">
         <SearchInput placeholder="Search settings" />
       </SearchField>
       {shownAccount.length > 0 && <Group label="Personal" pages={shownAccount} />}

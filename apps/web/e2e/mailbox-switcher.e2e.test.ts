@@ -278,16 +278,18 @@ test("switching workspace keeps the module; switching module keeps the workspace
   const before = await active();
 
   const openModule = async (name: string) => {
-    await page.getByRole("button", { name: /^Switch module, currently / }).click();
-    await page.getByRole("menuitem", { name, exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Modules" })
+      .getByRole("button", { name, exact: true })
+      .click();
   };
   await openModule("Drive");
   await page.waitForURL((url) => place(url) === "/files");
   expect(await active()).toBe(before);
   expect(await page.getByRole("link", { name: "Later", exact: true }).count()).toBe(0);
 
-  await page.getByRole("link", { name: "Trash", exact: true }).click();
-  await page.waitForURL((url) => place(url) === "/files/trash");
+  await page.getByRole("link", { name: "Recents", exact: true }).click();
+  await page.waitForURL((url) => place(url) === "/files/recents");
   const other = before === acme.orgId ? "Beta" : "Acme";
   await page.route(/\/api\/(mailboxes|counts)/, () => undefined);
   await page.getByRole("button", { name: /^Switch workspace, currently / }).click();
@@ -298,7 +300,7 @@ test("switching workspace keeps the module; switching module keeps the workspace
   });
   await page.getByRole("button", { name: `Switch workspace, currently ${other}` }).waitFor();
   await page.unroute(/\/api\/(mailboxes|counts)/);
-  expect(place(page.url())).toBe("/files/trash");
+  expect(place(page.url())).toBe("/files/recents");
   await expect.poll(active).toBe(other === "Beta" ? beta.orgId : acme.orgId);
 
   await openModule("Calendar");
@@ -324,8 +326,10 @@ test("g then f keeps the mailbox for the way back to Mail", async () => {
   await page.keyboard.press("g");
   await page.keyboard.press("f");
   await page.waitForURL((url) => place(url) === "/files");
-  await page.getByRole("button", { name: /^Switch module, currently / }).click();
-  await page.getByRole("menuitem", { name: "Mail", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Modules" })
+    .getByRole("button", { name: "Mail", exact: true })
+    .click();
   await page.waitForURL((url) => place(url) === "/mail/inbox");
   expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.support.id);
   await page.getByRole("button", { name: /^Switch mailbox, currently Support/ }).waitFor();

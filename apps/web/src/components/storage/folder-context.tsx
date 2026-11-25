@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import {
-  IconCards,
   IconCheck,
   IconCircleX,
   IconFileZip,
@@ -8,13 +7,11 @@ import {
   IconFolderMove,
   IconFolderPlus,
   IconNewDoc,
-  IconRows,
   IconTrash,
   IconUpload,
 } from "@/components/icons/central";
 import type { ContextMenuEntry } from "@/components/ui/context-menu";
 import type { NodeSelection } from "@/hooks/use-node-selection.ts";
-import { useStorageView } from "@/hooks/use-storage-view.ts";
 import { downloadZip } from "@/lib/download.ts";
 import type { StoragePlace } from "@/lib/storage.ts";
 import { pickedFromInput, type Picked } from "@/lib/storage-upload-tree.ts";
@@ -81,7 +78,6 @@ export function useFolderContextMenus(props: {
   onMove: () => void;
 }) {
   const { source, selection } = props;
-  const [view, setView] = useStorageView();
   const trash = useBulkTrash(source.shareId);
   const write = source.canWrite;
 
@@ -101,9 +97,6 @@ export function useFolderContextMenus(props: {
         onAction: () => pickFiles(props.onFiles, true),
       },
       "separator",
-      view === "cards"
-        ? { icon: IconRows, label: "Show as rows", onAction: () => setView("rows") }
-        : { icon: IconCards, label: "Show as cards", onAction: () => setView("cards") },
       source.list.nodes.length > 0 && {
         icon: IconCheck,
         label: "Select all",

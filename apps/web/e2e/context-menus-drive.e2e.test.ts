@@ -88,14 +88,7 @@ test("a right-click between a folder's items offers New folder, and it starts on
   await menu.waitFor();
   await expect
     .poll(() => menu.getByRole("menuitem").allInnerTexts())
-    .toEqual([
-      "New folder",
-      "New doc",
-      "Upload files",
-      "Upload folder",
-      "Show as rows",
-      "Select all",
-    ]);
+    .toEqual(["New folder", "New doc", "Upload files", "Upload folder", "Select all"]);
   await page.getByRole("menuitem", { name: "New folder" }).click();
   await page.getByRole("textbox", { name: "Folder name" }).waitFor();
   await page.keyboard.type("Drafts");

@@ -3,6 +3,7 @@ import {
   storagePageQuerySchema,
   storageFolderIconsQuerySchema,
   storageSearchQuerySchema,
+  type StorageDraftsResponse,
   type StorageFindResponse,
   type StorageFolderIconsResponse,
   type StorageListResponse,
@@ -25,6 +26,7 @@ import { storageLive } from "./live.ts";
 import { storageSharing } from "./sharing.ts";
 import { storageTeamspaces } from "./teamspaces.ts";
 import { storageSigningMember } from "./signing.ts";
+import { DRAFTS_FOLDER, hiddenFolder } from "./hidden-folder.ts";
 import { thumbnail } from "./thumbnails.ts";
 import { zip } from "./zip.ts";
 
@@ -123,6 +125,12 @@ export const storage = new Hono<AppEnv>()
     const { q, drive, type } = c.req.valid("query");
     const nodes = await memberStorage(c).search(q, { teamOnly: drive === "team", type });
     return c.json({ nodes: nodes.map(wireNode) } satisfies StorageFindResponse);
+  })
+
+  .get("/drafts", async (c) => {
+    const folderId = await hiddenFolder(memberStorage(c), DRAFTS_FOLDER);
+    if (!folderId) return refused(c, "forbidden");
+    return c.json({ folderId } satisfies StorageDraftsResponse);
   })
 
   .get("/recent", async (c) => {

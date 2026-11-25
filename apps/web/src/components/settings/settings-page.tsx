@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Heading } from "@/components/ui/heading";
-import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
+import { PageNav } from "@/components/shell/page-nav";
 import type { SettingsPageId } from "@/hooks/use-settings.ts";
 import { ProfilePage, SecurityPage, ShortcutsPage } from "./account-pages";
 import { AiPage } from "./ai-page";
@@ -13,6 +13,7 @@ import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
 import { NotificationsPage } from "./notification-pages";
 import { DriveSyncPage } from "./sync-pages";
 import { PipelinePage } from "./pipeline-page";
+import { TrashBody } from "@/components/storage/trash-list";
 import { GeneralPage, PeoplePage } from "./workspace-pages";
 import { type PageDefinition, useAccountPages, WORKSPACE_PAGES } from "./settings-pages";
 
@@ -32,6 +33,7 @@ const BODIES: Record<SettingsPageId, () => ReactNode> = {
   pipeline: () => <PipelinePage />,
   ai: () => <AiPage />,
   billing: () => <BillingPage />,
+  trash: () => <TrashBody />,
 };
 
 const [GENERAL] = WORKSPACE_PAGES as [PageDefinition, ...PageDefinition[]];
@@ -40,13 +42,10 @@ export function SettingsPage({ page }: { page: SettingsPageId }) {
   const account = useAccountPages();
   const current = [...account, ...WORKSPACE_PAGES].find((p) => p.id === page) ?? GENERAL;
   const title = current.id === "profile" ? "Profile" : current.title;
-  const pageNav = usePageNavShown();
 
   return (
     <section className="flex h-svh min-h-0 min-w-0 flex-col">
-      <header
-        className={`flex h-12 shrink-0 items-center gap-2 border-b border-border pe-2.5 ${pageNav ? "ps-2.5" : "ps-5"}`}
-      >
+      <header className={`flex h-bar shrink-0 items-center gap-2 border-b border-border px-4`}>
         <PageNav />
         <Heading className="min-w-0 truncate text-md">{title}</Heading>
       </header>

@@ -1,18 +1,18 @@
 import { useState, type ReactNode } from "react";
-import { IconClock3, IconPlus, IconUsers } from "@/components/icons/central";
+import { IconClock3, IconFileEdit, IconPlus, IconUsers } from "@/components/icons/central";
 import { EmptyState } from "@/components/empty/empty-state";
 import { Button } from "@/components/ui/button";
 import { useMember } from "@/hooks/use-session.ts";
-import { IconSearch, IconTrash } from "@/components/icons/sidebar";
+import { IconSearch } from "@/components/icons/sidebar";
 import { openSearch } from "@/components/search/command-menu.tsx";
 import { SidebarItem, SidebarLabel, SidebarSection, useSidebar } from "@/components/ui/sidebar";
 import { useTeamspaces } from "@/hooks/use-storage.ts";
 import type { DriveRoot } from "@/lib/storage.ts";
+import { DRAFTS_PATH, NewMenu } from "./new-menu.tsx";
 import { StorageFrame } from "./storage-frame.tsx";
 import { BrowseTeamspacesDialog, NewTeamspaceDialog } from "./teamspace-dialogs.tsx";
 import { SpacesArea } from "./sidebar-menus.tsx";
 import { SidebarGroup } from "./sidebar-tree.tsx";
-import { SpaceIcon } from "./space-icons.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export const SPACE_LABEL = { personal: "Personal", shared: "Team" } as const;
@@ -31,15 +31,6 @@ function BrowseTeamspacesRow(props: { onPress: () => void }) {
     <SidebarItem onPress={props.onPress} tooltip="Browse spaces">
       <IconUsers className="size-icon" />
       <SidebarLabel>Browse spaces</SidebarLabel>
-    </SidebarItem>
-  );
-}
-
-function NewTeamspaceRow(props: { onPress: () => void }) {
-  return (
-    <SidebarItem onPress={props.onPress} tooltip="New space">
-      <IconPlus className="size-icon" />
-      <SidebarLabel>New space</SidebarLabel>
     </SidebarItem>
   );
 }
@@ -80,14 +71,14 @@ const PLACES: Row[] = [
     action: () => openSearch({ q: "", scope: "files" }),
   },
   {
+    label: "Drafts",
+    path: DRAFTS_PATH,
+    icon: <IconFileEdit className="size-icon" />,
+  },
+  {
     label: "Recents",
     path: "/files/recents",
     icon: <IconClock3 className="size-icon" />,
-  },
-  {
-    label: "Trash",
-    path: "/files/trash",
-    icon: <IconTrash />,
   },
 ];
 
@@ -107,9 +98,11 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
       {dialog === "new" && <NewTeamspaceDialog selfId={self} onClose={close} />}
       {dialog === "browse" && <BrowseTeamspacesDialog onClose={close} />}
       <SidebarSection>
+        <NewMenu onNewSpace={newSpace} />
         <Rows rows={PLACES} mailbox={mailbox} />
+        {browse && <BrowseTeamspacesRow onPress={browse} />}
       </SidebarSection>
-      <SidebarSection label="Spaces">
+      <div className="flex flex-col gap-1">
         {teamspaces
           .filter((teamspace) => teamspace.role !== null)
           .map((teamspace) => (
@@ -117,13 +110,10 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
               key={teamspace.id}
               drive={{ teamspaceId: teamspace.id }}
               label={teamspace.name}
-              icon={<SpaceIcon teamspace={teamspace} className="size-icon" />}
               search={search}
             />
           ))}
-        <NewTeamspaceRow onPress={newSpace} />
-        {browse && <BrowseTeamspacesRow onPress={browse} />}
-      </SidebarSection>
+      </div>
     </SpacesArea>
   );
 }

@@ -127,3 +127,25 @@ test("a change in a private teamspace is announced to who reaches it, never to t
   anaHears.socket.close();
   cyHears.socket.close();
 });
+
+test("a member's Drafts is one private folder, made on first ask, that no one else reaches", async () => {
+  const org = await stack.company(`dr-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const ben = await stack.member(org.id);
+
+  const first = await stack.api(ana.jar, "GET", "/drafts");
+  expect(first.status).toBe(200);
+  const again = await stack.api(ana.jar, "GET", "/drafts");
+  expect(again.body.folderId).toBe(first.body.folderId);
+  const folderId = first.body.folderId as string;
+
+  const draft = await stack.upload(ana.jar, { parentId: folderId }, "plan.txt", bytes("draft"));
+  expect([draft.space, draft.teamspaceId, draft.parentId]).toEqual(["personal", null, folderId]);
+  const listed = await stack.api(ana.jar, "GET", `/nodes?parent=${folderId}`);
+  expect(listed.body.nodes.map((node: { name: string }) => node.name)).toEqual(["plan.txt"]);
+
+  expect((await stack.api(ben.jar, "GET", `/nodes?parent=${folderId}`)).status).toBe(404);
+  expect((await stack.download(ben.jar, draft.id)).status).toBe(404);
+  const bens = await stack.api(ben.jar, "GET", "/drafts");
+  expect(bens.body.folderId).not.toBe(folderId);
+});

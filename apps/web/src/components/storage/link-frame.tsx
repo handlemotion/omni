@@ -18,7 +18,7 @@ function LinkBar() {
   const session = useSession();
   const here = useLocation({ select: (location) => location.href });
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b ps-2.5 pe-2.5">
+    <header className="flex h-bar shrink-0 items-center gap-2 border-b px-4">
       <IconOmniMark />
       <span className="flex-1 text-sm text-foreground">Wok</span>
       {session.data === null && (

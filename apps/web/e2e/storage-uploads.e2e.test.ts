@@ -19,6 +19,7 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 import { openSpace } from "./spaces.ts";
+import { uploadFiles } from "./uploads.ts";
 
 const PART = 16 * 1024 * 1024;
 
@@ -123,12 +124,10 @@ test("500 small files upload with at most 6 requests open at once and one listin
   reset();
   const tag = `many${Date.now()}`;
   const names = Array.from({ length: 500 }, (_, i) => `${tag}-${String(i).padStart(3, "0")}.txt`);
-  await page
-    .locator("input[type=file]:not([webkitdirectory])")
-    .first()
-    .setInputFiles(
-      names.map((name) => ({ name, mimeType: "text/plain", buffer: Buffer.from(name) })),
-    );
+  await uploadFiles(
+    page,
+    names.map((name) => ({ name, mimeType: "text/plain", buffer: Buffer.from(name) })),
+  );
 
   const rows = await until(
     () => fileRows(names),
@@ -223,7 +222,7 @@ test("after a reload, picking the same file again sends only the parts the serve
     });
   });
   await page.route("**/parts/3", () => {});
-  await page.locator("input[type=file]:not([webkitdirectory])").first().setInputFiles(path);
+  await uploadFiles(page, path);
   await sentTwo;
 
   page.on("dialog", (dialog) => void dialog.accept());
@@ -231,7 +230,7 @@ test("after a reload, picking the same file again sends only the parts the serve
   await page.unrouteAll({ behavior: "ignoreErrors" });
   await uploadReady(page);
   seen.parts = [];
-  await page.locator("input[type=file]:not([webkitdirectory])").first().setInputFiles(path);
+  await uploadFiles(page, path);
   await page.getByRole("row", { name: new RegExp(name.replace(".", "\\.")) }).waitFor({
     timeout: 60_000,
   });
@@ -255,10 +254,11 @@ test("an upload that loses the network for 30 s finishes on its own once it is b
     if (!held) await new Promise((resolve) => setTimeout(resolve, 3000));
     await route.continue().catch(() => route.abort("internetdisconnected"));
   });
-  await page
-    .locator("input[type=file]:not([webkitdirectory])")
-    .first()
-    .setInputFiles({ name, mimeType: "application/octet-stream", buffer: randomBytes(size) });
+  await uploadFiles(page, {
+    name,
+    mimeType: "application/octet-stream",
+    buffer: randomBytes(size),
+  });
   await firstDone;
   await page.context().setOffline(true);
   await page.waitForTimeout(30_000);

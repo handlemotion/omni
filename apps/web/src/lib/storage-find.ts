@@ -24,3 +24,12 @@ export const storageRecentQuery = () =>
     queryFn: ({ signal }) => call(api.storage.recent.$get(undefined, { init: { signal } })),
     select: (data) => data.nodes,
   });
+
+/** The member's private Drafts folder: what they make outside any space. Made on first ask. */
+export const storageDraftsQuery = () =>
+  queryOptions({
+    queryKey: keys.storageDrafts(),
+    queryFn: ({ signal }) => call(api.storage.drafts.$get(undefined, { init: { signal } })),
+    select: (data) => data.folderId,
+    staleTime: Infinity,
+  });

@@ -34,6 +34,7 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 import { openSpace } from "./spaces.ts";
+import { uploadFiles } from "./uploads.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -92,14 +93,11 @@ test("two editors on one Markdown file see each other's typing, and the page is 
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await ana
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "notes.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("# Notes\n\nStart\n"),
-    });
+  await uploadFiles(ana, {
+    name: "notes.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Notes\n\nStart\n"),
+  });
   await ana.getByRole("row", { name: /notes\.md/ }).click();
   const bo = await context.newPage();
   await bo.goto(ana.url());
@@ -224,13 +222,10 @@ test("an image picked from / goes into the doc, and @ links another file", async
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles([
-      { name: "budget.md", mimeType: "text/markdown", buffer: Buffer.from("# Budget\n") },
-      { name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from("# Notes\n\nStart\n") },
-    ]);
+  await uploadFiles(page, [
+    { name: "budget.md", mimeType: "text/markdown", buffer: Buffer.from("# Budget\n") },
+    { name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from("# Notes\n\nStart\n") },
+  ]);
   await page.getByRole("row", { name: /budget\.md/ }).waitFor({ timeout: 30_000 });
   await page.getByRole("row", { name: /notes\.md/ }).click();
   const body = page.locator("[contenteditable=true]");
@@ -340,14 +335,11 @@ test("a comment on selected text is marked for every editor, follows its words, 
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await ana
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "remarks.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("# Remarks\n\nShip the plan on Monday\n"),
-    });
+  await uploadFiles(ana, {
+    name: "remarks.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Remarks\n\nShip the plan on Monday\n"),
+  });
   await ana.getByRole("row", { name: /remarks\.md/ }).click();
   const bo = await own.newPage();
   await bo.goto(ana.url());
@@ -423,14 +415,11 @@ test("an assistant's edit lands live in an open doc, merged with what the person
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await ana
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "agenda.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("# Agenda\n\nOpen the meeting\n"),
-    });
+  await uploadFiles(ana, {
+    name: "agenda.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Agenda\n\nOpen the meeting\n"),
+  });
   await ana.getByRole("row", { name: /agenda\.md/ }).click();
   await ana
     .locator("[contenteditable=true]")
@@ -490,14 +479,11 @@ test("an assistant's edit too large for one live record reaches an open doc whol
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await ana
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "long.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("# Long\n\nPlaceholder\n"),
-    });
+  await uploadFiles(ana, {
+    name: "long.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Long\n\nPlaceholder\n"),
+  });
   await ana.getByRole("row", { name: /long\.md/ }).click();
   await ana.locator("[contenteditable=true]").getByText("Placeholder").waitFor({ timeout: 15_000 });
   const id = new URL(ana.url()).searchParams.get("file") ?? "";
@@ -543,14 +529,11 @@ test("a large paste whose author leaves is saved by the open page, even when the
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await ana
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "paste.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("# Paste\n\nStart\n"),
-    });
+  await uploadFiles(ana, {
+    name: "paste.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Paste\n\nStart\n"),
+  });
   await ana.getByRole("row", { name: /paste\.md/ }).click();
   await ana.locator("[contenteditable=true]").getByText("Start").waitFor({ timeout: 15_000 });
   const id = new URL(ana.url()).searchParams.get("file") ?? "";
@@ -629,14 +612,11 @@ test("a page saves past a split snapshot that never gets its parts, and its save
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await ana
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "snap.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("# Snap\n\nStart\n"),
-    });
+  await uploadFiles(ana, {
+    name: "snap.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Snap\n\nStart\n"),
+  });
   await ana.getByRole("row", { name: /snap\.md/ }).click();
   await ana.locator("[contenteditable=true]").getByText("Start").waitFor({ timeout: 15_000 });
   const id = new URL(ana.url()).searchParams.get("file") ?? "";
@@ -718,14 +698,11 @@ test("an assistant whose person may only view a doc changes nothing in it, even 
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await ana
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "terms.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("# Terms\n\nPay in 30 days\n"),
-    });
+  await uploadFiles(ana, {
+    name: "terms.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Terms\n\nPay in 30 days\n"),
+  });
   await ana.getByRole("row", { name: /terms\.md/ }).click();
   await ana
     .locator("[contenteditable=true]")
@@ -788,14 +765,11 @@ test("an assistant's edit to an open doc in a full workspace changes nothing", a
     .getByRole("button", { name: "Upload", exact: true })
     .first()
     .waitFor({ timeout: 15_000 });
-  await ana
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "budget.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("# Budget\n\nSpend 100\n"),
-    });
+  await uploadFiles(ana, {
+    name: "budget.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Budget\n\nSpend 100\n"),
+  });
   await ana.getByRole("row", { name: /budget\.md/ }).click();
   await ana.locator("[contenteditable=true]").getByText("Spend 100").waitFor({ timeout: 15_000 });
   const id = new URL(ana.url()).searchParams.get("file") ?? "";

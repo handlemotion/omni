@@ -22,7 +22,7 @@ import { Button, PageBarActions } from "@/components/ui/button";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListSection } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
-import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
+import { PageNav } from "@/components/shell/page-nav";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
@@ -166,7 +166,6 @@ export function List(
     rowMenu?: boolean;
   },
 ) {
-  const pageNav = usePageNavShown();
   const threads = props.rows;
   const [selected, setSelected] = useState<Selection>(new Set());
   const count = selected === "all" ? threads.length : selected.size;
@@ -234,9 +233,7 @@ export function List(
           ref={listRef}
           className={`relative flex flex-1 flex-col ${split ? "min-w-80" : "min-w-0"} ${hideList ? "hidden" : ""}`}
         >
-          <header
-            className={`@container/list-head flex h-12 shrink-0 items-center gap-2 pe-2.5 ${pageNav ? "ps-2.5" : "ps-5"}`}
-          >
+          <header className={`@container/list-head flex h-bar shrink-0 items-center gap-2 px-4`}>
             <PageNav />
             <Heading className="shrink-0 text-md whitespace-nowrap">{props.title}</Heading>
             <span className="min-w-0 flex-1 truncate text-xs text-subtle-foreground">

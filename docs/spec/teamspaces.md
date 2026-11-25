@@ -15,11 +15,23 @@ workspace, which has teamspaces like any other. The new thing is a teamspace in 
 
 ## The sidebar
 
-Search, Recents and Trash, then **Spaces**: the spaces the member is in, each opening to its
-folders (folders only; files are in the page), then New space, and Browse spaces when there are
-open ones they are not in. Nothing else: My files and Shared are retired and never show. Recents
-lists the files changed most recently in the member's spaces and drives, with what was shared
-with them by address beside them, so Shared with me and the sidebar's Upload row go.
+The sidebar is the navigator. At its top: **New** (a menu that makes a doc, a folder or a space
+where the member is; a sheet once the web app can edit one), **Drafts** and **Recents**, and
+Browse spaces when there are open ones they are not in; Search too on a phone. Then each space the
+member is in, its name as a small section header (it opens the space's top; its chevron, shown on
+hover, folds it), with everything in it below, folders and files, as a tree: a folder opens its
+own. My files and Shared are retired and never show. Recents lists the files changed most
+recently in the member's spaces and drives, with what was shared with them by address beside
+them, so Shared with me and the sidebar's Upload row go. Trash is not in the sidebar: it is a
+page in Settings.
+
+**Drafts** is what a member makes outside any space: New outside a space makes it there. It is a
+private `Drafts` folder in their hidden store (`GET /api/storage/drafts` finds or makes it, as
+Meetings does its `Recordings`); a draft moves into a space like any file.
+
+A folder's page has two actions in its header: a bordered **+** (New doc, New folder, Upload
+files, Upload folder) and **Share** (a folder's people and link; at a space's top, the space's
+members and settings). Folders show as cards only.
 
 ## Rules
 

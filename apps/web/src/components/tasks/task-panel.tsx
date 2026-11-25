@@ -245,7 +245,7 @@ function PanelHeader(props: {
 }) {
   return (
     <div
-      className={`flex shrink-0 items-center gap-1.5 ${props.inPlace ? "-mt-2 h-10 w-full" : "h-12 px-4"}`}
+      className={`flex shrink-0 items-center gap-1.5 ${props.inPlace ? "-mt-2 h-10 w-full" : "h-bar px-4"}`}
     >
       <PageBarActions>
         <Button intent="outline" size="sq-sm" aria-label="Close task" onPress={props.onClose}>
