@@ -154,6 +154,7 @@ export class LiveDoc {
   private readonly options: LiveDocOptions;
   private readonly channel: LiveChannel;
   private readonly commentListeners = new Set<() => void>();
+  private readonly updateListeners = new Set<(by: string | undefined) => void>();
 
   constructor(options: LiveDocOptions) {
     this.options = options;
@@ -308,6 +309,12 @@ export class LiveDoc {
   onComments(listener: () => void) {
     this.commentListeners.add(listener);
     return () => this.commentListeners.delete(listener);
+  }
+
+  /** Calls `listener` with each update someone else sent after this tab joined, by its `by`. */
+  onUpdate(listener: (by: string | undefined) => void) {
+    this.updateListeners.add(listener);
+    return () => this.updateListeners.delete(listener);
   }
 
   /**
@@ -542,6 +549,9 @@ export class LiveDoc {
       this.options.onFolded(record.cv);
     } else {
       Y.applyUpdate(this.doc, fromBase64(record.u), REMOTE);
+      if (record.t === "update" && this.started && !mine) {
+        for (const listener of this.updateListeners) listener(record.by);
+      }
       if (record.t === "update" && completedAt > this.last.seqNum) {
         this.last = { seqNum: completedAt, mine };
       }

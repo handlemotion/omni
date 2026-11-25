@@ -11,12 +11,14 @@ import { useDocComments, useLiveComments } from "@/hooks/use-doc-comments.ts";
 import { useDocFiles } from "@/hooks/use-doc-files.ts";
 import { useFilePlace } from "@/hooks/use-storage.ts";
 import type * as Y from "yjs";
+import { useAgentEditing } from "@/hooks/use-agent-editing.ts";
 import { openLiveDoc, type LiveDoc } from "@/lib/live-doc.ts";
 import { sessionQuery } from "@/lib/session.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
 import { BlockComment } from "./block-comment.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
+import { AgentFace, AgentPill } from "./agent-presence.tsx";
 import { CollaboratorFaces, faceAnchor } from "./collaborator-faces.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useOptionalStorageHref } from "../file-list.tsx";
@@ -204,6 +206,7 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   const comments = useDocComments();
   const commenting = useCommentsExtension(comments);
   useLiveComments(doc, props.nodeId);
+  const agent = useAgentEditing(doc);
   const editable = props.editable ?? true;
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const editorProps = useMemo(
@@ -236,19 +239,23 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   }, [editor, editable]);
 
   return (
-    <div
-      ref={setScroller}
-      className="relative flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain"
-    >
-      <EditorContent editor={editor} className="flex-1" />
-      {doc && <CollaboratorFaces editor={editor} scroller={scroller} />}
-      <BlockHandle editor={editor} />
-      <BlockComment editor={editor} comments={comments} scroller={scroller} />
-      <DocThreads editor={editor} comments={comments} scroller={scroller} />
-      <FormatBar
-        editor={editor}
-        onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
-      />
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        ref={setScroller}
+        className="relative flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain"
+      >
+        <EditorContent editor={editor} className="flex-1" />
+        {doc && <CollaboratorFaces editor={editor} scroller={scroller} />}
+        {doc && <AgentFace editor={editor} scroller={scroller} agent={agent} />}
+        <BlockHandle editor={editor} />
+        <BlockComment editor={editor} comments={comments} scroller={scroller} />
+        <DocThreads editor={editor} comments={comments} scroller={scroller} />
+        <FormatBar
+          editor={editor}
+          onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
+        />
+      </div>
+      <AgentPill agent={agent} />
     </div>
   );
 }
