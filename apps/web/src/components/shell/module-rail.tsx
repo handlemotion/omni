@@ -189,7 +189,7 @@ function ModuleRail() {
     <nav
       {...menu}
       aria-label="Modules"
-      className="flex w-14.5 shrink-0 flex-col items-center gap-1.75 pt-[57px] pb-3.25"
+      className="flex w-14.5 shrink-0 flex-col items-center gap-1.75 pt-[55px] pb-3.25"
     >
       {modules.map((module) => {
         const isCurrent = module.id === current;
