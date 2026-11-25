@@ -23,14 +23,16 @@ const isDocRefusal = keyOf<DocRefusal>({
 const partsOf = (n: unknown) =>
   typeof n === "number" && Number.isInteger(n) && n >= 2 ? { n } : n === undefined ? {} : null;
 
+const authorOf = (by: unknown) => (typeof by === "string" && by.length <= 200 ? { by } : {});
+
 const parseWriterRecord: (record: Record<string, unknown>) => StorageLiveRecord | undefined = (
   record,
 ) => {
-  const { t, cv, e, u, s, f, n } = record;
+  const { t, cv, e, u, s, f, n, by } = record;
   const parts = partsOf(n);
   if (typeof u !== "string" || !parts) return undefined;
   if (t === "seed" && isSeqNum(cv)) return { t, cv, u, ...parts };
-  if (t === "update" && isSeqNum(e)) return { t, e, u, ...parts };
+  if (t === "update" && isSeqNum(e)) return { t, e, u, ...authorOf(by), ...parts };
   if (t === "snap" && isSeqNum(e) && isSeqNum(s) && isSeqNum(cv) && isSeqNum(f)) {
     return { t, e, s, cv, f, u, ...parts };
   }

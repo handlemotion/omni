@@ -16,6 +16,7 @@ import { sessionQuery } from "@/lib/session.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
+import { AgentAura } from "./agent-aura.tsx";
 import { DocToolbar } from "./doc-toolbar.tsx";
 import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useOptionalStorageHref } from "../file-list.tsx";
@@ -265,14 +266,17 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   }, [editor, editable]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
-      <EditorContent editor={editor} className="flex-1" />
-      <BlockHandle editor={editor} />
-      <FormatBar
-        editor={editor}
-        onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
-      />
-      <DocToolbar editor={editor} comments={comments} />
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
+        <EditorContent editor={editor} className="flex-1" />
+        <BlockHandle editor={editor} />
+        <FormatBar
+          editor={editor}
+          onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
+        />
+        <DocToolbar editor={editor} comments={comments} />
+      </div>
+      <AgentAura doc={doc} />
     </div>
   );
 }

@@ -110,6 +110,10 @@ from. Versions follow editing sessions (#706):
   registered name, beside `writtenByName`, the person it acted for. Before an agent changes a live
   document it ends the session that wrote the content (`storage_contents.session_ended`), so the
   content from before its change stays restorable whoever saves next.
+- **An agent at work shows.** While an agent's edits arrive in an open doc (live records whose
+  `by` is `a:<memberId>:<agent>`), a blue glow sweeps round the page's edges, and screen readers
+  hear "<agent> is editing". It fades out 6 seconds after the agent's last edit
+  (`AGENT_LINGER_MS`), so the gaps between an agent's calls read as one stretch of work.
 - Comments and signatures keep the `contentVersion` they were made on.
 
 This is what files of every type get. Wok's own types get History on top of it (next section).

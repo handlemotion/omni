@@ -443,6 +443,8 @@ test("an assistant's edit lands live in an open doc, merged with what the person
   await typeAtEnd(ana, "Review the budget");
   await expect.poll(saved, { timeout: 20_000 }).toContain("Review the budget");
   await typeAtEnd(ana, "Then lunch");
+  const aura = ana.locator(".agent-aura[data-active]");
+  expect(await aura.count()).toBe(0);
 
   const agent = await connectAgent(origin, jar, {
     scope: "openid mail:read drive:read drive:write",
@@ -455,6 +457,12 @@ test("an assistant's edit lands live in an open doc, merged with what the person
   expect(edited.isError).toBeFalsy();
 
   await expect.poll(() => pageText(ana), { timeout: 15_000 }).toContain("Open the meeting at nine");
+  await aura.waitFor({ timeout: 5_000 });
+  await ana
+    .getByRole("status")
+    .filter({ hasText: "Drive agent is editing" })
+    .waitFor({ state: "attached" });
+  await aura.waitFor({ state: "detached", timeout: 15_000 });
   await expect
     .poll(saved, { timeout: 20_000 })
     .toMatch(/^# Agenda\n\nOpen the meeting at nine\n\nReview the budget\n\nThen lunch\n*$/);
