@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   IconFolderPlus,
   IconNewDoc,
@@ -39,8 +39,15 @@ export function NewMenu(props: { onNewSpace: () => void }) {
   const target = useNewTarget();
   const navigate = useNavigate();
   const { href } = useWorkspacePaths();
+  const mailbox = useSearch({
+    strict: false,
+    select: (search) => (search as { mailbox?: string }).mailbox,
+  });
+  const kept = mailbox ? `mailbox=${encodeURIComponent(mailbox)}` : "";
   const open = (node: StorageNode) =>
-    void navigate({ href: href(`${target.path}?file=${encodeURIComponent(node.id)}`) });
+    void navigate({
+      href: href(`${target.path}?${kept ? `${kept}&` : ""}file=${encodeURIComponent(node.id)}`),
+    });
   const doc = useNewDoc(target.place ?? { space: "personal" }, undefined, open);
   const ready = target.place !== null;
   return (
@@ -74,7 +81,7 @@ export function NewMenu(props: { onNewSpace: () => void }) {
           onAction={() => {
             if (!target.place) return;
             requestNewFolder(target.place);
-            void navigate({ href: href(target.path) });
+            void navigate({ href: href(kept ? `${target.path}?${kept}` : target.path) });
           }}
         >
           <IconFolderPlus data-slot="icon" />

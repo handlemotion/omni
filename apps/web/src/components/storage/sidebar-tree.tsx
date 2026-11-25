@@ -251,7 +251,11 @@ function DragRow(props: {
   });
   const source = useMemo<DragSource | null>(() => (node ? { node, look: "tree" } : null), [node]);
   const drop = useMemo<DropData>(() => ({ to, folder: true, beside }), [to, beside]);
-  const lift = useNodeDrag(`tree:${placeKey(to.place)}`, source, drop);
+  const lift = useNodeDrag(
+    node ? `tree:node:${node.id}` : `tree:${placeKey(to.place)}`,
+    source,
+    drop,
+  );
   const held = lift.props["data-drive-target"] === true;
   const closed = !!expand && !expand.value;
   const open = useEffectEvent(() => expand && !expand.value && expand.toggle());
