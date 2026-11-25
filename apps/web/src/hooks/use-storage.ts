@@ -152,8 +152,8 @@ export function useStorageComments(nodeId: string, shareId?: string, enabled = t
 }
 
 /**
- * Asks where a file is now (its space and folder), or null when the reader no longer reaches it.
- * For a notification that leads to a file that may have moved.
+ * Asks where a file is now (its drive, teamspace and folder), or null when the reader no longer
+ * reaches it. For a notification or a doc's link that leads to a file that may have moved.
  */
 export function useFilePlace() {
   const client = useQueryClient();
@@ -161,7 +161,11 @@ export function useFilePlace() {
     (id: string) =>
       client
         .fetchQuery(storageNodeQuery(id))
-        .then(({ node }) => ({ space: node.space, folderId: node.parentId }))
+        .then(({ node }) => ({
+          space: node.space,
+          teamspaceId: node.teamspaceId,
+          folderId: node.parentId,
+        }))
         .catch(() => null),
     [client],
   );
