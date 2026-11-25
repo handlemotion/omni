@@ -37,11 +37,13 @@ export function notificationTitle(n: Pick<Notification, "kind" | "actor">) {
   return actor ? `${actor} ${action}` : action;
 }
 
-/** Where a comment notification leads: the file and the folder holding it. */
+/** Where a comment notification leads: the file, its drive and the folder holding it. */
 export interface CommentTarget {
   nodeId: string;
   nodeName: string;
-  space: "personal" | "shared";
+  space: "personal" | "shared" | "teamspace";
+  /** The teamspace holding the file, when `space` is `teamspace`. */
+  teamspaceId: string | null;
   folderId: string | null;
   excerpt: string;
 }
@@ -52,11 +54,15 @@ export const commentTarget: (
 ) => CommentTarget | undefined = (n) => {
   if (n.kind !== "comment") return undefined;
   const d = n.data as Partial<CommentTarget>;
-  if (typeof d.nodeId !== "string" || (d.space !== "personal" && d.space !== "shared")) return;
+  if (typeof d.nodeId !== "string") return;
+  if (d.space !== "personal" && d.space !== "shared" && d.space !== "teamspace") return;
+  const teamspaceId = typeof d.teamspaceId === "string" ? d.teamspaceId : null;
+  if (d.space === "teamspace" && !teamspaceId) return;
   return {
     nodeId: d.nodeId,
     nodeName: typeof d.nodeName === "string" ? d.nodeName : "",
     space: d.space,
+    teamspaceId,
     folderId: typeof d.folderId === "string" ? d.folderId : null,
     excerpt: typeof d.excerpt === "string" ? d.excerpt : "",
   };
