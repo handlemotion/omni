@@ -1,6 +1,12 @@
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import { type ComponentType, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
+import {
+  IconConnections,
+  IconSettings,
+  IconSettingsFilled,
+  IconUserRound,
+} from "@/components/icons/central";
 import {
   IconCalendarMark,
   IconCrmMark,
@@ -8,24 +14,27 @@ import {
   IconMailMark,
   IconMeetingsMark,
 } from "@/components/icons/module-marks";
-import { SearchButton } from "@/components/search/search-trigger";
-import { Button } from "@/components/ui/button";
-import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { isSettingsPath } from "@/hooks/use-settings.ts";
-import { desktop } from "@/lib/desktop.ts";
 import {
-  useModulePress,
+  Sidebar,
+  SidebarContent,
+  SidebarExpanded,
+  SidebarItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { contextMenuProps, type ContextMenuEntry } from "@/components/ui/context-menu";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { isSettingsPath, useOpenSettings } from "@/hooks/use-settings.ts";
+import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
+import {
   RAIL_HIDDEN,
+  useModulePress,
   useModules,
   useOpenModule,
   usePressedModule,
   warmModule,
-  WorkspaceSwitcher,
   type ModuleId,
 } from "./module-switcher";
-import { NotificationsButton } from "./notifications";
-import { UpdateRow } from "./update-row";
+import { UpdateRow, UpdateTile } from "./update-row";
 
 const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   mail: IconMailMark,
@@ -35,101 +44,195 @@ const MARKS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   meetings: IconMeetingsMark,
 };
 
+const PATHS: Record<ModuleId, string> = {
+  mail: "mail/inbox",
+  files: "files",
+  crm: "crm/companies",
+  calendar: "calendar",
+  meetings: "meetings",
+};
+
+const PEEK_LEAVE_MS = 200;
+let peeking = false;
+let leaving = 0;
+const listeners = new Set<() => void>();
+const setPeeking = (next: boolean) => {
+  window.clearTimeout(leaving);
+  if (peeking === next) return;
+  peeking = next;
+  for (const listener of listeners) listener();
+};
+
+/** The closed sidebar's preview: shown while the pointer rests on the toggle or the panel. */
+export const railPeek = {
+  enter: () => setPeeking(true),
+  leave: () => {
+    window.clearTimeout(leaving);
+    leaving = window.setTimeout(() => setPeeking(false), PEEK_LEAVE_MS);
+  },
+  stay: () => window.clearTimeout(leaving),
+  end: () => setPeeking(false),
+};
+
+function useRailPeek() {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => peeking,
+  );
+}
+
+const TILE_SHAPE = "size-8 justify-center rounded-[9px] px-0 *:[svg]:size-4.5";
+const TILE = `${TILE_SHAPE} hover:bg-secondary`;
+const MODULE_TILE = "size-8 justify-center rounded-[9px] px-0 *:[svg]:size-5 hover:bg-secondary";
+
 /**
- * The shell's left edge: the rail, then the sidebar, both on the sidebar's off-white with a
- * hairline after each. The rail holds the workspace's mark (its menu switches workspaces and holds
- * settings and Log out) and, under it, a tile per module, marks only. The sidebar's top row, in
- * line with the page's own header, names the module on screen and, opposite it, holds
- * notifications and Search; then the module's own pages. In the macOS app the traffic lights sit
- * over the top of the rail and the row's start, so the rail's tiles start under the row.
+ * The modules as a column of tiles on the window's grey, each with its own coloured mark, the
+ * current one on a white tile; settings at its foot. The CRM has no tile (`RAIL_HIDDEN`). Its
+ * first tile lines up with the nav panel's header row. Closing the sidebar hides the nav panel;
+ * the rail stays.
  */
-export function RailSidebar({ children }: { children: ReactNode }) {
-  const mac = desktop.isDesktop && desktop.platform === "mac";
-  return (
+export function RailSidebar({ title, children }: { title?: string; children: ReactNode }) {
+  const { open } = useSidebar();
+  const peek = useRailPeek() && !open;
+  useEffect(() => {
+    if (open) railPeek.end();
+  }, [open]);
+  const panel = (
     <>
-      <ModuleRail />
-      <Sidebar
-        collapsible="none"
-        closeButton={false}
-        data-state="expanded"
-        className="peer h-auto shrink-0 border-e border-sidebar-border bg-sidebar"
-      >
-        <SidebarContent className="gap-3 px-2 pt-0 pb-3 *:shrink-0">
-          <div className={cn("-mb-3 flex h-bar items-center gap-1", mac && "ps-2")}>
-            <ModuleTitle />
-            <span className="ms-auto">
-              <TopActions />
-            </span>
-          </div>
-          {children}
-          <div className="mt-auto flex flex-col gap-2 empty:hidden">
-            <UpdateRow />
-          </div>
-        </SidebarContent>
-      </Sidebar>
+      {title && <h2 className="-mb-3 flex h-bar items-center px-2 text-md">{title}</h2>}
+      {children}
+      <div className="mt-auto pb-3 empty:hidden">
+        <UpdateRow />
+      </div>
     </>
   );
-}
-
-function TopActions() {
   return (
-    <span className="-me-0.5 flex items-center gap-1">
-      <NotificationsButton />
-      <SearchButton />
-    </span>
+    <Sidebar
+      collapsible="none"
+      closeButton={false}
+      data-state={open ? "expanded" : "collapsed"}
+      className={cn("peer shrink-0 bg-transparent", !open && "w-14.5")}
+    >
+      <div className="flex min-h-0 flex-1">
+        <ModuleRail />
+        {open ? (
+          <SidebarContent className={PANEL}>{panel}</SidebarContent>
+        ) : (
+          <div
+            inert={!peek}
+            aria-hidden={!peek || undefined}
+            onPointerEnter={railPeek.stay}
+            onPointerLeave={railPeek.leave}
+            className={cn(
+              "fixed start-14.5 top-12 bottom-0 z-30 flex w-[calc(var(--sidebar-width)-58px)] rounded-tl-xl shadow-overlay",
+              "transition-[translate,opacity,visibility] duration-200 ease-(--ease-out) motion-reduce:transition-[opacity,visibility]",
+              peek
+                ? "visible translate-x-0 opacity-100"
+                : "invisible -translate-x-3 opacity-0 motion-reduce:translate-x-0",
+            )}
+          >
+            <SidebarExpanded>
+              <SidebarContent className={cn(PANEL, "mt-0 w-full")}>{panel}</SidebarContent>
+            </SidebarExpanded>
+          </div>
+        )}
+      </div>
+    </Sidebar>
   );
 }
 
-function ModuleTitle() {
-  const modules = useModules();
-  const pressed = usePressedModule();
-  const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
-  const name = inSettings ? "Settings" : (modules.find((m) => m.id === pressed)?.label ?? "");
-  return <h2 className="min-w-0 truncate ps-2 text-md">{name}</h2>;
-}
+const PANEL =
+  "mt-12 rounded-tl-xl border-s border-t border-e border-sidebar-border bg-background px-2 *:shrink-0";
 
 function ModuleRail() {
-  const mac = desktop.isDesktop && desktop.platform === "mac";
+  const { open } = useSidebar();
   const modules = useModules().filter((m) => !RAIL_HIDDEN.has(m.id));
+  const inSettings = useLocation({
+    select: (location) => isSettingsPath(location.pathname),
+  });
   const pressed = usePressedModule();
-  const inSettings = useLocation({ select: (location) => isSettingsPath(location.pathname) });
   const current = inSettings ? null : pressed;
+  const workspace = useWorkspaceSlug();
+  const openSettings = useOpenSettings();
+  const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
+  const keep = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
   const openModule = useOpenModule();
   const press = useModulePress();
+  const menu = contextMenuProps((target) => {
+    const tile = target.closest("[data-rail]")?.getAttribute("data-rail");
+    if (tile === "settings") {
+      return [
+        { icon: IconUserRound, label: "Account settings", onAction: () => openSettings("profile") },
+        {
+          icon: IconSettings,
+          label: "Workspace settings",
+          onAction: () => openSettings("general"),
+        },
+        { icon: IconConnections, label: "Connections", onAction: () => openSettings("accounts") },
+      ] satisfies ContextMenuEntry[];
+    }
+    const picked = modules.find((m) => m.id === tile);
+    if (!picked) return null;
+    return [
+      {
+        icon: MARKS[picked.id],
+        label: `Open ${picked.label}`,
+        onAction: () => void openModule(picked.id),
+      },
+    ] satisfies ContextMenuEntry[];
+  }, "Module actions");
+
   return (
     <nav
+      {...menu}
       aria-label="Modules"
-      className={cn(
-        "flex w-rail shrink-0 flex-col items-center gap-1 border-e border-sidebar-border bg-rail",
-        mac ? "pt-bar" : "pt-1.5",
-      )}
+      className="flex w-14.5 shrink-0 flex-col items-center gap-1.75 pt-[57px] pb-3.25"
     >
-      <WorkspaceSwitcher rail />
-      <span className={cn("flex flex-col items-center gap-1.5 pt-0.5")}>
-        {modules.map((m) => {
-          const Mark = MARKS[m.id];
-          return (
-            <TooltipTrigger key={m.id} delay={400}>
-              <Button
-                intent="ghost"
-                size="sq-md"
-                aria-label={m.label}
-                aria-current={m.id === current ? "page" : undefined}
-                className="*:[svg]:size-4.5 aria-[current=page]:[--btn-bg:var(--color-sidebar-accent)] aria-[current=page]:[--btn-overlay:var(--color-sidebar-accent)]"
-                onPointerEnter={() => warmModule(m.id)}
-                onPress={() => {
-                  if (m.id === current) return;
-                  press(m.id);
-                  void openModule(m.id);
-                }}
-              >
-                <Mark />
-              </Button>
-              <Tooltip placement="right">{m.label}</Tooltip>
-            </TooltipTrigger>
-          );
-        })}
-      </span>
+      {modules.map((module) => {
+        const isCurrent = module.id === current;
+        const Mark = MARKS[module.id];
+        return (
+          <RailTip key={module.id} label={module.label}>
+            <SidebarItem
+              data-rail={module.id}
+              href={`/${encodeURIComponent(workspace)}/${PATHS[module.id]}${keep}`}
+              isCurrent={isCurrent}
+              aria-label={module.label}
+              onHoverStart={() => warmModule(module.id)}
+              onPress={() => press(module.id)}
+              className={cn(MODULE_TILE, isCurrent && "bg-background hover:bg-background")}
+            >
+              <Mark />
+            </SidebarItem>
+          </RailTip>
+        );
+      })}
+      <div className="mt-auto flex flex-col items-center gap-1.75">
+        {!open && <UpdateTile className={TILE_SHAPE} />}
+        <RailTip label="Settings">
+          <SidebarItem
+            data-rail="settings"
+            aria-label="Settings"
+            isCurrent={inSettings}
+            onPress={() => openSettings("general")}
+            className={cn(TILE, inSettings && "bg-background hover:bg-background")}
+          >
+            {inSettings ? <IconSettingsFilled /> : <IconSettings />}
+          </SidebarItem>
+        </RailTip>
+      </div>
     </nav>
+  );
+}
+
+function RailTip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <TooltipTrigger>
+      {children}
+      <Tooltip placement="right">{label}</Tooltip>
+    </TooltipTrigger>
   );
 }

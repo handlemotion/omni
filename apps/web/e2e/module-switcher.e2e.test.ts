@@ -79,7 +79,7 @@ const rail = (page: Page, name: string) => ({
   click: async () => {
     await page
       .getByRole("navigation", { name: "Modules" })
-      .getByRole("button", { name, exact: true })
+      .getByRole("link", { name, exact: true })
       .click();
   },
 });
@@ -130,7 +130,7 @@ test("the module switcher opens each module and the pages glide along", async ()
   const frames = slideFrames(page);
   await page
     .getByRole("navigation", { name: "Modules" })
-    .getByRole("button", { name: "Drive", exact: true })
+    .getByRole("link", { name: "Drive", exact: true })
     .click();
   await page.waitForURL((url) => place(url) === "/files");
   await shows(page, "files");
@@ -150,14 +150,14 @@ test("the module switcher opens each module and the pages glide along", async ()
 test("the CRM has no rail tile, but a link to it still opens its pages", async () => {
   const page = await openInbox("no-crm-tile");
   const tiles = page.getByRole("navigation", { name: "Modules" });
-  await tiles.getByRole("button", { name: "Drive", exact: true }).waitFor();
-  expect(await tiles.getByRole("button", { name: "Clients", exact: true }).count()).toBe(0);
+  await tiles.getByRole("link", { name: "Drive", exact: true }).waitFor();
+  expect(await tiles.getByRole("link", { name: "Clients", exact: true }).count()).toBe(0);
 
   await page.goto(page.url().replace(/\/mail\/.*$/, "/crm/companies"));
   const crm = page.locator('[data-module-page="crm"]');
   await crm.getByRole("link", { name: "Companies" }).waitFor();
   expect(await crm.evaluate((el) => (el as HTMLElement).inert)).toBe(false);
-  expect(await tiles.getByRole("button", { name: "Clients", exact: true }).count()).toBe(0);
+  expect(await tiles.getByRole("link", { name: "Clients", exact: true }).count()).toBe(0);
 });
 
 test("a sideways swipe leaves the module where it is; only the switcher moves between modules", async () => {

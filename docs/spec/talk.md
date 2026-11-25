@@ -15,8 +15,7 @@ and rules (`docs/spec/modules.md`), because it owns tables and reads Storage thr
 
 ## What a person sees
 
-- **The stack.** In the page's header, before its own actions, in every module (with panes side
-  by side, only the leftmost header): the
+- **The stack.** In the title bar, before search and notifications, in every module: the
   workspace's teammates, online or not, at most 3 pictures overlapping, then a fourth circle
   reading `+n` for the rest. Yourself never. A teammate with unread notes for you shows first,
   then those online, then by name. An offline teammate's picture is dimmed and greyed; you can

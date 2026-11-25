@@ -34,7 +34,6 @@ import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { SidebarItemTrigger } from "@/components/ui/sidebar";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { appToast } from "@/components/ui/toast";
 import { isManager } from "@/components/settings/workspace-pages";
 import { useBilling } from "@/hooks/use-billing.ts";
@@ -338,9 +337,9 @@ function Step(props: {
 }
 
 /**
- * The workspace switcher: on the rail, the workspace's mark alone (`rail`); on a phone, the
- * sidebar's top row, the mark and name hugging them (no chevron), with `end` (the bell) at the
- * row's far end. Its menu: every workspace (the current one checked) and New workspace; account,
+ * The workspace switcher: the title bar's, its mark and name with a chevron (`chevron`); on a
+ * phone, the sidebar's top row, the mark and name hugging them (no chevron), with `end` (the bell)
+ * at the row's far end. Its menu: every workspace (the current one checked) and New workspace; account,
  * workspace and connection settings; a company's Invite members and Upgrade for those who manage
  * it; Log out. With `workspacesOnly` (settings' nav), only the workspaces and New workspace, and
  * `onChoose` decides what choosing one does.
@@ -349,14 +348,11 @@ export function WorkspaceSwitcher({
   end,
   workspacesOnly = false,
   chevron = false,
-  rail = false,
   onChoose,
   pending = false,
 }: {
   end?: ReactNode;
   workspacesOnly?: boolean;
-  /** At the rail's top: the workspace's mark alone, its menu opening beside the rail. */
-  rail?: boolean;
   /** A chevron after the name, as the title bar draws it. */
   chevron?: boolean;
   onChoose?: (workspace: Workspace) => void;
@@ -388,7 +384,6 @@ export function WorkspaceSwitcher({
 
   const menu = (
     <WorkspaceMenu
-      rail={rail}
       anchor={rowBox}
       workspacesOnly={workspacesOnly}
       workspaces={workspaces}
@@ -401,17 +396,6 @@ export function WorkspaceSwitcher({
       onLogOut={() => signOut.mutate()}
     />
   );
-
-  if (rail) {
-    return (
-      <RailTrigger
-        workspace={active}
-        label={label(active)}
-        busy={openWorkspace.isPending || pending}
-        menu={menu}
-      />
-    );
-  }
 
   return (
     <div ref={row} className="flex min-w-0 items-center justify-between gap-1">
@@ -435,7 +419,6 @@ export function WorkspaceSwitcher({
 }
 
 function WorkspaceMenu(props: {
-  rail: boolean;
   anchor: { getBoundingClientRect: () => DOMRect };
   workspacesOnly: boolean;
   workspaces: Workspace[];
@@ -447,15 +430,15 @@ function WorkspaceMenu(props: {
   team: boolean;
   onLogOut: () => void;
 }) {
-  const { rail, label } = props;
+  const { label } = props;
   return (
     <Menu
-      placement={rail ? "end top" : "bottom start"}
+      placement="bottom start"
       popover={{
-        ...(rail ? {} : { anchor: props.anchor }),
+        anchor: props.anchor,
         offset: props.workspacesOnly ? 2 : 4,
         collisionPadding: 8,
-        className: rail ? "w-60" : "w-60 min-w-(--anchor-width) max-w-[calc(100vw-16px)]",
+        className: "w-60 min-w-(--anchor-width) max-w-[calc(100vw-16px)]",
       }}
     >
       {props.workspaces.map((workspace) => (
@@ -478,29 +461,6 @@ function WorkspaceMenu(props: {
       )}
       {!props.workspacesOnly && <SettingsItems team={props.team} onLogOut={props.onLogOut} />}
     </Menu>
-  );
-}
-
-function RailTrigger(props: {
-  workspace: Workspace;
-  label: string;
-  busy: boolean;
-  menu: ReactNode;
-}) {
-  return (
-    <MenuTrigger>
-      <TooltipTrigger delay={400}>
-        <Button
-          intent="ghost"
-          size="sq-md"
-          aria-label={`Switch workspace, currently ${props.label}`}
-        >
-          {props.busy ? <Loader /> : <WorkspaceMark workspace={props.workspace} size={20} />}
-        </Button>
-        <Tooltip placement="right">{props.label}</Tooltip>
-      </TooltipTrigger>
-      {props.menu}
-    </MenuTrigger>
   );
 }
 

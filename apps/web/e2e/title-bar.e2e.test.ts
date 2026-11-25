@@ -52,14 +52,9 @@ afterEach(async () => {
   context = undefined;
 });
 
-async function openInbox(slug: string, also?: { name: string; slug: string }) {
+async function openInbox(slug: string) {
   const email = `ana@${slug}.test`;
   const acme = await createOrgWithOwner(db, { name: "Acme", slug, ownerEmail: email });
-  if (also) {
-    const other = await createOrgWithOwner(db, { ...also, ownerEmail: email });
-    const otherBox = await createMailbox(db, other.orgId, `ana@${also.slug}.test`, "personal");
-    await grant(db, other.orgId, otherBox.id, other.memberId);
-  }
   const box = await createMailbox(db, acme.orgId, email, "personal");
   await grant(db, acme.orgId, box.id, acme.memberId);
   const origin = String(worker.url);
@@ -79,20 +74,21 @@ async function openInbox(slug: string, also?: { name: string; slug: string }) {
 
 const SHOTS = process.env.SHELL_SHOTS;
 
-test("the rail switches modules, the sidebar's top row names it, opens search, and opens notifications beside the sidebar", async () => {
+test("the title bar steps back and forward, opens search, and shows notifications at its right edge; the rail switches modules", async () => {
   const page = await openInbox("title-bar");
-  expect(await page.getByRole("button", { name: "Previous page" }).count()).toBe(0);
+  const previous = page.getByRole("button", { name: "Previous page" });
+  const next = page.getByRole("button", { name: "Next page" });
+  const modules = page.getByRole("navigation", { name: "Modules" });
   await page.getByRole("heading", { name: "Mail", exact: true }).waitFor();
-  await page
-    .getByRole("navigation", { name: "Modules" })
-    .getByRole("button", { name: "Drive", exact: true })
-    .click();
+  await modules.getByRole("link", { name: "Drive", exact: true }).click();
   await page.waitForURL((url) => place(url).startsWith("/files"));
   await page.getByRole("heading", { name: "Drive", exact: true }).waitFor();
-  await page
-    .getByRole("navigation", { name: "Modules" })
-    .locator('[aria-current="page"][aria-label="Drive"]')
-    .waitFor();
+  await modules.locator('[aria-current="page"][aria-label="Drive"]').waitFor();
+  await previous.click();
+  await page.waitForURL((url) => place(url).startsWith("/mail/inbox"));
+  await next.click();
+  await page.waitForURL((url) => place(url).startsWith("/files"));
+  await expect.poll(() => next.isDisabled()).toBe(true);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/bar.png` });
 
   await page.getByRole("button", { name: "Search", exact: true }).click();
@@ -101,14 +97,14 @@ test("the rail switches modules, the sidebar's top row names it, opens search, a
 
   await page.getByRole("button", { name: "Notifications" }).click();
   const panel = page.getByRole("complementary", { name: "Notifications" });
-  await expect.poll(async () => Math.round((await panel.boundingBox())?.x ?? 0)).toBe(352);
+  await expect.poll(async () => Math.round((await panel.boundingBox())?.x ?? 0)).toBe(1280 - 432);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/panel.png` });
 });
 
-test("on a phone, where the sidebar is a drawer, the mail list header still opens search", async () => {
+test("on a phone, where the title bar is hidden, the mail list header still opens search", async () => {
   const page = await openInbox("title-bar-phone");
   await page.setViewportSize({ width: 390, height: 800 });
-  await page.getByRole("navigation", { name: "Modules" }).waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Previous page" }).waitFor({ state: "detached" });
   const search = page.getByRole("button", { name: "Search", exact: true });
   expect(await search.count()).toBe(1);
   await search.click();
