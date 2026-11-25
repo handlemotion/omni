@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.0](https://github.com/handlemotion/omni/compare/desktop-v0.10.0...desktop-v0.11.0) (2026-11-25)
+
+
+### Features
+
+* **web:** bring back the title bar and module rail shell, in the new colours, without Clients ([#112](https://github.com/handlemotion/omni/issues/112)) ([5f8e07d](https://github.com/handlemotion/omni/commit/5f8e07d2ed770e875089e9b2567981bcaafadb10))
+
+
+### Fixes
+
+* **desktop:** centre the traffic lights on the workspace switcher, 17pt from the top and left ([#118](https://github.com/handlemotion/omni/issues/118)) ([165272f](https://github.com/handlemotion/omni/commit/165272fbf0359a84f1db6bb1051fbbf4dda35a68))
+* **web:** lower the traffic lights, ring the current module, space the title bar's right icons ([#114](https://github.com/handlemotion/omni/issues/114)) ([94dce74](https://github.com/handlemotion/omni/commit/94dce740574531d92031b4195aaf5fda48c2a7f4))
+
 ## [0.10.0](https://github.com/handlemotion/omni/compare/desktop-v0.9.0...desktop-v0.10.0) (2026-11-25)
 
 
