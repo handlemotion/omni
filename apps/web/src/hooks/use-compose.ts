@@ -84,8 +84,8 @@ export interface ComposerFile {
   progress: number;
   error?: string;
   attachment?: SendAttachment;
-  /** A local object URL showing an image picked or pasted here, while the composer holds it. */
-  previewUrl?: string;
+  /** The image picked or pasted here, for its chip's preview. */
+  image?: Blob;
 }
 
 /**
@@ -115,7 +115,7 @@ export function useComposerFiles(mailboxId: string | undefined) {
             mimeType: file.type,
             status: "uploading",
             progress: 0,
-            ...(file.type.startsWith("image/") ? { previewUrl: URL.createObjectURL(file) } : {}),
+            ...(file.type.startsWith("image/") ? { image: file } : {}),
           },
         ]);
         uploadFile(mailboxId, file, {
@@ -143,7 +143,6 @@ export function useComposerFiles(mailboxId: string | undefined) {
     setFiles((list) => {
       const file = list.find((f) => f.id === id);
       if (file?.attachment?.kind === "upload") void discardUpload(file.attachment.uploadId);
-      if (file?.previewUrl) URL.revokeObjectURL(file.previewUrl);
       return list.filter((f) => f.id !== id);
     });
   }, []);

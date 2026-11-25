@@ -3,6 +3,7 @@ import { IconCircleX, IconPaperclip } from "@/components/icons/central";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { AttachmentGlyph } from "@/components/storage/file-glyph.tsx";
+import { useEffect, useState } from "react";
 import type { ComposerFile } from "@/hooks/use-compose.ts";
 
 const SIZE = new Intl.NumberFormat(undefined, {
@@ -47,12 +48,8 @@ export function ComposerFiles(props: { files: ComposerFile[]; onRemove: (id: str
             className: "max-w-64 pe-1 hover:bg-transparent active:scale-100",
           })}
         >
-          {file.previewUrl ? (
-            <img
-              src={file.previewUrl}
-              alt=""
-              className="size-4 shrink-0 rounded-[3px] object-cover"
-            />
+          {file.image ? (
+            <Thumbnail image={file.image} />
           ) : (
             <AttachmentGlyph name={file.filename} mimeType={file.mimeType} />
           )}
@@ -82,5 +79,19 @@ export function ComposerFiles(props: { files: ComposerFile[]; onRemove: (id: str
         </li>
       ))}
     </ul>
+  );
+}
+
+function Thumbnail({ image }: { image: Blob }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    const next = URL.createObjectURL(image);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [image]);
+  return url ? (
+    <img src={url} alt="" className="size-4 shrink-0 rounded-[3px] object-cover" />
+  ) : (
+    <span className="size-4 shrink-0" />
   );
 }
