@@ -2,7 +2,7 @@ import { ApiError, fileType, TEXT_PREVIEW_BYTES } from "@omni/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Skeleton, SkeletonBox } from "skullet/react";
+import { SkeletonBox } from "skullet/react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useReportEditing } from "@/hooks/use-file-presence.ts";
@@ -446,34 +446,6 @@ export function DocumentEditor(props: {
       </Suspense>
       <ConflictDialog session={session} />
       <LeaveDialog session={session} />
-    </div>
-  );
-}
-
-/**
- * A doc's page while it gets ready, drawn once for every step of that (its text, the editor,
- * the live doc) so it waits its moment to show only once: a title, then lines.
- */
-export function DocLoading() {
-  return (
-    <div className="absolute inset-0 z-10 flex bg-background">
-      <Skeleton
-        loading
-        label="Loading doc"
-        className="min-w-0 flex-1"
-        skeleton={
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-10 py-10">
-            <SkeletonBox width="40%" height={24} />
-            <div className="mt-3 flex flex-col gap-3">
-              {[92, 84, 96, 60, 88, 76, 94, 45].map((width, i) => (
-                <SkeletonBox key={i} width={`${width}%`} height={12} />
-              ))}
-            </div>
-          </div>
-        }
-      >
-        {null}
-      </Skeleton>
     </div>
   );
 }

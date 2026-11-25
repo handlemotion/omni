@@ -35,7 +35,6 @@ import { FIELD_OFFSET, NameField } from "../name-field.tsx";
 import { PdfMarksContext } from "./pdf-marks.tsx";
 import {
   canEditFile,
-  DocLoading,
   DocumentEditor,
   isDoc,
   preloadRichEditor,
@@ -43,6 +42,7 @@ import {
   type EditSession,
 } from "../editor/document-editor.tsx";
 import { DocBar, DocBarActions } from "../editor/doc-bar.tsx";
+import { DocLoading } from "../editor/doc-loading.tsx";
 import { FloatingOutline } from "../editor/doc-outline.tsx";
 import { HeaderMenu } from "./header-menu.tsx";
 import { PreviewBody } from "./preview-body.tsx";
