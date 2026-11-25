@@ -42,7 +42,7 @@ export const storageVersions = new Hono<AppEnv>()
     });
     if (opened.status === "version_conflict") return staleSave(c, opened.contentVersion);
     if (opened.status !== "ok") return refused(c, opened.status);
-    const started = await startObject(c, files, opened.upload);
+    const started = await startObject(c.env.STORAGE_BUCKET, files, opened.upload);
     return c.json({ upload: wireUpload(started) } satisfies StorageUploadResponse, 201);
   })
 

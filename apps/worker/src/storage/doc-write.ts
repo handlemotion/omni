@@ -30,7 +30,7 @@ const failed = (result: { status: string; contentVersion?: number }) =>
     : { status: "refused", reason: result.status }) satisfies WriteResult;
 
 /**
- * Writes `text` as a new file at `place`, or as the next version of `nodeId` when the file is
+ * Writes `text` (or bytes) as a new file at `place`, or as the next version of `nodeId` when the file is
  * still at `ifContentVersion`, through the same upload rows, quota and checks as the app's own
  * uploads. Answers the file, or why it was refused.
  */
@@ -39,10 +39,10 @@ export async function writeText(
   files: MemberStorage,
   orgId: string,
   target: { place: StoragePlace; name: string } | { nodeId: string; ifContentVersion: number },
-  text: string,
+  text: string | Uint8Array,
   mimeType: string | null,
 ) {
-  const bytes = new TextEncoder().encode(text);
+  const bytes = typeof text === "string" ? new TextEncoder().encode(text) : text;
   const { limitBytes } = await storageLimit(deps.db, deps.config, orgId);
   const caps = uploadCaps(deps.config);
   const opened =
