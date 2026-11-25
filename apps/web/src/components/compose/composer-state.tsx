@@ -18,6 +18,7 @@ export interface HandBack {
   mode: "reply" | "forward";
   sourceId: string | undefined;
   text: string;
+  html?: string;
   to: string[];
   cc: string[];
   bcc: string[];

@@ -244,6 +244,7 @@ export interface ForwardVariables extends Recipients {
   threadId: string;
   to: string[];
   text: string;
+  html?: string | undefined;
   messageId?: string | undefined;
   /** Keep the original's files. */
   includeAttachments?: boolean | undefined;
@@ -288,6 +289,7 @@ export interface HandoffVariables extends Recipients {
   mailboxId: string;
   to: string[];
   text: string;
+  html?: string | undefined;
   /** The message replied to; the latest when absent. */
   messageId?: string | undefined;
   /** Uploads staged on `mailboxId`. */
@@ -327,6 +329,7 @@ export interface NewMailVariables {
   bcc?: string[] | undefined;
   subject: string;
   text: string;
+  html?: string | undefined;
   attachments?: SendAttachment[] | undefined;
   draftId?: string | undefined;
 }

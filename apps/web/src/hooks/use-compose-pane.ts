@@ -9,6 +9,7 @@ export interface NewMessageDraft {
   bcc: string[];
   subject: string;
   text: string;
+  html?: string;
   files: ComposerFile[];
 }
 

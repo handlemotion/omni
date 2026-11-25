@@ -33,13 +33,14 @@ export function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }) 
  * staged, the percentage while uploading, "Failed" when it could not be stored. Each removes.
  */
 export function ComposerFiles(props: { files: ComposerFile[]; onRemove: (id: string) => void }) {
-  if (!props.files.length) return null;
+  const chips = props.files.filter((f) => !f.inline || f.status === "failed");
+  if (!chips.length) return null;
   return (
     <ul
       aria-label="Attachments"
       className="flex flex-wrap gap-2 px-[var(--composer-x,--spacing(3))] pb-2"
     >
-      {props.files.map((file) => (
+      {chips.map((file) => (
         <li
           key={file.id}
           className={buttonStyles({

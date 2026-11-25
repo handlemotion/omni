@@ -82,12 +82,12 @@ test("a reply draft comes back where it was left, in the thread and from Drafts"
 
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await row.click();
-  await expect.poll(() => body.inputValue()).toContain("First line. Second line.");
+  await expect.poll(() => body.innerText()).toContain("First line. Second line.");
 
   await typeAndSave(page, threadId, " Third line.");
   await page.getByRole("link", { name: "Drafts" }).click();
   await row.click();
-  await expect.poll(() => body.inputValue()).toContain("Second line. Third line.");
+  await expect.poll(() => body.innerText()).toContain("Second line. Third line.");
 
   await page.getByRole("button", { name: "Send" }).click();
   await body.waitFor({ state: "detached" });
@@ -140,13 +140,14 @@ test("in a shared inbox, Reply or Forward on an earlier message brings the compo
   await expect.poll(inView).toBe(true);
   await expect.poll(focused).toBe(true);
 
+  await expect.poll(() => body.isEditable()).toBe(true);
   await body.fill("Thanks, noted.");
   await first.scrollIntoViewIfNeeded();
   await expect.poll(inView).toBe(false);
   await first.hover();
   await first.getByRole("button", { name: "Reply", exact: true }).click();
   await expect.poll(inView).toBe(true);
-  await expect.poll(() => body.inputValue()).toBe("Thanks, noted.");
+  await expect.poll(() => body.innerText()).toBe("Thanks, noted.");
 
   await page.getByRole("button", { name: "Send" }).click();
   await body.waitFor({ state: "hidden" });

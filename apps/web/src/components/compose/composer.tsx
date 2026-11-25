@@ -1,6 +1,6 @@
 import type { Message, Thread } from "@omni/client";
 import type { NewMessageDraft } from "@/hooks/use-compose-pane.ts";
-import { forwardSubject, replySubject } from "@omni/mail-core/compose";
+import { forwardSubject, replySubject, uploadContentId } from "@omni/mail-core/compose";
 import { useYourMailboxes } from "@/hooks/use-mailbox-identity.ts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
@@ -14,7 +14,6 @@ import {
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { appToast } from "@/components/ui/toast";
 import { Menu, MenuDescription, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
@@ -40,6 +39,8 @@ import { RecipientField } from "./recipient-field.tsx";
 import { Toolbar } from "./toolbar.tsx";
 import { offerUndoSend } from "./undo-send.ts";
 import { copyText } from "@/hooks/use-clipboard.ts";
+import { BodyEditor, type BodyContent, type BodyHandle } from "./body-editor.tsx";
+import { carriedFiles, editorHtml, pastedFiles, textToHtml, wireHtml } from "./body-html.ts";
 
 const SIG_SEPARATOR = "-- \n";
 
@@ -50,6 +51,27 @@ function hasWords(text: string, signature: string | null) {
   const own = signature ? text.replace(`${SIG_SEPARATOR}${signature}`, "") : text;
   return own.trim().length > 0;
 }
+
+const startingContent = (signature: string | null) => {
+  const text = startingBody(signature);
+  return { text, html: textToHtml(text) } satisfies BodyContent;
+};
+
+const savedBody = (saved: Draft) =>
+  ({
+    text: saved.bodyText,
+    html: saved.bodyHtml
+      ? editorHtml(
+          saved.bodyHtml,
+          saved.attachments.flatMap((a) => ("uploadId" in a && a.uploadId ? [a.uploadId] : [])),
+        )
+      : textToHtml(saved.bodyText),
+  }) satisfies BodyContent;
+
+const sendable = (files: ComposerFile[], html: string) =>
+  carriedFiles(files, html).flatMap((f) =>
+    f.status === "ready" && f.attachment ? [f.attachment] : [],
+  );
 
 const asDraftAddresses = (list: string[]) => list.map((address) => ({ name: null, address }));
 type DraftFile = { uploadId: string } | { attachmentId: string };
@@ -84,8 +106,10 @@ export const filesFromDraft: (draft: Draft, messages?: Message[]) => ComposerFil
       };
     }
     const uploadId = "uploadId" in a ? (a.uploadId ?? "") : "";
+    const inline = draft.bodyHtml?.includes(`cid:${uploadContentId(uploadId)}`);
     return {
       id: uploadId,
+      ...(inline ? { inline: true } : {}),
       filename: "Attached file",
       size: 0,
       mimeType: "",
@@ -206,13 +230,18 @@ function ModeComposer(props: {
   const [cc, setCc] = useState<string[]>([]);
   const [bcc, setBcc] = useState<string[]>([]);
   const [text, setText] = useState("");
+  const [html, setHtml] = useState("");
   const [showCopies, setShowCopies] = useState(false);
   const [sourceId, setSourceId] = useState(props.sourceId ?? latest?.id);
   const source = thread.messages.find((m) => m.id === sourceId) ?? latest;
   const [ready, setReady] = useState(false);
-  const textarea = useRef<HTMLTextAreaElement>(null);
+  const textarea = useRef<BodyHandle>(null);
   const current = useRef(text);
   current.current = text;
+  const setBody = (next: BodyContent) => {
+    setText(next.text);
+    setHtml(next.html);
+  };
 
   const draft = useDraft(
     {
@@ -239,7 +268,7 @@ function ModeComposer(props: {
 
   const started = useRef(false);
   const load = (saved: Draft) => {
-    setText(saved.bodyText);
+    setBody(savedBody(saved));
     if (saved.sourceMessageId) setSourceId(saved.sourceMessageId);
     if (saved.to.length) setTo(saved.to.map((a) => a.address));
     setCc(saved.cc.map((a) => a.address));
@@ -253,7 +282,7 @@ function ModeComposer(props: {
     setReady(true);
     const handed = state.takeHandBack();
     if (handed) {
-      setText(handed.text);
+      setBody({ text: handed.text, html: handed.html ?? textToHtml(handed.text) });
       setTo(handed.to);
       setCc(handed.cc);
       setBcc(handed.bcc);
@@ -262,27 +291,32 @@ function ModeComposer(props: {
       touched.current = true;
       return draft.save({
         bodyText: handed.text,
+        bodyHtml: wireHtml(handed.html ?? textToHtml(handed.text), handed.files),
         to: asDraftAddresses(handed.to),
         cc: asDraftAddresses(handed.cc),
         bcc: asDraftAddresses(handed.bcc),
       });
     }
     if (draft.draft) return load(draft.draft);
-    setText(startingBody(signature));
+    setBody(startingContent(signature));
     if (mode === "forward") files.reset(originalFiles(source));
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- runs once, when both have loaded
   }, [draft.isLoading, signatureLoading]);
 
   const touched = useRef(false);
-  const edited = (next: Partial<{ text: string; to: string[]; cc: string[]; bcc: string[] }>) => {
+  const edited = (
+    next: Partial<{ text: string; html: string; to: string[]; cc: string[]; bcc: string[] }>,
+  ) => {
     if (!started.current || handingOff) return;
     touched.current = true;
+    const body = next.html ?? html;
     draft.save({
       bodyText: next.text ?? text,
+      bodyHtml: wireHtml(body, files.files),
       to: asDraftAddresses(next.to ?? to),
       cc: asDraftAddresses(next.cc ?? cc),
       bcc: asDraftAddresses(next.bcc ?? bcc),
-      attachments: draftFiles(files.files),
+      attachments: draftFiles(carriedFiles(files.files, body)),
     });
   };
   const fileIds = draftFiles(files.files)
@@ -302,8 +336,9 @@ function ModeComposer(props: {
 
   const send = () => {
     if (!canSend) return;
-    const before = { text, to, cc, bcc, files: files.files };
-    const attachments = files.attachments;
+    const before = { text, html, to, cc, bcc, files: files.files };
+    const attachments = sendable(files.files, html);
+    const wire = wireHtml(html, files.files);
     const recipientsChanged =
       mode === "forward" ||
       to.join() !== replyRecipients(source).join() ||
@@ -317,13 +352,19 @@ function ModeComposer(props: {
         return;
       }
       state.showEmail();
-      setText(before.text);
+      setBody(before);
       setTo(before.to);
       setCc(before.cc);
       setBcc(before.bcc);
       files.reset(before.files);
       textarea.current?.focus();
-      edited({ text: before.text, to: before.to, cc: before.cc, bcc: before.bcc });
+      edited({
+        text: before.text,
+        html: before.html,
+        to: before.to,
+        cc: before.cc,
+        bcc: before.bcc,
+      });
     };
     const handedOver = draft.detach();
     const sent = (queued: Parameters<typeof offerUndoSend>[0], pending?: { key: string }) => {
@@ -343,7 +384,7 @@ function ModeComposer(props: {
     };
 
     touched.current = false;
-    setText(startingBody(signature));
+    setBody(startingContent(signature));
     files.reset();
     state.sentEmail();
     if (mode === "forward") {
@@ -361,6 +402,7 @@ function ModeComposer(props: {
           cc,
           bcc,
           text,
+          html: wire,
           attachments,
         },
         { onSuccess: (queued) => sent(queued), onError: failed },
@@ -370,6 +412,7 @@ function ModeComposer(props: {
         {
           threadId: thread.id,
           text,
+          html: wire,
           ...(source ? { messageId: source.id } : {}),
           ...(recipientsChanged ? { to, cc, bcc } : {}),
           attachments,
@@ -388,6 +431,7 @@ function ModeComposer(props: {
           cc,
           bcc,
           text,
+          html: wire,
           includeAttachments: false,
           attachments,
         },
@@ -415,16 +459,7 @@ function ModeComposer(props: {
   const insertCanned = async (picked: CannedReply) => {
     try {
       const rendered = await render(picked.id);
-      const el = textarea.current;
-      const at = el ? el.selectionStart : 0;
-      const end = el ? el.selectionEnd : 0;
-      const next = text.slice(0, at) + rendered.text + text.slice(end);
-      setText(next);
-      edited({ text: next });
-      requestAnimationFrame(() => {
-        el?.focus();
-        el?.setSelectionRange(at + rendered.text.length, at + rendered.text.length);
-      });
+      textarea.current?.insertText(rendered.text);
       if (rendered.missing.length) {
         appToast.warning("Some details are missing", {
           description: `Fill in ${rendered.missing.join(", ")} before sending.`,
@@ -436,7 +471,7 @@ function ModeComposer(props: {
   };
 
   return (
-    <ComposerFrame flat={props.row} row={props.row} onFiles={files.add}>
+    <ComposerFrame flat={props.row} row={props.row} onFiles={(f) => void files.add(f)}>
       <FromRow
         mailboxes={mode === "reply" ? fromOptions : fromOptions.slice(0, 1)}
         value={handingOff ? fromId : thread.mailboxId}
@@ -469,15 +504,17 @@ function ModeComposer(props: {
         }}
       />
       <SubjectRow mode={mode} source={source} />
-      <Body
+      <BodyEditor
         ref={textarea}
         label={mode === "reply" ? "Reply" : "Message"}
         readOnly={!ready}
-        value={text}
+        value={html}
         onChange={(next) => {
-          setText(next);
-          edited({ text: next });
+          setBody(next);
+          edited(next);
         }}
+        onImages={(images) => files.add(images, { inline: true })}
+        onFiles={(picked) => void files.add(picked)}
         onSend={send}
         autoFocus={mode === "reply"}
       />
@@ -486,7 +523,7 @@ function ModeComposer(props: {
         start={
           <>
             <KindMenu kind={mode === "forward" ? "forward" : state.replyKind} onChange={switchTo} />
-            <AttachButton onFiles={files.add} />
+            <AttachButton onFiles={(f) => void files.add(f)} />
             <CannedPicker mailboxId={thread.mailboxId} onPick={(r) => void insertCanned(r)} />
           </>
         }
@@ -604,7 +641,12 @@ function NewMessage(props: {
   const [showCopies, setShowCopies] = useState(!!(restored?.cc.length || restored?.bcc.length));
   const [subject, setSubject] = useState(restored?.subject ?? props.initial.subject ?? "");
   const [text, setText] = useState(restored?.text ?? "");
-  const textarea = useRef<HTMLTextAreaElement>(null);
+  const [html, setHtml] = useState(restored ? (restored.html ?? textToHtml(restored.text)) : "");
+  const setBody = (next: BodyContent) => {
+    setText(next.text);
+    setHtml(next.html);
+  };
+  const textarea = useRef<BodyHandle>(null);
   const started = useRef(false);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -612,23 +654,32 @@ function NewMessage(props: {
     started.current = true;
     setReady(true);
     if (restored) return resetFiles(restored.files);
-    setText(startingBody(signature));
+    setBody(startingContent(signature));
   }, [signature, signatureLoading, restored, resetFiles]);
 
   const canSend = !files.busy && to.length > 0 && !sendNew.isPending;
   const send = () => {
     if (!canSend) return;
-    const before = { to, cc, bcc, subject, text, files: files.files };
+    const before = { to, cc, bcc, subject, text, html, files: files.files };
     const restore = () => {
       setTo(before.to);
       setCc(before.cc);
       setBcc(before.bcc);
       setSubject(before.subject);
-      setText(before.text);
+      setBody(before);
       files.reset(before.files);
     };
     sendNew.mutate(
-      { mailboxId, to, cc, bcc, subject, text, attachments: files.attachments },
+      {
+        mailboxId,
+        to,
+        cc,
+        bcc,
+        subject,
+        text,
+        html: wireHtml(html, files.files),
+        attachments: sendable(files.files, html),
+      },
       {
         onSuccess: (queued) => {
           const { onSent, onUndone } = props;
@@ -648,7 +699,7 @@ function NewMessage(props: {
           setCc([]);
           setBcc([]);
           setSubject("");
-          setText(startingBody(signature));
+          setBody(startingContent(signature));
           files.reset();
           offerUndoSend(queued, async () => {
             const stopped = await cancelSend(queued.actionId);
@@ -662,7 +713,7 @@ function NewMessage(props: {
   };
 
   return (
-    <ComposerFrame flat={!props.island} fill onFiles={files.add}>
+    <ComposerFrame flat={!props.island} fill onFiles={(f) => void files.add(f)}>
       <FromRow
         mailboxes={props.mailboxes}
         value={mailboxId}
@@ -702,18 +753,20 @@ function NewMessage(props: {
           onChange={(event) => setSubject(event.target.value)}
         />
       </div>
-      <Body
+      <BodyEditor
         ref={textarea}
         label="Message"
         readOnly={!ready}
-        value={text}
-        onChange={setText}
+        value={html}
+        onChange={setBody}
+        onImages={(images) => files.add(images, { inline: true })}
+        onFiles={(picked) => void files.add(picked)}
         onSend={send}
         fill
       />
       <ComposerFiles files={files.files} onRemove={files.remove} />
       <Toolbar
-        start={<AttachButton onFiles={files.add} />}
+        start={<AttachButton onFiles={(f) => void files.add(f)} />}
         canSend={canSend}
         isPending={sendNew.isPending}
         onSend={send}
@@ -824,6 +877,7 @@ function ComposerFrame(props: {
         onMouseDown={focusBody}
         onClick={focusBody}
         onPaste={(event) => {
+          if (event.defaultPrevented) return;
           const pasted = pastedFiles(event.clipboardData);
           if (!pasted.length) return;
           event.preventDefault();
@@ -836,35 +890,19 @@ function ComposerFrame(props: {
   );
 }
 
-function pastedFiles(data: DataTransfer) {
-  const files = [...data.files];
-  if (!files.length) return [];
-  const html = data.getData("text/html");
-  if (html && new DOMParser().parseFromString(html, "text/html").body.textContent?.trim()) {
-    return [];
-  }
-  return files.map(namedPaste);
-}
-
-function namedPaste(file: File, index: number) {
-  if (file.name && file.name !== "image.png") return file;
-  const ext = file.type.split("/")[1]?.replace("jpeg", "jpg") || "png";
-  const stamp = new Date().toISOString().slice(0, 19).replace("T", " at ").replaceAll(":", ".");
-  const suffix = index ? ` ${index + 1}` : "";
-  return new File([file], `Image ${stamp}${suffix}.${ext}`, { type: file.type });
-}
-
 const CONTROLS =
   "button, a, input, textarea, select, [role=button], [role=combobox], [role=option], [data-composer-head]";
 
 function focusBody(event: React.MouseEvent<HTMLElement>) {
   if (event.button !== 0 || (event.target as HTMLElement).closest(CONTROLS)) return;
-  const body = event.currentTarget.querySelector<HTMLTextAreaElement>("[data-composer-body]");
-  if (!body || body.readOnly) return;
+  const body = event.currentTarget.querySelector<HTMLElement>("[data-composer-body]");
+  if (!body || body.contentEditable !== "true") return;
   event.stopPropagation();
   event.preventDefault();
   body.focus();
-  body.setSelectionRange(body.value.length, body.value.length);
+  const selection = getSelection();
+  selection?.selectAllChildren(body);
+  selection?.collapseToEnd();
 }
 
 function Recipients(props: {
@@ -907,39 +945,5 @@ function Recipients(props: {
         </>
       )}
     </div>
-  );
-}
-
-function Body(props: {
-  ref: React.Ref<HTMLTextAreaElement>;
-  label: string;
-  value: string;
-  onChange: (text: string) => void;
-  onSend: () => void;
-  rows?: number;
-  readOnly?: boolean;
-  autoFocus?: boolean;
-  fill?: boolean;
-}) {
-  return (
-    <Textarea
-      ref={props.ref}
-      plain
-      readOnly={props.readOnly}
-      autoFocus={props.autoFocus}
-      aria-label={props.label}
-      placeholder="Write…"
-      rows={props.rows ?? 4}
-      value={props.value}
-      onChange={(event) => props.onChange(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-          event.preventDefault();
-          props.onSend();
-        }
-      }}
-      data-composer-body
-      className={`${props.fill ? "min-h-24 flex-1" : "max-h-[min(24rem,30vh)] min-h-24"} resize-none overscroll-contain px-[var(--composer-x,--spacing(3))] pt-[var(--composer-y,--spacing(3))] pb-1 sm:px-[var(--composer-x,--spacing(3))] sm:pt-[var(--composer-y,--spacing(3))] sm:pb-1`}
-    />
   );
 }
