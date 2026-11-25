@@ -354,6 +354,9 @@ function composeMessage(payload: SendPayload, messageId: string, files: SendFile
       filename: file.filename,
       contentType: file.contentType,
       content: Buffer.from(file.content),
+      ...(file.contentId && payload.html?.includes(`cid:${file.contentId}`)
+        ? { cid: file.contentId, contentDisposition: "inline" as const }
+        : {}),
     })),
     to: payload.to,
     cc: payload.cc,

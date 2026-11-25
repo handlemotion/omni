@@ -129,6 +129,8 @@ export interface SendFile {
   filename: string;
   contentType: string;
   content: Uint8Array;
+  /** An upload's `uploadContentId`: the HTML body may show it inline as `cid:` it. */
+  contentId?: string;
 }
 
 export interface SendFiles {

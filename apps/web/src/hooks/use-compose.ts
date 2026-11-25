@@ -86,6 +86,8 @@ export interface ComposerFile {
   attachment?: SendAttachment;
   /** The image picked or pasted here, for its chip's preview. */
   image?: Blob;
+  /** Shown in the body (`<img data-file={id}>`), not as a chip. */
+  inline?: boolean;
 }
 
 /**
@@ -100,10 +102,12 @@ export function useComposerFiles(mailboxId: string | undefined) {
     setFiles((list) => list.map((f) => (f.id === id ? { ...f, ...change } : f)));
 
   const add = useCallback(
-    (picked: Iterable<File>) => {
-      if (!mailboxId) return;
+    (picked: Iterable<File>, options: { inline?: boolean } = {}) => {
+      const ids: string[] = [];
+      if (!mailboxId) return ids;
       for (const file of picked) {
         const id = crypto.randomUUID();
+        ids.push(id);
         const abort = new AbortController();
         aborts.current.set(id, abort);
         setFiles((list) => [
@@ -116,6 +120,7 @@ export function useComposerFiles(mailboxId: string | undefined) {
             status: "uploading",
             progress: 0,
             ...(file.type.startsWith("image/") ? { image: file } : {}),
+            ...(options.inline ? { inline: true } : {}),
           },
         ]);
         uploadFile(mailboxId, file, {
@@ -134,6 +139,7 @@ export function useComposerFiles(mailboxId: string | undefined) {
           })
           .finally(() => aborts.current.delete(id));
       }
+      return ids;
     },
     [mailboxId],
   );

@@ -1,6 +1,7 @@
 import { forMember, schema } from "@omni/db";
 import { buildCalendar, parseCalendar } from "@omni/mail-core/calendar";
 import { parseMessage } from "@omni/mail-core";
+import { uploadContentId } from "@omni/mail-core/compose";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { MailboxConfig } from "../src/mailbox-config.ts";
@@ -461,6 +462,65 @@ describe("OutboxExecutor against GreenMail", () => {
     expect(raw).toContain(Buffer.from("PNG screenshot bytes").toString("base64"));
     const forward = (await messageRows(db, box.id)).find((m) => m.subject.startsWith("Fwd:"));
     expect(forward?.threadId).toBe(message!.threadId);
+  });
+
+  it("sends an upload the HTML body shows by cid as an inline part, and others as attachments", async () => {
+    const { seeded, box, connection, executor } = await setup();
+    await connection.start();
+    const upload = async (name: string, bytes: string) => {
+      const key = `${seeded.orgId}/${box.id}/uploads/${name}`;
+      await objects.put(key, bytes, "image/png");
+      const [row] = await db
+        .insert(schema.uploads)
+        .values({
+          orgId: seeded.orgId,
+          mailboxId: box.id,
+          filename: name,
+          mimeType: "image/png",
+          size: bytes.length,
+          r2Key: key,
+          expiresAt: new Date(Date.now() + 3600_000),
+        })
+        .returning();
+      return row!.id;
+    };
+    const pasted = await upload("pasted.png", "PNG pasted bytes");
+    const attached = await upload("attached.png", "PNG attached bytes");
+    const recipient = mailbox();
+    const row = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-inline-${box.id}`,
+      payload: {
+        from: box.address,
+        to: [recipient.address],
+        subject: "The sidebar",
+        text: "Look: [image: pasted.png]",
+        html: `<p>Look:</p><p><img src="cid:${uploadContentId(pasted)}" alt="pasted.png"></p>`,
+        attachments: [
+          { kind: "upload", uploadId: pasted },
+          { kind: "upload", uploadId: attached },
+        ],
+      },
+    });
+    const claimed = (await new PgActionSource({ db }).claim(50)).find((a) => a.id === row.id);
+    await executor.execute(claimed!);
+    expect((await actionRow(db, row.id)).status).toBe("done");
+
+    const received = await otherClient(recipient, async (client) => {
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        return await client.fetchAll("1:*", { source: true });
+      } finally {
+        lock.release();
+      }
+    });
+    const raw = received[0]?.source?.toString() ?? "";
+    const part = (name: string) =>
+      raw.split(/\r?\n--/).find((p) => p.includes(`name=${name}`)) ?? "";
+    expect(part("pasted.png")).toContain(`Content-ID: <${uploadContentId(pasted)}>`);
+    expect(part("pasted.png")).toContain("Content-Disposition: inline");
+    expect(part("attached.png")).toContain("Content-Disposition: attachment");
+    expect(raw).toContain(`cid:${uploadContentId(pasted)}`);
   });
 
   it("fails a send whose upload is gone without sending anything", async () => {

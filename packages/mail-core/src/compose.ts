@@ -1,7 +1,14 @@
 import { escapeHtml } from "./escape-html.ts";
 import { isForwardSubject, isReplySubject } from "./subject.ts";
 
-/** `Re: <subject>`, without stacking prefixes a mail client already added (`Re:`, `RE:`, `Aw:`). */
+/**
+ * The Content-ID a composer's upload goes out under when the HTML body shows it inline
+ * (`<img src="cid:…">`), so the body can name it before the mail service builds the message.
+ */
+export function uploadContentId(uploadId: string) {
+  return `${uploadId}@upload`;
+}
+
 export function replySubject(subject: string) {
   const trimmed = subject.trim();
   return isReplySubject(trimmed) ? trimmed : `Re: ${trimmed}`;

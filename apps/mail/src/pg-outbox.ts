@@ -1,3 +1,4 @@
+import { uploadContentId } from "@omni/mail-core/compose";
 import { actionPayloadSchemas } from "@omni/contracts";
 import {
   claimActions,
@@ -121,10 +122,13 @@ export class PgSendFiles implements SendFiles {
       throw new MissingFileError(`${refs.length - rows.length} attachment(s) not found`);
     }
     return Promise.all(
-      rows.map(async (row) => {
+      rows.map(async (row, index) => {
         const content = await this.options.objects.get(row.r2Key);
         if (!content) throw new MissingFileError(`attachment object ${row.r2Key} is gone`);
-        return { filename: row.filename, contentType: row.mimeType, content };
+        const ref = refs[index];
+        const file: SendFile = { filename: row.filename, contentType: row.mimeType, content };
+        if (ref?.kind === "upload") file.contentId = uploadContentId(ref.uploadId);
+        return file;
       }),
     ) satisfies Promise<SendFile[]>;
   }
