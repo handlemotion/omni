@@ -2,7 +2,18 @@
 @reference "../../../styles.css";
 
 .document-page {
-  @apply mx-auto w-full max-w-3xl px-10 py-10 text-md/6 text-foreground outline-none;
+  @apply w-full max-w-3xl px-10 py-10 text-md/6 text-foreground outline-none;
+  margin-inline: max(0px, calc((100% - 48rem) / 2));
+  transition: margin-inline-start 200ms var(--ease-out);
+}
+/* While the outline is open the page slides right, its text 1rem clear of the open list. */
+[data-outline-open] .document-page {
+  margin-inline-start: max(15.5rem, calc((100% - 48rem) / 2));
+}
+@media (prefers-reduced-motion: reduce) {
+  .document-page {
+    transition: none;
+  }
 }
 /* A heading picked in the outline lands a little below the page's top edge, not on it. */
 .document-page :is(h1, h2, h3) {

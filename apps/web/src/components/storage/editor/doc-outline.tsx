@@ -124,24 +124,32 @@ function useCurrentHeading(headings: Heading[]) {
 const LINE = { H1: "w-4", H2: "w-3", H3: "w-2" } as const;
 
 /**
- * The outline of a full-screen doc, at its top left by the header: a stack of lines, one per
- * heading, the one being read darker. Under the pointer (or focus) it opens into the headings.
+ * The outline of a full-screen doc, at its left, centred down the screen: a stack of lines, one per
+ * heading, the one being read darker. Under the pointer (or focus) it opens into the headings,
+ * and `root` takes `data-outline-open` so the page slides right to clear it.
  */
 export function FloatingOutline(props: { root: RefObject<HTMLElement | null> }) {
   const headings = useLiveHeadings(props.root);
   const current = useCurrentHeading(headings);
   const [open, setOpen] = useState(false);
+  const { root } = props;
+  useEffect(() => {
+    root.current?.toggleAttribute("data-outline-open", open);
+  }, [root, open]);
   if (headings.length === 0) return null;
   return (
     <nav
       aria-label="Outline"
-      className="absolute start-4 top-4 z-10"
+      className="absolute start-4 top-1/2 z-10 -translate-y-1/2"
       onPointerEnter={() => setOpen(true)}
       onPointerLeave={() => setOpen(false)}
       onFocus={() => setOpen(true)}
       onBlur={(event) => !event.currentTarget.contains(event.relatedTarget) && setOpen(false)}
     >
-      <div aria-hidden className="flex w-8 flex-col items-start gap-1.5 px-2 py-2">
+      <div
+        aria-hidden
+        className={`flex w-8 flex-col items-start gap-1.5 px-2 py-2 transition-opacity duration-200 ease-out motion-reduce:transition-none ${open ? "opacity-0" : ""}`}
+      >
         {headings.map((heading) => (
           <span
             key={heading.id}
@@ -150,8 +158,14 @@ export function FloatingOutline(props: { root: RefObject<HTMLElement | null> }) 
         ))}
       </div>
       {open && (
-        <div className="absolute start-0 top-0">
-          <ul className={cn(popupSurface, "flex max-h-[70vh] w-64 flex-col overflow-y-auto p-1")}>
+        <div className="absolute start-0 top-1/2 -translate-y-1/2">
+          <ul
+            className={cn(
+              popupSurface,
+              "flex max-h-[70vh] w-64 flex-col overflow-y-auto p-1",
+              "transition-[opacity,translate] duration-200 ease-out starting:-translate-x-2 starting:opacity-0 motion-reduce:transition-none",
+            )}
+          >
             {headings.map((heading) => (
               <li key={heading.id} className={INDENT[heading.level]}>
                 <Button
