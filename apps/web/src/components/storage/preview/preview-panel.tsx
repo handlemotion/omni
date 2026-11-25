@@ -228,7 +228,10 @@ function EditingBody(props: {
   return (
     <DocCommentsContext value={comments}>
       <div className="flex min-h-0 flex-1">
-        <div ref={area} className="relative flex min-w-0 flex-1 flex-col">
+        <div
+          ref={area}
+          className={`relative flex min-w-0 flex-1 flex-col ${floating ? "doc-beside-outline" : ""}`}
+        >
           <DocumentEditor session={session} onDownload={props.onDownload} />
           {floating && <FloatingOutline root={area} />}
         </div>

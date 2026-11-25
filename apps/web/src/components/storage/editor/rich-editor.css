@@ -4,6 +4,10 @@
 .document-page {
   @apply mx-auto w-full max-w-3xl px-10 py-10 text-md/6 text-foreground outline-none;
 }
+/* Beside a floating outline the page leaves it 18rem, moving right of centre when it must. */
+.doc-beside-outline .document-page {
+  margin-inline-start: max(18rem, calc((100% - 48rem) / 2));
+}
 .document-page > * + * {
   @apply mt-3;
 }

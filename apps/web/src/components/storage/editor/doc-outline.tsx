@@ -7,8 +7,8 @@ import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 const LEVEL_ICON = { H1: IconH1, H2: IconH2, H3: IconH3 } as const;
 const INDENT = { H1: "", H2: "ps-5", H3: "ps-8" } as const;
 
-/** Wide enough for the outline to float beside the page (its 768px column and a 240px margin). */
-export const FLOATING_OUTLINE_WIDTH = 1280;
+/** Wide enough for the outline to float beside the page, the page moved right to make room. */
+export const FLOATING_OUTLINE_WIDTH = 1120;
 
 interface Heading {
   id: string;
@@ -133,7 +133,7 @@ export function FloatingOutline(props: { root: RefObject<HTMLElement | null> }) 
   return (
     <nav
       aria-label="Outline"
-      className="pointer-events-none absolute inset-y-0 start-0 flex w-60 flex-col py-10 ps-4"
+      className="pointer-events-none absolute inset-y-0 start-0 flex w-72 flex-col py-10 ps-10 pe-4"
     >
       <ul className="pointer-events-auto flex min-h-0 flex-col overflow-y-auto">
         {headings.map((heading) => (

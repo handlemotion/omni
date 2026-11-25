@@ -46,7 +46,7 @@ function facesIn(scroller: HTMLElement) {
       name,
       image: anchor.dataset.image ?? "",
       top: at.top - box.top + scroller.scrollTop + (line - FACE) / 2,
-      left: at.left - box.left + scroller.scrollLeft - 26 - nth * (FACE - 6),
+      left: at.left - box.left + scroller.scrollLeft - 36 - nth * (FACE - 6),
     });
   }
   return faces;

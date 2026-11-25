@@ -105,10 +105,10 @@ function ModuleSwitch({ large = false }: { large?: boolean }) {
         aria-label={`Switch module, currently ${name}`}
         className={cn(
           "w-auto max-w-full shrink",
-          large ? "h-8 gap-1.5 ps-1.25 pe-1.5" : "h-8 gap-2 px-2",
+          large ? "h-8 gap-1.5 ps-1.5 pe-1.5" : "h-8 gap-2 px-2",
         )}
       >
-        <Mark className={large ? "size-5!" : undefined} />
+        <Mark className={large ? "size-4.5!" : undefined} />
         <span className={cn("min-w-0 truncate", large ? "text-lg" : "text-md")}>{name}</span>
         <IconChevronDown
           className={cn(

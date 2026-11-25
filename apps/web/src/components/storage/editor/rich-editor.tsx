@@ -15,6 +15,7 @@ import { openLiveDoc, type LiveDoc } from "@/lib/live-doc.ts";
 import { sessionQuery } from "@/lib/session.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
+import { BlockComment } from "./block-comment.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
 import { CollaboratorFaces, faceAnchor } from "./collaborator-faces.tsx";
 import { DocToolbar } from "./doc-toolbar.tsx";
@@ -242,6 +243,7 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
       <EditorContent editor={editor} className="flex-1" />
       {doc && <CollaboratorFaces editor={editor} scroller={scroller} />}
       <BlockHandle editor={editor} />
+      <BlockComment editor={editor} comments={comments} scroller={scroller} />
       <FormatBar
         editor={editor}
         onComment={comments ? () => commentOnSelection(editor, comments) : undefined}

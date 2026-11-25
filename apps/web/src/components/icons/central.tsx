@@ -155,6 +155,7 @@ export { IconShapesPlusXSquareCircle as IconCanvas } from "central-icons-outline
 export { IconEyeOpen as IconEye } from "central-icons-outlined/IconEyeOpen";
 export { IconPencilWave as IconSuggest } from "central-icons-outlined/IconPencilWave";
 export { IconAlignmentLeft as IconOutline } from "central-icons-outlined/IconAlignmentLeft";
+export { IconBubblePlus as IconCommentAdd } from "central-icons-outlined/IconBubblePlus";
 export { IconCalenderToday as IconCalendarDay } from "central-icons-outlined/IconCalenderToday";
 export { IconCalenderNextWeek as IconCalendarWeek } from "central-icons-outlined/IconCalenderNextWeek";
 export { IconCalendarDays as IconCalendarMonth } from "central-icons-outlined/IconCalendarDays";
