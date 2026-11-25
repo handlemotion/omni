@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { useDrop } from "react-aria-components/useDrop";
+import { IconEllipsis } from "@/components/icons/central";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
 import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
@@ -39,8 +40,6 @@ import {
 import { useDriveRowMenu, useFolderRowMenu } from "./sidebar-menus.tsx";
 import { drivePath } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
-
-const SHOWN = 100;
 
 type Expand = { value: boolean; toggle: () => void };
 
@@ -82,35 +81,46 @@ function Level(props: {
   search: string;
 }) {
   const list = useStorageList(props.place);
-  const shown = list.nodes.slice(0, SHOWN);
+  const shown = list.nodes;
   const pending = list.isPending ? null : props.place;
   const folderGap = useGapAt(pending, shown, "folder");
   const fileGap = useGapAt(pending, shown, "file");
   const gap = folderGap ?? fileGap;
   if (list.isPending) return <SidebarTreeBones depth={props.depth} />;
   return (
-    <WithGap
-      gap={gap}
-      rows={shown.map((node) =>
-        node.kind === "folder" ? (
-          <Folder
-            key={node.id}
-            node={node}
-            depth={props.depth}
-            ancestors={props.ancestors}
-            search={props.search}
-          />
-        ) : (
-          <FileRow
-            key={node.id}
-            node={node}
-            depth={props.depth}
-            ancestors={props.ancestors}
-            search={props.search}
-          />
-        ),
+    <>
+      <WithGap
+        gap={gap}
+        rows={shown.map((node) =>
+          node.kind === "folder" ? (
+            <Folder
+              key={node.id}
+              node={node}
+              depth={props.depth}
+              ancestors={props.ancestors}
+              search={props.search}
+            />
+          ) : (
+            <FileRow
+              key={node.id}
+              node={node}
+              depth={props.depth}
+              ancestors={props.ancestors}
+              search={props.search}
+            />
+          ),
+        )}
+      />
+      {list.hasNextPage && (
+        <SidebarTreeRow
+          isCurrent={false}
+          depth={props.depth}
+          icon={<IconEllipsis className="size-icon" />}
+          label="Show more"
+          onPress={() => !list.isFetchingNextPage && void list.fetchNextPage()}
+        />
       )}
-    />
+    </>
   );
 }
 
