@@ -1,8 +1,6 @@
 import { readableMarkdown } from "./entities.ts";
 import { docToMarkdown, markdownToDoc } from "./markdown.ts";
 
-const LETTER = /[\p{L}\p{N}]/gu;
-
 const words = (markdown: string) =>
   markdown
     .replace(/&#(x?)([\da-f]{1,6});/gi, (_, hex: string, code: string) =>
@@ -24,7 +22,7 @@ const written = (markdown: string) => {
 function lineAt(markdown: string, at: number) {
   let seen = 0;
   for (const line of markdown.split("\n")) {
-    seen += line.match(LETTER)?.length ?? 0;
+    seen += words(line).length;
     if (seen > at) return line;
   }
   return markdown.split("\n").at(-1) ?? "";

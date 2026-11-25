@@ -126,7 +126,7 @@ test("an agent writes a doc and edits it, only where its person may", async () =
     await call(anaAgent, "drive_create_doc", {
       name: "Raw",
       teamspace_id: teamspaceId,
-      markdown: "# Raw\n\n<div>Boxed</div>",
+      markdown: "# Raw\n\n1. Alpha\n2. Beta\n\n<div>Boxed</div>",
     }),
   ).toMatchObject({ error: expect.stringContaining("<div>Boxed</div>") });
 
