@@ -397,4 +397,3 @@ export const crmSettings = pgTable("crm_settings", {
 export * from "./crm/contract-people.ts";
 export * from "./crm/files.ts";
 export * from "./crm/projects.ts";
-export * from "./crm/tasks.ts";

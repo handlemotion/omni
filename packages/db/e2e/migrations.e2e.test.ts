@@ -141,7 +141,6 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "crm_project_members",
       "crm_settings",
       "crm_stages",
-      "crm_tasks",
       "calendar_answers",
       "calendar_attendees",
       "calendar_booking_links",
