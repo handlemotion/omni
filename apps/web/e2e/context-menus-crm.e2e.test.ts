@@ -161,9 +161,9 @@ test("a task's right-click completes it", async () => {
       async () =>
         (
           await db
-            .select({ completedAt: schema.crmTasks.completedAt })
-            .from(schema.crmTasks)
-            .where(eq(schema.crmTasks.id, task.id))
+            .select({ completedAt: schema.calendarTasks.completedAt })
+            .from(schema.calendarTasks)
+            .where(eq(schema.calendarTasks.id, task.id))
         )[0]?.completedAt ?? null,
       { timeout: 10_000 },
     )

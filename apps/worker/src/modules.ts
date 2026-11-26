@@ -4,7 +4,6 @@ import {
   handOverMemberMeetings,
   handOverMemberStorage,
   releaseCalendarTasks,
-  releaseCrmTasks,
   type Db,
 } from "@omni/db";
 import type { Effect } from "effect";
@@ -90,7 +89,6 @@ const crm: Module = {
   name: "crm",
   minute: crmMinute,
   daily: crmDaily,
-  memberRemoved: (db, { orgId, memberId }) => releaseCrmTasks(db, { orgId, memberId }),
 };
 
 const calendar: Module = {

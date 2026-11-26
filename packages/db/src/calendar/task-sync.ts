@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { hasRole } from "../roles.ts";
 import { members } from "../schema/auth.ts";
 import { calendarTasks } from "../schema/calendar.ts";
@@ -6,18 +6,11 @@ import type { Ex } from "./core.ts";
 import type { CalendarTask } from "./tasks.ts";
 
 /**
- * A task to write whole. `crm_tasks` keeps no status or priority, so its copy job leaves them out
- * and the calendar keeps the ones it has.
+ * Writes the task as given, made or replaced by id, with the `updated_at` it carries: the CRM
+ * hands over a task on a record whole. A linked task keeps the owner it has. A private one with no
+ * owner to give it is skipped.
  */
-export type PutTask = Omit<CalendarTask, "status" | "priority"> &
-  Partial<Pick<CalendarTask, "status" | "priority">>;
-
-/**
- * Writes the task as given, made or replaced by id, and keeps its `updated_at`, so a copy of a
- * row reads the same from both tables: the CRM's dual-write and its copy job hand it over whole.
- * A linked task keeps the owner it has. A private one with no owner to give it is skipped.
- */
-export async function putTask(tx: Ex, row: PutTask) {
+export async function putTask(tx: Ex, row: CalendarTask) {
   if (!row.record && !row.ownerMemberId) return { status: "skipped" as const };
   const values = {
     id: row.id,
@@ -29,8 +22,8 @@ export async function putTask(tx: Ex, row: PutTask) {
     dueAt: row.dueAt,
     completedAt: row.completedAt,
     completedByMemberId: row.completedByMemberId,
-    ...(row.status === undefined ? {} : { status: row.status }),
-    ...(row.priority === undefined ? {} : { priority: row.priority }),
+    status: row.status,
+    priority: row.priority,
     assigneeMemberId: row.record ? row.assigneeMemberId : row.ownerMemberId,
     recordKind: row.record?.kind ?? null,
     recordId: row.record?.id ?? null,
@@ -53,16 +46,6 @@ export async function putTask(tx: Ex, row: PutTask) {
       setWhere: eq(calendarTasks.orgId, row.orgId),
     });
   return { status: "ok" as const };
-}
-
-/** When each of these tasks was last changed, by id; a task the calendar lacks is absent. */
-export async function taskVersions(ex: Ex, orgIds: readonly string[], ids: readonly string[]) {
-  if (ids.length === 0) return new Map<string, Date>();
-  const rows = await ex
-    .select({ id: calendarTasks.id, orgId: calendarTasks.orgId, at: calendarTasks.updatedAt })
-    .from(calendarTasks)
-    .where(and(inArray(calendarTasks.id, [...ids]), inArray(calendarTasks.orgId, [...orgIds])));
-  return new Map(rows.map((row) => [row.id, row.at]));
 }
 
 /**

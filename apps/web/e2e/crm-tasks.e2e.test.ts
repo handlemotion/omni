@@ -347,7 +347,7 @@ test("New task on a record's Tasks tab starts on that record, and New › Task o
     const dialog = page.getByRole("dialog", { name: "New task" });
     await dialog.getByRole("textbox", { name: "Title" }).fill(title);
     await dialog.getByRole("button", { name: "Create" }).click();
-    await expect.poll(async () => (await taskTitled(title))?.dealId ?? null).toBe(deal.id);
+    await expect.poll(async () => (await taskTitled(title))?.recordId ?? null).toBe(deal.id);
   };
 
   await page.goto(new URL(`/${org.slug}/crm/deals/${deal.id}`, origin).toString());
@@ -653,12 +653,18 @@ function origin() {
 }
 
 async function taskTitled(title: string) {
-  const [found] = await db.select().from(schema.crmTasks).where(eq(schema.crmTasks.title, title));
+  const [found] = await db
+    .select()
+    .from(schema.calendarTasks)
+    .where(eq(schema.calendarTasks.title, title));
   return found;
 }
 
 async function row(id: string) {
-  const [found] = await db.select().from(schema.crmTasks).where(eq(schema.crmTasks.id, id));
+  const [found] = await db
+    .select()
+    .from(schema.calendarTasks)
+    .where(eq(schema.calendarTasks.id, id));
   return found;
 }
 

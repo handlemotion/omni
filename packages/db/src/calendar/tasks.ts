@@ -247,16 +247,6 @@ export interface OwnTaskInput {
   priority?: TaskPriority | null;
 }
 
-/**
- * Keeps another table in step with the calendar's linked tasks while it is still read (the CRM's
- * `crm_tasks`, until T4). It is handed a changed task only while the task is on a record, and
- * every task deleted.
- */
-export interface TaskMirror {
-  put: (tx: Ex, task: CalendarTask) => Promise<unknown>;
-  drop: (tx: Ex, orgId: string, id: string) => Promise<unknown>;
-}
-
 /** A private task, owned by and assigned to the member. */
 export async function createOwnTask(tx: Ex, member: TaskMember, input: OwnTaskInput) {
   const title = cleanTitle(input.title);
@@ -364,18 +354,10 @@ export async function changeTask(
   return { status: "ok" as const, task };
 }
 
-export async function updateOwnTask(
-  tx: Ex,
-  member: TaskMember,
-  id: string,
-  patch: OwnTaskPatch,
-  mirror?: TaskMirror,
-) {
+export async function updateOwnTask(tx: Ex, member: TaskMember, id: string, patch: OwnTaskPatch) {
   const own = await ownTask(tx, member, id);
   if (own.status !== "ok") return own;
-  const changed = await changeTask(tx, member.orgId, member.id, id, patch);
-  if (changed.status === "ok" && changed.task.record) await mirror?.put(tx, changed.task);
-  return changed;
+  return changeTask(tx, member.orgId, member.id, id, patch);
 }
 
 export async function removeTask(tx: Ex, orgId: string, id: string) {
@@ -387,9 +369,8 @@ export async function removeTask(tx: Ex, orgId: string, id: string) {
   return { status: "ok" as const, task };
 }
 
-export async function deleteOwnTask(tx: Ex, member: TaskMember, id: string, mirror?: TaskMirror) {
+export async function deleteOwnTask(tx: Ex, member: TaskMember, id: string) {
   const own = await ownTask(tx, member, id);
   if (own.status !== "ok") return own;
-  await mirror?.drop(tx, member.orgId, id);
   return removeTask(tx, member.orgId, id);
 }

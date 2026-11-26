@@ -336,7 +336,7 @@ becomes its owner.
   and `cancelled` close it: `completed_at` stays the truth for open or closed, and a status that
   disagrees with it (a row an older Worker wrote) reads `todo` while open and `done` while
   closed. `PATCH { status }` moves it and wins over `done`; `done` alone closes to `done` and
-  reopens to `todo`. The copy job from `crm_tasks` leaves both alone.
+  reopens to `todo`.
 - **Activity.** `calendar_task_activity` keeps who changed a task's status, priority, assignee,
   due date or record, with the value before and after (a record with its name as it was). Its
   making is not a row: the task's creator and `created_at` say it. A change made through either
@@ -359,7 +359,9 @@ them only where the CRM is on. They move to the calendar without a stop, expand 
    `crm_tasks`, where an older Worker would show it to the whole workspace; one taken off its
    record leaves it, and a deleted one leaves it too, so the copy job brings nothing back. The
    copy job is the CRM's: the calendar never reads `crm_tasks`.
-3. **Contract**, once production reads `calendar_tasks` only: stop writing `crm_tasks`, drop it.
+3. **Contract**, once production reads `calendar_tasks` only: the Worker stops writing
+   `crm_tasks` and the copy job is gone (T4), so tasks are the calendar's alone and nothing syncs
+   them from the CRM; then `crm_tasks` is dropped (T5), once no Worker in production writes it.
 
 Existing tasks keep their id, record, assignee, dates and subtasks. One on a record stays the
 workspace's, owned by its creator. One on no record becomes private: owned by its assignee, else
@@ -575,7 +577,8 @@ per AGENTS.md "Migrations number in stack order"; K4's migration goes on top of 
 | T1  | `calendar_tasks` (migration 0077), the calendar's task door and surface, the copy job (run by the CRM, which owns `crm_tasks`), the Worker writing both tables                     | T0               |
 | T2  | `/api/calendar/tasks`; the CRM's task routes read through the calendar's surface; reads switch to `calendar_tasks`                        | T1               |
 | T3  | Web: one task panel for calendar and CRM, "Add to CRM", the calendar's to-dos from `/api/calendar/tasks`, the CRM lists only linked tasks | T2               |
-| T4  | Contract: stop writing `crm_tasks`, drop it                                                                                               | T3 in production |
+| T4  | Contract: stop writing `crm_tasks`, remove the copy job                                                                                   | T3 in production |
+| T5  | Drop `crm_tasks`                                                                                                                          | T4 in production |
 
 Each layer is done when its e2e tests pass against the local stack and it has been run by hand.
 Each test is named for the bug it catches.
@@ -618,7 +621,7 @@ Each test is named for the bug it catches.
 - Run against the local stack with `pnpm stack:serve`: create, move, resize, delete and answer by
   keys and by mouse; an invitation card in a thread; calendars toggled.
 
-**T1 to T4. Tasks**
+**T1 to T5. Tasks**
 
 - A private task is not in another member's calendar, an owner's or admin's included, nor in the
   CRM's lists, nor in `crm_tasks` reads.
@@ -627,8 +630,7 @@ Each test is named for the bug it catches.
 - Assigning a private task is refused; assigning a linked one to a member who cannot open the
   record is refused.
 - A removed member's private tasks are gone and their linked tasks stay, unassigned.
-- The copy job run twice ends in the same rows; a task changed in `crm_tasks` after a copy is
-  copied again; a task written by the new Worker reads the same from both tables.
+- A task the CRM or the calendar writes is never written to `crm_tasks` (T4).
 
 **K4. Twined**
 
