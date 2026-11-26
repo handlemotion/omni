@@ -286,8 +286,8 @@ One list, newest first, of four kinds of item:
 
 - Tasks are the calendar's (`calendar.md`, Tasks): `calendar_tasks`, read and written through the
   calendar's surface once the CRM has checked the member may open the record. The CRM shows only
-  tasks on records: a task on none is private to its owner and never in the CRM. Nothing is
-  written to `crm_tasks` any more (`calendar.md`, "The move from `crm_tasks`").
+  tasks on records: a task on none is private to its owner and never in the CRM. The CRM's own
+  `crm_tasks` table is dropped (`calendar.md`, "The move from `crm_tasks`").
 - A task on a record is assigned to its creator unless the request says otherwise
   (`assigneeMemberId: null` is nobody), and only to a member who can open the record. A removed
   member leaves their tasks unassigned. Taking a task off its record (`PATCH { record: null }`)

@@ -3,7 +3,7 @@ import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { releaseCalendarTasks } from "../src/calendar.ts";
 import { ensurePersonalSpace } from "../src/personal-space.ts";
-import { calendarTasks, crmTasks, members } from "../src/schema/index.ts";
+import { calendarTasks, members } from "../src/schema/index.ts";
 import { createPerson, setRole } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase, untilLockWaiters } from "./support.ts";
 
@@ -59,7 +59,7 @@ test("a Personal space keeps its person's tasks, with no CRM to put them on", as
   expect(titles(ok(await cal.tasks({ status: "done" })))).toEqual(["Renew passport"]);
 });
 
-test("a CRM task lives in the calendar alone, never in crm_tasks; taken off its record it is its assignee's alone", async () => {
+test("a CRM task lives in the calendar; taken off its record it is its assignee's alone", async () => {
   const { ana, ben } = await workspace("tasks-dual");
   const crm = forMember(db, ana.id).crm;
   const person = ok(await crm.addPerson({ name: "Bea", address: "bea@dual.test" })).person;
@@ -79,7 +79,6 @@ test("a CRM task lives in the calendar alone, never in crm_tasks; taken off its 
     recordKind: "person",
     recordId: person.id,
   });
-  expect(await db.select().from(crmTasks).where(eq(crmTasks.id, linked.id))).toEqual([]);
   expect(titles(ok(await forMember(db, ben.id).calendar.tasks()))).toEqual(["Send quote"]);
 
   expect((await crm.createTask({ title: "Book flights", assigneeMemberId: ben.id })).status).toBe(
@@ -87,7 +86,6 @@ test("a CRM task lives in the calendar alone, never in crm_tasks; taken off its 
   );
   const own = ok(await crm.createTask({ title: "Book flights" })).task;
   expect(await calendarRow(own.id)).toMatchObject({ ownerMemberId: ana.id, recordKind: null });
-  expect(await db.select().from(crmTasks).where(eq(crmTasks.id, own.id))).toEqual([]);
   expect(ok(await crm.listTasks()).tasks.map((t) => t.title)).toEqual(["Send quote"]);
 
   ok(await crm.updateTask(linked.id, { record: null, done: true }));
@@ -96,7 +94,6 @@ test("a CRM task lives in the calendar alone, never in crm_tasks; taken off its 
     assigneeMemberId: ben.id,
     recordKind: null,
   });
-  expect(await db.select().from(crmTasks).where(eq(crmTasks.id, linked.id))).toEqual([]);
   expect((await crm.task(linked.id)).status).toBe("not_found");
   expect(titles(ok(await forMember(db, ana.id).calendar.tasks()))).toEqual(["Book flights"]);
 });

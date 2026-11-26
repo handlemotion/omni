@@ -52,8 +52,6 @@ test("a private task is its owner's alone: no admin or owner sees it in the cale
     expect((await stack.api(anyone.jar, "GET", "/tasks/counts")).body.counts.open).toBe(0);
   }
   expect((await stack.api(ben.jar, "GET", `/tasks/${id}`)).status).toBe(404);
-  const [row] = await stack.db.select().from(schema.crmTasks).where(eq(schema.crmTasks.id, id));
-  expect(row).toBeUndefined();
 });
 
 test("a linked task shows to whoever can open its record, not to a freelancer off it, and hides again once taken off", async () => {
@@ -92,9 +90,6 @@ test("a linked task shows to whoever can open its record, not to a freelancer of
     recordId: deal,
     assigneeMemberId: cy.id,
   });
-  expect(await stack.db.select().from(schema.crmTasks).where(eq(schema.crmTasks.id, id))).toEqual(
-    [],
-  );
 
   const off = await stack.api(owner.jar, "PATCH", `/tasks/${id}`, { dealId: null });
   expect(off.body.task).toMatchObject({ dealId: null, ownerMemberId: cy.id });

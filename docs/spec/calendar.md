@@ -361,7 +361,8 @@ them only where the CRM is on. They move to the calendar without a stop, expand 
    copy job is the CRM's: the calendar never reads `crm_tasks`.
 3. **Contract**, once production reads `calendar_tasks` only: the Worker stops writing
    `crm_tasks` and the copy job is gone (T4), so tasks are the calendar's alone and nothing syncs
-   them from the CRM; then `crm_tasks` is dropped (T5), once no Worker in production writes it.
+   them from the CRM; then `crm_tasks` is dropped (T5, migration 0089), once no Worker in
+   production writes it. The move is done: `calendar_tasks` is the only task table.
 
 Existing tasks keep their id, record, assignee, dates and subtasks. One on a record stays the
 workspace's, owned by its creator. One on no record becomes private: owned by its assignee, else
@@ -630,7 +631,8 @@ Each test is named for the bug it catches.
 - Assigning a private task is refused; assigning a linked one to a member who cannot open the
   record is refused.
 - A removed member's private tasks are gone and their linked tasks stay, unassigned.
-- A task the CRM or the calendar writes is never written to `crm_tasks` (T4).
+- A task the CRM or the calendar writes is never written to `crm_tasks` (T4); the table is gone
+  (T5), which `migrations.e2e.test.ts`'s table list proves.
 
 **K4. Twined**
 
