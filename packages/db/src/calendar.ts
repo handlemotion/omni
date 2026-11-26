@@ -28,7 +28,6 @@ import {
   type OwnTaskInput,
   type OwnTaskPatch,
   type TaskMember,
-  type TaskMirror,
   type TaskQuery,
 } from "./calendar/tasks.ts";
 import { releaseMemberTasks } from "./calendar/task-sync.ts";
@@ -115,7 +114,7 @@ function calendarDoor(db: Db, mailboxes: Mailboxes) {
  * inbox is, through mail's door, so a member sees the events of the inboxes they can open in
  * their workspace and nothing else. Writes run in one transaction with the mail they send.
  */
-export function memberCalendar(db: Db, memberId: string, mirror?: TaskMirror) {
+export function memberCalendar(db: Db, memberId: string) {
   const mail = memberMail(db, memberId);
   const mailboxes = async () =>
     (await mail.listMailboxes()).map((m) => ({ ...m, address: normalizeAddress(m.address) }));
@@ -173,11 +172,9 @@ export function memberCalendar(db: Db, memberId: string, mirror?: TaskMirror) {
     createTask: (input: Omit<OwnTaskInput, "id">) =>
       asTaskMember(db, memberId, (m) => db.transaction((tx) => createOwnTask(tx, m, input))),
     updateTask: (id: string, patch: OwnTaskPatch) =>
-      asTaskMember(db, memberId, (m) =>
-        db.transaction((tx) => updateOwnTask(tx, m, id, patch, mirror)),
-      ),
+      asTaskMember(db, memberId, (m) => db.transaction((tx) => updateOwnTask(tx, m, id, patch))),
     deleteTask: (id: string) =>
-      asTaskMember(db, memberId, (m) => db.transaction((tx) => deleteOwnTask(tx, m, id, mirror))),
+      asTaskMember(db, memberId, (m) => db.transaction((tx) => deleteOwnTask(tx, m, id))),
     taskActivity: (id: string) =>
       asTaskMember(db, memberId, async (m) => {
         const own = await ownTask(db, m, id);
@@ -222,7 +219,6 @@ export {
   type OwnTaskInput,
   type OwnTaskPatch,
   type TaskCursor,
-  type TaskMirror,
   type TaskPriority,
   type TaskQuery,
   type TaskRecord,
@@ -244,7 +240,7 @@ export {
   linkedTasks,
   type LinkedTaskFilter,
 } from "./calendar/linked-tasks.ts";
-export { isSoleOwner, putTask, taskVersions, type PutTask } from "./calendar/task-sync.ts";
+export { putTask } from "./calendar/task-sync.ts";
 
 /** A member is leaving: their private tasks go, their linked ones stay unassigned. */
 export const releaseCalendarTasks = (db: Db, input: { orgId: string; memberId: string }) =>

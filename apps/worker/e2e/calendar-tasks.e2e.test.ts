@@ -82,15 +82,19 @@ test("a linked task shows to whoever can open its record, not to a freelancer of
     title: "Send the quote today",
   });
   expect(renamed.status).toBe(200);
-  const [mirrored] = await stack.db
+  const [stored] = await stack.db
     .select()
-    .from(schema.crmTasks)
-    .where(eq(schema.crmTasks.id, id));
-  expect(mirrored).toMatchObject({
+    .from(schema.calendarTasks)
+    .where(eq(schema.calendarTasks.id, id));
+  expect(stored).toMatchObject({
     title: "Send the quote today",
-    dealId: deal,
+    recordKind: "deal",
+    recordId: deal,
     assigneeMemberId: cy.id,
   });
+  expect(await stack.db.select().from(schema.crmTasks).where(eq(schema.crmTasks.id, id))).toEqual(
+    [],
+  );
 
   const off = await stack.api(owner.jar, "PATCH", `/tasks/${id}`, { dealId: null });
   expect(off.body.task).toMatchObject({ dealId: null, ownerMemberId: cy.id });

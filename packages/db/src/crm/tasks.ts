@@ -24,7 +24,6 @@ import {
 import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople } from "../schema/crm.ts";
 import { loadCrmMember, NOT_FOUND, type CrmMember, type CrmRecordRef, type Ex } from "./core.ts";
 import { recordExists } from "./notes.ts";
-import { dropCrmTask, writeCrmTask } from "./task-mirror.ts";
 
 /** A step of a task's checklist: the calendar keeps it. */
 export type CrmSubtask = TaskStep;
@@ -268,8 +267,6 @@ async function refusedAssignee(
 async function save(tx: Ex, member: CrmMember, row: CalendarTask, before?: CalendarTask) {
   await putTask(tx, row);
   const task = (await calendarTask(tx, member.orgId, row.id))!;
-  if (task.record) await writeCrmTask(tx, task);
-  else await dropCrmTask(tx, member.orgId, task.id);
   if (before) {
     const names = await namesOf(tx, member.orgId, [before, task]);
     await logTaskChanges(
@@ -391,6 +388,5 @@ export const deleteTask: (
   const task = await readView(tx, member, id);
   if (!task) return NOT_FOUND;
   await removeTask(tx, member.orgId, id);
-  await dropCrmTask(tx, member.orgId, id);
   return { status: "ok", task };
 };

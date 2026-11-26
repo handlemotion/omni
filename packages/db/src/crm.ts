@@ -137,12 +137,6 @@ import {
   type TaskPatch,
 } from "./crm/tasks.ts";
 
-export {
-  copyTasksToCalendar,
-  crmTaskMirror,
-  releaseCrmTasks,
-  TASK_COPY_BATCH,
-} from "./crm/task-mirror.ts";
 export { type CrmBulkAction, type CrmBulkRecords, type CrmBulkResult } from "./crm/bulk.ts";
 export type { CrmListCursor, CrmSort, CrmSortDir, CrmSortKey } from "./crm/list-order.ts";
 export type { CompanyChange } from "./crm/company-change.ts";
