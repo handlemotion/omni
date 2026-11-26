@@ -8,3 +8,9 @@ description = "Idempotency-Key request headers are random request ids, not crede
 targetRules = ["generic-api-key"]
 regexTarget = "match"
 regexes = ['''(?i)idempotency[-_]key''']
+
+[[allowlists]]
+description = "Google Calendar nextSyncToken values in fixtures are paging cursors, not credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = ['''(?i)nextSyncToken"?\s*:''']
