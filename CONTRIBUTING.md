@@ -14,7 +14,8 @@ pnpm stack:up     # Postgres, GreenMail (IMAP/SMTP), an S3-compatible store and 
 pnpm dev:stack    # migrates, seeds, and serves the app at http://localhost:5173
 ```
 
-Sign in as `dev@example.com`. Without the Doppler CLI, `dev:stack` writes each unit's env file
+Sign in as `dev@example.com` with the code `dev:stack` prints. Without Doppler access to project
+`omni`, or once `apps/worker/.dev.vars` exists, `dev:stack` writes each unit's env file
 from its `.env.example` (`.dev.vars.example` for the Worker) with fresh local secrets. Edit those
 files to turn on optional features such as AI triage (`ANTHROPIC_API_KEY`). To run Wok for real,
 see [`docs/self-hosting.md`](docs/self-hosting.md).

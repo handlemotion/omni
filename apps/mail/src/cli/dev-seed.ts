@@ -5,7 +5,7 @@ import { MAIL_PING_PATH } from "@omni/contracts";
 import { parseKeyring, signedPost } from "@omni/crypto";
 import { createDb, createOrgWithOwner, findMailboxByAddress, saveMailbox } from "@omni/db";
 import { subscriptions } from "@omni/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { ImapFlow } from "imapflow";
 import { z } from "zod";
 import { type PasswordCredentials, sealCredentials } from "../credentials.ts";
@@ -52,6 +52,10 @@ try {
       .insert(subscriptions)
       .values({ id: randomUUIDv7(), orgId: org.orgId, plan: "omnipresent", status: "active" });
   }
+  await db
+    .update(subscriptions)
+    .set({ periodStart: new Date() })
+    .where(and(eq(subscriptions.orgId, org.orgId), isNull(subscriptions.periodStart)));
   for (const mailbox of MAILBOXES) {
     const credentials: PasswordCredentials = {
       user: mailbox.address,
