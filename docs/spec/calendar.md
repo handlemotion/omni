@@ -346,25 +346,18 @@ becomes its owner.
 
 ### The move from `crm_tasks`
 
-Today tasks are the CRM's (`crm_tasks`), visible to the whole workspace, and the calendar shows
-them only where the CRM is on. They move to the calendar without a stop, expand then contract
-(AGENTS.md "Database"):
+Tasks were the CRM's (`crm_tasks`), visible to the whole workspace. They moved to the calendar
+without a stop, expand then contract (AGENTS.md "Database"), and the move is done:
 
-1. **Expand.** `calendar_tasks` is made beside `crm_tasks`. The Worker writes every task change to
-   both, keyed by the same id, and still reads `crm_tasks`. A job copies `crm_tasks` rows
-   `calendar_tasks` lacks or holds older (`updated_at`), idempotently, every minute until a pass
-   copies nothing.
-2. **Switch.** The Worker reads `calendar_tasks` and keeps writing both, so a rollback still
-   finds `crm_tasks` whole for the tasks on records. A private task is never written to
-   `crm_tasks`, where an older Worker would show it to the whole workspace; one taken off its
-   record leaves it, and a deleted one leaves it too, so the copy job brings nothing back. The
-   copy job is the CRM's: the calendar never reads `crm_tasks`.
-3. **Contract**, once production reads `calendar_tasks` only: the Worker stops writing
-   `crm_tasks` and the copy job is gone (T4), so tasks are the calendar's alone and nothing syncs
-   them from the CRM; then `crm_tasks` is dropped (T5, migration 0089), once no Worker in
-   production writes it. The move is done: `calendar_tasks` is the only task table.
+1. **Expand** (T1). `calendar_tasks` was made beside `crm_tasks`, the Worker wrote both, and a
+   job copied `crm_tasks` rows across every minute.
+2. **Switch** (T2, T3). The Worker read `calendar_tasks` and kept writing both for rollback. A
+   private task was never written to `crm_tasks`.
+3. **Contract.** The Worker stopped writing `crm_tasks` and the copy job went (T4); then
+   `crm_tasks` was dropped (T5, migration 0089). `calendar_tasks` is the only task table, and
+   nothing in the CRM keeps tasks of its own.
 
-Existing tasks keep their id, record, assignee, dates and subtasks. One on a record stays the
+Moved tasks kept their id, record, assignee, dates and subtasks. One on a record stays the
 workspace's, owned by its creator. One on no record becomes private: owned by its assignee, else
 its creator, else (neither left) the workspace's owner. So an unlinked task someone assigned to a
 teammate becomes that teammate's alone; the person who made it no longer sees it. That is the
