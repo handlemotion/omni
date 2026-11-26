@@ -274,9 +274,7 @@ export {
   type StageInput,
 } from "./crm/stages.ts";
 export {
-  type CrmSubtask,
   type CrmTask,
-  type CrmTaskCursor,
   type InvalidAssignee,
   type PrivateTask,
   type InvalidTitle,

@@ -238,8 +238,6 @@ export async function ownTask(ex: Ex, member: TaskMember, id: string) {
 }
 
 export interface OwnTaskInput {
-  /** The id to give it; the CRM passes the id it already has. */
-  id?: string;
   title: string;
   body?: string | null;
   subtasks?: TaskStep[];
@@ -254,7 +252,6 @@ export async function createOwnTask(tx: Ex, member: TaskMember, input: OwnTaskIn
   const [made] = await tx
     .insert(calendarTasks)
     .values({
-      ...(input.id ? { id: input.id } : {}),
       orgId: member.orgId,
       ownerMemberId: member.id,
       assigneeMemberId: member.id,

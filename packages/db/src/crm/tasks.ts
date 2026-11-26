@@ -10,9 +10,9 @@ import {
   linkedTasks,
   lockTask,
   logTaskChanges,
-  putTask,
   readTaskActivity,
   removeTask,
+  saveTask,
   type CalendarTask,
   type LinkedTaskFilter,
   type TaskCursor,
@@ -25,9 +25,6 @@ import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople } from "../schema/
 import { loadCrmMember, NOT_FOUND, type CrmMember, type CrmRecordRef, type Ex } from "./core.ts";
 import { recordExists } from "./notes.ts";
 
-/** A step of a task's checklist: the calendar keeps it. */
-export type CrmSubtask = TaskStep;
-
 /**
  * A task as the CRM shows it: one on a company, person or deal (`docs/spec/calendar.md`,
  * "Tasks"). The CRM lists and reads no private one; it answers its owner with one it made or
@@ -37,7 +34,7 @@ export interface CrmTask {
   id: string;
   title: string;
   body: string | null;
-  subtasks: CrmSubtask[];
+  subtasks: TaskStep[];
   companyId: string | null;
   personId: string | null;
   dealId: string | null;
@@ -57,9 +54,6 @@ export interface CrmTask {
   updatedAt: Date;
 }
 
-/** A list's position: the last task's due time (open) or completion time (done), and its id. */
-export type CrmTaskCursor = TaskCursor;
-
 export interface ListTasksInput {
   /** `open` (the default) or `done`. */
   status?: "open" | "done";
@@ -70,7 +64,7 @@ export interface ListTasksInput {
   record?: CrmRecordRef;
   /** Words the title contains. */
   q?: string;
-  cursor?: CrmTaskCursor | null;
+  cursor?: TaskCursor | null;
   limit?: number;
 }
 
@@ -91,7 +85,7 @@ export interface TaskPatch {
   title?: string;
   body?: string | null;
   /** The whole checklist, replacing the one it has. */
-  subtasks?: CrmSubtask[];
+  subtasks?: TaskStep[];
   assigneeMemberId?: string | null;
   dueAt?: Date | null;
   done?: boolean;
@@ -265,7 +259,7 @@ async function refusedAssignee(
 }
 
 async function save(tx: Ex, member: CrmMember, row: CalendarTask, before?: CalendarTask) {
-  await putTask(tx, row);
+  await saveTask(tx, row);
   const task = (await calendarTask(tx, member.orgId, row.id))!;
   if (before) {
     const names = await namesOf(tx, member.orgId, [before, task]);

@@ -30,7 +30,7 @@ import {
   type TaskMember,
   type TaskQuery,
 } from "./calendar/tasks.ts";
-import { releaseMemberTasks } from "./calendar/task-sync.ts";
+import { releaseMemberTasks } from "./calendar/task-writes.ts";
 import { readTaskActivity } from "./calendar/task-activity.ts";
 import {
   createBookingLink,
@@ -169,7 +169,7 @@ export function memberCalendar(db: Db, memberId: string) {
 
     tasks: (query: TaskQuery = {}) => asTaskMember(db, memberId, (m) => ownTasks(db, m, query)),
     task: (id: string) => asTaskMember(db, memberId, (m) => ownTask(db, m, id)),
-    createTask: (input: Omit<OwnTaskInput, "id">) =>
+    createTask: (input: OwnTaskInput) =>
       asTaskMember(db, memberId, (m) => db.transaction((tx) => createOwnTask(tx, m, input))),
     updateTask: (id: string, patch: OwnTaskPatch) =>
       asTaskMember(db, memberId, (m) => db.transaction((tx) => updateOwnTask(tx, m, id, patch))),
@@ -240,7 +240,7 @@ export {
   linkedTasks,
   type LinkedTaskFilter,
 } from "./calendar/linked-tasks.ts";
-export { putTask } from "./calendar/task-sync.ts";
+export { saveTask } from "./calendar/task-writes.ts";
 
 /** A member is leaving: their private tasks go, their linked ones stay unassigned. */
 export const releaseCalendarTasks = (db: Db, input: { orgId: string; memberId: string }) =>
