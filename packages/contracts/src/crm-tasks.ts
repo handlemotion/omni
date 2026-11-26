@@ -136,7 +136,6 @@ export const crmTaskCountsResponseSchema = z.object({
 });
 
 export type CrmTask = z.infer<typeof crmTaskSchema>;
-export type CrmSubtask = z.infer<typeof crmSubtaskSchema>;
 export type CrmTasksQuery = z.infer<typeof crmTasksQuerySchema>;
 export type CrmCreateTaskBody = z.infer<typeof crmCreateTaskBodySchema>;
 export type CrmUpdateTaskBody = z.infer<typeof crmUpdateTaskBodySchema>;

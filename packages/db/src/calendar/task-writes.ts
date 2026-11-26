@@ -5,13 +5,8 @@ import { calendarTasks } from "../schema/calendar.ts";
 import type { Ex } from "./core.ts";
 import type { CalendarTask } from "./tasks.ts";
 
-/**
- * Writes the task as given, made or replaced by id, with the `updated_at` it carries: the CRM
- * hands over a task on a record whole. A linked task keeps the owner it has. A private one with no
- * owner to give it is skipped.
- */
-export async function putTask(tx: Ex, row: CalendarTask) {
-  if (!row.record && !row.ownerMemberId) return { status: "skipped" as const };
+/** Writes a task the CRM made or changed, whole: inserted if new, else replaced in its workspace. */
+export async function saveTask(tx: Ex, row: CalendarTask) {
   const values = {
     id: row.id,
     orgId: row.orgId,
@@ -24,7 +19,7 @@ export async function putTask(tx: Ex, row: CalendarTask) {
     completedByMemberId: row.completedByMemberId,
     status: row.status,
     priority: row.priority,
-    assigneeMemberId: row.record ? row.assigneeMemberId : row.ownerMemberId,
+    assigneeMemberId: row.assigneeMemberId,
     recordKind: row.record?.kind ?? null,
     recordId: row.record?.id ?? null,
     createdByMemberId: row.createdByMemberId,
@@ -37,22 +32,12 @@ export async function putTask(tx: Ex, row: CalendarTask) {
     .values(values)
     .onConflictDoUpdate({
       target: calendarTasks.id,
-      set: {
-        ...changed,
-        ownerMemberId: row.record
-          ? sql`coalesce(${calendarTasks.ownerMemberId}, ${row.ownerMemberId})`
-          : row.ownerMemberId,
-      },
+      set: changed,
       setWhere: eq(calendarTasks.orgId, row.orgId),
     });
-  return { status: "ok" as const };
 }
 
-/**
- * Whether the member is the workspace's only owner. Better Auth refuses to let them leave or be
- * removed, but the member-removed hooks run before it decides, so nothing may be let go for them.
- */
-export async function isSoleOwner(ex: Ex, orgId: string, memberId: string) {
+async function isSoleOwner(ex: Ex, orgId: string, memberId: string) {
   const rows = await ex
     .select({ id: members.id, role: members.role })
     .from(members)
