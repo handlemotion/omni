@@ -112,8 +112,8 @@ over it.
   points on what was said, as Circleback's sections; pressing one plays from its start.
 - **Talk time**: how long each speaker talked and their share, from the transcript's turns.
 - **Actions**: cards the person accepts or dismisses. A **task** goes to the calendar's tasks
-  (private, or on the deal when the meeting is on one; until T4, private always, see "Twined
-  with the other modules"). An **email** is a draft follow-up to the
+  (private for now; on the deal when the meeting is on one is not built yet, see "Twined with
+  the other modules"). An **email** is a draft follow-up to the
   attendees; **Send email** opens it in Wok's composer, from the person's inbox, to send or
   change. Nothing is sent by the AI.
 - **Notes**: the doc, with what the person typed and the AI's notes above it.
@@ -732,11 +732,10 @@ and the CRM's `uses` gains `meetings`.
 
 An accepted task is the accepter's private task in the calendar, with a line naming its meeting.
 Accepting twice at once makes one: both requests make a task, only one decides the action, and
-the other deletes the task it made. A task on the meeting's deal waits for T4
-(`docs/spec/calendar.md`): until the CRM stops writing `crm_tasks`, a task on a record has to be
-made through the CRM, and Meetings cannot use the CRM, which uses Meetings. Once T4 lands, the
-calendar's surface makes the task on the deal, after checking the accepter can open the deal.
-Until then, the person moves the task onto the deal with the CRM's "Add to CRM".
+the other deletes the task it made. A task on the meeting's deal is not built yet. Nothing blocks it now that tasks are the
+calendar's alone (`docs/spec/calendar.md`, "The move from `crm_tasks`"): the calendar's surface
+will make the task on the deal, after checking the accepter can open the deal. Until then, the
+person moves the task onto the deal with "Add to CRM".
 
 ## Agents
 
