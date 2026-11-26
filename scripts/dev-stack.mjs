@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { ensureEnvFile, waitForHealth } from "./local-env.mjs";
+import { ensureEnvFile, isHealthy, waitForHealth } from "./local-env.mjs";
 
 const root = join(import.meta.dirname, "..");
 const WEB_ORIGIN = "http://localhost:5173";
@@ -36,8 +36,24 @@ if (!run("docker", ["compose", "up", "-d", "--wait"]) && !containersHealthy()) {
   console.error("dev:stack: docker services are not up; see the compose output above");
   process.exit(1);
 }
-const useDoppler =
-  process.env.OMNI_NO_DOPPLER !== "1" && spawnSync("doppler", ["--version"]).status === 0;
+const workerVars = join(root, "apps/worker/.dev.vars");
+if (existsSync(workerVars) && lstatSync(workerVars).isFIFO() && !(await isHealthy(WORKER_ORIGIN))) {
+  rmSync(workerVars);
+  console.log("dev:stack: removed apps/worker/.dev.vars, a Doppler mount left by an unclean exit");
+}
+function dopplerMode() {
+  if (process.env.OMNI_NO_DOPPLER === "1") return false;
+  const doppler = spawnSync("doppler", ["run", "-p", "omni", "-c", "dev", "--", "true"], {
+    stdio: "ignore",
+  });
+  if (doppler.status !== 0) return false;
+  if (!existsSync(workerVars)) return true;
+  console.log(
+    "dev:stack: apps/worker/.dev.vars exists, so the local env files are used, not Doppler",
+  );
+  return false;
+}
+const useDoppler = dopplerMode();
 const ENV_FILES = [
   ["packages/db/.env", "packages/db/.env.example"],
   ["apps/mail/.env", "apps/mail/.env.example"],

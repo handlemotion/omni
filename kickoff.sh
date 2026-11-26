@@ -79,7 +79,7 @@ fi
 
 # Bake the compose.yml images into the snapshot so sessions start without Docker Hub, which
 # rate-limits anonymous pulls (429). Keep this list in sync with compose.yml.
-images=(postgres:18-alpine greenmail/standalone:2.1.5 versity/versitygw:v1.9.0)
+images=(postgres:18-alpine greenmail/standalone:2.1.15 versity/versitygw:v1.9.0 ghcr.io/s2-streamstore/s2:0.44.3)
 pull_images() {
   local image attempt
   for image in "${images[@]}"; do
